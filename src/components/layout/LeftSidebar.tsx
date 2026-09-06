@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const LeftSidebar: React.FC = () => {
@@ -70,10 +71,11 @@ export const LeftSidebar: React.FC = () => {
     if (!branchInput.trim()) return;
     try {
       await createBranch(branchInput.trim());
+      toast.success(`新分支创建成功`, branchInput.trim());
       setBranchInput('');
       setNewBranchOpen(false);
-    } catch {
-      // error handled in store
+    } catch (err: any) {
+      toast.error('创建分支失败', err.message);
     }
   };
 
@@ -82,24 +84,35 @@ export const LeftSidebar: React.FC = () => {
     if (!tagNameInput.trim()) return;
     try {
       await createTag(tagNameInput.trim(), undefined, tagMessageInput.trim() || undefined);
+      toast.success(`新 Tag 创建成功`, tagNameInput.trim());
       setTagNameInput('');
       setTagMessageInput('');
       setNewTagOpen(false);
-    } catch {
-      // error handled in store
+    } catch (err: any) {
+      toast.error('创建 Tag 失败', err.message);
+    }
+  };
+
+  const handleDeleteTag = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteTag(name);
+      toast.info(`已删除 Tag`, name);
+    } catch (err: any) {
+      toast.error('删除 Tag 失败', err.message);
     }
   };
 
   return (
-    <aside className="w-56 border-r border-border bg-sidebar flex flex-col select-none shrink-0 h-full overflow-hidden text-xs">
-      {/* Top Primary Navigation (Changes & History) */}
+    <aside className="w-56 border-r border-border/80 bg-sidebar flex flex-col select-none shrink-0 h-full overflow-hidden text-xs">
+      {/* Top Primary Navigation (Changes, History, Actions) */}
       <div className="p-2 space-y-1 border-b border-border/60">
         <button
           onClick={() => setActiveTab('changes')}
           className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-md font-medium transition-all group",
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
             activeTab === 'changes'
-              ? "bg-accent text-accent-foreground shadow-sm"
+              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -113,7 +126,7 @@ export const LeftSidebar: React.FC = () => {
             <span>工作区变更</span>
           </div>
           {changesCount > 0 ? (
-            <Badge variant="warning" className="h-4 px-1 text-[10px]">
+            <Badge variant="warning" className="h-4 px-1.5 text-[10px] font-mono">
               {changesCount}
             </Badge>
           ) : (
@@ -124,9 +137,9 @@ export const LeftSidebar: React.FC = () => {
         <button
           onClick={() => setActiveTab('history')}
           className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-md font-medium transition-all group",
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
             activeTab === 'history'
-              ? "bg-accent text-accent-foreground shadow-sm"
+              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -144,9 +157,9 @@ export const LeftSidebar: React.FC = () => {
         <button
           onClick={() => setActiveTab('actions')}
           className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-md font-medium transition-all group",
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
             activeTab === 'actions'
-              ? "bg-accent text-accent-foreground shadow-sm"
+              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -159,7 +172,7 @@ export const LeftSidebar: React.FC = () => {
             />
             <span>GitHub Actions</span>
           </div>
-          <Badge variant="success" className="h-3.5 px-1 text-[9px]">
+          <Badge variant="success" className="h-3.5 px-1 text-[9px] font-mono">
             CI
           </Badge>
         </button>
@@ -198,9 +211,9 @@ export const LeftSidebar: React.FC = () => {
 
             {/* Quick New Branch Input */}
             {newBranchOpen && (
-              <form onSubmit={handleCreateBranch} className="p-1.5 bg-accent/40 rounded-md my-1 space-y-1">
+              <form onSubmit={handleCreateBranch} className="p-2 bg-accent/50 border border-border/70 rounded-lg my-1 space-y-1.5 animate-in fade-in-50">
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>新建分支名称</span>
+                  <span className="font-medium text-foreground">新建分支名称</span>
                   <button type="button" onClick={() => setNewBranchOpen(false)}>
                     <X className="h-3 w-3" />
                   </button>
@@ -209,11 +222,11 @@ export const LeftSidebar: React.FC = () => {
                   value={branchInput}
                   onChange={(e) => setBranchInput(e.target.value)}
                   placeholder="feature/..."
-                  className="h-6 text-[11px]"
+                  className="h-6 text-[11px] font-mono"
                   autoFocus
                 />
                 <Button type="submit" size="xs" className="w-full h-5 text-[10px]">
-                  创建
+                  创建分支
                 </Button>
               </form>
             )}
@@ -227,12 +240,13 @@ export const LeftSidebar: React.FC = () => {
                       onClick={() => {
                         if (!branch.isCurrent) {
                           checkoutBranch(branch.name);
+                          toast.success(`已检出分支`, branch.name);
                         }
                       }}
                       className={cn(
                         "group flex items-center justify-between px-2 py-1 rounded-md text-xs transition-colors cursor-pointer",
                         branch.isCurrent
-                          ? "bg-indigo-500/15 text-indigo-400 font-medium"
+                          ? "bg-indigo-500/15 text-indigo-400 font-medium border border-indigo-500/20"
                           : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                       )}
                     >
@@ -246,7 +260,7 @@ export const LeftSidebar: React.FC = () => {
                         <span className="truncate">{branch.name}</span>
                       </div>
                       {branch.isCurrent && (
-                        <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-semibold">
+                        <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-indigo-500/25 text-indigo-300 font-semibold font-mono">
                           HEAD
                         </span>
                       )}
@@ -330,9 +344,9 @@ export const LeftSidebar: React.FC = () => {
 
             {/* Quick New Tag Form */}
             {newTagOpen && (
-              <form onSubmit={handleCreateTag} className="p-1.5 bg-accent/40 rounded-md my-1 space-y-1">
+              <form onSubmit={handleCreateTag} className="p-2 bg-accent/50 border border-border/70 rounded-lg my-1 space-y-1.5 animate-in fade-in-50">
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>新建 Tag (v1.0.0)</span>
+                  <span className="font-medium text-foreground">新建 Tag (v1.0.0)</span>
                   <button type="button" onClick={() => setNewTagOpen(false)}>
                     <X className="h-3 w-3" />
                   </button>
@@ -341,7 +355,7 @@ export const LeftSidebar: React.FC = () => {
                   value={tagNameInput}
                   onChange={(e) => setTagNameInput(e.target.value)}
                   placeholder="标签名 (如 v1.0.0)"
-                  className="h-6 text-[11px]"
+                  className="h-6 text-[11px] font-mono"
                   autoFocus
                 />
                 <Input
@@ -377,10 +391,7 @@ export const LeftSidebar: React.FC = () => {
                           size="xs"
                           className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-rose-400"
                           title="删除此 Tag"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteTag(tag.name);
-                          }}
+                          onClick={(e) => handleDeleteTag(tag.name, e)}
                         >
                           <Trash2 className="h-2.5 w-2.5" />
                         </Button>
@@ -425,7 +436,7 @@ export const LeftSidebar: React.FC = () => {
 
       {/* Bottom Repository Path Footnote */}
       {currentRepo && (
-        <div className="p-2 border-t border-border/60 bg-accent/20">
+        <div className="p-2 border-t border-border/60 bg-accent/15">
           <div
             className="text-[10px] text-muted-foreground truncate font-mono"
             title={currentRepo.path}

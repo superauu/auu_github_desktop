@@ -7,11 +7,13 @@ import {
   Minus,
   Check,
   FileCode,
+  Copy,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const WorkingChangesView: React.FC = () => {
@@ -28,6 +30,7 @@ export const WorkingChangesView: React.FC = () => {
   } = useRepoStore();
 
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
+  const [copiedPath, setCopiedPath] = useState(false);
 
   const stagedFiles = status?.staged || [];
   const unstagedFiles = status?.unstaged || [];
@@ -56,18 +59,33 @@ export const WorkingChangesView: React.FC = () => {
 
   const totalChanges = stagedFiles.length + unstagedFiles.length + untrackedFiles.length;
 
+  const copyFilePath = () => {
+    if (!activeFile) return;
+    navigator.clipboard.writeText(activeFile.path);
+    setCopiedPath(true);
+    toast.success('已复制文件路径', activeFile.path);
+    setTimeout(() => setCopiedPath(false), 2000);
+  };
+
+  // Compute diff addition / deletion counts
+  const addCount = fileDiffLines.filter((l) => l.type === 'add').length;
+  const delCount = fileDiffLines.filter((l) => l.type === 'delete').length;
+
   return (
-    <div className="flex-1 h-full flex overflow-hidden select-none">
+    <div className="flex-1 h-full flex overflow-hidden select-none bg-background">
       {/* Changes File List Sub-panel */}
       <div className="w-64 border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden">
-        <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20">
+        <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
           <span>工作区变更 ({totalChanges})</span>
           <div className="flex items-center gap-1">
             {unstagedFiles.length > 0 || untrackedFiles.length > 0 ? (
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={() => stageAll()}
+                onClick={() => {
+                  stageAll();
+                  toast.success('已暂存所有工作区修改');
+                }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               >
                 暂存全部
@@ -76,7 +94,10 @@ export const WorkingChangesView: React.FC = () => {
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={() => unstageAll()}
+                onClick={() => {
+                  unstageAll();
+                  toast.info('已取消全部暂存');
+                }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               >
                 取消全部
@@ -87,10 +108,12 @@ export const WorkingChangesView: React.FC = () => {
 
         <ScrollArea className="flex-1 p-2">
           {totalChanges === 0 ? (
-            <div className="py-12 px-4 text-center space-y-2 text-muted-foreground">
-              <Check className="h-8 w-8 mx-auto text-emerald-400/70" />
+            <div className="py-24 px-4 text-center space-y-2 text-muted-foreground">
+              <Check className="h-8 w-8 mx-auto text-emerald-400/60" />
               <div className="text-xs font-medium text-foreground">工作区非常干净</div>
-              <div className="text-[11px]">没有任何未提交的修改或未跟踪文件。</div>
+              <div className="text-[11px] leading-relaxed">
+                没有任何未提交的修改或未跟踪文件。
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -100,7 +123,10 @@ export const WorkingChangesView: React.FC = () => {
                   <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>已暂存改动 ({stagedFiles.length})</span>
                     <button
-                      onClick={() => unstageAll()}
+                      onClick={() => {
+                        unstageAll();
+                        toast.info('已取消全部暂存');
+                      }}
                       className="text-[9px] text-muted-foreground hover:text-foreground"
                     >
                       全部取消
@@ -125,11 +151,12 @@ export const WorkingChangesView: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="xs"
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:text-destructive shrink-0"
+                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:text-rose-400 shrink-0"
                           title="取消暂存"
                           onClick={(e) => {
                             e.stopPropagation();
                             unstageFile(file.path);
+                            toast.info(`已取消暂存: ${file.path}`);
                           }}
                         >
                           <Minus className="h-3 w-3" />
@@ -146,7 +173,10 @@ export const WorkingChangesView: React.FC = () => {
                   <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>未暂存改动 ({unstagedFiles.length})</span>
                     <button
-                      onClick={() => stageAll()}
+                      onClick={() => {
+                        stageAll();
+                        toast.success('已暂存所有修改');
+                      }}
                       className="text-[9px] text-muted-foreground hover:text-foreground"
                     >
                       全部暂存
@@ -177,6 +207,7 @@ export const WorkingChangesView: React.FC = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               discardChanges(file.path);
+                              toast.info(`已还原文件: ${file.path}`);
                             }}
                           >
                             <RotateCcw className="h-3 w-3" />
@@ -189,6 +220,7 @@ export const WorkingChangesView: React.FC = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               stageFile(file.path);
+                              toast.success(`已暂存: ${file.path}`);
                             }}
                           >
                             <Plus className="h-3 w-3" />
@@ -230,6 +262,7 @@ export const WorkingChangesView: React.FC = () => {
                           onClick={(e) => {
                             e.stopPropagation();
                             stageFile(file.path);
+                            toast.success(`已添加跟踪: ${file.path}`);
                           }}
                         >
                           <Plus className="h-3 w-3" />
@@ -247,15 +280,30 @@ export const WorkingChangesView: React.FC = () => {
       {/* Diff Viewer Pane */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">
         {/* Diff Toolbar */}
-        <div className="h-9 px-3 border-b border-border flex items-center justify-between text-xs bg-card/40">
+        <div className="h-9 px-3 border-b border-border flex items-center justify-between text-xs bg-card/40 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-mono text-xs font-semibold text-foreground truncate">
               {activeFile?.path || '未选择任何文件'}
             </span>
             {activeFile && (
-              <Badge variant="outline" className="h-4 px-1.5 text-[9px] uppercase font-mono">
-                {activeFile.status} {activeFile.staged ? '(已暂存)' : ''}
-              </Badge>
+              <>
+                <button
+                  onClick={copyFilePath}
+                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground shrink-0"
+                  title="复制路径"
+                >
+                  {copiedPath ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                </button>
+                <Badge variant="outline" className="h-4 px-1.5 text-[9px] uppercase font-mono">
+                  {activeFile.status} {activeFile.staged ? '(已暂存)' : ''}
+                </Badge>
+                {(addCount > 0 || delCount > 0) && (
+                  <div className="flex items-center gap-1 text-[10px] font-mono">
+                    <span className="text-emerald-400 font-semibold">+{addCount}</span>
+                    <span className="text-rose-400 font-semibold">-{delCount}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -295,8 +343,10 @@ export const WorkingChangesView: React.FC = () => {
                 onClick={() => {
                   if (activeFile.staged) {
                     unstageFile(activeFile.path);
+                    toast.info(`已取消暂存: ${activeFile.path}`);
                   } else {
                     stageFile(activeFile.path);
+                    toast.success(`已暂存文件: ${activeFile.path}`);
                   }
                 }}
               >
@@ -308,12 +358,12 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Diff Content View */}
-        <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-[#0b0f17]/90 select-text">
+        <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-[#070a12] select-text">
           {fileDiffLines.length === 0 ? (
-            <div className="py-20 text-center space-y-2 text-muted-foreground select-none">
-              <FileCode className="h-8 w-8 mx-auto text-muted-foreground/40" />
+            <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
+              <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
               <div className="text-xs">
-                {activeFile ? '暂无差异或该文件为未跟踪文件' : '请在左侧选择需要对比的文件'}
+                {activeFile ? '暂无代码差异或该文件为新增加的未跟踪文件' : '请在左侧选择需要对比的文件'}
               </div>
             </div>
           ) : (
@@ -322,7 +372,7 @@ export const WorkingChangesView: React.FC = () => {
                 return (
                   <div
                     key={idx}
-                    className="bg-indigo-950/40 text-indigo-300/80 px-4 py-1 border-y border-indigo-900/30 font-semibold select-none"
+                    className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px]"
                   >
                     {line.content}
                   </div>
@@ -336,19 +386,19 @@ export const WorkingChangesView: React.FC = () => {
                 <div
                   key={idx}
                   className={cn(
-                    "flex items-stretch hover:bg-white/[0.02] transition-colors border-l-2",
+                    "flex items-stretch hover:bg-white/[0.03] transition-colors border-l-2",
                     isAdd
-                      ? "bg-emerald-500/10 text-emerald-300 border-emerald-500"
+                      ? "diff-line-add text-emerald-300"
                       : isDel
-                      ? "bg-rose-500/10 text-rose-300 border-rose-500"
+                      ? "diff-line-del text-rose-300"
                       : "border-transparent text-foreground/80"
                   )}
                 >
                   {/* Line Numbers */}
-                  <div className="w-10 px-2 text-right text-muted-foreground/40 select-none shrink-0 font-mono text-[10px]">
+                  <div className="w-10 px-2 text-right text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-background/20">
                     {line.oldNo ?? ''}
                   </div>
-                  <div className="w-10 px-2 text-right text-muted-foreground/40 select-none shrink-0 font-mono text-[10px] border-r border-border/30">
+                  <div className="w-10 px-2 text-right text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] border-r border-border/20 bg-background/20">
                     {line.newNo ?? ''}
                   </div>
                   {/* Content */}

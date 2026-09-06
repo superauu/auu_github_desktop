@@ -8,6 +8,7 @@ import { CommandPalette } from '@/components/command/CommandPalette';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { RepositoryDialog } from '@/features/repository/RepositoryDialog';
 import { GitHubAuthDialog } from '@/components/github/GitHubAuthDialog';
+import { ToastContainer } from '@/components/ui/ToastContainer';
 
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -69,6 +70,9 @@ export const AppLayout: React.FC = () => {
         open={githubAuthOpen}
         onOpenChange={setGithubAuthOpen}
       />
+
+      {/* Global Floating Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 };

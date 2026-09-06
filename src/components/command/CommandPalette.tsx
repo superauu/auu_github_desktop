@@ -11,18 +11,21 @@ import {
   Moon,
   Laptop,
   Settings,
-  Check,
-  Plus,
   FolderGit2,
+  Workflow,
+  Clock,
+  FileCode2,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useThemeStore } from '@/stores/themeStore';
+import { toast } from '@/stores/toastStore';
 
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenSettings?: () => void;
   onOpenRepoDialog?: () => void;
+  onOpenGitHubAuth?: () => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -30,8 +33,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenChange,
   onOpenSettings,
   onOpenRepoDialog,
+  onOpenGitHubAuth,
 }) => {
-  const { setActiveTab } = useRepoStore();
+  const { setActiveTab, refreshAll, branches, tags, checkoutBranch } = useRepoStore();
   const { setTheme } = useThemeStore();
 
   useEffect(() => {
@@ -50,19 +54,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-background/80 backdrop-blur-sm animate-in fade-in-0 duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-background/80 backdrop-blur-md animate-in fade-in-0 duration-150 select-none"
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-border bg-popover shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+        className="w-full max-w-xl rounded-2xl border border-border/80 bg-popover/95 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <Command className="w-full bg-transparent text-foreground flex flex-col">
-          <div className="flex items-center px-3 border-b border-border">
+          <div className="flex items-center px-3.5 border-b border-border/60">
             <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
             <Command.Input
-              placeholder="输入命令或搜索分支、操作 (如 Commit, Push, Tag)..."
-              className="h-11 w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
+              placeholder="输入命令、分支、Tag 或操作 (如 Commit, Push, CI)..."
+              className="h-12 w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
               autoFocus
             />
             <kbd className="pointer-events-none inline-flex h-5 select-none items-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[10px] text-muted-foreground">
@@ -70,91 +74,23 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             </kbd>
           </div>
 
-          <Command.List className="max-h-80 overflow-y-auto p-1.5 text-xs">
-            <Command.Empty className="py-6 text-center text-xs text-muted-foreground">
-              未找到相关命令
+          <Command.List className="max-h-84 overflow-y-auto p-2 text-xs">
+            <Command.Empty className="py-8 text-center text-xs text-muted-foreground">
+              未找到匹配的命令或分支
             </Command.Empty>
 
-            {/* Git Core Actions */}
-            <Command.Group heading="Git 核心操作" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            {/* View Navigation */}
+            <Command.Group heading="视图导航" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
               <Command.Item
                 onSelect={() => {
                   setActiveTab('changes');
                   onOpenChange(false);
                 }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-accent cursor-pointer text-xs"
               >
-                <Check className="h-3.5 w-3.5 text-primary" />
-                <span>工作区变更与提交 (Commit)</span>
-              </Command.Item>
-
-              <Command.Item
-                onSelect={() => {
-                  onOpenChange(false);
-                  onOpenRepoDialog?.();
-                }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
-              >
-                <FolderGit2 className="h-3.5 w-3.5 text-indigo-400" />
-                <span>打开或切换仓库 (Open Repository)</span>
-              </Command.Item>
-
-              <Command.Item
-                onSelect={() => {
-                  onOpenChange(false);
-                }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
-              >
-                <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
-                <span>推送本地提交 (Push)</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+P</span>
-              </Command.Item>
-
-              <Command.Item
-                onSelect={() => {
-                  onOpenChange(false);
-                }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
-              >
-                <ArrowDown className="h-3.5 w-3.5 text-cyan-400" />
-                <span>拉取远程分支 (Pull)</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+L</span>
-              </Command.Item>
-
-              <Command.Item
-                onSelect={() => {
-                  onOpenChange(false);
-                }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
-              >
-                <RefreshCw className="h-3.5 w-3.5 text-indigo-400" />
-                <span>获取远程更新 (Fetch)</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+Shift+F</span>
-              </Command.Item>
-            </Command.Group>
-
-            {/* Branch & Tag Actions */}
-            <Command.Group heading="分支与标签" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
-              <Command.Item
-                onSelect={() => {
-                  onOpenChange(false);
-                }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
-              >
-                <Plus className="h-3.5 w-3.5 text-indigo-400" />
-                <span>创建新分支 (New Branch)</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+B</span>
-              </Command.Item>
-
-              <Command.Item
-                onSelect={() => {
-                  onOpenChange(false);
-                }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
-              >
-                <Tag className="h-3.5 w-3.5 text-amber-400" />
-                <span>创建新标签 (New Tag)</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+T</span>
+                <FileCode2 className="h-3.5 w-3.5 text-primary" />
+                <span>工作区变更与提交 (Working Changes)</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 1</span>
               </Command.Item>
 
               <Command.Item
@@ -162,46 +98,173 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   setActiveTab('history');
                   onOpenChange(false);
                 }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
-                <GitBranch className="h-3.5 w-3.5 text-purple-400" />
-                <span>查看提交历史与 Graph</span>
+                <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                <span>提交历史与 Git Graph</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 2</span>
+              </Command.Item>
+
+              <Command.Item
+                onSelect={() => {
+                  setActiveTab('actions');
+                  onOpenChange(false);
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <Workflow className="h-3.5 w-3.5 text-emerald-400" />
+                <span>GitHub Actions 仪表盘</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 3</span>
               </Command.Item>
             </Command.Group>
 
-            {/* Preferences & Themes */}
-            <Command.Group heading="外观与首选项" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+            {/* Git Core Actions */}
+            <Command.Group heading="Git 协同操作" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+              <Command.Item
+                onSelect={() => {
+                  onOpenChange(false);
+                  refreshAll();
+                  toast.success('已同步获取远程最新变更 (Fetch completed)');
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-indigo-400" />
+                <span>获取远程最新变更 (Git Fetch)</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+Shift+F</span>
+              </Command.Item>
+
+              <Command.Item
+                onSelect={() => {
+                  onOpenChange(false);
+                  toast.info('正在拉取远程更新 (Git Pull)...');
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <ArrowDown className="h-3.5 w-3.5 text-cyan-400" />
+                <span>拉取远程分支 (Git Pull)</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+L</span>
+              </Command.Item>
+
+              <Command.Item
+                onSelect={() => {
+                  onOpenChange(false);
+                  toast.info('正在推送本地提交 (Git Push)...');
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
+                <span>推送本地提交 (Git Push)</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+P</span>
+              </Command.Item>
+
+              <Command.Item
+                onSelect={() => {
+                  onOpenChange(false);
+                  onOpenRepoDialog?.();
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <FolderGit2 className="h-3.5 w-3.5 text-primary" />
+                <span>打开或切换其他仓库...</span>
+              </Command.Item>
+            </Command.Group>
+
+            {/* Quick Switch Branches */}
+            {branches.length > 0 && (
+              <Command.Group heading="切换本地/远程分支" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+                {branches.map((b) => (
+                  <Command.Item
+                    key={b.name}
+                    onSelect={() => {
+                      if (!b.isCurrent) {
+                        checkoutBranch(b.name);
+                        toast.success(`已切换至分支: ${b.name}`);
+                      }
+                      onOpenChange(false);
+                    }}
+                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-accent cursor-pointer text-xs"
+                  >
+                    <GitBranch className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>{b.name}</span>
+                    {b.isCurrent && (
+                      <span className="ml-auto text-[9px] px-1 rounded bg-indigo-500/20 text-indigo-300">
+                        当前 HEAD
+                      </span>
+                    )}
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {/* Quick Tags */}
+            {tags.length > 0 && (
+              <Command.Group heading="查看标签 (Tags)" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+                {tags.map((t) => (
+                  <Command.Item
+                    key={t.name}
+                    onSelect={() => {
+                      setActiveTab('history');
+                      onOpenChange(false);
+                    }}
+                    className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-accent cursor-pointer text-xs"
+                  >
+                    <Tag className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="font-mono">{t.name}</span>
+                    <span className="ml-auto text-[10px] font-mono text-muted-foreground">
+                      {t.commitHash.slice(0, 7)}
+                    </span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {/* Themes & Preferences */}
+            <Command.Group heading="系统设置与主题" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
                 onSelect={() => {
                   setTheme('dark');
                   onOpenChange(false);
+                  toast.info('已切换为深色模式');
                 }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Moon className="h-3.5 w-3.5 text-indigo-400" />
-                <span>切换为深色模式 (Dark Theme)</span>
+                <span>切换为深色模式 (Dark Mode)</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => {
                   setTheme('light');
                   onOpenChange(false);
+                  toast.info('已切换为浅色模式');
                 }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Sun className="h-3.5 w-3.5 text-amber-400" />
-                <span>切换为浅色模式 (Light Theme)</span>
+                <span>切换为浅色模式 (Light Mode)</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => {
                   setTheme('system');
                   onOpenChange(false);
+                  toast.info('已恢复为跟随系统外观');
                 }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Laptop className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>跟随系统外观 (System Theme)</span>
+                <span>跟随系统外观 (System Mode)</span>
+              </Command.Item>
+
+              <Command.Item
+                onSelect={() => {
+                  onOpenChange(false);
+                  onOpenGitHubAuth?.();
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <Workflow className="h-3.5 w-3.5 text-purple-400" />
+                <span>连接 / 配置 GitHub 账号与 Token...</span>
               </Command.Item>
 
               <Command.Item
@@ -209,7 +272,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   onOpenChange(false);
                   onOpenSettings?.();
                 }}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Settings className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>打开首选项设置 (Preferences)</span>
