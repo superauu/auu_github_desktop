@@ -84,9 +84,37 @@ export const LeftSidebar: React.FC = () => {
           )}
         >
           <div className="flex items-center gap-2">
-            <Clock className={cn("h-3.5 w-3.5", activeTab === 'history' ? "text-primary" : "text-muted-foreground")} />
+            <Clock
+              className={cn(
+                "h-3.5 w-3.5",
+                activeTab === 'history' ? "text-primary" : "text-muted-foreground"
+              )}
+            />
             <span>提交历史 & Graph</span>
           </div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('actions')}
+          className={cn(
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-md font-medium transition-all group",
+            activeTab === 'actions'
+              ? "bg-accent text-accent-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <Cloud
+              className={cn(
+                "h-3.5 w-3.5",
+                activeTab === 'actions' ? "text-emerald-400" : "text-muted-foreground"
+              )}
+            />
+            <span>GitHub Actions</span>
+          </div>
+          <Badge variant="success" className="h-3.5 px-1 text-[9px]">
+            CI
+          </Badge>
         </button>
       </div>
 

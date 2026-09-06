@@ -3,17 +3,20 @@ import { useRepoStore } from '@/stores/repoStore';
 import { WelcomeView } from '@/features/repository/WelcomeView';
 import { WorkingChangesView } from '@/features/git/WorkingChangesView';
 import { CommitHistoryView } from '@/features/git/CommitHistoryView';
+import { ActionsDashboardView } from '@/features/actions/ActionsDashboardView';
 
 interface CenterStageProps {
   onOpenRepoDialog: () => void;
   onCloneRepoDialog: () => void;
   onInitRepoDialog: () => void;
+  onOpenGitHubAuth?: () => void;
 }
 
 export const CenterStage: React.FC<CenterStageProps> = ({
   onOpenRepoDialog,
   onCloneRepoDialog,
   onInitRepoDialog,
+  onOpenGitHubAuth,
 }) => {
   const { currentRepo, activeTab } = useRepoStore();
 
@@ -28,6 +31,8 @@ export const CenterStage: React.FC<CenterStageProps> = ({
   }
 
   switch (activeTab) {
+    case 'actions':
+      return <ActionsDashboardView onOpenAuthDialog={onOpenGitHubAuth} />;
     case 'history':
       return <CommitHistoryView />;
     case 'changes':
@@ -35,3 +40,4 @@ export const CenterStage: React.FC<CenterStageProps> = ({
       return <WorkingChangesView />;
   }
 };
+

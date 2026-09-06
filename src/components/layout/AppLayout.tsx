@@ -7,12 +7,14 @@ import { StatusBar } from './StatusBar';
 import { CommandPalette } from '@/components/command/CommandPalette';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { RepositoryDialog } from '@/features/repository/RepositoryDialog';
+import { GitHubAuthDialog } from '@/components/github/GitHubAuthDialog';
 
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [repoDialogOpen, setRepoDialogOpen] = useState(false);
   const [repoDialogMode, setRepoDialogMode] = useState<'open' | 'clone' | 'init'>('open');
+  const [githubAuthOpen, setGithubAuthOpen] = useState(false);
 
   const handleOpenRepoDialog = (mode: 'open' | 'clone' | 'init' = 'open') => {
     setRepoDialogMode(mode);
@@ -26,6 +28,7 @@ export const AppLayout: React.FC = () => {
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenRepoDialog={() => handleOpenRepoDialog('open')}
+        onOpenGitHubAuth={() => setGithubAuthOpen(true)}
       />
 
       {/* Main 3-Column Work Area */}
@@ -35,6 +38,7 @@ export const AppLayout: React.FC = () => {
           onOpenRepoDialog={() => handleOpenRepoDialog('open')}
           onCloneRepoDialog={() => handleOpenRepoDialog('clone')}
           onInitRepoDialog={() => handleOpenRepoDialog('init')}
+          onOpenGitHubAuth={() => setGithubAuthOpen(true)}
         />
         <RightPane />
       </div>
@@ -60,6 +64,12 @@ export const AppLayout: React.FC = () => {
         onOpenChange={setRepoDialogOpen}
         initialMode={repoDialogMode}
       />
+
+      <GitHubAuthDialog
+        open={githubAuthOpen}
+        onOpenChange={setGithubAuthOpen}
+      />
     </div>
   );
 };
+

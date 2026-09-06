@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
+import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
@@ -26,12 +27,14 @@ interface HeaderProps {
   onOpenCommandPalette?: () => void;
   onOpenSettings?: () => void;
   onOpenRepoDialog?: () => void;
+  onOpenGitHubAuth?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenCommandPalette,
   onOpenSettings,
   onOpenRepoDialog,
+  onOpenGitHubAuth,
 }) => {
   const {
     currentRepo,
@@ -45,6 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
   } = useRepoStore();
 
   const { theme, resolvedTheme, setTheme } = useThemeStore();
+  const { user, isAuthenticated, isDemoMode } = useGitHubStore();
   const [showRepoMenu, setShowRepoMenu] = React.useState(false);
 
   const cycleTheme = () => {
@@ -226,12 +230,30 @@ export const Header: React.FC<HeaderProps> = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={onOpenGitHubAuth}
+                className="h-7 w-7 text-muted-foreground hover:text-foreground relative"
               >
-                <Github className="h-3.5 w-3.5" />
+                {isAuthenticated && user ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.login}
+                    className="w-4 h-4 rounded-full border border-primary/50"
+                  />
+                ) : (
+                  <Github className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                {isDemoMode && !isAuthenticated && (
+                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">GitHub 状态 (点击连接)</TooltipContent>
+            <TooltipContent side="bottom">
+              {isAuthenticated && user
+                ? `GitHub 已连接: @${user.login} (点击管理)`
+                : isDemoMode
+                ? 'GitHub 演示模式已启用 (点击连接账号)'
+                : '连接 GitHub 开发者账号'}
+            </TooltipContent>
           </Tooltip>
 
           {/* Theme Switcher */}
