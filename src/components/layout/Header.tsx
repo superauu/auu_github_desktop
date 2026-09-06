@@ -45,6 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
     toggleRightPane,
     recentRepos,
     setCurrentRepo,
+    refreshAll,
   } = useRepoStore();
 
   const { theme, resolvedTheme, setTheme } = useThemeStore();
@@ -168,12 +169,17 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="hidden md:flex items-center gap-1 bg-secondary/40 border border-border/50 rounded-lg p-0.5">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="xs" className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => refreshAll()}
+                  className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2"
+                >
                   <RefreshCw className="h-3 w-3" />
-                  <span>Fetch</span>
+                  <span>Fetch / 刷新</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">获取远程变更 (Ctrl+Shift+F)</TooltipContent>
+              <TooltipContent side="bottom">获取远程变更并刷新状态 (Ctrl+Shift+F)</TooltipContent>
             </Tooltip>
 
             <div className="h-3 w-[1px] bg-border/80" />
