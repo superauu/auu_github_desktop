@@ -10,8 +10,11 @@ import {
   Cloud,
   X,
   Trash2,
+  GitPullRequest,
+  Archive,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
+import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -27,20 +30,31 @@ export const LeftSidebar: React.FC = () => {
     status,
     branches,
     tags,
+    stashes,
     isLeftSidebarCollapsed,
     createBranch,
     checkoutBranch,
     createTag,
     deleteTag,
+    stashPush,
+    stashPop,
+    stashApply,
+    stashDrop,
   } = useRepoStore();
+
+  const { pullRequests } = useGitHubStore();
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     localBranches: true,
     remoteBranches: true,
     tags: true,
-    stashes: false,
+    stashes: true,
     remotes: false,
   });
+
+  // Stash dialog state
+  const [newStashOpen, setNewStashOpen] = useState(false);
+  const [stashMessageInput, setStashMessageInput] = useState('');
 
   // Dialog states
   const [newBranchOpen, setNewBranchOpen] = useState(false);
@@ -152,6 +166,29 @@ export const LeftSidebar: React.FC = () => {
             />
             <span>提交历史 & Graph</span>
           </div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('pullRequests')}
+          className={cn(
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
+            activeTab === 'pullRequests'
+              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <GitPullRequest
+              className={cn(
+                "h-3.5 w-3.5",
+                activeTab === 'pullRequests' ? "text-purple-400" : "text-muted-foreground"
+              )}
+            />
+            <span>Pull Requests</span>
+          </div>
+          <Badge variant="outline" className="h-3.5 px-1 text-[9px] font-mono">
+            {pullRequests.length}
+          </Badge>
         </button>
 
         <button
@@ -411,7 +448,7 @@ export const LeftSidebar: React.FC = () => {
           <div>
             <div
               onClick={() => toggleSection('stashes')}
-              className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground"
+              className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
             >
               <div className="flex items-center gap-1">
                 {expandedSections.stashes ? (
@@ -419,15 +456,137 @@ export const LeftSidebar: React.FC = () => {
                 ) : (
                   <ChevronRight className="h-3 w-3" />
                 )}
-                <span>贮藏区 Stashes</span>
+                <span>贮藏区 Stashes ({stashes.length})</span>
               </div>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNewStashOpen(!newStashOpen);
+                }}
+                title="暂存当前修改 (Stash Changes)"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
             </div>
+
+            {/* Inline Stash creation input */}
+            {newStashOpen && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  try {
+                    await stashPush(stashMessageInput.trim() || undefined);
+                    toast.success('已存入贮藏堆栈', stashMessageInput.trim() || 'WIP on stash');
+                    setStashMessageInput('');
+                    setNewStashOpen(false);
+                  } catch (err: any) {
+                    toast.error('贮藏修改失败', err.message);
+                  }
+                }}
+                className="p-2 space-y-1.5 bg-accent/30 rounded-md border border-border/80 my-1 mx-1"
+              >
+                <div className="flex items-center justify-between text-[11px] font-medium text-foreground">
+                  <span>贮藏当前改动</span>
+                  <button type="button" onClick={() => setNewStashOpen(false)}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <Input
+                  value={stashMessageInput}
+                  onChange={(e) => setStashMessageInput(e.target.value)}
+                  placeholder="贮藏附注 (可选)"
+                  className="h-6 text-[11px]"
+                  autoFocus
+                />
+                <Button type="submit" size="xs" className="w-full h-5 text-[10px]">
+                  保存至 Stash
+                </Button>
+              </form>
+            )}
 
             {expandedSections.stashes && (
               <div className="mt-0.5 space-y-0.5 pl-1">
-                <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
-                  暂无贮藏内容
-                </div>
+                {stashes.length > 0 ? (
+                  stashes.map((s) => (
+                    <div
+                      key={s.index}
+                      className="flex items-center justify-between px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-accent/40 cursor-pointer transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5 truncate min-w-0 pr-1">
+                        <Archive className="h-3 w-3 text-cyan-400/80 shrink-0" />
+                        <div className="truncate min-w-0">
+                          <div className="truncate font-mono text-[11px] text-foreground">
+                            {s.message}
+                          </div>
+                          <div className="text-[9px] font-mono text-muted-foreground/60">
+                            stash@{`{${s.index}}`} • {s.date}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="h-5 px-1.5 text-[9px] hover:text-emerald-400"
+                          title="弹出并应用 (Pop)"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await stashPop(s.index);
+                              toast.success(`已弹出贮藏 stash@{${s.index}}`);
+                            } catch (err: any) {
+                              toast.error('Pop 失败', err.message);
+                            }
+                          }}
+                        >
+                          Pop
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="h-5 px-1.5 text-[9px] hover:text-indigo-400"
+                          title="仅应用此贮藏 (Apply)"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await stashApply(s.index);
+                              toast.success(`已应用贮藏 stash@{${s.index}}`);
+                            } catch (err: any) {
+                              toast.error('Apply 失败', err.message);
+                            }
+                          }}
+                        >
+                          Apply
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="h-5 w-5 p-0 hover:text-rose-400"
+                          title="删除此贮藏 (Drop)"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await stashDrop(s.index);
+                              toast.info(`已丢弃贮藏 stash@{${s.index}}`);
+                            } catch (err: any) {
+                              toast.error('Drop 失败', err.message);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                    暂无贮藏内容
+                  </div>
+                )}
               </div>
             )}
           </div>

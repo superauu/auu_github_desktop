@@ -15,6 +15,7 @@ import {
   Workflow,
   Clock,
   FileCode2,
+  GitPullRequest,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useThemeStore } from '@/stores/themeStore';
@@ -107,14 +108,26 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
               <Command.Item
                 onSelect={() => {
+                  setActiveTab('pullRequests');
+                  onOpenChange(false);
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <GitPullRequest className="h-3.5 w-3.5 text-purple-400" />
+                <span>GitHub Pull Requests 审查中心</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 3</span>
+              </Command.Item>
+
+              <Command.Item
+                onSelect={() => {
                   setActiveTab('actions');
                   onOpenChange(false);
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Workflow className="h-3.5 w-3.5 text-emerald-400" />
-                <span>GitHub Actions 仪表盘</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 3</span>
+                <span>GitHub Actions 开发者仪表盘</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 4</span>
               </Command.Item>
             </Command.Group>
 

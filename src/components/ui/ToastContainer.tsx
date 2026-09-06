@@ -40,7 +40,8 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
         "pointer-events-auto p-3 rounded-xl border shadow-xl backdrop-blur-xl flex items-start justify-between gap-3 text-xs animate-in slide-in-from-bottom-3 fade-in duration-200",
         toast.type === 'success' && "bg-card/90 border-emerald-500/30 text-foreground",
         toast.type === 'error' && "bg-card/95 border-rose-500/40 text-foreground",
-        toast.type === 'info' && "bg-card/90 border-indigo-500/30 text-foreground"
+        toast.type === 'info' && "bg-card/90 border-indigo-500/30 text-foreground",
+        toast.type === 'warning' && "bg-card/90 border-amber-500/30 text-foreground"
       )}
     >
       <div className="flex items-start gap-2.5 min-w-0">
@@ -53,6 +54,9 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
           )}
           {toast.type === 'info' && (
             <Info className="h-4 w-4 text-indigo-400" />
+          )}
+          {toast.type === 'warning' && (
+            <AlertCircle className="h-4 w-4 text-amber-400" />
           )}
         </div>
 

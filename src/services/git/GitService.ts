@@ -116,6 +116,37 @@ export class GitService implements IGitService {
     }
   }
 
+  async stashPush(repoPath: string, message?: string, includeUntracked: boolean = true): Promise<void> {
+    const args = ['stash', 'push'];
+    if (includeUntracked) {
+      args.push('-u');
+    }
+    if (message?.trim()) {
+      args.push('-m', message.trim());
+    }
+    await executeGit(args, repoPath);
+  }
+
+  async stashPop(repoPath: string, index: number = 0): Promise<void> {
+    await executeGit(['stash', 'pop', `stash@{${index}}`], repoPath);
+  }
+
+  async stashApply(repoPath: string, index: number = 0): Promise<void> {
+    await executeGit(['stash', 'apply', `stash@{${index}}`], repoPath);
+  }
+
+  async stashDrop(repoPath: string, index: number = 0): Promise<void> {
+    await executeGit(['stash', 'drop', `stash@{${index}}`], repoPath);
+  }
+
+  async revertCommit(repoPath: string, hash: string): Promise<void> {
+    await executeGit(['revert', '--no-edit', hash], repoPath);
+  }
+
+  async softResetCommit(repoPath: string, hash: string): Promise<void> {
+    await executeGit(['reset', '--soft', hash], repoPath);
+  }
+
   async stageFile(repoPath: string, filePath: string): Promise<void> {
     await executeGit(['add', '--', filePath], repoPath);
   }

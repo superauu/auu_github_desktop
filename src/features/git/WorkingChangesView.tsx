@@ -8,6 +8,7 @@ import {
   Check,
   FileCode,
   Copy,
+  Archive,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ export const WorkingChangesView: React.FC = () => {
     stageAll,
     unstageAll,
     discardChanges,
+    stashPush,
   } = useRepoStore();
 
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
@@ -78,6 +80,25 @@ export const WorkingChangesView: React.FC = () => {
         <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
           <span>工作区变更 ({totalChanges})</span>
           <div className="flex items-center gap-1">
+            {totalChanges > 0 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={async () => {
+                  try {
+                    await stashPush('工作区快捷暂存');
+                    toast.success('已存入贮藏 (Stash)', '修改已存入贮藏堆栈');
+                  } catch (err: any) {
+                    toast.error('贮藏失败', err.message);
+                  }
+                }}
+                className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-cyan-400 gap-1"
+                title="快速暂存当前修改并还原工作区"
+              >
+                <Archive className="h-3 w-3" />
+                <span>贮藏</span>
+              </Button>
+            )}
             {unstagedFiles.length > 0 || untrackedFiles.length > 0 ? (
               <Button
                 variant="ghost"

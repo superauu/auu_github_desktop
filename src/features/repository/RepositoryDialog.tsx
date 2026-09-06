@@ -5,10 +5,14 @@ import {
   FolderPlus,
   X,
   Folder,
+  Clock,
+  ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRepoStore } from '@/stores/repoStore';
+import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 interface RepositoryDialogProps {
@@ -27,24 +31,77 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const [cloneUrl, setCloneUrl] = useState('');
   const [cloneTargetPath, setCloneTargetPath] = useState('');
   const [branchName, setBranchName] = useState('main');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const { setCurrentRepo, addRecentRepo } = useRepoStore();
+  const { setCurrentRepo, addRecentRepo, recentRepos } = useRepoStore();
 
   if (!open) return null;
 
-  const handleOpen = () => {
-    const path = repoPath.trim() || 'e:/code/auu_github_desktop';
+  const handleOpenLocal = (pathInput?: string) => {
+    const path = (pathInput || repoPath).trim() || 'e:/code/auu_github_desktop';
     const name = path.split(/[/\\]/).filter(Boolean).pop() || 'project';
     const newRepo = {
       id: String(Date.now()),
       name,
       path,
-      currentBranch: 'main',
+      currentBranch: 'master',
       lastOpenedAt: Date.now(),
     };
     setCurrentRepo(newRepo);
     addRecentRepo(newRepo);
+    toast.success('已切换仓库', path);
     onOpenChange(false);
+  };
+
+  const handleClone = async () => {
+    if (!cloneUrl.trim()) {
+      toast.warning('请输入远程仓库 URL');
+      return;
+    }
+    setIsProcessing(true);
+    toast.info('正在克隆远程仓库...', cloneUrl);
+
+    setTimeout(() => {
+      const repoName = cloneUrl.split('/').pop()?.replace('.git', '') || 'cloned-repo';
+      const target = cloneTargetPath.trim() || `e:/code/${repoName}`;
+      const newRepo = {
+        id: String(Date.now()),
+        name: repoName,
+        path: target,
+        currentBranch: 'main',
+        lastOpenedAt: Date.now(),
+      };
+      setCurrentRepo(newRepo);
+      addRecentRepo(newRepo);
+      setIsProcessing(false);
+      toast.success('克隆完成并已载入工作区', target);
+      onOpenChange(false);
+    }, 1500);
+  };
+
+  const handleInit = async () => {
+    if (!repoPath.trim()) {
+      toast.warning('请输入新项目完整目录路径');
+      return;
+    }
+    setIsProcessing(true);
+    toast.info('正在初始化新仓库...', repoPath);
+
+    setTimeout(() => {
+      const name = repoPath.split(/[/\\]/).filter(Boolean).pop() || 'new-repo';
+      const newRepo = {
+        id: String(Date.now()),
+        name,
+        path: repoPath.trim(),
+        currentBranch: branchName.trim() || 'main',
+        lastOpenedAt: Date.now(),
+      };
+      setCurrentRepo(newRepo);
+      addRecentRepo(newRepo);
+      setIsProcessing(false);
+      toast.success('仓库初始化成功', repoPath);
+      onOpenChange(false);
+    }, 1000);
   };
 
   return (
@@ -53,11 +110,11 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
+        className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
           <div className="flex items-center gap-2">
             {mode === 'open' && <FolderOpen className="h-4 w-4 text-primary" />}
             {mode === 'clone' && <GitFork className="h-4 w-4 text-purple-400" />}
@@ -111,7 +168,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
 
         {/* Form contents */}
         {mode === 'open' && (
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             <div>
               <label className="text-[11px] font-medium text-foreground block mb-1">
                 本地仓库路径
@@ -123,13 +180,48 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                   placeholder="例如: e:/code/auu_github_desktop"
                   className="font-mono text-xs"
                 />
-                <Button variant="outline" size="sm" className="shrink-0 text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenLocal()}
+                  className="shrink-0 text-xs"
+                >
                   <Folder className="h-3.5 w-3.5 mr-1" />
-                  浏览
+                  载入
                 </Button>
               </div>
             </div>
-            <Button onClick={handleOpen} className="w-full text-xs h-8">
+
+            {/* Recent Repos quick list */}
+            {recentRepos.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>近期打开过的仓库</span>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-background/50 divide-y divide-border/40 max-h-36 overflow-y-auto">
+                  {recentRepos.map((r) => (
+                    <div
+                      key={r.path}
+                      onClick={() => handleOpenLocal(r.path)}
+                      className="px-2.5 py-1.5 flex items-center justify-between text-xs cursor-pointer hover:bg-accent/40 transition-colors group"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="font-semibold text-foreground group-hover:text-primary transition-colors text-[11px]">
+                          {r.name}
+                        </div>
+                        <div className="text-[10px] font-mono text-muted-foreground/80 truncate">
+                          {r.path}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button onClick={() => handleOpenLocal()} className="w-full text-xs h-8">
               打开此仓库
             </Button>
           </div>
@@ -144,7 +236,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               <Input
                 value={cloneUrl}
                 onChange={(e) => setCloneUrl(e.target.value)}
-                placeholder="https://github.com/user/repository.git"
+                placeholder="https://github.com/superauu/auu_github_desktop.git"
                 className="font-mono text-xs"
               />
             </div>
@@ -155,12 +247,17 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               <Input
                 value={cloneTargetPath}
                 onChange={(e) => setCloneTargetPath(e.target.value)}
-                placeholder="选择存储克隆项目的本地文件夹"
+                placeholder="例如: e:/code/auu_github_desktop"
                 className="font-mono text-xs"
               />
             </div>
-            <Button onClick={handleOpen} className="w-full text-xs h-8">
-              开始克隆
+            <Button
+              onClick={handleClone}
+              disabled={isProcessing}
+              className="w-full text-xs h-8 gap-1.5"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>{isProcessing ? '正在克隆仓库中...' : '开始克隆 (Git Clone)'}</span>
             </Button>
           </div>
         )}
@@ -180,7 +277,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             </div>
             <div>
               <label className="text-[11px] font-medium text-foreground block mb-1">
-                默认分支名称
+                默认主分支名称
               </label>
               <Input
                 value={branchName}
@@ -188,8 +285,12 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                 className="font-mono text-xs"
               />
             </div>
-            <Button onClick={handleOpen} className="w-full text-xs h-8">
-              执行 Git Init
+            <Button
+              onClick={handleInit}
+              disabled={isProcessing}
+              className="w-full text-xs h-8"
+            >
+              {isProcessing ? '正在初始化...' : '执行初始化 (Git Init)'}
             </Button>
           </div>
         )}

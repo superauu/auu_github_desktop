@@ -101,3 +101,60 @@ export interface GitHubCheckRun {
   completed_at: string | null;
   html_url: string;
 }
+
+export interface WorkflowDispatchParams {
+  ref: string;
+  inputs?: Record<string, string>;
+}
+
+export interface JobLogsData {
+  jobId: number;
+  jobName: string;
+  rawLogs: string;
+  stepLogs?: { stepNumber: number; stepName: string; lines: string[] }[];
+}
+
+export interface WorkflowYamlContent {
+  path: string;
+  content: string;
+}
+
+export interface GitHubPullRequest {
+  id: number;
+  number: number;
+  title: string;
+  state: 'open' | 'closed';
+  merged_at: string | null;
+  created_at: string;
+  updated_at: string;
+  body: string | null;
+  html_url: string;
+  user: {
+    login: string;
+    avatar_url: string;
+  };
+  head: {
+    ref: string;
+    sha: string;
+    label: string;
+  };
+  base: {
+    ref: string;
+    sha: string;
+  };
+  labels: {
+    id: number;
+    name: string;
+    color: string;
+    description: string | null;
+  }[];
+  review_status?: 'APPROVED' | 'CHANGES_REQUESTED' | 'PENDING' | 'COMMENTED';
+  checks_summary?: {
+    total: number;
+    success: number;
+    failure: number;
+  };
+  additions?: number;
+  deletions?: number;
+  changed_files?: number;
+}

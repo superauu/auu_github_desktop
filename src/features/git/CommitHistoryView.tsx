@@ -9,6 +9,7 @@ import {
   Search,
   Copy,
   Check,
+  CheckCircle2,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { GitGraphRenderer } from '@/features/graph/GitGraphRenderer';
@@ -19,7 +20,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const CommitHistoryView: React.FC = () => {
-  const { commits, selectedCommit, setSelectedCommit } = useRepoStore();
+  const { commits, selectedCommit, setSelectedCommit, setActiveTab } = useRepoStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
@@ -152,6 +153,18 @@ export const CommitHistoryView: React.FC = () => {
                         <Calendar className="h-3 w-3 text-muted-foreground/60" />
                         <span>{commit.author.relativeDate}</span>
                       </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveTab('actions');
+                          toast.info(`已定位至 Commit ${commit.shortHash} 的 CI 运行记录`);
+                        }}
+                        className="p-1 rounded hover:bg-accent flex items-center text-emerald-400 group/ci"
+                        title="GitHub Actions CI: 全部 4 个 Checks 均已通过 (点击进入 Actions 详情)"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 transition-transform group-hover/ci:scale-110" />
+                      </button>
 
                       <button
                         onClick={(e) => handleCopyHash(commit.hash, e)}

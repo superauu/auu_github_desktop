@@ -4,13 +4,14 @@ import {
   GitCommit,
   GitFileChange,
   GitStatusResult,
+  GitStash,
   GitTag,
   RepositoryInfo,
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
 
-export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions';
+export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests';
 
 interface RepoState {
   currentRepo: RepositoryInfo | null;
@@ -23,6 +24,7 @@ interface RepoState {
   commits: GitCommit[];
   branches: GitBranch[];
   tags: GitTag[];
+  stashes: GitStash[];
   isLoading: boolean;
   isLeftSidebarCollapsed: boolean;
   isRightPaneCollapsed: boolean;
@@ -36,6 +38,7 @@ interface RepoState {
   setSelectedCommit: (commit: GitCommit | null) => void;
   setBranches: (branches: GitBranch[]) => void;
   setTags: (tags: GitTag[]) => void;
+  setStashes: (stashes: GitStash[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (msg: string | null) => void;
   toggleLeftSidebar: () => void;
@@ -55,6 +58,14 @@ interface RepoState {
   checkoutBranch: (name: string) => Promise<void>;
   createTag: (name: string, commitHash?: string, message?: string) => Promise<void>;
   deleteTag: (name: string) => Promise<void>;
+
+  // Stash & Revert
+  stashPush: (message?: string, includeUntracked?: boolean) => Promise<void>;
+  stashPop: (index?: number) => Promise<void>;
+  stashApply: (index?: number) => Promise<void>;
+  stashDrop: (index?: number) => Promise<void>;
+  revertCommit: (hash: string) => Promise<void>;
+  softResetCommit: (hash: string) => Promise<void>;
 }
 
 const RECENT_REPOS_KEY = 'auu_git_recent_repos';
@@ -82,6 +93,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     commits: [],
     branches: [],
     tags: [],
+    stashes: [],
     isLoading: false,
     isLeftSidebarCollapsed: false,
     isRightPaneCollapsed: false,
@@ -106,6 +118,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     setSelectedCommit: (selectedCommit) => set({ selectedCommit }),
     setBranches: (branches) => set({ branches }),
     setTags: (tags) => set({ tags }),
+    setStashes: (stashes) => set({ stashes }),
     setLoading: (isLoading) => set({ isLoading }),
     setError: (errorMessage) => set({ errorMessage }),
     toggleLeftSidebar: () =>
@@ -131,11 +144,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
       set({ isLoading: true, errorMessage: null });
       try {
-        const [status, commits, branches, tags] = await Promise.all([
+        const [status, commits, branches, tags, stashes] = await Promise.all([
           gitService.getStatus(currentRepo.path),
           gitService.getCommits(currentRepo.path, 50),
           gitService.getBranches(currentRepo.path),
           gitService.getTags(currentRepo.path),
+          gitService.getStashes(currentRepo.path),
         ]);
 
         // If currentBranch in repo metadata changed, update it
@@ -152,6 +166,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           commits,
           branches,
           tags,
+          stashes,
           isLoading: false,
         });
 
@@ -299,6 +314,78 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.deleteTag(currentRepo.path, name);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    stashPush: async (message?: string, includeUntracked: boolean = true) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.stashPush(currentRepo.path, message, includeUntracked);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    stashPop: async (index: number = 0) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.stashPop(currentRepo.path, index);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    stashApply: async (index: number = 0) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.stashApply(currentRepo.path, index);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    stashDrop: async (index: number = 0) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.stashDrop(currentRepo.path, index);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    revertCommit: async (hash: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.revertCommit(currentRepo.path, hash);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    softResetCommit: async (hash: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.softResetCommit(currentRepo.path, hash);
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });

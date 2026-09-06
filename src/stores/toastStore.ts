@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastItem {
   id: string;
@@ -17,6 +17,7 @@ interface ToastState {
   success: (title: string, description?: string) => string;
   error: (title: string, description?: string) => string;
   info: (title: string, description?: string) => string;
+  warning: (title: string, description?: string) => string;
 }
 
 export const useToastStore = create<ToastState>((set, get) => ({
@@ -56,10 +57,15 @@ export const useToastStore = create<ToastState>((set, get) => ({
   info: (title, description) => {
     return get().addToast({ type: 'info', title, description });
   },
+
+  warning: (title, description) => {
+    return get().addToast({ type: 'warning', title, description });
+  },
 }));
 
 export const toast = {
   success: (title: string, description?: string) => useToastStore.getState().success(title, description),
   error: (title: string, description?: string) => useToastStore.getState().error(title, description),
   info: (title: string, description?: string) => useToastStore.getState().info(title, description),
+  warning: (title: string, description?: string) => useToastStore.getState().warning(title, description),
 };
