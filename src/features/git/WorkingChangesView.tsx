@@ -379,7 +379,7 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Diff Content View */}
-        <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-[#070a12] select-text">
+        <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#070a12] text-foreground select-text">
           {fileDiffLines.length === 0 ? (
             <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
               <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
@@ -407,19 +407,19 @@ export const WorkingChangesView: React.FC = () => {
                 <div
                   key={idx}
                   className={cn(
-                    "flex items-stretch hover:bg-white/[0.03] transition-colors border-l-2",
+                    "flex items-stretch hover:bg-accent/40 dark:hover:bg-white/[0.03] transition-colors border-l-2",
                     isAdd
-                      ? "diff-line-add text-emerald-300"
+                      ? "diff-line-add font-medium dark:font-normal"
                       : isDel
-                      ? "diff-line-del text-rose-300"
-                      : "border-transparent text-foreground/80"
+                      ? "diff-line-del font-medium dark:font-normal"
+                      : "border-transparent text-foreground/85"
                   )}
                 >
                   {/* Line Numbers */}
-                  <div className="w-10 px-2 text-right text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-background/20">
+                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20">
                     {line.oldNo ?? ''}
                   </div>
-                  <div className="w-10 px-2 text-right text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] border-r border-border/20 bg-background/20">
+                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] border-r border-border/60 dark:border-border/20 bg-muted/40 dark:bg-background/20">
                     {line.newNo ?? ''}
                   </div>
                   {/* Content */}

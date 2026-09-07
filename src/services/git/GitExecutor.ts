@@ -29,7 +29,8 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
       const { Command } = await import('@tauri-apps/plugin-shell');
       const cmd = Command.create('git', args, { cwd });
       const output = await cmd.execute();
-      if (output.code !== 0) {
+      const isDiff = args.includes('diff');
+      if (output.code !== 0 && (!isDiff || output.code !== 1)) {
         throw new GitExecutionError(
           `git ${args.join(' ')}`,
           output.code ?? 1,
@@ -64,7 +65,8 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
     }
 
     const data: GitCommandResult = await res.json();
-    if (data.exitCode !== 0) {
+    const isDiff = args.includes('diff');
+    if (data.exitCode !== 0 && (!isDiff || data.exitCode !== 1)) {
       throw new GitExecutionError(
         `git ${args.join(' ')}`,
         data.exitCode,

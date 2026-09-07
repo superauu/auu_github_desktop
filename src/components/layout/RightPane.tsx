@@ -24,6 +24,7 @@ export const RightPane: React.FC = () => {
     selectedCommit,
     activeTab,
     commit,
+    push,
     errorMessage,
     setError,
   } = useRepoStore();
@@ -61,7 +62,13 @@ export const RightPane: React.FC = () => {
       setIsAmend(false);
 
       if (andPush) {
-        toast.info('正在推送本地提交到远程...');
+        toast.info('正在推送本地提交到远程 (git push)...');
+        try {
+          await push();
+          toast.success('已成功推送到远程仓库');
+        } catch (pushErr: any) {
+          toast.error('推送失败', pushErr.message);
+        }
       }
     } catch (err: any) {
       toast.error('提交失败', err.message);

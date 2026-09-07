@@ -100,7 +100,7 @@ export const JobLogsViewerModal: React.FC = () => {
     >
       <div
         className={cn(
-          "w-full flex flex-col bg-[#05070c] border border-border/80 rounded-xl shadow-2xl overflow-hidden transition-all duration-200",
+          "w-full flex flex-col bg-card border border-border/80 rounded-xl shadow-2xl overflow-hidden transition-all duration-200",
           isFullScreen ? "h-full max-w-full" : "max-w-4xl h-[78vh]"
         )}
         onClick={(e) => e.stopPropagation()}
@@ -178,7 +178,7 @@ export const JobLogsViewerModal: React.FC = () => {
         {/* Terminal Content Screen */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed bg-[#05070c] text-muted-foreground select-text"
+          className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed bg-background dark:bg-[#05070c] text-foreground dark:text-muted-foreground select-text"
         >
           {filteredLines.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground/50">

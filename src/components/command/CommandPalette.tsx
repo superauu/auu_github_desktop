@@ -36,7 +36,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenRepoDialog,
   onOpenGitHubAuth,
 }) => {
-  const { setActiveTab, refreshAll, branches, tags, checkoutBranch } = useRepoStore();
+  const {
+    setActiveTab,
+    fetchRemote,
+    pull,
+    push,
+    branches,
+    tags,
+    checkoutBranch,
+  } = useRepoStore();
   const { setTheme } = useThemeStore();
 
   useEffect(() => {
@@ -134,10 +142,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             {/* Git Core Actions */}
             <Command.Group heading="Git 协同操作" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
-                onSelect={() => {
+                onSelect={async () => {
                   onOpenChange(false);
-                  refreshAll();
-                  toast.success('已同步获取远程最新变更 (Fetch completed)');
+                  toast.info('正在获取远程更新 (git fetch)...');
+                  try {
+                    await fetchRemote();
+                    toast.success('已同步获取远程最新变更 (Fetch completed)');
+                  } catch (err: any) {
+                    toast.error('Fetch 失败', err.message);
+                  }
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
@@ -147,9 +160,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               </Command.Item>
 
               <Command.Item
-                onSelect={() => {
+                onSelect={async () => {
                   onOpenChange(false);
                   toast.info('正在拉取远程更新 (Git Pull)...');
+                  try {
+                    await pull();
+                    toast.success('已成功拉取最新提交');
+                  } catch (err: any) {
+                    toast.error('Pull 失败', err.message);
+                  }
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
@@ -159,9 +178,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               </Command.Item>
 
               <Command.Item
-                onSelect={() => {
+                onSelect={async () => {
                   onOpenChange(false);
                   toast.info('正在推送本地提交 (Git Push)...');
+                  try {
+                    await push();
+                    toast.success('已成功推送到远程');
+                  } catch (err: any) {
+                    toast.error('Push 失败', err.message);
+                  }
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >

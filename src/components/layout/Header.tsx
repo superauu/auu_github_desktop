@@ -46,21 +46,20 @@ export const Header: React.FC<HeaderProps> = ({
     toggleRightPane,
     recentRepos,
     setCurrentRepo,
-    refreshAll,
+    fetchRemote,
+    pull,
+    push,
   } = useRepoStore();
 
-  const { theme, resolvedTheme, setTheme } = useThemeStore();
+  const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated, isDemoMode } = useGitHubStore();
   const [showRepoMenu, setShowRepoMenu] = React.useState(false);
 
   const cycleTheme = () => {
-    const modes: ThemeMode[] = ['system', 'dark', 'light'];
-    const nextIndex = (modes.indexOf(theme) + 1) % modes.length;
-    setTheme(modes[nextIndex]);
+    const nextTheme: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
     toast.info(
-      modes[nextIndex] === 'system'
-        ? '已恢复为系统自适应主题'
-        : modes[nextIndex] === 'dark'
+      nextTheme === 'dark'
         ? '已切换为深色暗黑主题'
         : '已切换为明亮浅色主题'
     );
@@ -68,16 +67,32 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleFetch = async () => {
     toast.info('正在获取远程更新 (git fetch)...');
-    await refreshAll();
-    toast.success('远程更新获取完成', '本地引用与 Ahead/Behind 状态已刷新');
+    try {
+      await fetchRemote();
+      toast.success('远程更新获取完成', '本地引用与 Ahead/Behind 状态已刷新');
+    } catch (err: any) {
+      toast.error('Fetch 失败', err.message);
+    }
   };
 
-  const handlePull = () => {
+  const handlePull = async () => {
     toast.info('正在拉取远程更新 (git pull)...');
+    try {
+      await pull();
+      toast.success('已成功拉取最新提交');
+    } catch (err: any) {
+      toast.error('Pull 失败', err.message);
+    }
   };
 
-  const handlePush = () => {
+  const handlePush = async () => {
     toast.info('正在推送本地提交到远程 (git push)...');
+    try {
+      await push();
+      toast.success('已成功推送到远程仓库');
+    } catch (err: any) {
+      toast.error('Push 失败', err.message);
+    }
   };
 
   return (
@@ -313,7 +328,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                主题: {theme === 'system' ? '系统自适应' : theme === 'dark' ? '深色暗黑' : '明亮浅色'}
+                点击切换为{resolvedTheme === 'dark' ? '明亮浅色主题' : '深色暗黑主题'}
               </TooltipContent>
             </Tooltip>
           </div>

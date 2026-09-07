@@ -23,7 +23,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
       onClick={closeWorkflowYaml}
     >
       <div
-        className="w-full max-w-2xl h-[70vh] bg-[#070a12] border border-border/90 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-2xl h-[70vh] bg-card border border-border/90 rounded-xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -57,7 +57,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
         </div>
 
         {/* YAML Code Area */}
-        <div className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-indigo-100/90 select-text bg-[#070a12]">
+        <div className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-foreground/90 dark:text-indigo-100/90 select-text bg-background dark:bg-[#070a12]">
           <pre className="whitespace-pre">{activeWorkflowYaml.content}</pre>
         </div>
       </div>

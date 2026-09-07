@@ -16,6 +16,18 @@ export const App: React.FC = () => {
     // Initialize GitHub auth / demo state
     initAuth();
 
+    // Restore previously opened repo or default to current workspace repo
+    try {
+      const saved = localStorage.getItem('auu_git_last_active_repo');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.path) {
+          setCurrentRepo(parsed);
+          return;
+        }
+      }
+    } catch {}
+
     // Default load current workspace repo
     setCurrentRepo({
       id: 'auu-git-client-workspace',

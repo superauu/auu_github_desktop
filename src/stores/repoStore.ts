@@ -44,9 +44,13 @@ interface RepoState {
   toggleLeftSidebar: () => void;
   toggleRightPane: () => void;
   addRecentRepo: (repo: RepositoryInfo) => void;
+  removeRecentRepo: (path: string) => void;
 
   // Async Git Operations
   refreshAll: () => Promise<void>;
+  fetchRemote: () => Promise<void>;
+  pull: () => Promise<void>;
+  push: () => Promise<void>;
   loadFileDiff: (file: GitFileChange) => Promise<void>;
   stageFile: (filePath: string) => Promise<void>;
   unstageFile: (filePath: string) => Promise<void>;
@@ -102,7 +106,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
     setCurrentRepo: (repo) => {
       set({ currentRepo: repo, selectedFile: null, selectedCommit: null, fileDiffLines: [] });
       if (repo) {
+        try {
+          localStorage.setItem('auu_git_last_active_repo', JSON.stringify(repo));
+        } catch {}
         get().refreshAll();
+      } else {
+        localStorage.removeItem('auu_git_last_active_repo');
       }
     },
     setActiveTab: (activeTab) => set({ activeTab }),
@@ -135,6 +144,15 @@ export const useRepoStore = create<RepoState>((set, get) => {
         } catch {
           // ignore
         }
+        return { recentRepos: updated };
+      }),
+
+    removeRecentRepo: (path: string) =>
+      set((state) => {
+        const updated = state.recentRepos.filter((r) => r.path !== path);
+        try {
+          localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(updated));
+        } catch {}
         return { recentRepos: updated };
       }),
 
@@ -189,6 +207,45 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
+    fetchRemote: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      set({ isLoading: true, errorMessage: null });
+      try {
+        await gitService.fetch(currentRepo.path);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message, isLoading: false });
+        throw err;
+      }
+    },
+
+    pull: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      set({ isLoading: true, errorMessage: null });
+      try {
+        await gitService.pull(currentRepo.path);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message, isLoading: false });
+        throw err;
+      }
+    },
+
+    push: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      set({ isLoading: true, errorMessage: null });
+      try {
+        await gitService.push(currentRepo.path);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message, isLoading: false });
+        throw err;
+      }
+    },
+
     loadFileDiff: async (file: GitFileChange) => {
       const { currentRepo } = get();
       if (!currentRepo) return;
@@ -197,7 +254,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
         const diffLines = await gitService.getFileDiff(
           currentRepo.path,
           file.path,
-          file.staged
+          file.staged,
+          file.status === 'untracked'
         );
         set({ fileDiffLines: diffLines });
       } catch (err: any) {

@@ -33,15 +33,16 @@ export class GitService implements IGitService {
   }
 
   async openRepository(path: string): Promise<RepositoryInfo> {
+    const normalizedPath = path.trim().replace(/\\/g, '/');
     // Validate repository by running git rev-parse
-    await executeGit(['rev-parse', '--git-dir'], path);
+    await executeGit(['rev-parse', '--git-dir'], normalizedPath);
 
-    const status = await this.getStatus(path);
-    const name = path.split(/[/\\]/).filter(Boolean).pop() || 'repository';
+    const status = await this.getStatus(normalizedPath);
+    const name = normalizedPath.split(/[/\\]/).filter(Boolean).pop() || 'repository';
 
     let remoteUrl: string | undefined = undefined;
     try {
-      const remoteRes = await executeGit(['remote', 'get-url', 'origin'], path);
+      const remoteRes = await executeGit(['remote', 'get-url', 'origin'], normalizedPath);
       if (remoteRes.stdout.trim()) {
         remoteUrl = remoteRes.stdout.trim();
       }
@@ -52,23 +53,25 @@ export class GitService implements IGitService {
     return {
       id: String(Date.now()),
       name,
-      path,
-      currentBranch: status.currentBranch,
+      path: normalizedPath,
+      currentBranch: status.currentBranch || 'main',
       lastOpenedAt: Date.now(),
       remoteUrl,
     };
   }
 
   async initRepository(path: string): Promise<void> {
-    await executeGit(['init', '-b', 'main'], path);
+    const normalizedPath = path.trim().replace(/\\/g, '/');
+    await executeGit(['init', '-b', 'main'], normalizedPath);
   }
 
   async cloneRepository(url: string, targetPath: string, branch?: string): Promise<void> {
+    const normalizedTarget = targetPath.trim().replace(/\\/g, '/');
     const args = ['clone'];
     if (branch) {
       args.push('-b', branch);
     }
-    args.push(url, targetPath);
+    args.push(url.trim(), normalizedTarget);
     await executeGit(args, process.cwd());
   }
 
@@ -78,23 +81,36 @@ export class GitService implements IGitService {
   }
 
   async getBranches(repoPath: string): Promise<GitBranch[]> {
-    const res = await executeGit(['branch', '-a', '-v', '--no-color'], repoPath);
-    return parseGitBranches(res.stdout);
+    try {
+      const res = await executeGit(['branch', '-a', '-v', '--no-color'], repoPath);
+      return parseGitBranches(res.stdout);
+    } catch {
+      return [];
+    }
   }
 
   async getTags(repoPath: string): Promise<GitTag[]> {
-    const format = '%(refname:short)%x1f%(objectname)%x1f%(subject)%x1f%(taggername)%x1f%(taggeremail)%x1f%(taggerdate:iso-strict)';
-    const res = await executeGit(['tag', '-l', `--format=${format}`], repoPath);
-    return parseGitTags(res.stdout);
+    try {
+      const format = '%(refname:short)%x1f%(objectname)%x1f%(subject)%x1f%(taggername)%x1f%(taggeremail)%x1f%(taggerdate:iso-strict)';
+      const res = await executeGit(['tag', '-l', `--format=${format}`], repoPath);
+      return parseGitTags(res.stdout);
+    } catch {
+      return [];
+    }
   }
 
   async getCommits(repoPath: string, limit: number = 50): Promise<GitCommit[]> {
-    const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
-    const res = await executeGit(
-      ['log', `-n`, String(limit), `--format=${format}`],
-      repoPath
-    );
-    return parseGitLog(res.stdout);
+    try {
+      const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
+      const res = await executeGit(
+        ['log', `-n`, String(limit), `--format=${format}`],
+        repoPath
+      );
+      return parseGitLog(res.stdout);
+    } catch {
+      // Empty repository or brand new repo without commits
+      return [];
+    }
   }
 
   async getStashes(repoPath: string): Promise<GitStash[]> {
@@ -226,15 +242,31 @@ export class GitService implements IGitService {
     await executeGit(['branch', flag, name], repoPath);
   }
 
-  async getFileDiff(repoPath: string, filePath: string, staged?: boolean): Promise<ParsedDiffLine[]> {
-    const args = ['diff', '--no-color'];
-    if (staged) {
-      args.push('--staged');
-    }
-    args.push('--', filePath);
+  async getFileDiff(
+    repoPath: string,
+    filePath: string,
+    staged?: boolean,
+    isUntracked?: boolean
+  ): Promise<ParsedDiffLine[]> {
+    try {
+      if (isUntracked) {
+        const nullDev = navigator.userAgent.includes('Windows') ? 'nul' : '/dev/null';
+        const res = await executeGit(['diff', '--no-index', '--no-color', '--', nullDev, filePath], repoPath);
+        return parseDiffOutput(res.stdout);
+      }
 
-    const res = await executeGit(args, repoPath);
-    return parseDiffOutput(res.stdout);
+      const args = ['diff', '--no-color'];
+      if (staged) {
+        args.push('--staged');
+      }
+      args.push('--', filePath);
+
+      const res = await executeGit(args, repoPath);
+      return parseDiffOutput(res.stdout);
+    } catch (err: any) {
+      console.warn('Get file diff warning:', err);
+      return [];
+    }
   }
 
   async createTag(
