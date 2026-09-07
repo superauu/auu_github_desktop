@@ -19,6 +19,8 @@ import {
   Ban,
 } from 'lucide-react';
 import { useGitHubStore } from '@/stores/githubStore';
+import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -34,6 +36,7 @@ interface ActionsDashboardViewProps {
 export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
   onOpenAuthDialog,
 }) => {
+  const { actionsWorkflowsWidth, setActionsWorkflowsWidth } = useLayoutStore();
   const {
     workflows,
     selectedWorkflow,
@@ -123,7 +126,10 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
       {/* Main 2-Column Split: Workflows List (Left) + Runs & Jobs Explorer (Right) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sub-column: Workflows Tree */}
-        <div className="w-64 border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden">
+        <div
+          style={{ width: actionsWorkflowsWidth }}
+          className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
+        >
           <div className="h-8 px-3 border-b border-border flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-accent/10 shrink-0">
             <span>工作流 ({workflows.length})</span>
           </div>
@@ -191,6 +197,15 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             </div>
           </ScrollArea>
         </div>
+
+        <ResizeHandle
+          currentSize={actionsWorkflowsWidth}
+          onSizeChange={setActionsWorkflowsWidth}
+          minSize={160}
+          maxSize={480}
+          defaultSize={DEFAULT_LAYOUT.actionsWorkflowsWidth}
+          title="按住拖拽调节工作流列表宽度，双击恢复默认"
+        />
 
         {/* Right Stage: Runs Table (Top) + Jobs Breakdown (Bottom) */}
         <div className="flex-1 flex flex-col h-full overflow-hidden">

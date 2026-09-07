@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useRepoStore } from '@/stores/repoStore';
+import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -20,6 +22,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const PullRequestsView: React.FC = () => {
+  const { prListWidth, setPrListWidth } = useLayoutStore();
   const {
     pullRequests,
     selectedPR,
@@ -155,7 +158,10 @@ export const PullRequestsView: React.FC = () => {
       {/* Main Split: Left PR List + Right PR Review Details */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sub-column: PRs List */}
-        <div className="w-80 border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden">
+        <div
+          style={{ width: prListWidth }}
+          className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
+        >
           <ScrollArea className="flex-1 p-2">
             {filteredPRs.length === 0 ? (
               <div className="py-20 text-center text-xs text-muted-foreground">
@@ -243,6 +249,15 @@ export const PullRequestsView: React.FC = () => {
             )}
           </ScrollArea>
         </div>
+
+        <ResizeHandle
+          currentSize={prListWidth}
+          onSizeChange={setPrListWidth}
+          minSize={200}
+          maxSize={550}
+          defaultSize={DEFAULT_LAYOUT.prListWidth}
+          title="按住拖拽调节 PR 列表宽度，双击恢复默认"
+        />
 
         {/* Right Stage: Detailed PR Review View */}
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">

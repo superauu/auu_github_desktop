@@ -80,6 +80,11 @@ interface RepoState {
   stashDrop: (index?: number) => Promise<void>;
   revertCommit: (hash: string) => Promise<void>;
   softResetCommit: (hash: string) => Promise<void>;
+  undoLastCommit: () => Promise<void>;
+  openTerminal: () => Promise<void>;
+  openTabs: RepositoryInfo[];
+  closeTab: (path: string) => void;
+  switchTab: (path: string) => void;
 }
 
 const RECENT_REPOS_KEY = 'auu_git_recent_repos';
@@ -112,9 +117,22 @@ export const useRepoStore = create<RepoState>((set, get) => {
     isLeftSidebarCollapsed: false,
     isRightPaneCollapsed: false,
     errorMessage: null,
+    openTabs: initialRecent.slice(0, 4),
 
     setCurrentRepo: (repo) => {
-      set({ currentRepo: repo, selectedFile: null, selectedCommit: null, fileDiffLines: [] });
+      set((state) => {
+        let newTabs = state.openTabs;
+        if (repo && !newTabs.some((t) => t.path === repo.path)) {
+          newTabs = [...newTabs, repo];
+        }
+        return {
+          currentRepo: repo,
+          selectedFile: null,
+          selectedCommit: null,
+          fileDiffLines: [],
+          openTabs: newTabs,
+        };
+      });
       if (repo) {
         try {
           localStorage.setItem('auu_git_last_active_repo', JSON.stringify(repo));
@@ -122,6 +140,28 @@ export const useRepoStore = create<RepoState>((set, get) => {
         get().refreshAll();
       } else {
         localStorage.removeItem('auu_git_last_active_repo');
+      }
+    },
+
+    closeTab: (path: string) => {
+      set((state) => {
+        const remaining = state.openTabs.filter((t) => t.path !== path);
+        let nextCurrent = state.currentRepo;
+        if (state.currentRepo?.path === path) {
+          nextCurrent = remaining.length > 0 ? remaining[0] : null;
+        }
+        return { openTabs: remaining, currentRepo: nextCurrent };
+      });
+      const current = get().currentRepo;
+      if (current) {
+        get().refreshAll();
+      }
+    },
+
+    switchTab: (path: string) => {
+      const tab = get().openTabs.find((t) => t.path === path);
+      if (tab) {
+        get().setCurrentRepo(tab);
       }
     },
     setActiveTab: (activeTab) => set({ activeTab }),
@@ -592,6 +632,29 @@ export const useRepoStore = create<RepoState>((set, get) => {
       try {
         await gitService.softResetCommit(currentRepo.path, hash);
         await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    undoLastCommit: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.undoLastCommit(currentRepo.path);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    openTerminal: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.openTerminal(currentRepo.path);
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;

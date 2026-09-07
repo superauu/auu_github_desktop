@@ -9,6 +9,9 @@ import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { RepositoryDialog } from '@/features/repository/RepositoryDialog';
 import { GitHubAuthDialog } from '@/components/github/GitHubAuthDialog';
 import { ToastContainer } from '@/components/ui/ToastContainer';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
+import { useRepoStore } from '@/stores/repoStore';
 
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -16,6 +19,9 @@ export const AppLayout: React.FC = () => {
   const [repoDialogOpen, setRepoDialogOpen] = useState(false);
   const [repoDialogMode, setRepoDialogMode] = useState<'open' | 'clone' | 'init'>('open');
   const [githubAuthOpen, setGithubAuthOpen] = useState(false);
+
+  const { leftSidebarWidth, setLeftSidebarWidth, rightPaneWidth, setRightPaneWidth } = useLayoutStore();
+  const { isLeftSidebarCollapsed, isRightPaneCollapsed } = useRepoStore();
 
   const handleOpenRepoDialog = (mode: 'open' | 'clone' | 'init' = 'open') => {
     setRepoDialogMode(mode);
@@ -35,12 +41,33 @@ export const AppLayout: React.FC = () => {
       {/* Main 3-Column Work Area */}
       <div className="flex-1 flex overflow-hidden relative">
         <LeftSidebar />
+        {!isLeftSidebarCollapsed && (
+          <ResizeHandle
+            currentSize={leftSidebarWidth}
+            onSizeChange={setLeftSidebarWidth}
+            minSize={160}
+            maxSize={480}
+            defaultSize={DEFAULT_LAYOUT.leftSidebarWidth}
+            title="按住拖拽调节左侧边栏宽度，双击恢复默认"
+          />
+        )}
         <CenterStage
           onOpenRepoDialog={() => handleOpenRepoDialog('open')}
           onCloneRepoDialog={() => handleOpenRepoDialog('clone')}
           onInitRepoDialog={() => handleOpenRepoDialog('init')}
           onOpenGitHubAuth={() => setGithubAuthOpen(true)}
         />
+        {!isRightPaneCollapsed && (
+          <ResizeHandle
+            currentSize={rightPaneWidth}
+            onSizeChange={setRightPaneWidth}
+            minSize={220}
+            maxSize={650}
+            defaultSize={DEFAULT_LAYOUT.rightPaneWidth}
+            reverse
+            title="按住拖拽调节右侧面板宽度，双击恢复默认"
+          />
+        )}
         <RightPane />
       </div>
 

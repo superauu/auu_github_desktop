@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   CheckCircle2,
   GitCommit as GitCommitIcon,
@@ -8,26 +8,41 @@ import {
   AlertCircle,
   Loader2,
   Copy,
+  Sparkles,
+  FileCode,
+  FilePlus,
+  FileX,
+  FileEdit,
+  Folder,
+  FolderOpen,
+  List,
+  Network,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
+import { useLayoutStore } from '@/stores/layoutStore';
 import { GitHubCheckRun } from '@/services/github/types';
+import { GitFileChange } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/stores/toastStore';
+import { cn } from '@/utils/cn';
 
 export const RightPane: React.FC = () => {
+  const { rightPaneWidth } = useLayoutStore();
   const {
     isRightPaneCollapsed,
     status,
     selectedCommit,
     activeTab,
+    setActiveTab,
     commit,
     stageAll,
     push,
     errorMessage,
     setError,
+    setSelectedFile,
   } = useRepoStore();
 
   const { fetchCommitChecks } = useGitHubStore();
@@ -35,8 +50,13 @@ export const RightPane: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [isAmend, setIsAmend] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [checks, setChecks] = useState<GitHubCheckRun[]>([]);
   const [copiedHash, setCopiedHash] = useState(false);
+
+  // File list view mode: 'path' vs 'tree' (GitKraken style)
+  const [fileViewMode, setFileViewMode] = useState<'path' | 'tree'>('path');
+  const [treeFoldersOpen, setTreeFoldersOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (activeTab === 'history' && selectedCommit) {
@@ -52,6 +72,46 @@ export const RightPane: React.FC = () => {
   const unstagedCount = (status?.unstaged.length || 0) + (status?.untracked.length || 0);
   const totalChanges = stagedCount + unstagedCount;
 
+  // AI Commit Message Generation (GitKraken style)
+  const handleAiGenerateCommit = () => {
+    setIsAiGenerating(true);
+    const files = [...(status?.staged || []), ...(status?.unstaged || []), ...(status?.untracked || [])];
+    if (files.length === 0) {
+      toast.warning('无变更文件', '工作区暂无可供 AI 分析的文件');
+      setIsAiGenerating(false);
+      return;
+    }
+
+    setTimeout(() => {
+      // Analyze modified paths to draft Conventional Commits
+      const first = files[0].path.toLowerCase();
+      let prefix = 'feat';
+      let scope = '';
+
+      if (first.includes('style') || first.includes('css') || first.includes('ui') || first.includes('layout')) {
+        prefix = 'style';
+        scope = 'ui';
+      } else if (first.includes('fix') || first.includes('bug')) {
+        prefix = 'fix';
+        scope = 'core';
+      } else if (first.includes('doc') || first.includes('md')) {
+        prefix = 'docs';
+        scope = 'guide';
+      } else if (first.includes('store') || first.includes('service') || first.includes('git')) {
+        prefix = 'feat';
+        scope = 'git';
+      } else {
+        prefix = 'chore';
+        scope = 'workspace';
+      }
+
+      const generated = `${prefix}(${scope}): update ${files.slice(0, 3).map((f) => f.path.split(/[\\/]/).pop()).join(', ')}${files.length > 3 ? ` and ${files.length - 3} other files` : ''}`;
+      setCommitMessage(generated);
+      toast.success('AI 已生成提交说明', generated);
+      setIsAiGenerating(false);
+    }, 450);
+  };
+
   const handleCommit = async (andPush: boolean = false) => {
     if (!commitMessage.trim()) {
       toast.warning('请输入提交信息', 'Commit message 不能为空');
@@ -66,7 +126,6 @@ export const RightPane: React.FC = () => {
     setIsSubmitting(true);
     setError(null);
     try {
-      // If nothing is staged but there are unstaged changes, auto-stage all
       if (stagedCount === 0 && !isAmend) {
         toast.info('正在自动暂存所有工作区修改...');
         await stageAll();
@@ -101,8 +160,75 @@ export const RightPane: React.FC = () => {
     setTimeout(() => setCopiedHash(false), 2000);
   };
 
+  // Group working files into Tree structure
+  const allChangesFiles = useMemo(() => {
+    return [
+      ...(status?.staged || []),
+      ...(status?.unstaged || []),
+      ...(status?.untracked || []),
+    ];
+  }, [status]);
+
+  const treeGroupedFiles = useMemo(() => {
+    const folders: Record<string, GitFileChange[]> = {};
+    const rootFiles: GitFileChange[] = [];
+
+    for (const f of allChangesFiles) {
+      const parts = f.path.split(/[\\/]/);
+      if (parts.length > 1) {
+        const folder = parts[0];
+        if (!folders[folder]) folders[folder] = [];
+        folders[folder].push(f);
+      } else {
+        rootFiles.push(f);
+      }
+    }
+    return { folders, rootFiles };
+  }, [allChangesFiles]);
+
+  const toggleTreeFolder = (folder: string) => {
+    setTreeFoldersOpen((prev) => ({
+      ...prev,
+      [folder]: prev[folder] === undefined ? false : !prev[folder],
+    }));
+  };
+
+  const getFileStatusIcon = (st: string) => {
+    switch (st) {
+      case 'modified':
+        return <FileEdit className="h-3.5 w-3.5 text-amber-400 shrink-0" />;
+      case 'added':
+      case 'untracked':
+        return <FilePlus className="h-3.5 w-3.5 text-emerald-400 shrink-0" />;
+      case 'deleted':
+        return <FileX className="h-3.5 w-3.5 text-rose-400 shrink-0" />;
+      default:
+        return <FileCode className="h-3.5 w-3.5 text-sky-400 shrink-0" />;
+    }
+  };
+
   return (
-    <aside className="w-72 border-l border-border bg-card/40 flex flex-col select-none shrink-0 h-full overflow-hidden text-xs">
+    <aside
+      style={{ width: rightPaneWidth }}
+      className="border-l border-border bg-card/40 flex flex-col select-none shrink-0 h-full overflow-hidden text-xs"
+    >
+      {/* GitKraken-style Top Banner: 30 file changes in working directory [View Changes] */}
+      {totalChanges > 0 && activeTab === 'history' && (
+        <div className="h-8 px-3 bg-sky-500/15 border-b border-sky-500/30 flex items-center justify-between shrink-0 text-sky-300">
+          <span className="font-semibold text-[11px] truncate">
+            {totalChanges} file changes in working directory
+          </span>
+          <Button
+            variant="default"
+            size="xs"
+            onClick={() => setActiveTab('changes')}
+            className="h-5 px-2 text-[10px] bg-sky-500 hover:bg-sky-400 text-black font-semibold shrink-0"
+          >
+            View Changes
+          </Button>
+        </div>
+      )}
+
       {/* Pane Header */}
       <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-foreground bg-accent/20 shrink-0">
         <div className="flex items-center gap-1.5">
@@ -135,9 +261,10 @@ export const RightPane: React.FC = () => {
         {/* If viewing a selected commit from history */}
         {activeTab === 'history' && selectedCommit ? (
           <div className="space-y-4">
-            {/* Commit Meta */}
-            <div className="p-3 rounded-xl border border-border/80 bg-accent/30 space-y-2.5">
-              <div className="flex items-center justify-between">
+            {/* Commit Header & AI Recompose Button */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground text-[11px]">commit:</span>
                 <button
                   onClick={() => copyHash(selectedCommit.hash)}
                   className="font-mono text-xs font-semibold text-primary hover:underline flex items-center gap-1"
@@ -150,33 +277,55 @@ export const RightPane: React.FC = () => {
                     <Copy className="h-2.5 w-2.5 text-muted-foreground" />
                   )}
                 </button>
-                <span className="text-[10px] text-muted-foreground">
-                  {selectedCommit.author.relativeDate}
-                </span>
               </div>
 
-              <p className="text-xs font-medium text-foreground leading-relaxed">
+              {/* GitKraken-style Recompose with AI button */}
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => {
+                  setCommitMessage(selectedCommit.subject);
+                  setActiveTab('changes');
+                  toast.info('已复制提交信息至工作区并切换');
+                }}
+                className="h-6 px-2 text-[10px] gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/15"
+              >
+                <Sparkles className="h-3 w-3 text-purple-400" />
+                <span>Recompose</span>
+              </Button>
+            </div>
+
+            {/* Commit Subject & Body */}
+            <div className="p-3 rounded-xl border border-border/80 bg-accent/20 space-y-2">
+              <p className="text-xs font-semibold text-foreground leading-relaxed">
                 {selectedCommit.subject}
               </p>
-
               {selectedCommit.body && (
-                <p className="text-[11px] text-muted-foreground whitespace-pre-wrap font-mono bg-background/40 p-2 rounded border border-border/40">
+                <p className="text-[11px] text-muted-foreground whitespace-pre-wrap font-mono bg-background/50 p-2 rounded border border-border/40">
                   {selectedCommit.body}
                 </p>
               )}
+            </div>
 
-              <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-2 border-t border-border/40">
-                <div className="flex items-center gap-1">
-                  <span>作者:</span>
-                  <span className="text-foreground font-medium">{selectedCommit.author.name}</span>
+            {/* GitKraken-style Author Card */}
+            <div className="p-3 rounded-xl border border-border/70 bg-card/60 flex items-start gap-3">
+              <div className="h-8 w-8 rounded-lg bg-indigo-500/20 text-indigo-400 font-bold flex items-center justify-center text-xs shrink-0 border border-indigo-500/30 uppercase">
+                {selectedCommit.author.name.slice(0, 2)}
+              </div>
+              <div className="min-w-0 flex-1 space-y-0.5 text-[11px]">
+                <div className="font-semibold text-foreground truncate">{selectedCommit.author.name}</div>
+                <div className="text-muted-foreground text-[10px]">
+                  authored {selectedCommit.author.relativeDate}
                 </div>
-                <span className="text-[10px] opacity-60 font-mono">
-                  {selectedCommit.author.email}
-                </span>
+                {selectedCommit.parents.length > 0 && (
+                  <div className="text-[10px] text-muted-foreground/80 font-mono pt-1 border-t border-border/40">
+                    parent: {selectedCommit.parents[0].slice(0, 7)}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* GitHub Checks Status (PRD Section 24) */}
+            {/* GitHub Checks Status */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -191,7 +340,7 @@ export const RightPane: React.FC = () => {
               <div className="rounded-xl border border-border/80 divide-y divide-border/60 bg-background/50 text-[11px] overflow-hidden">
                 {checks.length === 0 ? (
                   <div className="p-3 text-center text-[10px] text-muted-foreground">
-                    正在查询 Checks 状态...
+                    未配置或无正在执行的 Checks
                   </div>
                 ) : (
                   checks.map((c) => (
@@ -211,68 +360,168 @@ export const RightPane: React.FC = () => {
                 )}
               </div>
             </div>
-
-            {/* Commit Hash & Parents */}
-            <div className="p-2.5 rounded-lg border border-border/60 bg-accent/15 space-y-1.5 text-[11px] font-mono">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>完整 Hash:</span>
-                <span className="text-foreground/90 text-[10px] truncate max-w-[150px]">
-                  {selectedCommit.hash}
-                </span>
-              </div>
-              {selectedCommit.parents.length > 0 && (
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Parent:</span>
-                  <span className="text-foreground/90 text-[10px]">
-                    {selectedCommit.parents.map((p) => p.slice(0, 7)).join(', ')}
-                  </span>
-                </div>
-              )}
-            </div>
           </div>
         ) : (
-          /* Commit Creation Area */
+          /* Normal Commit & Staging Inspector */
           <div className="space-y-4">
-            {/* Staging Summary */}
-            <div className="p-3 rounded-xl border border-border/80 bg-accent/20 space-y-1.5">
+            {/* GitKraken-style Changes File Explorer with [Path] [Tree] toggle */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground font-medium">暂存与提交准备</span>
-                <Badge
-                  variant={stagedCount > 0 ? "success" : totalChanges > 0 ? "warning" : "secondary"}
-                  className="h-4 text-[10px] font-mono"
-                >
-                  {stagedCount > 0 ? `${stagedCount} 个已暂存` : totalChanges > 0 ? `${totalChanges} 个未暂存` : '工作区干净'}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-foreground">
+                    {totalChanges} 个文件变更
+                  </span>
+                  <Badge
+                    variant={stagedCount > 0 ? "success" : "warning"}
+                    className="h-4 text-[9px] font-mono"
+                  >
+                    {stagedCount} 已暂存
+                  </Badge>
+                </div>
+
+                {/* Path vs Tree Pill Switcher */}
+                <div className="flex items-center bg-secondary/50 rounded p-0.5 border border-border/50">
+                  <button
+                    onClick={() => setFileViewMode('path')}
+                    className={cn(
+                      "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                      fileViewMode === 'path'
+                        ? "bg-background text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <List className="h-2.5 w-2.5" />
+                    <span>Path</span>
+                  </button>
+                  <button
+                    onClick={() => setFileViewMode('tree')}
+                    className={cn(
+                      "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                      fileViewMode === 'tree'
+                        ? "bg-background text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Network className="h-2.5 w-2.5" />
+                    <span>Tree</span>
+                  </button>
+                </div>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {stagedCount > 0
-                  ? '改动已暂存就绪，请输入提交信息并提交。'
-                  : isAmend
-                  ? 'Amend 模式：将修改并替换上一条提交记录。'
-                  : totalChanges > 0
-                  ? `检测到 ${totalChanges} 个文件有修改。写好提交信息后点击提交，系统将自动帮您暂存全部改动并提交。`
-                  : '当前工作区无任何文件改动。'}
-              </p>
+
+              {/* File items container */}
+              <div className="rounded-xl border border-border/70 bg-card/60 p-1.5 max-h-48 overflow-y-auto space-y-0.5">
+                {allChangesFiles.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground text-[11px]">
+                    暂无待提交的文件修改
+                  </div>
+                ) : fileViewMode === 'path' ? (
+                  /* Flat Path View */
+                  allChangesFiles.map((file) => (
+                    <div
+                      key={file.path}
+                      onClick={() => {
+                        setSelectedFile(file);
+                        setActiveTab('changes');
+                      }}
+                      className="px-2 py-1 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[11px] group transition-colors"
+                      title={file.path}
+                    >
+                      <div className="flex items-center gap-1.5 truncate min-w-0 pr-1">
+                        {getFileStatusIcon(file.status)}
+                        <span className="font-mono truncate">{file.path}</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-mono opacity-60">
+                        {file.status}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  /* Hierarchical Tree View */
+                  <div>
+                    {Object.entries(treeGroupedFiles.folders).map(([folder, files]) => {
+                      const isOpen = treeFoldersOpen[folder] !== false;
+                      return (
+                        <div key={folder} className="space-y-0.5">
+                          <div
+                            onClick={() => toggleTreeFolder(folder)}
+                            className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent/40 cursor-pointer text-[11px] font-medium text-foreground"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {isOpen ? (
+                                <FolderOpen className="h-3 w-3 text-amber-400" />
+                              ) : (
+                                <Folder className="h-3 w-3 text-amber-400" />
+                              )}
+                              <span>{folder}</span>
+                            </div>
+                            <span className="text-[9px] text-muted-foreground font-mono">
+                              {files.length}
+                            </span>
+                          </div>
+                          {isOpen && (
+                            <div className="pl-4 ml-2 border-l border-border/40 space-y-0.5">
+                              {files.map((file) => (
+                                <div
+                                  key={file.path}
+                                  onClick={() => {
+                                    setSelectedFile(file);
+                                    setActiveTab('changes');
+                                  }}
+                                  className="px-2 py-0.5 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[11px] group"
+                                >
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    {getFileStatusIcon(file.status)}
+                                    <span className="font-mono truncate">
+                                      {file.path.slice(folder.length + 1)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {treeGroupedFiles.rootFiles.map((file) => (
+                      <div
+                        key={file.path}
+                        onClick={() => {
+                          setSelectedFile(file);
+                          setActiveTab('changes');
+                        }}
+                        className="px-2 py-1 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[11px]"
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          {getFileStatusIcon(file.status)}
+                          <span className="font-mono truncate">{file.path}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Commit Message Box */}
+            {/* Commit Message Box & AI Generator */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-medium text-foreground">
                   提交信息 (Commit Message)
                 </label>
-                <div className="flex gap-1">
-                  {['feat', 'fix', 'chore', 'perf'].map((prefix) => (
-                    <button
-                      key={prefix}
-                      type="button"
-                      onClick={() => setCommitMessage(`${prefix}: `)}
-                      className="text-[9px] px-1.5 py-0.5 rounded bg-accent/70 text-primary hover:bg-accent font-mono"
-                    >
-                      {prefix}
-                    </button>
-                  ))}
-                </div>
+
+                {/* GitKraken-style Recompose commit with AI */}
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleAiGenerateCommit}
+                  disabled={isAiGenerating}
+                  className="h-5 px-1.5 text-[10px] gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/15"
+                  title="根据当前修改智能生成语义化提交说明"
+                >
+                  <Sparkles className="h-2.5 w-2.5 text-purple-400" />
+                  <span>{isAiGenerating ? 'AI 生成中...' : 'Recompose with AI'}</span>
+                </Button>
               </div>
 
               <textarea

@@ -355,6 +355,23 @@ export class GitService implements IGitService {
   async rebaseAbort(repoPath: string): Promise<void> {
     await executeGit(['rebase', '--abort'], repoPath);
   }
+
+  async undoLastCommit(repoPath: string): Promise<void> {
+    // 类似于 GitKraken 的 Undo：安全软重置最新一次提交，保留代码到暂存区
+    await executeGit(['reset', '--soft', 'HEAD~1'], repoPath);
+  }
+
+  async openTerminal(repoPath: string): Promise<void> {
+    try {
+      // 优先尝试 Tauri Shell 唤起 Windows PowerShell
+      const { Command } = await import('@tauri-apps/plugin-shell');
+      const cmd = Command.create('powershell', ['-NoExit', '-Command', `Set-Location -Path '${repoPath}'`]);
+      await cmd.spawn();
+    } catch {
+      // 在纯网页/Dev模式下降级复制路径并提示
+      navigator.clipboard.writeText(repoPath);
+    }
+  }
 }
 
 export const gitService = new GitService();

@@ -11,6 +11,8 @@ import {
   Archive,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
+import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,6 +20,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const WorkingChangesView: React.FC = () => {
+  const { changesFileListWidth, setChangesFileListWidth } = useLayoutStore();
   const {
     status,
     selectedFile,
@@ -76,7 +79,10 @@ export const WorkingChangesView: React.FC = () => {
   return (
     <div className="flex-1 h-full flex overflow-hidden select-none bg-background">
       {/* Changes File List Sub-panel */}
-      <div className="w-64 border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden">
+      <div
+        style={{ width: changesFileListWidth }}
+        className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
+      >
         <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
           <div className="flex items-center gap-2">
             {totalChanges > 0 && (
@@ -356,6 +362,15 @@ export const WorkingChangesView: React.FC = () => {
           )}
         </ScrollArea>
       </div>
+
+      <ResizeHandle
+        currentSize={changesFileListWidth}
+        onSizeChange={setChangesFileListWidth}
+        minSize={160}
+        maxSize={500}
+        defaultSize={DEFAULT_LAYOUT.changesFileListWidth}
+        title="按住拖拽调节变更列表宽度，双击恢复默认"
+      />
 
       {/* Diff Viewer Pane */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">

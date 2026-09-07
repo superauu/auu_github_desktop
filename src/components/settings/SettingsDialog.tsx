@@ -7,8 +7,12 @@ import {
   Keyboard,
   X,
   Check,
+  RotateCcw,
+  LayoutGrid,
 } from 'lucide-react';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
+import { useLayoutStore } from '@/stores/layoutStore';
+import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/utils/cn';
@@ -25,6 +29,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onOpenChange,
 }) => {
   const { theme, setTheme } = useThemeStore();
+  const { resetLayout } = useLayoutStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [gitPath, setGitPath] = useState('git');
   const [autoFetchInterval, setAutoFetchInterval] = useState('10m');
@@ -178,6 +183,32 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       <div className="text-[11px] text-muted-foreground">缩减元素内边距以显示更多内容</div>
                     </div>
                     <input type="checkbox" className="rounded border-input text-primary h-4 w-4" defaultChecked />
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border">
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <div className="font-medium text-foreground flex items-center gap-1.5">
+                        <LayoutGrid className="h-3.5 w-3.5 text-primary" />
+                        <span>分栏与区域宽度布局 (Panel Layout)</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        已支持自由拖拽左侧栏、右侧提交面板及子列表分栏线，位置自动存入本地存储
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        resetLayout();
+                        toast.success('已恢复默认区域宽度布局');
+                      }}
+                      className="gap-1 text-xs shrink-0"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>恢复默认布局</span>
+                    </Button>
                   </div>
                 </div>
               </div>

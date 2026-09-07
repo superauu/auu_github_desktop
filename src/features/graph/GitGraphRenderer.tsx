@@ -5,6 +5,8 @@ interface GitGraphRendererProps {
   commits: GitCommit[];
   selectedIndex: number;
   rowHeight?: number;
+  hasWipNode?: boolean;
+  isWipSelected?: boolean;
 }
 
 const LANE_WIDTH = 18;
@@ -12,17 +14,18 @@ const LANE_OFFSET = 14;
 const ROW_HEIGHT = 44; // Matches commit item row height
 
 const LANE_COLORS = [
-  '#6366f1', // Indigo
+  '#38bdf8', // Sky / Cyan (GitKraken main blue)
+  '#a855f7', // Purple
   '#22c55e', // Emerald
   '#f59e0b', // Amber
-  '#06b6d4', // Cyan
-  '#a855f7', // Purple
   '#ec4899', // Pink
-  '#3b82f6', // Blue
+  '#6366f1', // Indigo
+  '#14b8a6', // Teal
 ];
 
 interface GraphNode {
-  commit: GitCommit;
+  commit?: GitCommit;
+  isWip?: boolean;
   index: number;
   lane: number;
   x: number;
@@ -34,31 +37,53 @@ interface GraphPath {
   id: string;
   d: string;
   color: string;
+  isDashed?: boolean;
 }
 
 export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
   commits,
   selectedIndex,
   rowHeight = ROW_HEIGHT,
+  hasWipNode = false,
+  isWipSelected = false,
 }) => {
   const { nodes, paths, maxLane } = useMemo(() => {
-    if (!commits || commits.length === 0) {
+    if (!commits || (commits.length === 0 && !hasWipNode)) {
       return { nodes: [], paths: [], maxLane: 0 };
     }
 
+    const rowOffset = hasWipNode ? 1 : 0;
     const commitMap = new Map<string, number>();
-    commits.forEach((c, idx) => commitMap.set(c.hash, idx));
+    commits.forEach((c, idx) => commitMap.set(c.hash, idx + rowOffset));
 
     const laneOccupiedUntil: number[] = [];
     const commitLanes: number[] = [];
 
+    const calculatedNodes: GraphNode[] = [];
+    const calculatedPaths: GraphPath[] = [];
+    let calculatedMaxLane = 0;
+
+    // Add WIP node if requested
+    if (hasWipNode) {
+      laneOccupiedUntil.push(1);
+      calculatedNodes.push({
+        isWip: true,
+        index: 0,
+        lane: 0,
+        x: LANE_OFFSET,
+        y: rowHeight / 2,
+        color: '#38bdf8',
+      });
+    }
+
     for (let i = 0; i < commits.length; i++) {
       const commit = commits[i];
+      const actualRowIndex = i + rowOffset;
       let assignedLane = -1;
 
       // Check if any existing lane was reserved for this commit
       for (let l = 0; l < laneOccupiedUntil.length; l++) {
-        if (laneOccupiedUntil[l] === i) {
+        if (laneOccupiedUntil[l] === actualRowIndex) {
           assignedLane = l;
           break;
         }
@@ -67,7 +92,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       // If no lane reserved, find first free lane
       if (assignedLane === -1) {
         for (let l = 0; l < laneOccupiedUntil.length; l++) {
-          if (laneOccupiedUntil[l] < i) {
+          if (laneOccupiedUntil[l] < actualRowIndex) {
             assignedLane = l;
             break;
           }
@@ -83,17 +108,15 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
 
       // Reserve lane for parents
       if (commit.parents && commit.parents.length > 0) {
-        // First parent continues on this lane
         const firstParentIdx = commitMap.get(commit.parents[0]);
         if (firstParentIdx !== undefined) {
           laneOccupiedUntil[assignedLane] = firstParentIdx;
         }
 
-        // Additional parents take new lanes
         for (let p = 1; p < commit.parents.length; p++) {
           const parentIdx = commitMap.get(commit.parents[p]);
           if (parentIdx !== undefined) {
-            let pLane = laneOccupiedUntil.findIndex((until) => until < i);
+            let pLane = laneOccupiedUntil.findIndex((until) => until < actualRowIndex);
             if (pLane === -1) {
               pLane = laneOccupiedUntil.length;
               laneOccupiedUntil.push(-1);
@@ -101,44 +124,40 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
             laneOccupiedUntil[pLane] = parentIdx;
           }
         }
-      } else {
-        laneOccupiedUntil[assignedLane] = -1;
       }
-    }
 
-    const calculatedNodes: GraphNode[] = [];
-    let calculatedMaxLane = 0;
-
-    for (let i = 0; i < commits.length; i++) {
-      const lane = commitLanes[i] || 0;
-      if (lane > calculatedMaxLane) calculatedMaxLane = lane;
-
-      const x = lane * LANE_WIDTH + LANE_OFFSET;
-      const y = i * rowHeight + rowHeight / 2;
-      const color = LANE_COLORS[lane % LANE_COLORS.length];
+      calculatedMaxLane = Math.max(calculatedMaxLane, assignedLane);
 
       calculatedNodes.push({
-        commit: commits[i],
-        index: i,
-        lane,
-        x,
-        y,
-        color,
+        commit,
+        index: actualRowIndex,
+        lane: assignedLane,
+        x: LANE_OFFSET + assignedLane * LANE_WIDTH,
+        y: actualRowIndex * rowHeight + rowHeight / 2,
+        color: LANE_COLORS[assignedLane % LANE_COLORS.length],
       });
     }
 
-    // Build Bezier connecting paths between commits and their parents
-    const calculatedPaths: GraphPath[] = [];
+    // Connect WIP node to HEAD node
+    if (hasWipNode && calculatedNodes.length > 1) {
+      const wipNode = calculatedNodes[0];
+      const headNode = calculatedNodes[1];
+      calculatedPaths.push({
+        id: 'wip-to-head',
+        d: `M ${wipNode.x} ${wipNode.y} L ${headNode.x} ${headNode.y}`,
+        color: '#38bdf8',
+        isDashed: true,
+      });
+    }
 
+    // Generate paths between commits and parents
     for (let i = 0; i < commits.length; i++) {
-      const node = calculatedNodes[i];
+      const node = calculatedNodes[i + rowOffset];
       const parents = commits[i].parents || [];
 
       for (const parentHash of parents) {
-        const parentIdx = commitMap.get(parentHash);
-        if (parentIdx !== undefined && parentIdx > i) {
-          const parentNode = calculatedNodes[parentIdx];
-
+        const parentNode = calculatedNodes.find((n) => n.commit?.hash === parentHash);
+        if (parentNode) {
           const x1 = node.x;
           const y1 = node.y;
           const x2 = parentNode.x;
@@ -146,10 +165,8 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
 
           let d = '';
           if (x1 === x2) {
-            // Straight vertical line
             d = `M ${x1} ${y1} L ${x2} ${y2}`;
           } else {
-            // Cubic Bezier curve for branch forks and merges
             const midY = (y1 + y2) / 2;
             d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
           }
@@ -168,10 +185,10 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       paths: calculatedPaths,
       maxLane: calculatedMaxLane,
     };
-  }, [commits, rowHeight]);
+  }, [commits, rowHeight, hasWipNode]);
 
-  const svgWidth = Math.max((maxLane + 1) * LANE_WIDTH + 24, 38);
-  const totalHeight = commits.length * rowHeight;
+  const svgWidth = Math.max((maxLane + 1) * LANE_WIDTH + 24, 42);
+  const totalHeight = (commits.length + (hasWipNode ? 1 : 0)) * rowHeight;
 
   return (
     <svg
@@ -194,19 +211,50 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
             key={path.id}
             d={path.d}
             stroke={path.color}
-            strokeOpacity="0.65"
+            strokeOpacity="0.75"
+            strokeDasharray={path.isDashed ? "3 3" : undefined}
           />
         ))}
       </g>
 
-      {/* Commit Node circles */}
+      {/* Node circles */}
       {nodes.map((node) => {
+        if (node.isWip) {
+          return (
+            <g key="wip-node">
+              {isWipSelected && (
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  r="8.5"
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth="1.5"
+                  strokeDasharray="2 2"
+                />
+              )}
+              {/* WIP outer dashed circle */}
+              <circle
+                cx={node.x}
+                cy={node.y}
+                r="6"
+                fill="hsl(var(--background))"
+                stroke="#38bdf8"
+                strokeWidth="2"
+                strokeDasharray="2.5 2"
+              />
+              {/* Inner plus dot */}
+              <circle cx={node.x} cy={node.y} r="2" fill="#38bdf8" />
+            </g>
+          );
+        }
+
         const isSelected = selectedIndex === node.index;
-        const isHead = node.commit.refs?.some((r) => r.includes('HEAD'));
-        const isTag = node.commit.refs?.some((r) => r.startsWith('tag:'));
+        const isHead = node.commit?.refs?.some((r) => r.includes('HEAD'));
+        const isTag = node.commit?.refs?.some((r) => r.startsWith('tag:'));
 
         return (
-          <g key={node.commit.hash}>
+          <g key={node.commit?.hash}>
             {/* Outer selection ring if selected */}
             {isSelected && (
               <circle
@@ -217,7 +265,6 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
                 stroke={node.color}
                 strokeWidth="1.5"
                 strokeDasharray="2 2"
-                className="animate-spin-slow"
               />
             )}
 
