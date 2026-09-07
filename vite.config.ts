@@ -251,6 +251,91 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
           res.end(JSON.stringify({ error: err.message }));
         }
       });
+
+      // 5. GitHub OAuth Device Code Proxy Endpoint
+      server.middlewares.use('/api/github/device-code', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+          return;
+        }
+
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+        });
+
+        req.on('end', async () => {
+          try {
+            const { client_id = '178c6fc778ccc68e1d6a', scope = 'repo,workflow,read:user' } = JSON.parse(body || '{}');
+            const response = await fetch('https://github.com/login/device/code', {
+              method: 'POST',
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ client_id, scope }),
+            });
+
+            const data = await response.json();
+            res.statusCode = response.status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(data));
+          } catch (err: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message || '获取设备码失败' }));
+          }
+        });
+      });
+
+      // 6. GitHub OAuth Device Token Polling Proxy Endpoint
+      server.middlewares.use('/api/github/device-token', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+          return;
+        }
+
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+        });
+
+        req.on('end', async () => {
+          try {
+            const { client_id = '178c6fc778ccc68e1d6a', device_code } = JSON.parse(body || '{}');
+            if (!device_code) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'device_code is required' }));
+              return;
+            }
+
+            const response = await fetch('https://github.com/login/oauth/access_token', {
+              method: 'POST',
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                client_id,
+                device_code,
+                grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+              }),
+            });
+
+            const data = await response.json();
+            res.statusCode = response.status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(data));
+          } catch (err: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message || '轮询 Token 失败' }));
+          }
+        });
+      });
     },
   };
 }

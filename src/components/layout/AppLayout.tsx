@@ -85,6 +85,7 @@ export const AppLayout: React.FC = () => {
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+        onOpenGitHubAuth={() => setGithubAuthOpen(true)}
       />
 
       <RepositoryDialog

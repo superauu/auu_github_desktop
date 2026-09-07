@@ -13,13 +13,17 @@ import {
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { toast } from '@/stores/toastStore';
+import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle2, LogOut, Key } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenGitHubAuth?: () => void;
 }
 
 type SettingsTab = 'general' | 'git' | 'github' | 'appearance' | 'shortcuts';
@@ -27,9 +31,11 @@ type SettingsTab = 'general' | 'git' | 'github' | 'appearance' | 'shortcuts';
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   open,
   onOpenChange,
+  onOpenGitHubAuth,
 }) => {
   const { theme, setTheme } = useThemeStore();
   const { resetLayout } = useLayoutStore();
+  const { user, isAuthenticated, logout } = useGitHubStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [gitPath, setGitPath] = useState('git');
   const [autoFetchInterval, setAutoFetchInterval] = useState('10m');
@@ -253,23 +259,80 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {/* GitHub Tab */}
             {activeTab === 'github' && (
               <div className="space-y-4">
-                <div className="p-4 rounded-xl border border-border bg-accent/20 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-full bg-foreground/10 text-foreground">
-                      <Github className="h-5 w-5" />
+                {isAuthenticated && user ? (
+                  <div className="p-4 rounded-xl border border-border bg-accent/20 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={user.avatar_url}
+                        alt={user.login}
+                        className="w-10 h-10 rounded-full border border-border/80 shadow-xs"
+                      />
+                      <div>
+                        <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                          <span>{user.name || user.login}</span>
+                          <Badge variant="success" className="h-3.5 text-[8px] px-1 gap-0.5">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            <span>已连接</span>
+                          </Badge>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground font-mono">@{user.login}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-semibold text-xs text-foreground">GitHub 账号未连接</div>
-                      <div className="text-[11px] text-muted-foreground">通过安全 OAuth 登录以查看 Actions 与 PR</div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => {
+                          onOpenChange(false);
+                          onOpenGitHubAuth?.();
+                        }}
+                        className="gap-1 text-xs h-7"
+                      >
+                        <Key className="h-3 w-3" />
+                        <span>管理凭证</span>
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="destructive"
+                        onClick={() => {
+                          logout();
+                          toast.info('已断开 GitHub 账号连接');
+                        }}
+                        className="gap-1 text-xs h-7"
+                      >
+                        <LogOut className="h-3 w-3" />
+                        <span>断开连接</span>
+                      </Button>
                     </div>
                   </div>
-                  <Button size="sm" className="gap-1.5 text-xs">
-                    <span>登录 GitHub</span>
-                  </Button>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-border bg-accent/20 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-full bg-foreground/10 text-foreground">
+                        <Github className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-xs text-foreground">GitHub 账号未连接</div>
+                        <div className="text-[11px] text-muted-foreground">通过安全 OAuth 登录以查看 Actions 与 PR</div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        onOpenChange(false);
+                        onOpenGitHubAuth?.();
+                      }}
+                      className="gap-1.5 text-xs"
+                    >
+                      <Github className="h-3.5 w-3.5" />
+                      <span>登录 GitHub</span>
+                    </Button>
+                  </div>
+                )}
 
                 <div className="text-[11px] text-muted-foreground leading-relaxed">
-                  提示：Token 将安全存储在系统安全凭据管理器（OS Credential Storage）中，禁止以明文写入磁盘。
+                  提示：支持 GitHub 官方 OAuth 设备流一键授权，也可使用包含 <code className="bg-accent px-1 rounded font-mono">repo</code>、
+                  <code className="bg-accent px-1 rounded font-mono">workflow</code> 权限的 Personal Access Token 进行连接。
                 </div>
               </div>
             )}
