@@ -1,0 +1,198 @@
+import React, { useState } from 'react';
+import { GitMerge, X, Loader2, AlertCircle, Check, ArrowRight } from 'lucide-react';
+import { useRepoStore } from '@/stores/repoStore';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { toast } from '@/stores/toastStore';
+
+interface MergeBranchModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  targetBranch?: string; // Branch to merge into current
+}
+
+export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
+  open,
+  onOpenChange,
+  targetBranch: initialTargetBranch,
+}) => {
+  const { currentRepo, branches, mergeBranch } = useRepoStore();
+
+  const currentBranch = currentRepo?.currentBranch || 'main';
+  const availableBranches = branches.filter((b) => b.name !== currentBranch);
+
+  const [selectedBranch, setSelectedBranch] = useState(
+    initialTargetBranch || availableBranches[0]?.name || ''
+  );
+  const [noFastForward, setNoFastForward] = useState(false);
+  const [customMessage, setCustomMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!open) return null;
+
+  const handleMerge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBranch) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await mergeBranch(selectedBranch, {
+        noFf: noFastForward,
+        message: customMessage.trim() || undefined,
+      });
+
+      toast.success(`分支合并完成`, `已成功将 ${selectedBranch} 合并入 ${currentBranch}`);
+      onOpenChange(false);
+    } catch (err: any) {
+      const msg = err.message || '合并失败';
+      setError(msg);
+      if (msg.includes('CONFLICT') || msg.includes('conflict')) {
+        toast.error('合并遇到冲突 (Conflict)', '工作区存在代码冲突，请在工作区中检查并解决冲突');
+      } else {
+        toast.error('合并失败', msg);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      onClick={() => onOpenChange(false)}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+              <GitMerge className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="font-semibold text-xs text-foreground">合并分支 (Merge Branch)</div>
+              <div className="text-[10px] text-muted-foreground">
+                将选定分支的代码改动合并到当前分支
+              </div>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            onClick={() => onOpenChange(false)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {error && (
+          <div className="p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+            <div className="text-[11px] break-all leading-relaxed">{error}</div>
+          </div>
+        )}
+
+        <form onSubmit={handleMerge} className="space-y-4 text-xs">
+          {/* Branch Flow Visualizer */}
+          <div className="p-3 rounded-lg border border-border bg-accent/20 flex items-center justify-between text-xs font-mono">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-muted-foreground">来源分支 (将被合并)</span>
+              <Badge variant="outline" className="h-5 px-2 text-xs">
+                {selectedBranch || '未选择'}
+              </Badge>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="flex flex-col gap-1 items-end">
+              <span className="text-[10px] text-muted-foreground">目标当前分支 (HEAD)</span>
+              <Badge variant="success" className="h-5 px-2 text-xs font-semibold">
+                {currentBranch}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Select Source Branch */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-foreground block">
+              选择要合并入当前分支的来源分支
+            </label>
+            <select
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {availableBranches.length === 0 ? (
+                <option value="">暂无其他可选分支</option>
+              ) : (
+                availableBranches.map((b) => (
+                  <option key={b.name} value={b.name}>
+                    {b.name} {b.isRemote ? '(远程)' : ''}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Options */}
+          <div className="space-y-2 pt-1">
+            <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={noFastForward}
+                onChange={(e) => setNoFastForward(e.target.checked)}
+                className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
+              />
+              <span>始终创建合并提交 (--no-ff)</span>
+            </label>
+
+            {noFastForward && (
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground block">
+                  自定义合并提交说明 (可选)
+                </label>
+                <input
+                  type="text"
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder={`Merge branch '${selectedBranch}' into ${currentBranch}`}
+                  className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={() => onOpenChange(false)}
+              className="h-7 text-xs"
+            >
+              取消
+            </Button>
+            <Button
+              type="submit"
+              size="xs"
+              disabled={!selectedBranch || isSubmitting}
+              className="h-7 text-xs gap-1.5"
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              <span>执行合并</span>
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

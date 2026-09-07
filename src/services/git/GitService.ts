@@ -50,6 +50,22 @@ export class GitService implements IGitService {
       // origin remote might not exist
     }
 
+    let isGitHubRepo = false;
+    let gitHubOwner: string | undefined = undefined;
+    let gitHubRepo: string | undefined = undefined;
+
+    if (remoteUrl) {
+      // Support https://github.com/owner/repo(.git) and git@github.com:owner/repo(.git)
+      const httpsMatch = remoteUrl.match(/github\.com\/([^/]+)\/([^/.]+)(?:\.git)?$/i);
+      const sshMatch = remoteUrl.match(/github\.com:([^/]+)\/([^/.]+)(?:\.git)?$/i);
+      const match = httpsMatch || sshMatch;
+      if (match) {
+        isGitHubRepo = true;
+        gitHubOwner = match[1];
+        gitHubRepo = match[2];
+      }
+    }
+
     return {
       id: String(Date.now()),
       name,
@@ -57,6 +73,9 @@ export class GitService implements IGitService {
       currentBranch: status.currentBranch || 'main',
       lastOpenedAt: Date.now(),
       remoteUrl,
+      isGitHubRepo,
+      gitHubOwner,
+      gitHubRepo,
     };
   }
 
@@ -291,8 +310,50 @@ export class GitService implements IGitService {
     await executeGit(['tag', '-d', name], repoPath);
   }
 
-  async pushTag(repoPath: string, name: string): Promise<void> {
-    await executeGit(['push', 'origin', `refs/tags/${name}`], repoPath);
+  async pushTag(repoPath: string, name: string, remote: string = 'origin'): Promise<void> {
+    await executeGit(['push', remote, `refs/tags/${name}`], repoPath);
+  }
+
+  async pushAllTags(repoPath: string, remote: string = 'origin'): Promise<void> {
+    await executeGit(['push', remote, '--tags'], repoPath);
+  }
+
+  async deleteRemoteTag(repoPath: string, name: string, remote: string = 'origin'): Promise<void> {
+    await executeGit(['push', remote, `--delete`, name], repoPath);
+  }
+
+  async merge(
+    repoPath: string,
+    branch: string,
+    options?: { noFf?: boolean; message?: string }
+  ): Promise<string> {
+    const args = ['merge'];
+    if (options?.noFf) {
+      args.push('--no-ff');
+    }
+    if (options?.message?.trim()) {
+      args.push('-m', options.message.trim());
+    }
+    args.push(branch);
+    const res = await executeGit(args, repoPath);
+    return res.stdout || res.stderr;
+  }
+
+  async abortMerge(repoPath: string): Promise<void> {
+    await executeGit(['merge', '--abort'], repoPath);
+  }
+
+  async rebase(repoPath: string, upstream: string): Promise<string> {
+    const res = await executeGit(['rebase', upstream], repoPath);
+    return res.stdout || res.stderr;
+  }
+
+  async rebaseContinue(repoPath: string): Promise<void> {
+    await executeGit(['rebase', '--continue'], repoPath);
+  }
+
+  async rebaseAbort(repoPath: string): Promise<void> {
+    await executeGit(['rebase', '--abort'], repoPath);
   }
 }
 

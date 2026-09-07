@@ -78,7 +78,33 @@ export const WorkingChangesView: React.FC = () => {
       {/* Changes File List Sub-panel */}
       <div className="w-64 border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden">
         <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
-          <span>工作区变更 ({totalChanges})</span>
+          <div className="flex items-center gap-2">
+            {totalChanges > 0 && (
+              <button
+                onClick={() => {
+                  if (stagedFiles.length === totalChanges) {
+                    unstageAll();
+                    toast.info('已取消全部暂存');
+                  } else {
+                    stageAll();
+                    toast.success('已暂存全部工作区变动');
+                  }
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                title={stagedFiles.length === totalChanges ? "取消全选" : "全选暂存"}
+              >
+                {stagedFiles.length === totalChanges ? (
+                  <CheckSquare className="h-3.5 w-3.5 text-emerald-400" />
+                ) : stagedFiles.length > 0 ? (
+                  <CheckSquare className="h-3.5 w-3.5 text-primary" />
+                ) : (
+                  <Square className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </button>
+            )}
+            <span>变更 ({totalChanges})</span>
+          </div>
+
           <div className="flex items-center gap-1">
             {totalChanges > 0 && (
               <Button
@@ -142,7 +168,7 @@ export const WorkingChangesView: React.FC = () => {
               {stagedFiles.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>已暂存改动 ({stagedFiles.length})</span>
+                    <span>已暂存 ({stagedFiles.length})</span>
                     <button
                       onClick={() => {
                         unstageAll();
@@ -166,6 +192,17 @@ export const WorkingChangesView: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              unstageFile(file.path);
+                              toast.info(`已取消暂存: ${file.path}`);
+                            }}
+                            className="text-emerald-400 hover:text-emerald-300 shrink-0"
+                            title="点击取消暂存"
+                          >
+                            <CheckSquare className="h-3.5 w-3.5" />
+                          </button>
                           {getStatusBadge(file.status)}
                           <span className="truncate text-[11px] font-mono">{file.path}</span>
                         </div>
@@ -216,6 +253,17 @@ export const WorkingChangesView: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              stageFile(file.path);
+                              toast.success(`已暂存: ${file.path}`);
+                            }}
+                            className="text-muted-foreground hover:text-emerald-400 shrink-0"
+                            title="点击暂存此文件"
+                          >
+                            <Square className="h-3.5 w-3.5" />
+                          </button>
                           {getStatusBadge(file.status)}
                           <span className="truncate text-[11px] font-mono">{file.path}</span>
                         </div>
@@ -272,6 +320,17 @@ export const WorkingChangesView: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              stageFile(file.path);
+                              toast.success(`已添加跟踪: ${file.path}`);
+                            }}
+                            className="text-muted-foreground hover:text-emerald-400 shrink-0"
+                            title="点击添加跟踪并暂存"
+                          >
+                            <Square className="h-3.5 w-3.5" />
+                          </button>
                           {getStatusBadge(file.status)}
                           <span className="truncate text-[11px] font-mono">{file.path}</span>
                         </div>

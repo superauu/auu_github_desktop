@@ -10,6 +10,7 @@ import {
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
+import { useGitHubStore } from '@/stores/githubStore';
 
 export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests';
 
@@ -58,10 +59,19 @@ interface RepoState {
   unstageAll: () => Promise<void>;
   discardChanges: (filePath: string) => Promise<void>;
   commit: (message: string, amend?: boolean) => Promise<void>;
-  createBranch: (name: string) => Promise<void>;
+  createBranch: (name: string, startPoint?: string, checkout?: boolean) => Promise<void>;
+  deleteBranch: (name: string, force?: boolean) => Promise<void>;
   checkoutBranch: (name: string) => Promise<void>;
   createTag: (name: string, commitHash?: string, message?: string) => Promise<void>;
   deleteTag: (name: string) => Promise<void>;
+  pushTag: (name: string) => Promise<void>;
+  pushAllTags: () => Promise<void>;
+  deleteRemoteTag: (name: string) => Promise<void>;
+  mergeBranch: (branch: string, options?: { noFf?: boolean; message?: string }) => Promise<string>;
+  abortMerge: () => Promise<void>;
+  rebaseBranch: (upstream: string) => Promise<string>;
+  rebaseContinue: () => Promise<void>;
+  rebaseAbort: () => Promise<void>;
 
   // Stash & Revert
   stashPush: (message?: string, includeUntracked?: boolean) => Promise<void>;
@@ -202,6 +212,28 @@ export const useRepoStore = create<RepoState>((set, get) => {
         if (!get().selectedCommit && commits.length > 0) {
           set({ selectedCommit: commits[0] });
         }
+
+        // Auto-detect GitHub remote & sync with GitHub Store
+        let activeRepo = currentRepo;
+        if (!activeRepo.remoteUrl || !activeRepo.gitHubOwner) {
+          try {
+            const detected = await gitService.openRepository(activeRepo.path);
+            if (detected.remoteUrl) {
+              activeRepo = {
+                ...activeRepo,
+                remoteUrl: detected.remoteUrl,
+                isGitHubRepo: detected.isGitHubRepo,
+                gitHubOwner: detected.gitHubOwner,
+                gitHubRepo: detected.gitHubRepo,
+              };
+              set({ currentRepo: activeRepo });
+            }
+          } catch {}
+        }
+
+        if (activeRepo.gitHubOwner && activeRepo.gitHubRepo) {
+          useGitHubStore.getState().syncRepo(activeRepo.gitHubOwner, activeRepo.gitHubRepo);
+        }
       } catch (err: any) {
         set({ errorMessage: err.message, isLoading: false });
       }
@@ -331,11 +363,26 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    createBranch: async (name: string) => {
+    createBranch: async (name: string, startPoint?: string, checkout?: boolean) => {
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
-        await gitService.createBranch(currentRepo.path, name);
+        await gitService.createBranch(currentRepo.path, name, startPoint);
+        if (checkout) {
+          await gitService.checkoutBranch(currentRepo.path, name);
+        }
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    deleteBranch: async (name: string, force?: boolean) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.deleteBranch(currentRepo.path, name, force);
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
@@ -372,6 +419,106 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.deleteTag(currentRepo.path, name);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    pushTag: async (name: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.pushTag(currentRepo.path, name);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    pushAllTags: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.pushAllTags(currentRepo.path);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    deleteRemoteTag: async (name: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.deleteRemoteTag(currentRepo.path, name);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    mergeBranch: async (branch: string, options?: { noFf?: boolean; message?: string }) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return '';
+      try {
+        const out = await gitService.merge(currentRepo.path, branch, options);
+        await get().refreshAll();
+        return out;
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        await get().refreshAll();
+        throw err;
+      }
+    },
+
+    abortMerge: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.abortMerge(currentRepo.path);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    rebaseBranch: async (upstream: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return '';
+      try {
+        const out = await gitService.rebase(currentRepo.path, upstream);
+        await get().refreshAll();
+        return out;
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        await get().refreshAll();
+        throw err;
+      }
+    },
+
+    rebaseContinue: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.rebaseContinue(currentRepo.path);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    rebaseAbort: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.rebaseAbort(currentRepo.path);
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });

@@ -15,6 +15,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Github,
+  Plus,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
@@ -22,6 +23,7 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
+import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { toast } from '@/stores/toastStore';
 
 interface HeaderProps {
@@ -54,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated, isDemoMode } = useGitHubStore();
   const [showRepoMenu, setShowRepoMenu] = React.useState(false);
+  const [createBranchModalOpen, setCreateBranchModalOpen] = React.useState(false);
 
   const cycleTheme = () => {
     const nextTheme: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
@@ -173,6 +176,19 @@ export const Header: React.FC<HeaderProps> = ({
                   <FolderGit2 className="h-3.5 w-3.5 text-primary" />
                   <span>打开其他本地仓库...</span>
                 </button>
+
+                {currentRepo && (
+                  <button
+                    onClick={() => {
+                      setShowRepoMenu(false);
+                      setCreateBranchModalOpen(true);
+                    }}
+                    className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center gap-2"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-indigo-400" />
+                    <span>新建分支 (New Branch)...</span>
+                  </button>
+                )}
 
                 {recentRepos.length > 0 && (
                   <>
@@ -368,6 +384,11 @@ export const Header: React.FC<HeaderProps> = ({
           </Tooltip>
         </div>
       </header>
+
+      <CreateBranchModal
+        open={createBranchModalOpen}
+        onOpenChange={setCreateBranchModalOpen}
+      />
     </TooltipProvider>
   );
 };

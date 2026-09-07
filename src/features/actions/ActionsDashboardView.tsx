@@ -51,6 +51,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     isDemoMode,
     isAuthenticated,
     user,
+    currentOwner,
+    currentRepoName,
   } = useGitHubStore();
 
   const getStatusIcon = (conclusion: string | null, status: string) => {
@@ -76,10 +78,15 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
         <div className="flex items-center gap-2">
           <Workflow className="h-4 w-4 text-primary" />
           <span className="font-semibold text-foreground">GitHub Actions 开发者仪表盘</span>
+          {currentOwner && currentRepoName && (
+            <Badge variant="outline" className="h-4 text-[9px] font-mono border-primary/40 text-primary">
+              {currentOwner}/{currentRepoName}
+            </Badge>
+          )}
           {isDemoMode && (
             <Badge variant="warning" className="h-4 text-[9px] gap-1 font-normal">
               <Sparkles className="h-2.5 w-2.5 text-amber-400" />
-              <span>高保真交互模式 (Demo Mode)</span>
+              <span>演示模式 (Demo Mode)</span>
             </Badge>
           )}
           {isAuthenticated && user && (

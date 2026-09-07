@@ -113,5 +113,12 @@ export interface IGitService {
   getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean): Promise<any[]>;
   createTag(repoPath: string, name: string, commitHash?: string, message?: string): Promise<void>;
   deleteTag(repoPath: string, name: string): Promise<void>;
-  pushTag(repoPath: string, name: string): Promise<void>;
+  pushTag(repoPath: string, name: string, remote?: string): Promise<void>;
+  pushAllTags(repoPath: string, remote?: string): Promise<void>;
+  deleteRemoteTag(repoPath: string, name: string, remote?: string): Promise<void>;
+  merge(repoPath: string, branch: string, options?: { noFf?: boolean; message?: string }): Promise<string>;
+  abortMerge(repoPath: string): Promise<void>;
+  rebase(repoPath: string, upstream: string): Promise<string>;
+  rebaseContinue(repoPath: string): Promise<void>;
+  rebaseAbort(repoPath: string): Promise<void>;
 }

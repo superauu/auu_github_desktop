@@ -24,6 +24,7 @@ export const RightPane: React.FC = () => {
     selectedCommit,
     activeTab,
     commit,
+    stageAll,
     push,
     errorMessage,
     setError,
@@ -48,13 +49,29 @@ export const RightPane: React.FC = () => {
   if (isRightPaneCollapsed) return null;
 
   const stagedCount = status?.staged.length || 0;
+  const unstagedCount = (status?.unstaged.length || 0) + (status?.untracked.length || 0);
+  const totalChanges = stagedCount + unstagedCount;
 
   const handleCommit = async (andPush: boolean = false) => {
-    if (!commitMessage.trim()) return;
+    if (!commitMessage.trim()) {
+      toast.warning('请输入提交信息', 'Commit message 不能为空');
+      return;
+    }
+
+    if (totalChanges === 0 && !isAmend) {
+      toast.warning('无可提交的变更', '当前工作区无任何修改');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
     try {
+      // If nothing is staged but there are unstaged changes, auto-stage all
+      if (stagedCount === 0 && !isAmend) {
+        toast.info('正在自动暂存所有工作区修改...');
+        await stageAll();
+      }
+
       await commit(commitMessage.trim(), isAmend);
       const title = isAmend ? '已覆盖修改上一条提交 (Amend)' : '新提交创建成功！';
       toast.success(title, commitMessage.trim());
@@ -219,20 +236,22 @@ export const RightPane: React.FC = () => {
             {/* Staging Summary */}
             <div className="p-3 rounded-xl border border-border/80 bg-accent/20 space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground font-medium">已暂存文件</span>
+                <span className="text-[11px] text-muted-foreground font-medium">暂存与提交准备</span>
                 <Badge
-                  variant={stagedCount > 0 ? "success" : "secondary"}
+                  variant={stagedCount > 0 ? "success" : totalChanges > 0 ? "warning" : "secondary"}
                   className="h-4 text-[10px] font-mono"
                 >
-                  {stagedCount} 个文件
+                  {stagedCount > 0 ? `${stagedCount} 个已暂存` : totalChanges > 0 ? `${totalChanges} 个未暂存` : '工作区干净'}
                 </Badge>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {stagedCount > 0
-                  ? '改动已暂存就绪，请输入提交信息。'
+                  ? '改动已暂存就绪，请输入提交信息并提交。'
                   : isAmend
                   ? 'Amend 模式：将修改并替换上一条提交记录。'
-                  : '尚未暂存任何改动。请在中间区域勾选要暂存的文件。'}
+                  : totalChanges > 0
+                  ? `检测到 ${totalChanges} 个文件有修改。写好提交信息后点击提交，系统将自动帮您暂存全部改动并提交。`
+                  : '当前工作区无任何文件改动。'}
               </p>
             </div>
 
@@ -287,24 +306,34 @@ export const RightPane: React.FC = () => {
               <Button
                 onClick={() => handleCommit(false)}
                 className="w-full h-8 text-xs font-medium gap-1.5 shadow-sm"
-                disabled={(stagedCount === 0 && !isAmend) || !commitMessage.trim() || isSubmitting}
+                disabled={(!commitMessage.trim()) || (totalChanges === 0 && !isAmend) || isSubmitting}
               >
                 {isSubmitting ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <Check className="h-3.5 w-3.5" />
                 )}
-                <span>{isAmend ? '覆盖提交 (Amend)' : '提交变更 (Commit)'}</span>
+                <span>
+                  {isAmend
+                    ? '覆盖提交 (Amend)'
+                    : stagedCount === 0 && totalChanges > 0
+                    ? `暂存全部并提交 (${totalChanges} 个文件)`
+                    : '提交变更 (Commit)'}
+                </span>
               </Button>
 
               <Button
                 variant="secondary"
                 onClick={() => handleCommit(true)}
                 className="w-full h-8 text-xs font-medium gap-1.5"
-                disabled={(stagedCount === 0 && !isAmend) || !commitMessage.trim() || isSubmitting}
+                disabled={(!commitMessage.trim()) || (totalChanges === 0 && !isAmend) || isSubmitting}
               >
                 <Send className="h-3 w-3" />
-                <span>提交并推送 (Commit & Push)</span>
+                <span>
+                  {stagedCount === 0 && totalChanges > 0
+                    ? '暂存全部、提交并推送'
+                    : '提交并推送 (Commit & Push)'}
+                </span>
               </Button>
             </div>
           </div>
