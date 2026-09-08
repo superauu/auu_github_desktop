@@ -281,7 +281,42 @@ export class GitService implements IGitService {
   }
 
   async checkoutBranch(repoPath: string, name: string): Promise<void> {
-    await executeGit(['checkout', name], repoPath);
+    const target = await this.resolveCheckoutTarget(repoPath, name);
+    await executeGit(['checkout', target], repoPath);
+  }
+
+  /**
+   * 将分支引用名解析为可安全检出的目标，避免检出远程跟踪分支时进入 detached HEAD：
+   * - `remotes/origin/foo` 先归一化为 `origin/foo`
+   * - 存在同名本地分支 → 直接检出
+   * - 不存在本地分支但存在远程跟踪分支 `origin/foo` → 检出短名 `foo`，
+   *   触发 git DWIM 自动创建跟踪本地分支
+   * - 标签等其他引用保持原样（detached 行为由调用方提示）
+   */
+  private async resolveCheckoutTarget(repoPath: string, name: string): Promise<string> {
+    const target = name.trim().replace(/^remotes\//, '');
+    if (!target) return name;
+
+    try {
+      await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${target}`], repoPath);
+      return target;
+    } catch {
+      // 本地分支不存在，继续判断是否为远程跟踪分支
+    }
+
+    const slashIdx = target.indexOf('/');
+    if (slashIdx > 0) {
+      const shortName = target.slice(slashIdx + 1);
+      if (shortName && !shortName.includes('/')) {
+        try {
+          await executeGit(['show-ref', '--verify', '--quiet', `refs/remotes/${target}`], repoPath);
+          return shortName;
+        } catch {
+          // 不是远程跟踪分支（可能是标签），保持原名
+        }
+      }
+    }
+    return target;
   }
 
   async deleteBranch(repoPath: string, name: string, force?: boolean): Promise<void> {

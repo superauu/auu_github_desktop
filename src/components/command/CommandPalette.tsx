@@ -215,8 +215,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     key={b.name}
                     onSelect={() => {
                       if (!b.isCurrent) {
-                        checkoutBranch(b.name);
-                        toast.success(`已切换至分支: ${b.name}`);
+                        checkoutBranch(b.name)
+                          .then(() => toast.success(`已切换至分支: ${b.name}`))
+                          .catch((err: any) =>
+                            toast.error(`切换分支失败: ${b.name}`, err?.message)
+                          );
                       }
                       onOpenChange(false);
                     }}
