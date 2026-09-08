@@ -9,6 +9,7 @@ import {
   GitBranch as GitBranchIcon,
   Cloud
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { GitBranch } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
   targetBranch,
 }) => {
   const { currentRepo, branches, status, checkoutBranch, mergeBranch, rebaseBranch } = useRepoStore();
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [selectedAction, setSelectedAction] = useState<'merge' | 'rebase-target' | 'rebase-source'>('merge');
   const [error, setError] = useState<string | null>(null);
@@ -51,37 +53,37 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
         // Merge source into target
         // If current branch is not target, checkout target first
         if (currentBranchName !== targetBranch.name) {
-          toast.info(`正在检出目标分支: ${targetBranch.name}...`);
+          toast.info(`${t('drag.checkingOut')}: ${targetBranch.name}...`);
           await checkoutBranch(targetBranch.name);
         }
-        toast.info(`正在将 ${sourceBranch.name} 合并到 ${targetBranch.name}...`);
+        toast.info(`${t('drag.merging').replace('{src}', sourceBranch.name).replace('{dst}', targetBranch.name)}`);
         await mergeBranch(sourceBranch.name);
-        toast.success(`合并成功！`, `${sourceBranch.name} ➜ ${targetBranch.name}`);
+        toast.success(t('drag.mergeDone'), `${sourceBranch.name} ➜ ${targetBranch.name}`);
       } else if (selectedAction === 'rebase-target') {
         // Rebase target onto source
         if (currentBranchName !== targetBranch.name) {
-          toast.info(`正在检出分支: ${targetBranch.name}...`);
+          toast.info(`${t('drag.checkingOut')}: ${targetBranch.name}...`);
           await checkoutBranch(targetBranch.name);
         }
-        toast.info(`正在将 ${targetBranch.name} 变基到 ${sourceBranch.name}...`);
+        toast.info(`${t('drag.rebasing').replace('{src}', targetBranch.name).replace('{dst}', sourceBranch.name)}`);
         await rebaseBranch(sourceBranch.name);
-        toast.success(`变基成功！`, `${targetBranch.name} onto ${sourceBranch.name}`);
+        toast.success(t('drag.rebaseDone'), `${targetBranch.name} onto ${sourceBranch.name}`);
       } else {
         // Rebase source onto target
         if (currentBranchName !== sourceBranch.name) {
-          toast.info(`正在检出分支: ${sourceBranch.name}...`);
+          toast.info(`${t('drag.checkingOut')}: ${sourceBranch.name}...`);
           await checkoutBranch(sourceBranch.name);
         }
-        toast.info(`正在将 ${sourceBranch.name} 变基到 ${targetBranch.name}...`);
+        toast.info(`${t('drag.rebasing').replace('{src}', sourceBranch.name).replace('{dst}', targetBranch.name)}`);
         await rebaseBranch(targetBranch.name);
-        toast.success(`变基成功！`, `${sourceBranch.name} onto ${targetBranch.name}`);
+        toast.success(t('drag.rebaseDone'), `${sourceBranch.name} onto ${targetBranch.name}`);
       }
 
       onOpenChange(false);
     } catch (err: any) {
-      console.error('拖拽执行失败:', err);
-      setError(err?.message || '操作未完成，可能存在代码冲突，请检查工作区');
-      toast.error('操作未完成', err?.message);
+      console.error(t('drag.failedLog'), err);
+      setError(err?.message || t('drag.failed'));
+      toast.error(t('drag.opIncomplete'), err?.message);
     } finally {
       setLoading(false);
     }
@@ -106,13 +108,13 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
             </div>
             <div>
               <div className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <span>分支拖拽快速操作</span>
+                <span>{t('drag.title')}</span>
                 <Badge variant="outline" className="text-[10px] font-normal py-0 h-4 border-primary/30 text-primary">
                   Drag & Drop
                 </Badge>
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                请选择您希望对这两个分支执行的 Git 操作
+                {t('drag.pickOp')}
               </div>
             </div>
           </div>
@@ -138,7 +140,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
               )}
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] text-muted-foreground">源分支 (Source)</div>
+              <div className="text-[10px] text-muted-foreground">{t('drag.source')}</div>
               <div className="text-xs font-mono font-semibold text-foreground truncate max-w-[170px]" title={sourceBranch.name}>
                 {sourceBranch.name}
               </div>
@@ -151,7 +153,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
 
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
             <div className="min-w-0">
-              <div className="text-[10px] text-muted-foreground">目标分支 (Target)</div>
+              <div className="text-[10px] text-muted-foreground">{t('drag.target')}</div>
               <div className="text-xs font-mono font-semibold text-foreground truncate max-w-[170px]" title={targetBranch.name}>
                 {targetBranch.name}
               </div>
@@ -184,12 +186,12 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
             <div className="flex-1 min-w-0 space-y-0.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground">
-                  合并 (Merge)
+                  {t('drag.merge')}
                 </span>
-                <span className="text-[10px] font-mono text-muted-foreground">推荐</span>
+                <span className="text-[10px] font-mono text-muted-foreground">{t('drag.recommended')}</span>
               </div>
               <div className="text-[11px] text-muted-foreground leading-relaxed">
-                将 <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> 合并到 <span className="font-mono text-foreground font-medium">{targetBranch.name}</span>
+                {t('drag.mergeDescPrefix')} <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> {t('drag.mergeDescMid')} <span className="font-mono text-foreground font-medium">{targetBranch.name}</span>
               </div>
               <div className="text-[10px] text-primary/80 font-mono pt-1">
                 $ git checkout {targetBranch.name} && git merge {sourceBranch.name}
@@ -213,11 +215,11 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
             <div className="flex-1 min-w-0 space-y-0.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground">
-                  变基目标分支 (Rebase Target onto Source)
+                  {t('drag.rebaseTarget')}
                 </span>
               </div>
               <div className="text-[11px] text-muted-foreground leading-relaxed">
-                将 <span className="font-mono text-foreground font-medium">{targetBranch.name}</span> 变基到 <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> 之后
+                <span className="font-mono text-foreground font-medium">{targetBranch.name}</span> {t('drag.rebaseDescSuffix')} <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span>
               </div>
               <div className="text-[10px] text-amber-500/90 font-mono pt-1">
                 $ git checkout {targetBranch.name} && git rebase {sourceBranch.name}
@@ -241,11 +243,11 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
             <div className="flex-1 min-w-0 space-y-0.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground">
-                  变基源分支 (Rebase Source onto Target)
+                  {t('drag.rebaseSource')}
                 </span>
               </div>
               <div className="text-[11px] text-muted-foreground leading-relaxed">
-                将 <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> 变基到 <span className="font-mono text-foreground font-medium">{targetBranch.name}</span> 之后
+                <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> {t('drag.rebaseDescSuffix')} <span className="font-mono text-foreground font-medium">{targetBranch.name}</span>
               </div>
               <div className="text-[10px] text-amber-500/90 font-mono pt-1">
                 $ git checkout {sourceBranch.name} && git rebase {targetBranch.name}
@@ -271,7 +273,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
             onClick={() => onOpenChange(false)}
             className="h-8 text-xs text-muted-foreground"
           >
-            取消
+            {t('common.cancel')}
           </Button>
 
           <Button
@@ -281,7 +283,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
             className="h-8 text-xs px-5 gap-1.5 font-medium"
           >
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            <span>确认执行</span>
+            <span>{t('drag.confirm')}</span>
           </Button>
         </div>
       </div>

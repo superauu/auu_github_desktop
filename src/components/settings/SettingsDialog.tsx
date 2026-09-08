@@ -55,7 +55,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   } = useSettingsStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
-  const [gitVersion, setGitVersion] = useState<string>('正在检测系统 Git 版本...');
+  const [gitVersion, setGitVersion] = useState<string>('');
   const [isDetectingGit, setIsDetectingGit] = useState<boolean>(false);
   const [isTestingAi, setIsTestingAi] = useState<boolean>(false);
 
@@ -64,9 +64,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setIsDetectingGit(true);
     try {
       const ver = await gitService.getGitVersion();
-      setGitVersion(ver || '未检测到可用 Git CLI');
+      setGitVersion(ver || t('settings.git.notFound'));
     } catch (err: any) {
-      setGitVersion('检测失败: 请确认 Git 路径正确配置');
+      setGitVersion(t('settings.git.detectFailed'));
     } finally {
       setIsDetectingGit(false);
     }
@@ -83,12 +83,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   // Test custom AI connection
   const handleTestAiConnection = async () => {
     if (aiConfig.provider === 'builtin') {
-      toast.success('本地深度 Diff 语法分析引擎已就绪', '纯本地免 Key 模式，零网络延迟');
+      toast.success(t('settings.ai.builtinReady'), t('settings.ai.builtinReadyDesc'));
       return;
     }
 
     if (!aiConfig.apiKey.trim()) {
-      toast.warning('请输入 API Key 后再测试连接');
+      toast.warning(t('settings.ai.needKey'));
       return;
     }
 
@@ -113,9 +113,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
         throw new Error(`HTTP ${res.status}: ${errorText.slice(0, 100)}`);
       }
 
-      toast.success('AI API 连接测试成功！', `已成功连通 ${aiConfig.model}`);
+      toast.success(t('settings.ai.testOk'), t('settings.ai.testOkDesc').replace('{model}', aiConfig.model));
     } catch (err: any) {
-      toast.error('AI 连接测试失败', err.message);
+      toast.error(t('settings.ai.testFailed'), err.message);
     } finally {
       setIsTestingAi(false);
     }
@@ -124,13 +124,13 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   if (!open) return null;
 
   const shortcuts = [
-    { key: 'Ctrl/Cmd + K', desc: '打开全局命令搜索面板 (Command Palette)' },
-    { key: 'Ctrl/Cmd + P', desc: '推送本地提交到远程 (Git Push)' },
-    { key: 'Ctrl/Cmd + L', desc: '拉取远程更新 (Git Pull)' },
-    { key: 'Ctrl/Cmd + Shift + F', desc: '获取远程变更 (Git Fetch)' },
-    { key: 'Ctrl/Cmd + Enter', desc: '提交暂存的文件 (Commit)' },
-    { key: 'Ctrl/Cmd + B', desc: '新建分支 (Create Branch)' },
-    { key: 'Ctrl/Cmd + T', desc: '新建标签 (Create Tag)' },
+    { key: 'Ctrl/Cmd + K', desc: t('settings.shortcuts.cmdPalette') },
+    { key: 'Ctrl/Cmd + P', desc: t('settings.shortcuts.push') },
+    { key: 'Ctrl/Cmd + L', desc: t('settings.shortcuts.pull') },
+    { key: 'Ctrl/Cmd + Shift + F', desc: t('settings.shortcuts.fetch') },
+    { key: 'Ctrl/Cmd + Enter', desc: t('settings.shortcuts.commit') },
+    { key: 'Ctrl/Cmd + B', desc: t('settings.shortcuts.createBranch') },
+    { key: 'Ctrl/Cmd + T', desc: t('settings.shortcuts.createTag') },
   ];
 
   return (
@@ -470,12 +470,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[11px] font-medium text-foreground block mb-1">
-                          模型名称 (Model)
+                          {t('settings.ai.model')}
                         </label>
                         <Input
                           value={aiConfig.model}
                           onChange={(e) => setAiConfig({ model: e.target.value })}
-                          placeholder="例如 deepseek-chat 或 gpt-4o-mini"
+                          placeholder={t('settings.ai.modelPlaceholder')}
                           className="font-mono text-xs"
                         />
                       </div>
@@ -586,8 +586,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 )}
 
                 <div className="text-[11px] text-muted-foreground leading-relaxed">
-                  提示：支持 GitHub 官方 OAuth 设备流一键授权，也可使用包含 <code className="bg-accent px-1 rounded font-mono">repo</code>、
-                  <code className="bg-accent px-1 rounded font-mono">workflow</code> 权限的 Personal Access Token 进行连接。
+                  {t('settings.github.patHintPrefix')} <code className="bg-accent px-1 rounded font-mono">repo</code>、
+                  <code className="bg-accent px-1 rounded font-mono">workflow</code> {t('settings.github.patHintSuffix')}
                 </div>
               </div>
             )}

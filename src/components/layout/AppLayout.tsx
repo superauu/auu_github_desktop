@@ -11,6 +11,7 @@ import { GitHubAuthDialog } from '@/components/github/GitHubAuthDialog';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 
@@ -30,6 +31,7 @@ export const AppLayout: React.FC = () => {
   } = useLayoutStore();
   const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote } = useRepoStore();
   const { compactMode, autoFetchInterval } = useSettingsStore();
+  const { t } = useI18n();
 
   // Global Shortcut: Ctrl+` toggles embedded terminal
   useEffect(() => {
@@ -95,7 +97,7 @@ export const AppLayout: React.FC = () => {
             minSize={160}
             maxSize={480}
             defaultSize={DEFAULT_LAYOUT.leftSidebarWidth}
-            title="按住拖拽调节左侧边栏宽度，双击恢复默认"
+            title={t('layout.resizeLeft')}
           />
         )}
         <CenterStage
@@ -113,7 +115,7 @@ export const AppLayout: React.FC = () => {
               maxSize={650}
               defaultSize={DEFAULT_LAYOUT.rightPaneWidth}
               reverse
-              title="按住拖拽调节右侧面板宽度，双击恢复默认"
+              title={t('layout.resizeRight')}
             />
             <RightPane />
           </>

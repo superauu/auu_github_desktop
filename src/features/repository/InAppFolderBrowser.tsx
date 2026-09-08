@@ -14,6 +14,7 @@ import {
   listDirectories,
   ListDirsResult,
 } from '@/services/fs/DirectoryService';
+import { useI18n } from '@/i18n';
 
 interface InAppFolderBrowserProps {
   initialPath?: string;
@@ -24,6 +25,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
   initialPath,
   onSelectPath,
 }) => {
+  const { t } = useI18n();
   const [currentPath, setCurrentPath] = useState<string>(initialPath || '');
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [directories, setDirectories] = useState<DirectoryEntry[]>([]);
@@ -39,7 +41,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
       setParentPath(res.parentPath);
       setDirectories(res.directories);
     } catch (err: any) {
-      setError(err.message || '读取目录失败');
+      setError(err.message || t('browser.loadFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +62,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
               size="icon"
               className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
               onClick={() => loadDir(parentPath)}
-              title="返回上一级目录"
+              title={t('browser.backTitle')}
             >
               <ArrowUp className="h-3.5 w-3.5" />
             </Button>
@@ -70,14 +72,14 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
               size="icon"
               className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
               onClick={() => loadDir('')}
-              title="查看所有磁盘驱动器"
+              title={t('browser.drivesTitle')}
             >
               <HardDrive className="h-3.5 w-3.5" />
             </Button>
           )}
 
           <span className="font-mono text-[11px] text-foreground truncate select-text">
-            {currentPath || '我的电脑 (磁盘根目录)'}
+            {currentPath || t('browser.myComputer')}
           </span>
         </div>
 
@@ -89,7 +91,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
             onClick={() => onSelectPath(currentPath)}
           >
             <Check className="h-3 w-3" />
-            <span>选择当前目录</span>
+            <span>{t('browser.selectCurrent')}</span>
           </Button>
         )}
       </div>
@@ -99,7 +101,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
         {isLoading ? (
           <div className="py-8 flex flex-col items-center justify-center text-muted-foreground gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <span className="text-[11px]">正在扫描目录...</span>
+            <span className="text-[11px]">{t('browser.scanning')}</span>
           </div>
         ) : error ? (
           <div className="py-6 px-4 text-center text-rose-400 text-xs">
@@ -110,12 +112,12 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
               className="block mx-auto text-xs mt-1 text-primary"
               onClick={() => loadDir('')}
             >
-              返回根驱动器
+              {t('browser.backToRoot')}
             </Button>
           </div>
         ) : directories.length === 0 ? (
           <div className="py-8 text-center text-muted-foreground text-xs">
-            此目录下没有子文件夹
+            {t('browser.noSubfolders')}
           </div>
         ) : (
           directories.map((dir) => (
@@ -137,7 +139,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
                 </span>
                 {dir.hasGit && (
                   <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
-                    Git 仓库
+                    {t('browser.gitRepo')}
                   </span>
                 )}
               </div>

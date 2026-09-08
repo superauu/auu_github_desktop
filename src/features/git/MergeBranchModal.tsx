@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GitMerge, X, Loader2, AlertCircle, Check, ArrowRight } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
   targetBranch: initialTargetBranch,
 }) => {
   const { currentRepo, branches, status, mergeBranch } = useRepoStore();
+  const { t } = useI18n();
 
   const currentBranch =
     branches.find((b) => b.isCurrent)?.name ||
@@ -56,15 +58,15 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
         message: customMessage.trim() || undefined,
       });
 
-      toast.success(`分支合并完成`, `已成功将 ${selectedBranch} 合并入 ${currentBranch}`);
+      toast.success(t('merge.success'), `${t('merge.successDesc').replace('{src}', selectedBranch).replace('{dst}', currentBranch)}`);
       onOpenChange(false);
     } catch (err: any) {
-      const msg = err.message || '合并失败';
+      const msg = err.message || t('merge.failed');
       setError(msg);
       if (msg.includes('CONFLICT') || msg.includes('conflict')) {
-        toast.error('合并遇到冲突 (Conflict)', '工作区存在代码冲突，请在工作区中检查并解决冲突');
+        toast.error(t('merge.conflict'), t('merge.conflictDesc'));
       } else {
-        toast.error('合并失败', msg);
+        toast.error(t('merge.failed'), msg);
       }
     } finally {
       setIsSubmitting(false);
@@ -87,9 +89,9 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
               <GitMerge className="h-4 w-4" />
             </div>
             <div>
-              <div className="font-semibold text-xs text-foreground">合并分支 (Merge Branch)</div>
+              <div className="font-semibold text-xs text-foreground">{t('merge.title')}</div>
               <div className="text-[10px] text-muted-foreground">
-                将选定分支的代码改动合并到当前分支
+                {t('merge.desc')}
               </div>
             </div>
           </div>
@@ -114,14 +116,14 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
           {/* Branch Flow Visualizer */}
           <div className="p-3 rounded-lg border border-border bg-accent/20 flex items-center justify-between text-xs font-mono">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-muted-foreground">来源分支 (将被合并)</span>
+              <span className="text-[10px] text-muted-foreground">{t('merge.sourceLabel')}</span>
               <Badge variant="outline" className="h-5 px-2 text-xs">
-                {selectedBranch || '未选择'}
+                {selectedBranch || t('merge.none')}
               </Badge>
             </div>
             <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex flex-col gap-1 items-end">
-              <span className="text-[10px] text-muted-foreground">目标当前分支 (HEAD)</span>
+              <span className="text-[10px] text-muted-foreground">{t('merge.targetLabel')}</span>
               <Badge variant="success" className="h-5 px-2 text-xs font-semibold">
                 {currentBranch}
               </Badge>
@@ -131,7 +133,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
           {/* Select Source Branch */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-foreground block">
-              选择要合并入当前分支的来源分支
+              {t('merge.pickSource')}
             </label>
             <select
               value={selectedBranch}
@@ -139,11 +141,11 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
               className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring"
             >
               {availableBranches.length === 0 ? (
-                <option value="">暂无其他可选分支</option>
+                <option value="">{t('merge.noBranches')}</option>
               ) : (
                 availableBranches.map((b) => (
                   <option key={b.name} value={b.name}>
-                    {b.name} {b.isRemote ? '(远程)' : ''}
+                    {b.name} {b.isRemote ? t('merge.remoteSuffix') : ''}
                   </option>
                 ))
               )}
@@ -159,13 +161,13 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
                 onChange={(e) => setNoFastForward(e.target.checked)}
                 className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
               />
-              <span>始终创建合并提交 (--no-ff)</span>
+              <span>{t('merge.noFf')}</span>
             </label>
 
             {noFastForward && (
               <div className="space-y-1">
                 <label className="text-[10px] text-muted-foreground block">
-                  自定义合并提交说明 (可选)
+                  {t('merge.customMsg')}
                 </label>
                 <input
                   type="text"
@@ -187,7 +189,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
               onClick={() => onOpenChange(false)}
               className="h-7 text-xs"
             >
-              取消
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit"
@@ -200,7 +202,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
               ) : (
                 <Check className="h-3 w-3" />
               )}
-              <span>执行合并</span>
+              <span>{t('merge.run')}</span>
             </Button>
           </div>
         </form>

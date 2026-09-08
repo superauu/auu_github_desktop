@@ -47,7 +47,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     checkoutBranch,
   } = useRepoStore();
   const { setTheme } = useThemeStore();
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -76,7 +76,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           <div className="flex items-center px-3.5 border-b border-border/60">
             <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
             <Command.Input
-              placeholder={lang === 'zh' ? "输入命令、分支、Tag 或操作 (如 Commit, Push, CI)..." : "Type a command, branch, tag or action (e.g. Commit, Push, CI)..."}
+              placeholder={t('palette.placeholder')}
               className="h-12 w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
               autoFocus
             />
@@ -87,11 +87,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
           <Command.List className="max-h-84 overflow-y-auto p-2 text-xs">
             <Command.Empty className="py-8 text-center text-xs text-muted-foreground">
-              {lang === 'zh' ? '未找到匹配的命令或分支' : 'No matching commands'}
+              {t('palette.noMatch')}
             </Command.Empty>
 
             {/* View Navigation */}
-            <Command.Group heading={lang === 'zh' ? '视图导航' : 'Navigation'} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <Command.Group heading={t('palette.group.nav')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
               <Command.Item
                 onSelect={() => {
                   setActiveTab('changes');
@@ -124,7 +124,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <GitPullRequest className="h-3.5 w-3.5 text-sky-400" />
-                <span>{lang === 'zh' ? 'GitHub Pull Requests 审查中心' : t('palette.prCenter')}</span>
+                <span>{t('palette.prCenter')}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 3</span>
               </Command.Item>
 
@@ -136,13 +136,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Workflow className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{lang === 'zh' ? 'GitHub Actions 开发者仪表盘' : t('palette.actionsDash')}</span>
+                <span>{t('palette.actionsDash')}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 4</span>
               </Command.Item>
             </Command.Group>
 
             {/* Git Core Actions */}
-            <Command.Group heading={lang === 'zh' ? 'Git 协同操作' : t('palette.group.git')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+            <Command.Group heading={t('palette.group.git')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
                 onSelect={async () => {
                   onOpenChange(false);
@@ -211,7 +211,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Quick Switch Branches */}
             {branches.length > 0 && (
-              <Command.Group heading={lang === 'zh' ? '切换本地/远程分支' : t('palette.group.branches')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+              <Command.Group heading={t('palette.group.branches')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
                 {branches.map((b) => (
                   <Command.Item
                     key={b.name}
@@ -241,7 +241,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Quick Tags */}
             {tags.length > 0 && (
-              <Command.Group heading={lang === 'zh' ? '查看标签 (Tags)' : 'Tags'} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+              <Command.Group heading={t('palette.group.tags')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
                 {tags.map((t) => (
                   <Command.Item
                     key={t.name}
@@ -262,12 +262,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             )}
 
             {/* Themes & Preferences */}
-            <Command.Group heading={lang === 'zh' ? '系统设置与主题' : t('palette.group.settings')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+            <Command.Group heading={t('palette.group.settings')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
                 onSelect={() => {
                   setTheme('dark');
                   onOpenChange(false);
-                  toast.info(lang === 'zh' ? '已切换为深色模式' : t('palette.switchedToDark'));
+                  toast.info(t('palette.switchedToDark'));
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
@@ -279,7 +279,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 onSelect={() => {
                   setTheme('light');
                   onOpenChange(false);
-                  toast.info(lang === 'zh' ? '已切换为浅色模式' : t('palette.switchedToLight'));
+                  toast.info(t('palette.switchedToLight'));
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >

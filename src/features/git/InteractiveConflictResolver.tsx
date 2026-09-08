@@ -12,6 +12,7 @@ import {
   Shield,
   Download,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import {
   parseConflictBlocks,
@@ -49,6 +50,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     resolveFileOurs,
     resolveFileTheirs,
   } = useRepoStore();
+  const { t } = useI18n();
 
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState<string>('');
@@ -66,7 +68,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
       const parsed = parseConflictBlocks(text);
       setInitialConflictCount(parsed.totalConflicts);
     } catch (err: any) {
-      toast.error('加载冲突文件失败', err.message);
+      toast.error(t('resolver.loadFailed'), err.message);
     } finally {
       setLoading(false);
     }
@@ -128,7 +130,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
     const nextParsed = parseConflictBlocks(updated);
     if (nextParsed.totalConflicts === 0) {
-      toast.success('所有冲突已解决！', '请点击右上角“保存并标记已解决”暂存此文件。');
+      toast.success(t('resolver.allResolvedToast'), t('resolver.allResolvedDesc'));
     }
   };
 
@@ -137,11 +139,11 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     setContent(updated);
     toast.success(
       resolution === 'current'
-        ? '已全部采用当前更改 (HEAD)'
+        ? t('resolver.allOurs')
         : resolution === 'incoming'
-        ? '已全部采用传入更改'
-        : '已全部保留双方更改',
-      '请点击“保存并标记已解决”完成暂存。'
+        ? t('resolver.allTheirs')
+        : t('resolver.allBoth'),
+      t('resolver.stageHint')
     );
   };
 
@@ -149,10 +151,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     setIsSaving(true);
     try {
       await resolveFileOurs(filePath);
-      toast.success(`已采用当前版本并标记已解决`, filePath);
+      toast.success(t('resolver.oursResolved'), filePath);
       onResolved?.();
     } catch (err: any) {
-      toast.error('操作失败', err.message);
+      toast.error(t('resolver.opFailed'), err.message);
     } finally {
       setIsSaving(false);
     }
@@ -162,10 +164,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     setIsSaving(true);
     try {
       await resolveFileTheirs(filePath);
-      toast.success(`已采用传入版本并标记已解决`, filePath);
+      toast.success(t('resolver.theirsResolved'), filePath);
       onResolved?.();
     } catch (err: any) {
-      toast.error('操作失败', err.message);
+      toast.error(t('resolver.opFailed'), err.message);
     } finally {
       setIsSaving(false);
     }
@@ -176,9 +178,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     try {
       await resetFileConflictMarkers(filePath);
       await loadContent();
-      toast.info('已重置回初始冲突标记', filePath);
+      toast.info(t('resolver.markersResetToast'), filePath);
     } catch (err: any) {
-      toast.error('重置失败', err.message);
+      toast.error(t('resolver.resetFailed'), err.message);
     } finally {
       setIsSaving(false);
     }
@@ -188,11 +190,11 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     setIsSaving(true);
     try {
       await saveAndStageConflictFile(filePath, content);
-      toast.success('冲突解决成功已暂存！', filePath);
+      toast.success(t('resolver.savedStaged'), filePath);
       onResolved?.();
       onClose?.();
     } catch (err: any) {
-      toast.error('保存失败', err.message);
+      toast.error(t('resolver.saveFailed'), err.message);
     } finally {
       setIsSaving(false);
     }
@@ -213,7 +215,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     return (
       <div className="flex-1 flex flex-col items-center justify-center h-full p-8 text-muted-foreground gap-3">
         <RotateCcw className="h-6 w-6 animate-spin text-primary" />
-        <div className="text-xs">正在分析冲突代码与标记...</div>
+        <div className="text-xs">{t('resolver.analyzing')}</div>
       </div>
     );
   }
@@ -238,7 +240,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 : "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
             )}
           >
-            {hasConflicts ? `剩余 ${totalConflicts} 处冲突` : '✓ 冲突已全部解决'}
+            {hasConflicts ? t('resolver.remaining').replace('{n}', String(totalConflicts)) : t('resolver.allDone')}
           </Badge>
         </div>
 
@@ -254,7 +256,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 onClick={() => scrollToBlock(activeBlockIndex - 1)}
                 disabled={activeBlockIndex <= 0}
                 className="p-1 rounded hover:bg-accent disabled:opacity-30 text-muted-foreground hover:text-foreground"
-                title="上一处冲突"
+                title={t('resolver.prevConflict')}
               >
                 <ChevronUp className="h-3 w-3" />
               </button>
@@ -262,7 +264,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 onClick={() => scrollToBlock(activeBlockIndex + 1)}
                 disabled={activeBlockIndex >= blocks.length - 1}
                 className="p-1 rounded hover:bg-accent disabled:opacity-30 text-muted-foreground hover:text-foreground"
-                title="下一处冲突"
+                title={t('resolver.nextConflict')}
               >
                 <ChevronDown className="h-3 w-3" />
               </button>
@@ -277,18 +279,18 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 size="xs"
                 onClick={() => handleResolveAll('current')}
                 className="h-7 text-[10px] px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                title="所有冲突块统一采用本地修改"
+                title={t('resolver.takeAllOursTitle')}
               >
-                全部采用当前
+                {t('resolver.takeAllOurs')}
               </Button>
               <Button
                 variant="ghost"
                 size="xs"
                 onClick={() => handleResolveAll('incoming')}
                 className="h-7 text-[10px] px-2 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
-                title="所有冲突块统一采用传入分支修改"
+                title={t('resolver.takeAllTheirsTitle')}
               >
-                全部采用传入
+                {t('resolver.takeAllTheirs')}
               </Button>
               <Button
                 variant="ghost"
@@ -296,10 +298,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 onClick={handleQuickOurs}
                 disabled={isSaving}
                 className="h-7 text-[10px] px-2 text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1"
-                title="直接将当前分支整个文件作为解决结果"
+                title={t('resolver.oursFileTitle')}
               >
                 <Shield className="h-3 w-3" />
-                <span>整文件用当前</span>
+                <span>{t('resolver.oursFile')}</span>
               </Button>
               <Button
                 variant="ghost"
@@ -307,10 +309,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 onClick={handleQuickTheirs}
                 disabled={isSaving}
                 className="h-7 text-[10px] px-2 text-sky-400/80 hover:text-sky-300 hover:bg-sky-500/10 gap-1"
-                title="直接将传入分支整个文件作为解决结果"
+                title={t('resolver.theirsFileTitle')}
               >
                 <Download className="h-3 w-3" />
-                <span>整文件用传入</span>
+                <span>{t('resolver.theirsFile')}</span>
               </Button>
             </>
           )}
@@ -321,10 +323,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
             onClick={handleResetMarkers}
             disabled={isSaving}
             className="h-7 text-[10px] px-2 text-muted-foreground hover:text-foreground gap-1"
-            title="还原为原始冲突标记"
+            title={t('resolver.resetTitle')}
           >
             <RotateCcw className="h-3 w-3" />
-            <span>重置标记</span>
+            <span>{t('resolver.resetMarkers')}</span>
           </Button>
 
           {/* Primary Save & Stage button */}
@@ -338,17 +340,17 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 ? "bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground"
             )}
-            title="将解决后的文件写入并执行 git add"
+            title={t('resolver.saveStageTitle')}
           >
             {hasConflicts ? (
               <>
                 <Save className="h-3.5 w-3.5" />
-                <span>保存并暂存</span>
+                <span>{t('resolver.saveStage')}</span>
               </>
             ) : (
               <>
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>已完全解决，暂存</span>
+                <span>{t('resolver.fullyResolved')}</span>
               </>
             )}
           </Button>
@@ -359,7 +361,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={onClose}
-              title="关闭冲突解决器并返回 Diff 视图"
+              title={t('resolver.closeTitle')}
             >
               <X className="h-3.5 w-3.5" />
             </Button>
@@ -374,9 +376,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
             <div className="flex items-center gap-2.5">
               <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />
               <div>
-                <div className="font-semibold text-xs text-foreground">所有冲突标记已成功消除！</div>
+                <div className="font-semibold text-xs text-foreground">{t('resolver.successTitle')}</div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">
-                  已按所选决策合成了最终文件，请点击右上角【保存并暂存】写入磁盘并标记已解决。
+                  {t('resolver.successDesc')}
                 </div>
               </div>
             </div>
@@ -386,7 +388,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-3 h-7 gap-1"
             >
               <Check className="h-3 w-3" />
-              <span>立即完成暂存</span>
+              <span>{t('resolver.stageNow')}</span>
             </Button>
           </div>
         )}
@@ -422,10 +424,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 <div className="bg-secondary/70 border-b border-border/80 px-3 py-1.5 flex items-center justify-between text-xs select-none">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[11px] text-foreground font-mono bg-background/60 px-2 py-0.5 rounded border border-border/60">
-                      冲突 #{block.index + 1}
+                      {t('resolver.conflictNo').replace('{n}', String(block.index + 1))}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      第 {block.startLine} - {block.endLine} 行
+                      {t('resolver.lines').replace('{a}', String(block.startLine)).replace('{b}', String(block.endLine))}
                     </span>
                   </div>
 
@@ -436,9 +438,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       size="xs"
                       onClick={() => handleResolveBlock(block.index, 'current')}
                       className="h-6 px-2 text-[10px] border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-300 font-medium"
-                      title="保留当前分支代码"
+                      title={t('resolver.keepOursTitle')}
                     >
-                      采用当前 (Ours)
+                      {t('resolver.takeOurs')}
                     </Button>
 
                     <Button
@@ -446,9 +448,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       size="xs"
                       onClick={() => handleResolveBlock(block.index, 'incoming')}
                       className="h-6 px-2 text-[10px] border-sky-500/40 text-sky-400 hover:bg-sky-500/15 hover:text-sky-300 font-medium"
-                      title="保留传入分支代码"
+                      title={t('resolver.keepTheirsTitle')}
                     >
-                      采用传入 (Theirs)
+                      {t('resolver.takeTheirs')}
                     </Button>
 
                     <Button
@@ -456,9 +458,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       size="xs"
                       onClick={() => handleResolveBlock(block.index, 'both')}
                       className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-                      title="同时保留双方修改（当前在前，传入在后）"
+                      title={t('resolver.keepBothTitle')}
                     >
-                      保留双方
+                      {t('resolver.keepBoth')}
                     </Button>
                   </div>
                 </div>
@@ -469,18 +471,18 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                   <div className="bg-emerald-950/25 border-l-4 border-emerald-500 p-2.5 space-y-1">
                     <div className="flex items-center justify-between text-[10px] text-emerald-400 font-semibold select-none">
                       <span className="flex items-center gap-1">
-                        <span>◀ 当前分支更改</span>
+                        <span>{t('resolver.oursHeader')}</span>
                         <span className="font-mono opacity-75">({block.currentBranchName})</span>
                       </span>
                       <button
                         onClick={() => handleResolveBlock(block.index, 'current')}
                         className="hover:underline text-[9px] opacity-80 hover:opacity-100"
                       >
-                        采用此段
+                        {t('resolver.takeSegment')}
                       </button>
                     </div>
                     <pre className="text-emerald-200/90 whitespace-pre-wrap font-mono text-[11px] leading-relaxed select-text">
-                      {block.currentContent || <span className="italic opacity-50">&lt;空行&gt;</span>}
+                      {block.currentContent || <span className="italic opacity-50">{t('resolver.emptyLine')}</span>}
                     </pre>
                   </div>
 
@@ -488,7 +490,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                   {block.baseContent !== undefined && (
                     <div className="bg-muted/10 border-l-4 border-muted-foreground/30 p-2 space-y-1">
                       <div className="text-[9px] text-muted-foreground font-medium select-none">
-                        公共祖先基底 (Base)
+                        {t('resolver.baseHeader')}
                       </div>
                       <pre className="text-muted-foreground/70 whitespace-pre-wrap font-mono text-[10px]">
                         {block.baseContent}
@@ -500,18 +502,18 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                   <div className="bg-sky-950/25 border-l-4 border-sky-500 p-2.5 space-y-1">
                     <div className="flex items-center justify-between text-[10px] text-sky-400 font-semibold select-none">
                       <span className="flex items-center gap-1">
-                        <span>▶ 传入分支更改</span>
+                        <span>{t('resolver.theirsHeader')}</span>
                         <span className="font-mono opacity-75">({block.incomingBranchName})</span>
                       </span>
                       <button
                         onClick={() => handleResolveBlock(block.index, 'incoming')}
                         className="hover:underline text-[9px] opacity-80 hover:opacity-100"
                       >
-                        采用此段
+                        {t('resolver.takeSegment')}
                       </button>
                     </div>
                     <pre className="text-sky-200/90 whitespace-pre-wrap font-mono text-[11px] leading-relaxed select-text">
-                      {block.incomingContent || <span className="italic opacity-50">&lt;空行&gt;</span>}
+                      {block.incomingContent || <span className="italic opacity-50">{t('resolver.emptyLine')}</span>}
                     </pre>
                   </div>
                 </div>

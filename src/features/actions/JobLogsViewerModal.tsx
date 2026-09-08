@@ -9,6 +9,7 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +62,7 @@ function parseAnsi(text: string): React.ReactNode[] {
 
 export const JobLogsViewerModal: React.FC = () => {
   const { isLogsModalOpen, activeJobLogs, closeJobLogs } = useGitHubStore();
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -89,7 +91,7 @@ export const JobLogsViewerModal: React.FC = () => {
   const handleCopyLogs = () => {
     navigator.clipboard.writeText(activeJobLogs.rawLogs);
     setIsCopied(true);
-    toast.success('已复制完整构建日志');
+    toast.success(t('logs.copied'));
     setTimeout(() => setIsCopied(false), 2000);
   };
 
@@ -113,7 +115,7 @@ export const JobLogsViewerModal: React.FC = () => {
               {activeJobLogs.jobName}
             </span>
             <Badge variant="outline" className="h-4 text-[10px] font-mono">
-              {filteredLines.length} 行日志
+              {filteredLines.length} {t('logs.lines')}
             </Badge>
           </div>
 
@@ -124,7 +126,7 @@ export const JobLogsViewerModal: React.FC = () => {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索日志..."
+                placeholder={t('logs.searchPlaceholder')}
                 className="h-7 pl-7 text-[11px] font-mono bg-background/50 border-border/60"
               />
             </div>
@@ -135,10 +137,10 @@ export const JobLogsViewerModal: React.FC = () => {
               size="xs"
               onClick={() => setAutoScroll(!autoScroll)}
               className="h-7 px-2 text-[10px] gap-1 font-mono"
-              title="自动滚动到底部"
+              title={t('logs.scrollToBottom')}
             >
               <ArrowDownToLine className="h-3 w-3" />
-              <span>滚动</span>
+              <span>{t('logs.scroll')}</span>
             </Button>
 
             {/* Copy button */}
@@ -147,10 +149,10 @@ export const JobLogsViewerModal: React.FC = () => {
               size="xs"
               onClick={handleCopyLogs}
               className="h-7 px-2 text-[10px] gap-1 font-mono"
-              title="复制全部日志"
+              title={t('logs.copyAll')}
             >
               {isCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-              <span>{isCopied ? '已复制' : '复制'}</span>
+              <span>{isCopied ? t('logs.copied') : t('logs.copy')}</span>
             </Button>
 
             {/* Fullscreen toggle */}
@@ -182,7 +184,7 @@ export const JobLogsViewerModal: React.FC = () => {
         >
           {filteredLines.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground/50">
-              未找到匹配的日志内容
+              {t('logs.noMatch')}
             </div>
           ) : (
             filteredLines.map((line, idx) => {

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import type { RepoHealthDiagnosis } from '@/services/git/types';
 
@@ -25,6 +26,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
   open,
   onOpenChange,
 }) => {
+  const { t } = useI18n();
   const { currentRepo, diagnoseRepository } = useRepoStore();
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RepoHealthDiagnosis | null>(null);
@@ -38,8 +40,8 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
       const res = await diagnoseRepository();
       setReport(res);
     } catch (err: any) {
-      console.error('Git 仓库健康度诊断失败:', err);
-      setError(err?.message || '无法完成健康度诊断，请检查本地 Git 状态');
+      console.error(t('diag.failed'), err);
+      setError(err?.message || t('diag.failedDesc'));
     } finally {
       setLoading(false);
     }
@@ -109,13 +111,13 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
             </div>
             <div>
               <div className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <span>Git 仓库全项健康度诊断</span>
+                <span>{t('diag.title')}</span>
                 <Badge variant="outline" className="text-[10px] font-normal py-0 h-4 border-primary/30 text-primary">
-                  实时分析
+                  {t('diag.realtime')}
                 </Badge>
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5 font-mono truncate max-w-md">
-                {currentRepo ? currentRepo.name : '未打开仓库'}
+                {currentRepo ? currentRepo.name : t('diag.noRepo')}
               </div>
             </div>
           </div>
@@ -134,13 +136,13 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
               <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-              <div className="text-xs">正在执行全面健康体检，分析未决冲突与分支同步状态...</div>
+              <div className="text-xs">{t('diag.running')}</div>
             </div>
           ) : error ? (
             <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-500 text-xs space-y-2">
               <div className="font-semibold flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                <span>诊断执行失败</span>
+                <span>{t('diag.runFailed')}</span>
               </div>
               <div>{error}</div>
             </div>
@@ -154,9 +156,9 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-foreground">总体健康评级</span>
+                      <span className="text-xs font-semibold text-foreground">{t('diag.overall')}</span>
                       <Badge className={`text-[10px] font-medium ${getStatusColor(report.status)}`}>
-                        {report.status === 'healthy' ? '健康良好' : report.status === 'warning' ? '存在隐患' : '高危阻塞'}
+                        {report.status === 'healthy' ? t('diag.healthy') : report.status === 'warning' ? t('diag.warning') : t('diag.danger')}
                       </Badge>
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
@@ -170,14 +172,14 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
                     {report.score}
                     <span className="text-xs font-normal text-muted-foreground">/100</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-medium">健康度得分</div>
+                  <div className="text-[10px] text-muted-foreground font-medium">{t('diag.score')}</div>
                 </div>
               </div>
 
               {/* Issues / Health Items List */}
               <div className="space-y-2">
                 <div className="text-[11px] font-medium text-muted-foreground px-1">
-                  检测项目明细 ({report.issues.length})
+                  {t('diag.items')} ({report.issues.length})
                 </div>
                 <div className="space-y-2">
                   {report.issues.map((issue, idx) => (
@@ -225,7 +227,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
             className="h-8 text-xs gap-1.5"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>重新扫描</span>
+            <span>{t('diag.rescan')}</span>
           </Button>
 
           <Button
@@ -233,7 +235,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
             onClick={() => onOpenChange(false)}
             className="h-8 text-xs px-4"
           >
-            确定
+            {t('common.ok')}
           </Button>
         </div>
       </div>

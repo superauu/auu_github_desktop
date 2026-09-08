@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ArrowRight,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { gitHubOAuthService, DeviceCodeResponse } from '@/services/github/GitHubOAuthService';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     refreshActions,
     isLoading: isStoreLoading,
   } = useGitHubStore();
+  const { t } = useI18n();
 
   const [authMode, setAuthMode] = useState<'oauth' | 'pat'>('oauth');
   const [tokenInput, setTokenInput] = useState('');
@@ -97,10 +99,10 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     try {
       await navigator.clipboard.writeText(code);
       setHasCopied(true);
-      toast.success('核验码已复制到剪贴板！');
+      toast.success(t('auth.codeCopied'));
       setTimeout(() => setHasCopied(false), 3000);
     } catch {
-      toast.info(`核验码: ${code}`);
+      toast.info(`${t('auth.codeIs')}: ${code}`);
     }
   };
 
@@ -138,7 +140,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
 
       // 成功获取 Token，调用登录流程
       await login(token);
-      toast.success('GitHub OAuth 授权登录成功！');
+      toast.success(t('auth.oauthSuccess'));
       handleCancelOAuth();
       onOpenChange(false);
     } catch (err: any) {
@@ -146,9 +148,9 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
         // 用户主动取消，不报错
         return;
       }
-      console.error('OAuth 授权失败:', err);
-      setOauthError(err.message || 'OAuth 授权失败');
-      toast.error('授权未完成', err.message);
+      console.error(t('auth.oauthFailedLog'), err);
+      setOauthError(err.message || t('auth.oauthFailed'));
+      toast.error(t('auth.incomplete'), err.message);
       setIsPolling(false);
       setIsStartingOAuth(false);
     }
@@ -160,12 +162,12 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     setPatError(null);
     try {
       await login(tokenInput.trim());
-      toast.success('GitHub 开发者账号连接成功！');
+      toast.success(t('auth.patSuccess'));
       setTokenInput('');
       onOpenChange(false);
     } catch (err: any) {
-      setPatError(err.message || 'Token 验证失败');
-      toast.error('认证失败', err.message);
+      setPatError(err.message || t('auth.patVerifyFailed'));
+      toast.error(t('auth.authFailed'), err.message);
     }
   };
 
@@ -198,15 +200,15 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
             </div>
             <div>
               <div className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <span>GitHub 开发者账号认证</span>
+                <span>{t('auth.title')}</span>
                 <Badge variant="outline" className="text-[10px] font-normal py-0 h-4 border-primary/30 text-primary">
                   OAuth 2.0
                 </Badge>
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
                 {currentOwner && currentRepoName
-                  ? `当前已关联仓库: ${currentOwner}/${currentRepoName}`
-                  : '连接 GitHub 以同步云端 Actions 工作流、PR 与代码审查'}
+                  ? `${t('auth.boundRepo')}: ${currentOwner}/${currentRepoName}`
+                  : t('auth.boundNone')}
               </div>
             </div>
           </div>
@@ -235,7 +237,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                     <span>{user.name || user.login}</span>
                     <Badge variant="success" className="h-4 text-[9px] px-1.5 gap-0.5">
                       <CheckCircle2 className="h-2.5 w-2.5" />
-                      <span>已连接</span>
+                      <span>{t('common.connected')}</span>
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground font-mono">@{user.login}</div>
@@ -252,32 +254,32 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   size="xs"
                   onClick={() => {
                     logout();
-                    toast.info('已注销 GitHub 认证凭证');
+                    toast.info(t('auth.logoutToast'));
                   }}
                   className="h-7 text-xs gap-1"
                 >
                   <LogOut className="h-3 w-3" />
-                  <span>注销断开</span>
+                  <span>{t('auth.logout')}</span>
                 </Button>
                 <Button
                   variant="ghost"
                   size="xs"
                   onClick={async () => {
                     await refreshActions();
-                    toast.success('已刷新 GitHub 数据');
+                    toast.success(t('auth.refreshToast'));
                   }}
                   className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
                 >
                   <RefreshCw className="h-3 w-3" />
-                  <span>刷新同步</span>
+                  <span>{t('auth.refresh')}</span>
                 </Button>
               </div>
             </div>
 
             <div className="text-xs text-muted-foreground leading-relaxed p-3 rounded-lg bg-accent/10 border border-border/50">
-              已具备 <span className="text-foreground font-mono font-medium">repo</span>、
-              <span className="text-foreground font-mono font-medium">workflow</span> 及{' '}
-              <span className="text-foreground font-mono font-medium">read:user</span> 权限。可直接在客户端内触发 GitHub Actions 或查看 PR 详情。
+              {t('auth.scopesPrefix')} <span className="text-foreground font-mono font-medium">repo</span>、
+              <span className="text-foreground font-mono font-medium">workflow</span> {t('auth.scopesDot')}{' '}
+              <span className="text-foreground font-mono font-medium">read:user</span> {t('auth.scopesSuffix')}
             </div>
           </div>
         ) : (
@@ -299,7 +301,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 )}
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                <span>GitHub OAuth 快速登录 (推荐)</span>
+                <span>{t('auth.oauthTab')}</span>
               </button>
               <button
                 type="button"
@@ -315,7 +317,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 )}
               >
                 <Key className="h-3.5 w-3.5" />
-                <span>个人访问令牌 (PAT)</span>
+                <span>{t('auth.patTab')}</span>
               </button>
             </div>
 
@@ -338,17 +340,17 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                           <Sparkles className="h-4 w-4" />
                         </div>
                         <div className="space-y-1 text-xs">
-                          <div className="font-medium text-foreground">免配置 Token · 安全极速授权</div>
+                          <div className="font-medium text-foreground">{t('auth.oauthCard.title')}</div>
                           <div className="text-muted-foreground leading-relaxed">
-                            点击下方按钮将获取一组一次性 8 位核验码，并自动打开 GitHub 官方授权页面。在网页中点击确认后，客户端将自动完成登录握手。
+                            {t('auth.oauthCard.desc')}
                           </div>
                         </div>
                       </div>
 
                       <div className="pt-2 border-t border-border/50 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                        <span className="px-2 py-0.5 rounded bg-background/60 border border-border">📦 仓库同步与 PR 查看</span>
-                        <span className="px-2 py-0.5 rounded bg-background/60 border border-border">⚡ Actions 工作流查看与触发</span>
-                        <span className="px-2 py-0.5 rounded bg-background/60 border border-border">🛡️ GitHub 官方 Device Flow 协议</span>
+                        <span className="px-2 py-0.5 rounded bg-background/60 border border-border">{t('auth.badge.repo')}</span>
+                        <span className="px-2 py-0.5 rounded bg-background/60 border border-border">{t('auth.badge.actions')}</span>
+                        <span className="px-2 py-0.5 rounded bg-background/60 border border-border">{t('auth.badge.deviceFlow')}</span>
                       </div>
                     </div>
 
@@ -360,12 +362,12 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                       {isStartingOAuth ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>正在获取 GitHub 授权码...</span>
+                          <span>{t('auth.gettingCode')}</span>
                         </>
                       ) : (
                         <>
                           <Github className="h-4 w-4" />
-                          <span>一键开启 GitHub OAuth 授权</span>
+                          <span>{t('auth.startOauth')}</span>
                           <ArrowRight className="h-3.5 w-3.5 ml-auto opacity-70" />
                         </>
                       )}
@@ -378,11 +380,11 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                           <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-                          <span>授权码已生成 · 请在网页中确认</span>
+                          <span>{t('auth.codeReady')}</span>
                         </span>
                         {pollInfo && (
                           <span className="text-[10px] font-mono text-muted-foreground">
-                            有效剩余: {formatRemainingTime(pollInfo.remainingSeconds)}
+                            {t('auth.remaining')}: {formatRemainingTime(pollInfo.remainingSeconds)}
                           </span>
                         )}
                       </div>
@@ -400,30 +402,30 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                             "h-12 px-3 gap-1.5 rounded-xl shrink-0 transition-colors",
                             hasCopied && "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
                           )}
-                          title="复制核验码"
+                          title={t('auth.copyCode')}
                         >
                           {hasCopied ? (
                             <>
                               <Check className="h-4 w-4" />
-                              <span className="text-xs">已复制</span>
+                              <span className="text-xs">{t('logs.copied')}</span>
                             </>
                           ) : (
                             <>
                               <Copy className="h-4 w-4" />
-                              <span className="text-xs">复制</span>
+                              <span className="text-xs">{t('logs.copy')}</span>
                             </>
                           )}
                         </Button>
                       </div>
 
                       <div className="text-[11px] text-muted-foreground leading-relaxed flex items-center justify-between">
-                        <span>已自动将授权码复制到剪贴板并尝试调起浏览器。</span>
+                        <span>{t('auth.autoCopied')}</span>
                         <button
                           type="button"
                           onClick={() => openExternalUrl(deviceData.verification_uri)}
                           className="text-primary hover:underline inline-flex items-center gap-0.5 shrink-0 font-medium ml-2"
                         >
-                          <span>重新打开网页</span>
+                          <span>{t('auth.reopenPage')}</span>
                           <ExternalLink className="h-3 w-3" />
                         </button>
                       </div>
@@ -434,7 +436,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                       <div className="flex items-center gap-2.5">
                         <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
                         <span className="text-muted-foreground">
-                          正在等待您在 GitHub 页面上授权确认 (第 {pollInfo?.attempt || 1} 次轮询)...
+                          {t('auth.waitingConfirm')} ({t('auth.pollAttempt').replace('{n}', String(pollInfo?.attempt || 1))})...
                         </span>
                       </div>
                       <Button
@@ -443,7 +445,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                         onClick={handleCancelOAuth}
                         className="h-6 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
                       >
-                        取消授权
+                        {t('auth.cancelOauth')}
                       </Button>
                     </div>
                   </div>
@@ -471,7 +473,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                       onClick={handleOpenTokenGenerator}
                       className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
                     >
-                      <span>一键前往网页生成</span>
+                      <span>{t('auth.openGeneratePage')}</span>
                       <ExternalLink className="h-2.5 w-2.5" />
                     </button>
                   </div>
@@ -480,14 +482,14 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                     type="password"
                     value={tokenInput}
                     onChange={(e) => setTokenInput(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx 或 github_pat_..."
+                    placeholder={t('auth.patPlaceholder')}
                     className="font-mono text-xs h-9"
                     autoFocus
                   />
                   <div className="text-[10px] text-muted-foreground leading-normal">
-                    需包含 <code className="bg-accent px-1 rounded font-mono">repo</code>,{' '}
+                    {t('auth.patScopesPrefix')} <code className="bg-accent px-1 rounded font-mono">repo</code>,{' '}
                     <code className="bg-accent px-1 rounded font-mono">workflow</code>,{' '}
-                    <code className="bg-accent px-1 rounded font-mono">read:user</code> 权限。
+                    <code className="bg-accent px-1 rounded font-mono">read:user</code> {t('auth.scopesDot')}
                   </div>
                 </div>
 
@@ -501,7 +503,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   ) : (
                     <Key className="h-3.5 w-3.5" />
                   )}
-                  <span>验证并连接真实 GitHub</span>
+                  <span>{t('settings.github.login')}</span>
                 </Button>
               </form>
             )}

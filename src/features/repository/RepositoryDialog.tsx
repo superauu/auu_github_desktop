@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { gitService } from '@/services/git/GitService';
 import {
@@ -53,6 +54,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const [isValidating, setIsValidating] = useState(false);
 
   const { setCurrentRepo, addRecentRepo, removeRecentRepo, recentRepos } = useRepoStore();
+  const { t } = useI18n();
 
   useEffect(() => {
     setMode(initialMode);
@@ -92,7 +94,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
         }
       }
     } catch (err: any) {
-      toast.error('选择文件夹失败', err.message);
+      toast.error(t('repo.pickFolderFailed'), err.message);
     } finally {
       setIsPicking(false);
     }
@@ -102,7 +104,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const handleOpenLocal = async (pathInput?: string) => {
     const targetPath = (pathInput || repoPath).trim();
     if (!targetPath) {
-      toast.warning('请输入或浏览选择本地仓库目录');
+      toast.warning(t('repo.needPath'));
       return;
     }
 
@@ -111,10 +113,10 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
       const repoInfo = await gitService.openRepository(targetPath);
       setCurrentRepo(repoInfo);
       addRecentRepo(repoInfo);
-      toast.success('已成功载入 Git 仓库', repoInfo.name);
+      toast.success(t('repo.opened'), repoInfo.name);
       onOpenChange(false);
     } catch (err: any) {
-      toast.error('打开仓库失败', err.message || '请确认该目录是有效的 Git 仓库');
+      toast.error(t('repo.openFailed'), err.message || t('repo.openFailedDesc'));
     } finally {
       setIsProcessing(false);
     }
@@ -123,16 +125,16 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   // 3. Clone Remote Repository
   const handleClone = async () => {
     if (!cloneUrl.trim()) {
-      toast.warning('请输入远程仓库 URL');
+      toast.warning(t('repo.needUrl'));
       return;
     }
     if (!cloneTargetPath.trim()) {
-      toast.warning('请指定克隆保存的目标目录');
+      toast.warning(t('repo.needTarget'));
       return;
     }
 
     setIsProcessing(true);
-    toast.info('正在克隆远程仓库 (git clone)...', '耗时取决于网络与仓库大小，请稍候');
+    toast.info(t('repo.cloning'), t('repo.cloningDesc'));
 
     try {
       await gitService.cloneRepository(
@@ -143,10 +145,10 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
       const repoInfo = await gitService.openRepository(cloneTargetPath.trim());
       setCurrentRepo(repoInfo);
       addRecentRepo(repoInfo);
-      toast.success('远程仓库克隆成功并已载入工作区', repoInfo.name);
+      toast.success(t('repo.cloned'), repoInfo.name);
       onOpenChange(false);
     } catch (err: any) {
-      toast.error('克隆仓库失败', err.message);
+      toast.error(t('repo.cloneFailed'), err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -155,7 +157,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   // 4. Initialize New Git Repository
   const handleInit = async () => {
     if (!repoPath.trim()) {
-      toast.warning('请输入新建仓库的目录路径');
+      toast.warning(t('repo.needInitPath'));
       return;
     }
 
@@ -165,10 +167,10 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
       const repoInfo = await gitService.openRepository(repoPath.trim());
       setCurrentRepo(repoInfo);
       addRecentRepo(repoInfo);
-      toast.success('Git 仓库初始化成功', repoInfo.name);
+      toast.success(t('repo.inited'), repoInfo.name);
       onOpenChange(false);
     } catch (err: any) {
-      toast.error('初始化仓库失败', err.message);
+      toast.error(t('repo.initFailed'), err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -190,9 +192,9 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             {mode === 'clone' && <GitFork className="h-4 w-4 text-emerald-400" />}
             {mode === 'init' && <FolderPlus className="h-4 w-4 text-cyan-400" />}
             <span className="font-semibold text-xs text-foreground">
-              {mode === 'open' && '打开本地 Git 仓库'}
-              {mode === 'clone' && '从远程克隆仓库 (Git Clone)'}
-              {mode === 'init' && '初始化全新 Git 仓库 (Git Init)'}
+              {mode === 'open' && t('repo.title.open')}
+              {mode === 'clone' && t('repo.title.clone')}
+              {mode === 'init' && t('repo.title.init')}
             </span>
           </div>
           <Button
@@ -217,7 +219,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               mode === 'open' ? "bg-accent text-accent-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            打开现有
+            {t('repo.tab.open')}
           </button>
           <button
             onClick={() => {
@@ -229,7 +231,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               mode === 'clone' ? "bg-accent text-accent-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            克隆远程
+            {t('repo.tab.clone')}
           </button>
           <button
             onClick={() => {
@@ -241,7 +243,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               mode === 'init' ? "bg-accent text-accent-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            新建项目
+            {t('repo.tab.init')}
           </button>
         </div>
 
@@ -251,7 +253,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-foreground">
-                  本地仓库路径
+                  {t('repo.localPath')}
                 </label>
                 <button
                   type="button"
@@ -262,7 +264,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                   className="text-[11px] text-primary hover:underline flex items-center gap-1"
                 >
                   <HardDrive className="h-3 w-3" />
-                  <span>{showInAppBrowser ? '收起目录树' : '在应用内浏览目录'}</span>
+                  <span>{showInAppBrowser ? t('repo.collapseTree') : t('repo.toggleTree')}</span>
                 </button>
               </div>
 
@@ -270,7 +272,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                 <Input
                   value={repoPath}
                   onChange={(e) => setRepoPath(e.target.value)}
-                  placeholder="例如: E:/code/auu_github_desktop"
+                  placeholder={t('repo.pathPlaceholder')}
                   className="font-mono text-xs flex-1"
                 />
                 <Button
@@ -285,7 +287,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                   ) : (
                     <FolderSearch className="h-3.5 w-3.5" />
                   )}
-                  <span>浏览文件夹...</span>
+                  <span>{t('repo.browseFolder')}</span>
                 </Button>
               </div>
             </div>
@@ -307,18 +309,18 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                 {isValidating ? (
                   <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
                     <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                    <span>正在检测目录...</span>
+                    <span>{t('repo.detecting')}</span>
                   </div>
                 ) : pathValidation?.isGitRepo ? (
                   <div className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg text-[11px]">
                     <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                    <span>检测到有效的 Git 仓库: {pathValidation.name}</span>
+                    <span>{t('repo.detected')}: {pathValidation.name}</span>
                   </div>
                 ) : pathValidation?.exists && pathValidation?.isDirectory ? (
                   <div className="space-y-1.5 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg text-[11px]">
                     <div className="flex items-center gap-1.5 text-amber-400">
                       <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span>该文件夹存在，但尚未初始化为 Git 仓库。</span>
+                      <span>{t('repo.notGitRepo')}</span>
                     </div>
                     <Button
                       variant="outline"
@@ -327,13 +329,13 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                       disabled={isProcessing}
                       className="text-[11px] h-6 border-amber-500/30 text-amber-300 hover:bg-amber-500/20"
                     >
-                      在此文件夹一键初始化 Git (git init)
+                      {t('repo.initHere')}
                     </Button>
                   </div>
                 ) : pathValidation && !pathValidation.exists ? (
                   <div className="flex items-center gap-1.5 text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg text-[11px]">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span>该目录路径不存在，请检查后重试</span>
+                    <span>{t('repo.pathMissing')}</span>
                   </div>
                 ) : null}
               </div>
@@ -344,7 +346,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               <div className="space-y-1.5 pt-1">
                 <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  <span>近期打开过的仓库</span>
+                  <span>{t('repo.recent')}</span>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-background/50 divide-y divide-border/40 max-h-36 overflow-y-auto">
                   {recentRepos.map((r) => (
@@ -366,7 +368,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                           variant="ghost"
                           size="icon"
                           className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-rose-400 transition-opacity"
-                          title="从最近列表中移除"
+                          title={t('repo.removeRecent')}
                           onClick={(e) => {
                             e.stopPropagation();
                             removeRecentRepo(r.path);
@@ -392,7 +394,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               ) : (
                 <FolderOpen className="h-3.5 w-3.5" />
               )}
-              <span>{isProcessing ? '正在载入仓库...' : '打开此仓库'}</span>
+              <span>{isProcessing ? t('repo.opening') : t('repo.openBtn')}</span>
             </Button>
           </div>
         )}
@@ -402,7 +404,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-foreground block mb-1">
-                远程仓库 URL (HTTPS / SSH)
+                {t('repo.cloneUrl')}
               </label>
               <Input
                 value={cloneUrl}
@@ -414,7 +416,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-foreground">
-                  目标本地目录
+                  {t('repo.targetDir')}
                 </label>
                 <button
                   type="button"
@@ -425,14 +427,14 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                   className="text-[11px] text-primary hover:underline flex items-center gap-1"
                 >
                   <HardDrive className="h-3 w-3" />
-                  <span>{showInAppBrowser ? '收起目录树' : '在应用内浏览目录'}</span>
+                  <span>{showInAppBrowser ? t('repo.collapseTree') : t('repo.toggleTree')}</span>
                 </button>
               </div>
               <div className="flex gap-2">
                 <Input
                   value={cloneTargetPath}
                   onChange={(e) => setCloneTargetPath(e.target.value)}
-                  placeholder="例如: E:/code/my-new-repo"
+                  placeholder={t('repo.pathPlaceholder')}
                   className="font-mono text-xs flex-1"
                 />
                 <Button
@@ -447,7 +449,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                   ) : (
                     <FolderSearch className="h-3.5 w-3.5" />
                   )}
-                  <span>浏览...</span>
+                  <span>{t('repo.browse')}</span>
                 </Button>
               </div>
             </div>
@@ -465,7 +467,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
 
             <div>
               <label className="text-xs font-medium text-foreground block mb-1">
-                克隆指定分支 (可选，默认为远程默认分支)
+                {t('repo.cloneBranch')}
               </label>
               <Input
                 value={branchName}
@@ -485,7 +487,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              <span>{isProcessing ? '正在克隆仓库中，请稍候...' : '开始克隆 (Git Clone)'}</span>
+              <span>{isProcessing ? t('repo.cloningBtn') : t('repo.cloneBtn')}</span>
             </Button>
           </div>
         )}
@@ -496,7 +498,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-foreground">
-                  新建仓库本地目录
+                  {t('repo.initDir')}
                 </label>
                 <button
                   type="button"
@@ -507,14 +509,14 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                   className="text-[11px] text-primary hover:underline flex items-center gap-1"
                 >
                   <HardDrive className="h-3 w-3" />
-                  <span>{showInAppBrowser ? '收起目录树' : '在应用内浏览目录'}</span>
+                  <span>{showInAppBrowser ? t('repo.collapseTree') : t('repo.toggleTree')}</span>
                 </button>
               </div>
               <div className="flex gap-2">
                 <Input
                   value={repoPath}
                   onChange={(e) => setRepoPath(e.target.value)}
-                  placeholder="例如: E:/code/my-brand-new-project"
+                  placeholder={t('repo.pathPlaceholder')}
                   className="font-mono text-xs flex-1"
                 />
                 <Button
@@ -529,7 +531,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                   ) : (
                     <FolderSearch className="h-3.5 w-3.5" />
                   )}
-                  <span>浏览...</span>
+                  <span>{t('repo.browse')}</span>
                 </Button>
               </div>
             </div>
@@ -547,7 +549,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
 
             <div>
               <label className="text-xs font-medium text-foreground block mb-1">
-                默认主分支名称
+                {t('repo.defaultBranch')}
               </label>
               <Input
                 value={branchName}
@@ -565,7 +567,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               ) : (
                 <FolderPlus className="h-3.5 w-3.5" />
               )}
-              <span>{isProcessing ? '正在初始化...' : '执行初始化 (Git Init)'}</span>
+              <span>{isProcessing ? t('repo.initializing') : t('repo.initBtn')}</span>
             </Button>
           </div>
         )}

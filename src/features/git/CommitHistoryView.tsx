@@ -10,6 +10,7 @@ import {
   FileCode2,
   Laptop,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { GitGraphRenderer } from '@/features/graph/GitGraphRenderer';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const CommitHistoryView: React.FC = () => {
+  const { t } = useI18n();
   const {
     commits,
     selectedCommit,
@@ -82,7 +84,7 @@ export const CommitHistoryView: React.FC = () => {
     e.stopPropagation();
     navigator.clipboard.writeText(hash);
     setCopiedHash(hash);
-    toast.success('已复制 Commit Hash', hash);
+    toast.success(t('history.copyHash'), hash);
     setTimeout(() => setCopiedHash(null), 2000);
   };
 
@@ -92,13 +94,13 @@ export const CommitHistoryView: React.FC = () => {
       <div className="h-9 px-3 border-b border-border flex items-center justify-between text-xs bg-card/40 shrink-0">
         <div className="flex items-center gap-2">
           <GitCommitIcon className="h-3.5 w-3.5 text-primary" />
-          <span className="font-semibold text-foreground">提交历史与 Git Graph</span>
+          <span className="font-semibold text-foreground">{t('history.title')}</span>
           <Badge variant="outline" className="h-4 text-[10px] font-mono">
             {filteredCommits.length} commits
           </Badge>
           {hasWip && (
             <Badge variant="warning" className="h-4 px-1.5 text-[10px] font-mono gap-1 animate-pulse">
-              <span>{totalChanges} 未提交修改</span>
+              <span>{totalChanges} {t('history.uncommitted')}</span>
             </Badge>
           )}
         </div>
@@ -110,7 +112,7 @@ export const CommitHistoryView: React.FC = () => {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索主题、作者或 Hash..."
+              placeholder={t('history.searchPlaceholder')}
               className="h-7 pl-7 text-[11px] bg-secondary/30"
             />
           </div>
@@ -130,7 +132,7 @@ export const CommitHistoryView: React.FC = () => {
         {filteredCommits.length === 0 && !hasWip ? (
           <div className="py-24 text-center space-y-2 text-muted-foreground">
             <Inbox className="h-8 w-8 mx-auto text-muted-foreground/30" />
-            <div className="text-xs">未找到符合条件的提交记录</div>
+            <div className="text-xs">{t('history.noMatch')}</div>
           </div>
         ) : (
           <div className="flex relative">
@@ -151,10 +153,10 @@ export const CommitHistoryView: React.FC = () => {
                 <div
                   onClick={() => {
                     setActiveTab('changes');
-                    toast.info('已快速跳转至工作区未提交变更 (WIP)');
+                    toast.info(t('history.wipToast'));
                   }}
                   className="h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors bg-sky-500/10 hover:bg-sky-500/15 border-l-2 border-sky-600 dark:border-sky-400 group"
-                  title="点击查看并提交工作区变动"
+                  title={t('history.wipTitle')}
                 >
                   {/* Left Column: Branch Indicator */}
                   <div className="w-48 flex items-center gap-1.5 shrink-0 overflow-hidden pr-3">
@@ -177,7 +179,7 @@ export const CommitHistoryView: React.FC = () => {
                       +{totalChanges}
                     </Badge>
                     <span className="text-[11px] text-muted-foreground truncate hidden sm:inline">
-                      工作区未提交代码修改 (点击进入检查)
+                      {t('history.wipLabel')}
                     </span>
                   </div>
 
@@ -291,7 +293,7 @@ export const CommitHistoryView: React.FC = () => {
                       <button
                         onClick={(e) => handleCopyHash(commit.hash, e)}
                         className="font-mono text-[10px] px-1 py-0.5 rounded bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                        title="点击复制 Hash"
+                        title={t('history.copyHashTitle')}
                       >
                         {isCopied ? <Check className="h-2.5 w-2.5 text-emerald-400" /> : commit.shortHash}
                       </button>

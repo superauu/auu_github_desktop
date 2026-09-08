@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Ban,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
@@ -55,6 +56,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     currentOwner,
     currentRepoName,
   } = useGitHubStore();
+  const { t } = useI18n();
 
   const getStatusIcon = (conclusion: string | null, status: string) => {
     if (status === 'in_progress') {
@@ -78,7 +80,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
       <div className="h-10 px-4 border-b border-border bg-accent/20 flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
           <Workflow className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-foreground">GitHub Actions 开发者仪表盘</span>
+          <span className="font-semibold text-foreground">{t('actions.title')}</span>
           {currentOwner && currentRepoName && (
             <Badge variant="outline" className="h-4 text-[9px] font-mono border-primary/40 text-primary">
               {currentOwner}/{currentRepoName}
@@ -87,7 +89,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           {isAuthenticated && user && (
             <Badge variant="success" className="h-4 text-[9px] gap-1 font-normal">
               <ShieldCheck className="h-2.5 w-2.5 text-emerald-400" />
-              <span>已连接 @{user.login}</span>
+              <span>{t('actions.connectedAs')} @{user.login}</span>
             </Badge>
           )}
         </div>
@@ -100,7 +102,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
               onClick={onOpenAuthDialog}
               className="h-6 text-[10px] gap-1"
             >
-              <span>连接真实 GitHub 账号</span>
+              <span>{t('actions.connectReal')}</span>
             </Button>
           )}
           <Button
@@ -110,7 +112,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
           >
             <RotateCw className="h-3 w-3" />
-            <span>刷新</span>
+            <span>{t('actions.refresh')}</span>
           </Button>
         </div>
       </div>
@@ -123,7 +125,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
         >
           <div className="h-8 px-3 border-b border-border flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-accent/10 shrink-0">
-            <span>工作流 ({workflows.length})</span>
+            <span>{t('actions.workflows')} ({workflows.length})</span>
           </div>
 
           <ScrollArea className="flex-1 p-1.5">
@@ -137,7 +139,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                 )}
               >
-                <span>全部工作流 (All)</span>
+                <span>{t('actions.allWorkflows')}</span>
                 <Badge variant="secondary" className="h-4 text-[9px]">
                   {workflowRuns.length}
                 </Badge>
@@ -168,7 +170,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         openWorkflowYaml(wf);
                       }}
                       className="p-1 rounded hover:bg-accent hover:text-foreground text-muted-foreground"
-                      title="查看 YAML 源码"
+                      title={t('actions.viewYaml')}
                     >
                       <FileCode className="h-3 w-3" />
                     </button>
@@ -179,7 +181,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         openDispatchModal(wf);
                       }}
                       className="p-1 rounded hover:bg-accent hover:text-primary text-muted-foreground"
-                      title="手动运行 (Dispatch)"
+                      title={t('actions.dispatch')}
                     >
                       <Play className="h-3 w-3 fill-current" />
                     </button>
@@ -196,7 +198,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           minSize={160}
           maxSize={480}
           defaultSize={DEFAULT_LAYOUT.actionsWorkflowsWidth}
-          title="按住拖拽调节工作流列表宽度，双击恢复默认"
+          title={t('actions.resizeHint')}
         />
 
         {/* Right Stage: Runs Table (Top) + Jobs Breakdown (Bottom) */}
@@ -205,7 +207,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           <div className="flex-1 flex flex-col border-b border-border overflow-hidden">
             <div className="h-8 px-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground bg-accent/10 shrink-0">
               <span className="font-semibold text-foreground">
-                运行历史记录 (Workflow Runs)
+                {t('actions.runHistory')}
               </span>
 
               {/* Rerun / Cancel actions on selectedRun */}
@@ -219,7 +221,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                       className="h-5 px-2 text-[10px] gap-1"
                     >
                       <Ban className="h-2.5 w-2.5" />
-                      <span>取消运行</span>
+                      <span>{t('actions.cancelRun')}</span>
                     </Button>
                   ) : (
                     <>
@@ -231,7 +233,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                           className="h-5 px-2 text-[10px] gap-1 text-amber-400 hover:text-amber-300"
                         >
                           <RotateCcw className="h-2.5 w-2.5" />
-                          <span>重跑失败</span>
+                          <span>{t('actions.rerunFailed')}</span>
                         </Button>
                       )}
                       <Button
@@ -241,7 +243,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         className="h-5 px-2 text-[10px] gap-1"
                       >
                         <RotateCcw className="h-2.5 w-2.5" />
-                        <span>重新运行全部</span>
+                        <span>{t('actions.rerunAll')}</span>
                       </Button>
                     </>
                   )}
@@ -280,7 +282,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                             </Badge>
                           </div>
                           <div className="text-[11px] text-muted-foreground truncate">
-                            {run.head_commit?.message || '自动触发'}
+                            {run.head_commit?.message || t('actions.autoTriggered')}
                           </div>
                         </div>
                       </div>
@@ -315,7 +317,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
               <div className="flex items-center gap-1.5">
                 <Layers className="h-3.5 w-3.5 text-primary" />
                 <span className="font-semibold text-foreground">
-                  {selectedRun ? `Run #${selectedRun.run_number} 执行阶段与 Jobs (${selectedRunJobs.length})` : '选择运行记录以查看 Jobs'}
+                  {selectedRun ? `Run #${selectedRun.run_number} ${t('actions.jobsTitle')} (${selectedRunJobs.length})` : t('actions.pickRun')}
                 </span>
               </div>
               {selectedRun && (
@@ -325,10 +327,10 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                     className="h-4 text-[9px]"
                   >
                     {selectedRun.status === 'in_progress'
-                      ? '正在构建中...'
+                      ? t('actions.building')
                       : selectedRun.conclusion === 'success'
-                      ? '全部成功 (Passed)'
-                      : '执行失败 (Failed)'}
+                      ? t('actions.passed')
+                      : t('actions.failed')}
                   </Badge>
                 </div>
               )}
@@ -337,7 +339,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             <ScrollArea className="flex-1 p-3">
               {selectedRunJobs.length === 0 ? (
                 <div className="py-12 text-center text-xs text-muted-foreground">
-                  暂无阶段任务详情
+                  {t('actions.noJobs')}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -389,7 +391,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                           className="h-6 px-2 text-[10px] gap-1 font-mono hover:text-emerald-400"
                         >
                           <Terminal className="h-3 w-3" />
-                          <span>查看构建日志</span>
+                          <span>{t('actions.viewLogs')}</span>
                         </Button>
                       </div>
                     </div>

@@ -8,12 +8,14 @@ import {
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/stores/toastStore';
 
 export const ConflictBanner: React.FC = () => {
+  const { t } = useI18n();
   const {
     currentRepo,
     operationState,
@@ -30,16 +32,16 @@ export const ConflictBanner: React.FC = () => {
 
   const { type, conflictedFiles, isAllResolved } = operationState;
   const isRebase = type === 'rebase';
-  const opTitle = isRebase ? '变基进行中 (Rebase)' : '分支合并中 (Merge)';
+  const opTitle = isRebase ? t('banner.rebaseTitle') : t('banner.mergeTitle');
 
   const handleAbort = async () => {
     setIsSubmitting(true);
     try {
       await abortCurrentOperation();
-      toast.info(isRebase ? '已中止变基' : '已中止合并', '工作区已还原至操作前状态');
+      toast.info(isRebase ? t('banner.aborted') : t('banner.mergeAborted'), t('banner.abortedDesc'));
       setShowAbortConfirm(false);
     } catch (err: any) {
-      toast.error('中止操作失败', err.message);
+      toast.error(t('banner.abortFailed'), err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -49,9 +51,9 @@ export const ConflictBanner: React.FC = () => {
     setIsSubmitting(true);
     try {
       await completeCurrentOperation();
-      toast.success(isRebase ? '变基已成功完成！' : '合并提交已成功创建！');
+      toast.success(isRebase ? t('banner.rebaseDone') : t('banner.mergeDone'));
     } catch (err: any) {
-      toast.error('完成操作失败', err.message);
+      toast.error(t('banner.completeFailed'), err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -82,7 +84,7 @@ export const ConflictBanner: React.FC = () => {
             <span className="font-semibold text-xs text-foreground flex items-center gap-1.5">
               <span>{opTitle}</span>
               <span className="text-muted-foreground/60">•</span>
-              <span className="text-rose-400">冲突处理状态</span>
+              <span className="text-rose-400">{t('banner.statusTitle')}</span>
             </span>
             <Badge
               variant="outline"
@@ -92,7 +94,7 @@ export const ConflictBanner: React.FC = () => {
                   : 'border-amber-500/40 text-amber-400 bg-amber-500/10'
               }`}
             >
-              {isAllResolved ? '所有冲突已标记解决' : `待解决冲突: ${conflictedFiles.length} 个文件`}
+              {isAllResolved ? t('banner.allResolved') : `${t('banner.pending')}: ${conflictedFiles.length} ${t('banner.filesUnit')}`}
             </Badge>
           </div>
 
@@ -100,16 +102,16 @@ export const ConflictBanner: React.FC = () => {
             {isAllResolved ? (
               <span className="text-emerald-400/90 flex items-center gap-1">
                 <Sparkles className="h-3 w-3 inline" />
-                所有冲突代码均已标记解决并暂存，点击右侧完成收尾提交。
+                {t('banner.allResolvedDesc')}
               </span>
             ) : (
               <span>
-                请在变更列表中解决{' '}
+                {t('banner.resolveHintPrefix')}{' '}
                 <span className="font-mono text-amber-300 font-semibold">
                   {conflictedFiles.slice(0, 3).join(', ')}
-                  {conflictedFiles.length > 3 ? ` 等共 ${conflictedFiles.length} 个文件` : ''}
+                  {conflictedFiles.length > 3 ? ` ${t('banner.andMore')} ${conflictedFiles.length} ${t('banner.filesUnit')}` : ''}
                 </span>
-                ，暂存后即可继续。
+                {t('banner.resolveHintSuffix')}
               </span>
             )}
           </div>
@@ -120,7 +122,7 @@ export const ConflictBanner: React.FC = () => {
       <div className="flex items-center gap-2 shrink-0">
         {showAbortConfirm ? (
           <div className="flex items-center gap-1.5 bg-background/80 border border-rose-500/40 rounded-lg p-1 animate-in zoom-in-95">
-            <span className="text-[10px] text-rose-400 px-1 font-medium">确认中止？</span>
+            <span className="text-[10px] text-rose-400 px-1 font-medium">{t('banner.confirmAbort')}</span>
             <Button
               variant="destructive"
               size="xs"
@@ -128,7 +130,7 @@ export const ConflictBanner: React.FC = () => {
               disabled={isSubmitting}
               className="h-6 text-[10px] px-2"
             >
-              确认
+              {t('banner.confirm')}
             </Button>
             <Button
               variant="ghost"
@@ -136,7 +138,7 @@ export const ConflictBanner: React.FC = () => {
               onClick={() => setShowAbortConfirm(false)}
               className="h-6 text-[10px] px-1.5 text-muted-foreground"
             >
-              取消
+              {t('banner.cancel')}
             </Button>
           </div>
         ) : (
@@ -146,10 +148,10 @@ export const ConflictBanner: React.FC = () => {
             onClick={() => setShowAbortConfirm(true)}
             disabled={isSubmitting}
             className="h-7 text-xs gap-1.5 border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
-            title={isRebase ? '中止变基并恢复现场' : '中止合并并恢复现场'}
+            title={isRebase ? t('banner.abortRebaseRestore') : t('banner.abortMergeRestore')}
           >
             <Ban className="h-3.5 w-3.5" />
-            <span>{isRebase ? '中止变基' : '中止合并'}</span>
+            <span>{isRebase ? t('banner.abortRebase') : t('banner.abortMerge')}</span>
           </Button>
         )}
 
@@ -166,13 +168,13 @@ export const ConflictBanner: React.FC = () => {
           title={
             isAllResolved
               ? isRebase
-                ? '继续变基下一提交'
-                : '提交合并代码'
-              : '需先暂存所有解决后的冲突文件'
+                ? t('banner.continueRebase')
+                : t('banner.commitMerge')
+              : t('banner.needStageFirst')
           }
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
-          <span>{isRebase ? '继续变基 (--continue)' : '完成提交合并'}</span>
+          <span>{isRebase ? t('banner.continueBtn') : t('banner.finishMergeBtn')}</span>
           <ArrowRight className="h-3 w-3" />
         </Button>
       </div>

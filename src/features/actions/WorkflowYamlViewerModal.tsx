@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { FileCode, X, Copy, Check } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/stores/toastStore';
 
 export const WorkflowYamlViewerModal: React.FC = () => {
   const { isYamlModalOpen, activeWorkflowYaml, closeWorkflowYaml } = useGitHubStore();
+  const { t } = useI18n();
   const [isCopied, setIsCopied] = useState(false);
 
   if (!isYamlModalOpen || !activeWorkflowYaml) return null;
@@ -13,7 +15,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
   const handleCopy = () => {
     navigator.clipboard.writeText(activeWorkflowYaml.content);
     setIsCopied(true);
-    toast.success('已复制工作流 YAML 内容');
+    toast.success(t('yaml.copied'));
     setTimeout(() => setIsCopied(false), 2000);
   };
 
@@ -43,7 +45,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
               className="h-7 px-2 text-[10px] gap-1 font-mono"
             >
               {isCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-              <span>{isCopied ? '已复制' : '复制代码'}</span>
+              <span>{isCopied ? t('logs.copied') : t('yaml.copy')}</span>
             </Button>
             <Button
               variant="ghost"

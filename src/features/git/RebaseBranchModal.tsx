@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GitPullRequest, X, Loader2, AlertTriangle, Check, ArrowRight, RefreshCw, Ban } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
   upstreamBranch: initialUpstreamBranch,
 }) => {
   const { currentRepo, branches, status, rebaseBranch, rebaseContinue, rebaseAbort } = useRepoStore();
+  const { t } = useI18n();
 
   const currentBranch =
     branches.find((b) => b.isCurrent)?.name ||
@@ -51,16 +53,16 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
 
     try {
       await rebaseBranch(selectedBranch);
-      toast.success(`变基完成`, `已成功将 ${currentBranch} 变基到 ${selectedBranch}`);
+      toast.success(t('rebase.success'), `${t('rebase.successDesc').replace('{cur}', currentBranch).replace('{onto}', selectedBranch)}`);
       onOpenChange(false);
     } catch (err: any) {
-      const msg = err.message || '变基失败';
+      const msg = err.message || t('rebase.failed');
       setError(msg);
       if (msg.includes('CONFLICT') || msg.includes('conflict')) {
         setInConflictState(true);
-        toast.error('变基遇到冲突 (Conflict)', '请先在工作区解决冲突文件，然后点击“继续变基”');
+        toast.error(t('rebase.conflict'), t('rebase.conflictDesc'));
       } else {
-        toast.error('变基失败', msg);
+        toast.error(t('rebase.failed'), msg);
       }
     } finally {
       setIsSubmitting(false);
@@ -71,12 +73,12 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
     setIsSubmitting(true);
     try {
       await rebaseContinue();
-      toast.success('变基继续完成！');
+      toast.success(t('rebase.continueDone'));
       setInConflictState(false);
       onOpenChange(false);
     } catch (err: any) {
       setError(err.message);
-      toast.error('继续变基失败', err.message);
+      toast.error(t('rebase.continueFailed'), err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -86,11 +88,11 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
     setIsSubmitting(true);
     try {
       await rebaseAbort();
-      toast.info('已中止变基', '工作区已还原至变基前状态');
+      toast.info(t('rebase.aborted'), t('rebase.abortedDesc'));
       setInConflictState(false);
       onOpenChange(false);
     } catch (err: any) {
-      toast.error('中止变基失败', err.message);
+      toast.error(t('rebase.abortFailed'), err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -112,9 +114,9 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
               <GitPullRequest className="h-4 w-4" />
             </div>
             <div>
-              <div className="font-semibold text-xs text-foreground">分支变基 (Rebase Branch)</div>
+              <div className="font-semibold text-xs text-foreground">{t('rebase.title')}</div>
               <div className="text-[10px] text-muted-foreground">
-                将当前分支的提交重新基底到目标分支之上
+                {t('rebase.desc')}
               </div>
             </div>
           </div>
@@ -132,7 +134,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
         <div className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
           <div className="text-[11px] leading-relaxed opacity-90">
-            变基 (Rebase) 会重新编写当前分支的 Commit 提交历史。请确保您仅对本地未公开或特性分支进行此操作，避免对共享主干分支执行变基。
+            {t('rebase.warn')}
           </div>
         </div>
 
@@ -145,7 +147,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
         {inConflictState ? (
           <div className="space-y-3 pt-2">
             <div className="text-xs text-foreground font-semibold">
-              当前变基处于冲突状态，请选择操作：
+              {t('rebase.conflictState')}
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -156,7 +158,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
                 className="flex-1 h-8 text-xs gap-1.5"
               >
                 <Ban className="h-3.5 w-3.5" />
-                <span>中止变基 (--abort)</span>
+                <span>{t('rebase.abort')}</span>
               </Button>
               <Button
                 variant="default"
@@ -166,7 +168,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
                 className="flex-1 h-8 text-xs gap-1.5"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
-                <span>已解决冲突，继续 (--continue)</span>
+                <span>{t('rebase.continue')}</span>
               </Button>
             </div>
           </div>
@@ -175,16 +177,16 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
             {/* Branch Flow Visualizer */}
             <div className="p-3 rounded-lg border border-border bg-accent/20 flex items-center justify-between text-xs font-mono">
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-muted-foreground">当前分支 (重基底)</span>
+                <span className="text-[10px] text-muted-foreground">{t('rebase.currentLabel')}</span>
                 <Badge variant="outline" className="h-5 px-2 text-xs font-semibold">
                   {currentBranch}
                 </Badge>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="flex flex-col gap-1 items-end">
-                <span className="text-[10px] text-muted-foreground">目标基底分支 (Onto)</span>
+                <span className="text-[10px] text-muted-foreground">{t('rebase.ontoLabel')}</span>
                 <Badge variant="warning" className="h-5 px-2 text-xs font-semibold">
-                  {selectedBranch || '未选择'}
+                  {selectedBranch || t('merge.none')}
                 </Badge>
               </div>
             </div>
@@ -192,7 +194,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
             {/* Select Upstream Branch */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-medium text-foreground block">
-                选择作为新基底的目标分支 (Upstream)
+                {t('rebase.pickUpstream')}
               </label>
               <select
                 value={selectedBranch}
@@ -200,11 +202,11 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
                 className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 {availableBranches.length === 0 ? (
-                  <option value="">暂无其他可选分支</option>
+                  <option value="">{t('rebase.noBranches')}</option>
                 ) : (
                   availableBranches.map((b) => (
                     <option key={b.name} value={b.name}>
-                      {b.name} {b.isRemote ? '(远程)' : ''}
+                      {b.name} {b.isRemote ? t('rebase.remoteSuffix') : ''}
                     </option>
                   ))
                 )}
@@ -220,7 +222,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
                 onClick={() => onOpenChange(false)}
                 className="h-7 text-xs"
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -233,7 +235,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
                 ) : (
                   <Check className="h-3 w-3" />
                 )}
-                <span>开始变基 (Rebase)</span>
+                <span>{t('rebase.run')}</span>
               </Button>
             </div>
           </form>

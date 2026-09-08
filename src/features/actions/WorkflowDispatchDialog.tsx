@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Play, X, GitBranch, Sparkles, Terminal } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 export const WorkflowDispatchDialog: React.FC = () => {
   const { isDispatchModalOpen, dispatchTargetWorkflow, closeDispatchModal, dispatchWorkflow } =
     useGitHubStore();
+  const { t } = useI18n();
   const { branches } = useRepoStore();
 
   const currentHeadBranch = branches.find((b) => b.isCurrent)?.name || 'master';
@@ -44,7 +46,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
               <Play className="h-4 w-4 fill-current" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-foreground">手动触发工作流 (Dispatch)</div>
+              <div className="text-sm font-semibold text-foreground">{t('dispatch.title')}</div>
               <div className="text-xs text-muted-foreground truncate max-w-[260px]">
                 {dispatchTargetWorkflow.name}
               </div>
@@ -60,7 +62,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
               <GitBranch className="h-3.5 w-3.5 text-indigo-400" />
-              <span>使用此分支的工作流定义 (Use workflow from)</span>
+              <span>{t('dispatch.useFrom')}</span>
             </label>
             <select
               value={targetRef}
@@ -69,7 +71,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
             >
               {branches.map((b) => (
                 <option key={b.name} value={b.name}>
-                  {b.name} {b.isCurrent ? '(当前 HEAD)' : ''}
+                  {b.name} {b.isCurrent ? t('dispatch.currentHead') : ''}
                 </option>
               ))}
               {branches.length === 0 && <option value="master">master</option>}
@@ -79,13 +81,13 @@ export const WorkflowDispatchDialog: React.FC = () => {
           {/* Optional Inputs */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground flex items-center justify-between">
-              <span>自定义执行参数 (Inputs - 可选)</span>
+              <span>{t('dispatch.inputs')}</span>
               <Badge variant="outline" className="h-4 text-[9px]">workflow_dispatch</Badge>
             </label>
             <Input
               value={paramInput}
               onChange={(e) => setParamInput(e.target.value)}
-              placeholder="例如: release_tag=v1.2.0 或 channel=stable"
+              placeholder={t('dispatch.inputsPlaceholder')}
               className="h-8 text-xs font-mono"
             />
           </div>
@@ -94,7 +96,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
           <div className="p-2.5 rounded-lg bg-accent/20 border border-border/40 text-[11px] text-muted-foreground flex items-start gap-2 font-mono">
             <Terminal className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
             <div className="leading-relaxed">
-              工作流配置: <span className="text-foreground">{dispatchTargetWorkflow.path}</span>
+              {t('dispatch.config')}: <span className="text-foreground">{dispatchTargetWorkflow.path}</span>
             </div>
           </div>
 
@@ -107,7 +109,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
               onClick={closeDispatchModal}
               className="h-8 px-3 text-xs"
             >
-              取消
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit"
@@ -116,7 +118,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
               className="h-8 px-4 text-xs gap-1.5"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              <span>{isSubmitting ? '正在提交调度...' : '运行工作流 (Run Workflow)'}</span>
+              <span>{isSubmitting ? t('dispatch.running') : t('dispatch.run')}</span>
             </Button>
           </div>
         </form>

@@ -14,6 +14,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { useGitHubStore } from '@/stores/githubStore';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { githubService } from '@/services/github/GitHubService';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
@@ -39,6 +40,7 @@ export const PullRequestsView: React.FC = () => {
   } = useGitHubStore();
 
   const { fetchAndCheckoutPR } = useRepoStore();
+  const { t } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -104,15 +106,15 @@ export const PullRequestsView: React.FC = () => {
   const handleCheckoutPR = async () => {
     if (!activePR) return;
     setIsCheckingOut(true);
-    toast.info(`正在从 GitHub 远端拉取 PR #${activePR.number} 提交记录...`);
+    toast.info(t('pr.fetching').replace('{n}', String(activePR.number)));
     try {
       const localBranch = await fetchAndCheckoutPR(activePR.number);
       toast.success(
-        `PR #${activePR.number} 远程分支拉取成功！`,
-        `本地工作区分支已切换至: ${localBranch}`
+        t('pr.fetched').replace('{n}', String(activePR.number)) + ',',
+        `${t('pr.switchedTo')}: ${localBranch}`
       );
     } catch (err: any) {
-      toast.error('检出 PR 分支失败', err.message);
+      toast.error(t('pr.checkoutFailed'), err.message);
     } finally {
       setIsCheckingOut(false);
     }
@@ -126,7 +128,7 @@ export const PullRequestsView: React.FC = () => {
           <GitPullRequest className="h-4 w-4 text-primary" />
           <span className="font-semibold text-foreground">GitHub Pull Requests</span>
           <Badge variant="outline" className="h-4 text-[10px] font-mono">
-            {filteredPRs.length} 个请求
+            {filteredPRs.length} {t('pr.count')}
           </Badge>
         </div>
 
@@ -142,7 +144,7 @@ export const PullRequestsView: React.FC = () => {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              开启 (Open)
+              {t('pr.filterOpen')}
             </button>
             <button
               onClick={() => setPRFilterState('closed')}
@@ -153,7 +155,7 @@ export const PullRequestsView: React.FC = () => {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              已合并/关闭 (Closed)
+              {t('pr.filterClosed')}
             </button>
             <button
               onClick={() => setPRFilterState('all')}
@@ -164,7 +166,7 @@ export const PullRequestsView: React.FC = () => {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              全部 (All)
+              {t('pr.filterAll')}
             </button>
           </div>
 
@@ -174,7 +176,7 @@ export const PullRequestsView: React.FC = () => {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索标题、作者或编号..."
+              placeholder={t('pr.searchPlaceholder')}
               className="h-7 pl-7 text-[11px]"
             />
           </div>
@@ -185,7 +187,7 @@ export const PullRequestsView: React.FC = () => {
             size="xs"
             onClick={() => loadPullRequests()}
             className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-            title="刷新 PR 列表"
+            title={t('pr.refreshTitle')}
           >
             <RotateCw className="h-3.5 w-3.5" />
           </Button>
@@ -202,7 +204,7 @@ export const PullRequestsView: React.FC = () => {
           <ScrollArea className="flex-1 p-2">
             {filteredPRs.length === 0 ? (
               <div className="py-20 text-center text-xs text-muted-foreground">
-                未找到符合条件的 Pull Request
+                {t('pr.noMatch')}
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -293,14 +295,14 @@ export const PullRequestsView: React.FC = () => {
           minSize={200}
           maxSize={550}
           defaultSize={DEFAULT_LAYOUT.prListWidth}
-          title="按住拖拽调节 PR 列表宽度，双击恢复默认"
+          title={t('pr.resizeHint')}
         />
 
         {/* Right Stage: Detailed PR Review View */}
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">
           {!activePR ? (
             <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
-              请在左侧选择需要审查的 Pull Request
+              {t('pr.pickToReview')}
             </div>
           ) : (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -322,13 +324,13 @@ export const PullRequestsView: React.FC = () => {
                       <GitBranch className="h-2.5 w-2.5 text-indigo-400" />
                       <span>{activePR.head.ref}</span>
                     </Badge>
-                    <span>合并至</span>
+                    <span>{t('pr.mergeInto')}</span>
                     <Badge variant="outline" className="h-4 text-[10px]">
                       {activePR.base.ref}
                     </Badge>
 
                     <span className="text-muted-foreground/60">•</span>
-                    <span>由 @{activePR.user.login} 提交</span>
+                    <span>{t('pr.openedBy').replace('{user}', activePR.user.login)}</span>
                   </div>
                 </div>
 
@@ -340,10 +342,10 @@ export const PullRequestsView: React.FC = () => {
                     onClick={handleCheckoutPR}
                     disabled={isCheckingOut}
                     className="h-7 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
-                    title="在本地创建并检出 pr-{number} 分支"
+                    title={t('pr.checkoutTitle').replace('{n}', String(activePR.number))}
                   >
                     <DownloadCloud className="h-3.5 w-3.5" />
-                    <span>{isCheckingOut ? '正在检出...' : '检出 PR 分支 (Checkout)'}</span>
+                    <span>{isCheckingOut ? t('pr.checkingOut') : t('pr.checkout')}</span>
                   </Button>
 
                   <Button
@@ -351,10 +353,10 @@ export const PullRequestsView: React.FC = () => {
                     size="xs"
                     onClick={() => window.open(activePR.html_url, '_blank')}
                     className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                    title="在浏览器中打开 GitHub PR"
+                    title={t('pr.openInBrowser')}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
-                    <span>网页查看</span>
+                    <span>{t('pr.viewOnWeb')}</span>
                   </Button>
                 </div>
               </div>
@@ -366,28 +368,28 @@ export const PullRequestsView: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1">
                       <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        评审状态 (Review)
+                        {t('pr.reviewStatus')}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs font-medium">
                         {realReviewStatus === 'APPROVED' ? (
                           <>
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                            <span className="text-emerald-400">已批准 (Approved)</span>
+                            <span className="text-emerald-400">{t('pr.approved')}</span>
                           </>
                         ) : realReviewStatus === 'CHANGES_REQUESTED' ? (
                           <>
                             <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
-                            <span className="text-rose-400">请求修改 (Changes Requested)</span>
+                            <span className="text-rose-400">{t('pr.changesRequested')}</span>
                           </>
                         ) : realReviewStatus === 'COMMENTED' ? (
                           <>
                             <MessageSquare className="h-3.5 w-3.5 text-cyan-400" />
-                            <span className="text-cyan-400">已有评审意见 (Commented)</span>
+                            <span className="text-cyan-400">{t('pr.commented')}</span>
                           </>
                         ) : (
                           <>
                             <Clock className="h-3.5 w-3.5 text-amber-400" />
-                            <span className="text-amber-400">待评审 (Pending Review)</span>
+                            <span className="text-amber-400">{t('pr.pendingReview')}</span>
                           </>
                         )}
                       </div>
@@ -395,21 +397,21 @@ export const PullRequestsView: React.FC = () => {
 
                     <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1">
                       <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        CI / CD 检查 (Checks)
+                        {t('pr.checks')}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs font-medium font-mono">
                         {realChecks ? (
                           <>
                             <ShieldCheck className={cn("h-3.5 w-3.5", realChecks.failure > 0 ? "text-rose-400" : "text-emerald-400")} />
                             <span className={cn(realChecks.failure > 0 ? "text-rose-400" : "text-emerald-400")}>
-                              {realChecks.success} / {realChecks.total} 通过
-                              {realChecks.failure > 0 ? ` (${realChecks.failure} 失败)` : ''}
+                              {realChecks.success} / {realChecks.total} {t('pr.checksPass')}
+                              {realChecks.failure > 0 ? ` (${realChecks.failure} ${t('pr.checksFailed')})` : ''}
                             </span>
                           </>
                         ) : (
                           <>
                             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-muted-foreground">未配置检查或正在检测</span>
+                            <span className="text-muted-foreground">{t('pr.noChecks')}</span>
                           </>
                         )}
                       </div>
@@ -417,12 +419,12 @@ export const PullRequestsView: React.FC = () => {
 
                     <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1 font-mono">
                       <div className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        代码改动统计
+                        {t('pr.diffStats')}
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-emerald-400 font-semibold">+{activePR.additions || 0}</span>
                         <span className="text-rose-400 font-semibold">-{activePR.deletions || 0}</span>
-                        <span className="text-muted-foreground">({activePR.changed_files || 0} 文件)</span>
+                        <span className="text-muted-foreground">({activePR.changed_files || 0} {t('pr.filesCount')})</span>
                       </div>
                     </div>
                   </div>
@@ -430,10 +432,10 @@ export const PullRequestsView: React.FC = () => {
                   {/* PR Body / Markdown Description */}
                   <div className="space-y-2">
                     <div className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                      Pull Request 说明正文
+                      {t('pr.body')}
                     </div>
                     <div className="p-4 rounded-lg border border-border/70 bg-background/50 font-sans text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                      {activePR.body || '该 Pull Request 未附带详细描述信息。'}
+                      {activePR.body || t('pr.noBody')}
                     </div>
                   </div>
                 </div>

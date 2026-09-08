@@ -7,6 +7,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useToastStore, ToastItem } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -25,6 +26,7 @@ export const ToastContainer: React.FC = () => {
 };
 
 const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onClose }) => {
+  const { t } = useI18n();
   const [copied, setCopied] = React.useState(false);
 
   const copyDetails = () => {
@@ -77,7 +79,7 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
           <button
             onClick={copyDetails}
             className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-            title="复制错误详情"
+            title={t('toast.copyErrorDetails')}
           >
             {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
           </button>

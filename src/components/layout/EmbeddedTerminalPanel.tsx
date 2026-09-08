@@ -7,6 +7,7 @@ import {
   Trash2,
   ExternalLink,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { executeGit } from '@/services/git/GitExecutor';
 import { cn } from '@/utils/cn';
@@ -28,6 +29,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
   open,
   onClose,
 }) => {
+  const { t } = useI18n();
   const { currentRepo, openTerminal, refreshAll } = useRepoStore();
   const [height, setHeight] = useState(210);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -119,7 +121,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
           refreshAll().catch(() => {});
         }
       } else {
-        outputText = `[Local Terminal]: ${rawCmd}\n(提示: 原生支持所有 git 命令，例如 'git status', 'git log -n 5', 'git diff' 等)`;
+        outputText = `[Local Terminal]: ${rawCmd}\n(${t('terminal.gitOnlyHint')})`;
       }
 
       setHistory((prev) => [
@@ -177,7 +179,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       <div
         onMouseDown={handleMouseDownResize}
         className="absolute -top-1.5 left-0 right-0 h-3 cursor-row-resize flex items-center justify-center group z-30"
-        title="拖动调整终端高度"
+        title={t('terminal.resizeHint')}
       >
         <div className="w-16 h-1 rounded-full bg-border group-hover:bg-primary transition-colors" />
       </div>
@@ -197,28 +199,28 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
           <button
             onClick={() => setHistory([])}
             className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/40"
-            title="清屏 (Clear)"
+            title={t('terminal.clear')}
           >
             <Trash2 className="h-3 w-3" />
           </button>
           <button
             onClick={openTerminal}
             className="p-1 rounded text-muted-foreground hover:text-sky-600 dark:hover:text-sky-400 hover:bg-accent/40"
-            title="在独立外部系统终端中打开"
+            title={t('terminal.openExternal')}
           >
             <ExternalLink className="h-3 w-3" />
           </button>
           <button
             onClick={() => setIsMaximized(!isMaximized)}
             className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/40"
-            title={isMaximized ? "还原" : "最大化"}
+            title={isMaximized ? t('terminal.restore') : t('terminal.maximize')}
           >
             {isMaximized ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
           </button>
           <button
             onClick={onClose}
             className="p-1 rounded text-muted-foreground hover:text-rose-400 hover:bg-rose-500/20 ml-1"
-            title="关闭终端面板"
+            title={t('terminal.close')}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -250,7 +252,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
 
         {isExecuting && (
           <div className="flex items-center gap-2 text-primary animate-pulse text-[11px] pl-4">
-            <span>正在执行中...</span>
+            <span>{t('terminal.running')}</span>
           </div>
         )}
 
@@ -265,7 +267,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
             onChange={(e) => setInputVal(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isExecuting}
-            placeholder="输入 git 命令，如 git status, git log -n 3 ..."
+            placeholder={t('terminal.placeholder')}
             className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-foreground font-mono text-[11px] p-0 placeholder:text-muted-foreground/50 focus:ring-0"
             autoFocus
           />

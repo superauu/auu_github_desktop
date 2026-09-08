@@ -47,7 +47,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const LeftSidebar: React.FC = () => {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const {
     currentRepo,
     activeTab,
@@ -1057,7 +1057,7 @@ export const LeftSidebar: React.FC = () => {
 
                     {localGrouped.totalCount === 0 && (
                       <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
-                        {searchFilter ? (lang === 'zh' ? '未匹配到本地分支' : 'No matching branches') : t('sidebar.noLocalBranches')}
+                        {searchFilter ? t('sidebar.noMatchBranches') : t('sidebar.noLocalBranches')}
                       </div>
                     )}
                   </div>
@@ -1169,7 +1169,7 @@ export const LeftSidebar: React.FC = () => {
                 </div>
                 {expandedSections.cloudPatches && (
                   <div className="mt-0.5 space-y-0.5 pl-3 text-[11px] text-muted-foreground/70 py-1">
-                    <p>{lang === 'zh' ? '暂无云端补丁包 (Cloud Patches)。可通过工作区变更生成共享补丁。' : 'No cloud patches yet. Generate shared patches from working changes.'}</p>
+                    <p>{t('sidebar.noCloudPatches')}</p>
                   </div>
                 )}
               </div>
