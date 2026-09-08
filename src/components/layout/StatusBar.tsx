@@ -5,10 +5,12 @@ import {
   Terminal,
   FolderGit2,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 
 export const StatusBar: React.FC = () => {
   const { currentRepo, status, branches } = useRepoStore();
+  const { t } = useI18n();
 
   const currentBranchName =
     branches.find((b) => b.isCurrent)?.name ||
@@ -45,7 +47,7 @@ export const StatusBar: React.FC = () => {
             )}
           </>
         ) : (
-          <span>就绪 - 暂未载入 Git 仓库</span>
+          <span>{t('status.ready')}</span>
         )}
       </div>
 
@@ -53,7 +55,7 @@ export const StatusBar: React.FC = () => {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1 text-[10px]">
           <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-          <span>Git 2.50 就绪</span>
+          <span>{t('status.gitReady')}</span>
         </div>
 
         <div className="h-3 w-[1px] bg-border" />

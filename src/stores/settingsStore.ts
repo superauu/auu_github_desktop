@@ -7,17 +7,21 @@ export interface AiApiConfig {
   model: string;
 }
 
+export type Language = 'zh' | 'en';
+
 export interface SettingsState {
   gitCliPath: string;
   compactMode: boolean;
   autoFetchInterval: 'never' | '5m' | '10m' | '30m';
   aiConfig: AiApiConfig;
+  language: Language;
 
   // Actions
   setGitCliPath: (path: string) => void;
   setCompactMode: (enabled: boolean) => void;
   setAutoFetchInterval: (interval: 'never' | '5m' | '10m' | '30m') => void;
   setAiConfig: (config: Partial<AiApiConfig>) => void;
+  setLanguage: (lang: Language) => void;
   resetSettings: () => void;
 }
 
@@ -27,6 +31,7 @@ const DEFAULT_SETTINGS = {
   gitCliPath: 'git',
   compactMode: false,
   autoFetchInterval: '10m' as const,
+  language: 'zh' as const,
   aiConfig: {
     provider: 'builtin' as const,
     endpoint: 'https://api.deepseek.com/v1',
@@ -65,6 +70,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
         compactMode: get().compactMode,
         autoFetchInterval: get().autoFetchInterval,
         aiConfig: get().aiConfig,
+        language: get().language,
         ...partial,
       };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(current));
@@ -96,6 +102,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
     setAutoFetchInterval: (autoFetchInterval: 'never' | '5m' | '10m' | '30m') => {
       set({ autoFetchInterval });
       persist({ autoFetchInterval });
+    },
+
+    setLanguage: (language: Language) => {
+      set({ language });
+      persist({ language });
     },
 
     setAiConfig: (config: Partial<AiApiConfig>) => {

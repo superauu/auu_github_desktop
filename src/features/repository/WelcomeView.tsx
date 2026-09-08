@@ -8,6 +8,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
+import { useI18n } from '@/i18n';
 
 interface WelcomeViewProps {
   onOpenRepo: () => void;
@@ -21,6 +22,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
   onInitRepo,
 }) => {
   const { recentRepos, setCurrentRepo } = useRepoStore();
+  const { t } = useI18n();
 
   return (
     <div className="flex-1 h-full flex flex-col items-center justify-center p-6 select-none overflow-y-auto relative cyber-scanlines">
@@ -32,10 +34,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-neon-green dark:bg-[#00ff9c] neon-breathe shadow-[0_0_8px_rgba(0,255,156,0.8)]" />
           </div>
           <h1 className="font-display text-2xl font-bold uppercase tracking-[0.12em] text-foreground dark:text-glow-cyan">
-            Auu&nbsp;Git&nbsp;Desktop
+            {t('welcome.title')}
           </h1>
           <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-            轻量、现代、美观、极速的桌面 Git 客户端与 GitHub 开发者仪表盘。
+            {t('welcome.tagline')}
           </p>
           <div className="hidden sm:flex items-center justify-center gap-2 text-[10px] font-mono text-muted-foreground/70 tracking-wider">
             <Terminal className="h-3 w-3 text-primary/70" />
@@ -55,10 +57,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors">
-                打开本地仓库
+                {t('welcome.openRepo')}
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                浏览并载入已有项目
+                {t('welcome.openRepoDesc')}
               </div>
             </div>
             <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-cyan-400 to-fuchsia-500 group-hover:w-full transition-all duration-300" aria-hidden />
@@ -73,10 +75,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors">
-                克隆远程仓库
+                {t('welcome.cloneRepo')}
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                从 GitHub 或 URL 克隆
+                {t('welcome.cloneRepoDesc')}
               </div>
             </div>
             <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-fuchsia-500 to-cyan-400 group-hover:w-full transition-all duration-300" aria-hidden />
@@ -91,10 +93,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors">
-                新建本地仓库
+                {t('welcome.initRepo')}
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                初始化全新 Git 仓库
+                {t('welcome.initRepoDesc')}
               </div>
             </div>
             <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-emerald-400 to-cyan-400 group-hover:w-full transition-all duration-300" aria-hidden />
@@ -107,7 +109,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground px-1 uppercase tracking-wider">
               <div className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                <span>最近使用的项目</span>
+                <span>{t('welcome.recent')}</span>
               </div>
             </div>
 

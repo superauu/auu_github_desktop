@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
+import { useI18n } from '@/i18n';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -81,6 +82,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
   const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated } = useGitHubStore();
+  const { t } = useI18n();
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
@@ -308,7 +310,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <Github className="h-3 w-3 text-foreground" />
                   )}
                   <span className="font-medium text-[10px] max-w-[60px] truncate hidden xl:inline-block">
-                    {isAuthenticated ? user?.login : '登录'}
+                    {isAuthenticated ? user?.login : t('header.login')}
                   </span>
                 </button>
               </TooltipTrigger>
@@ -350,7 +352,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {isLeftSidebarCollapsed ? '展开左侧边栏' : '收起左侧边栏'}
+                {isLeftSidebarCollapsed ? t('header.expandLeftSidebar') : t('header.collapseLeftSidebar')}
               </TooltipContent>
             </Tooltip>
 
@@ -365,9 +367,9 @@ export const Header: React.FC<HeaderProps> = ({
                   }}
                   className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
-                  <span className="text-[11px] text-muted-foreground font-mono">repository</span>
+                  <span className="text-[11px] text-muted-foreground font-mono">{t('header.repository')}</span>
                   <span className="font-semibold text-foreground text-xs truncate max-w-[110px]">
-                    {currentRepo ? currentRepo.name : '未打开'}
+                    {currentRepo ? currentRepo.name : t('common.notOpen')}
                   </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
                 </button>
@@ -379,7 +381,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onMouseLeave={() => setShowRepoMenu(false)}
                   >
                     <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      当前仓库
+                      {t('header.repoMenu.current')}
                     </div>
                     <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-accent/40 rounded-lg flex items-center justify-between">
                       <span className="truncate">{currentRepo?.name || '无'}</span>
@@ -396,13 +398,13 @@ export const Header: React.FC<HeaderProps> = ({
                       className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center gap-2"
                     >
                       <FolderGit2 className="h-3.5 w-3.5 text-primary" />
-                      <span>打开其他本地仓库...</span>
+                      <span>{t('header.repoMenu.openOther')}</span>
                     </button>
 
                     {recentRepos.length > 0 && (
                       <>
                         <div className="px-2 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                          最近打开
+                          {t('header.repoMenu.recent')}
                         </div>
                         <div className="max-h-36 overflow-y-auto space-y-0.5">
                           {recentRepos.map((repo) => (
@@ -411,7 +413,7 @@ export const Header: React.FC<HeaderProps> = ({
                               onClick={() => {
                                 setCurrentRepo(repo);
                                 setShowRepoMenu(false);
-                                toast.success(`已切换至仓库: ${repo.name}`);
+                                toast.success(`${t('header.repoMenu.switchedToast')}: ${repo.name}`);
                               }}
                               className="w-full text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between"
                             >
@@ -438,7 +440,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }}
                   className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
-                  <span className="text-[11px] text-muted-foreground font-mono">branch</span>
+                  <span className="text-[11px] text-muted-foreground font-mono">{t('header.branch')}</span>
                   <Badge variant="outline" className="h-4.5 px-1.5 text-[10px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
                     <GitBranchIcon className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
                     <span className="max-w-[140px] truncate">{currentBranchName}</span>
@@ -562,7 +564,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  {canUndo ? '撤销最新一次提交 (git reset --soft HEAD~1)' : '当前分支暂无提交可撤销'}
+                  {canUndo ? t('header.undoTooltip') : t('header.undoTooltipEmpty')}
                 </TooltipContent>
               </Tooltip>
 
@@ -585,8 +587,8 @@ export const Header: React.FC<HeaderProps> = ({
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   {canRedo && nextRedoItem
-                    ? `重做并恢复提交: ${nextRedoItem.commitSubject} (${nextRedoItem.commitHash.slice(0, 7)})`
-                    : '暂无可重做的操作 (Redo)'}
+                    ? `${t('header.redoTooltipPrefix')}: ${nextRedoItem.commitSubject} (${nextRedoItem.commitHash.slice(0, 7)})`
+                    : t('header.redoTooltipEmpty')}
                 </TooltipContent>
               </Tooltip>
 
@@ -607,7 +609,7 @@ export const Header: React.FC<HeaderProps> = ({
                             setShowPullMenu(!showPullMenu);
                           }}
                           className="hover:bg-accent/80 rounded p-0.5 -mr-1 cursor-pointer"
-                          title="更多拉取选项"
+                          title={t('header.morePullOptions')}
                         >
                           <ChevronDown className="h-2.5 w-2.5" />
                         </span>
@@ -619,7 +621,7 @@ export const Header: React.FC<HeaderProps> = ({
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">从远程拉取最新提交 (git pull)</TooltipContent>
+                  <TooltipContent side="bottom">{t('header.pullTooltip')}</TooltipContent>
                 </Tooltip>
 
                 {/* Pull Dropdown Options */}
@@ -635,7 +637,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                       className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
                     >
-                      <span>Pull (git pull)</span>
+                      <span>{t('header.pullMenu')}</span>
                       <ArrowDownToLine className="h-3 w-3 text-sky-400" />
                     </button>
                     <button
@@ -651,7 +653,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                       className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
                     >
-                      <span>Pull with Rebase</span>
+                      <span>{t('header.pullRebase')}</span>
                       <GitPullRequest className="h-3 w-3 text-amber-400" />
                     </button>
                     <div className="my-1 border-t border-border/60" />
@@ -662,7 +664,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                       className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
                     >
-                      <span>Fetch All (git fetch)</span>
+                      <span>{t('header.fetchAll')}</span>
                       <RefreshCw className="h-3 w-3 text-cyan-400" />
                     </button>
                   </div>
@@ -690,7 +692,7 @@ export const Header: React.FC<HeaderProps> = ({
                     )}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">推送本地提交至远程 (git push)</TooltipContent>
+                <TooltipContent side="bottom">{t('header.pushTooltip')}</TooltipContent>
               </Tooltip>
 
               {/* Branch */}
@@ -704,7 +706,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <GitBranchIcon className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">创建新分支 (git branch)</TooltipContent>
+                <TooltipContent side="bottom">{t('header.branchTooltip')}</TooltipContent>
               </Tooltip>
 
               {/* Stash */}
@@ -720,7 +722,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  {hasChanges ? '贮藏当前未提交改动 (git stash)' : '当前工作区无改动可贮藏'}
+                  {hasChanges ? t('header.stashTooltip') : t('header.stashTooltipEmpty')}
                 </TooltipContent>
               </Tooltip>
 
@@ -737,7 +739,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  {stashes.length > 0 ? `恢复最新贮藏 (${stashes.length} 个可用)` : '暂无贮藏可恢复'}
+                  {stashes.length > 0 ? `${t('header.popTooltip')} (${stashes.length})` : t('header.popTooltipEmpty')}
                 </TooltipContent>
               </Tooltip>
 
@@ -755,7 +757,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <Terminal className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">在仓库路径调起系统命令行终端</TooltipContent>
+                <TooltipContent side="bottom">{t('header.terminalTooltip')}</TooltipContent>
               </Tooltip>
             </div>
           )}
@@ -805,7 +807,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {isRightPaneCollapsed ? '展开提交与检查面板' : '收起右侧面板'}
+                {isRightPaneCollapsed ? t('header.expandRightPane') : t('header.collapseRightPane')}
               </TooltipContent>
             </Tooltip>
           </div>

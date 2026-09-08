@@ -16,6 +16,7 @@ import {
 import { ConflictBanner } from './ConflictBanner';
 import { InteractiveConflictResolver } from './InteractiveConflictResolver';
 import { useRepoStore } from '@/stores/repoStore';
+import { useI18n } from '@/i18n';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
@@ -109,6 +110,7 @@ export const WorkingChangesView: React.FC = () => {
     resolveFileTheirs,
     resetFileConflictMarkers,
   } = useRepoStore();
+  const { t } = useI18n();
 
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
   const [copiedPath, setCopiedPath] = useState(false);
@@ -163,11 +165,11 @@ export const WorkingChangesView: React.FC = () => {
   };
 
   const handleDiscard = (path: string) => {
-    if (!confirm(`确认放弃 "${path}" 的所有未暂存修改吗？此操作不可恢复！`)) return;
+    if (!confirm(`${t('changes.discardConfirmPrefix')} "${path}" ${t('changes.discardConfirm')}`)) return;
     runGitAction(
       () => discardChanges(path),
-      `已还原文件: ${path}`,
-      `还原失败: ${path}`
+      `${t('changes.discarded')}: ${path}`,
+      `${t('changes.discardFailed')}: ${path}`
     );
   };
 
@@ -205,9 +207,9 @@ export const WorkingChangesView: React.FC = () => {
               <button
                 onClick={() => {
                   if (stagedFiles.length === totalChanges) {
-                    runGitAction(() => unstageAll(), '已取消全部暂存', '取消暂存失败');
+                    runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                   } else {
-                    runGitAction(() => stageAll(), '已暂存全部工作区变动', '暂存失败');
+                    runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                   }
                 }}
                 className="text-muted-foreground hover:text-foreground transition-colors"
@@ -222,7 +224,7 @@ export const WorkingChangesView: React.FC = () => {
                 )}
               </button>
             )}
-            <span>变更 ({totalChanges})</span>
+            <span>{t('rightPane.changes')} ({totalChanges})</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -250,18 +252,18 @@ export const WorkingChangesView: React.FC = () => {
                 variant="ghost"
                 size="xs"
                 onClick={() => {
-                  runGitAction(() => stageAll(), '已暂存所有工作区修改', '暂存失败');
+                  runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                 }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               >
-                暂存全部
+                {t('changes.stageAll')}
               </Button>
             ) : stagedFiles.length > 0 ? (
               <Button
                 variant="ghost"
                 size="xs"
                 onClick={() => {
-                  runGitAction(() => unstageAll(), '已取消全部暂存', '取消暂存失败');
+                  runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                 }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               >
@@ -275,9 +277,9 @@ export const WorkingChangesView: React.FC = () => {
           {totalChanges === 0 ? (
             <div className="py-24 px-4 text-center space-y-2 text-muted-foreground">
               <Check className="h-8 w-8 mx-auto text-emerald-400/60" />
-              <div className="text-xs font-medium text-foreground">工作区非常干净</div>
+              <div className="text-xs font-medium text-foreground">{t('changes.empty')}</div>
               <div className="text-[11px] leading-relaxed">
-                没有任何未提交的修改或未跟踪文件。
+                {t('changes.emptyDesc')}
               </div>
             </div>
           ) : (
@@ -286,14 +288,14 @@ export const WorkingChangesView: React.FC = () => {
               {stagedFiles.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>已暂存 ({stagedFiles.length})</span>
+                    <span>{t('changes.section.staged')} ({stagedFiles.length})</span>
                     <button
                       onClick={() => {
-                        runGitAction(() => unstageAll(), '已取消全部暂存', '取消暂存失败');
+                        runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                       }}
                       className="text-[9px] text-muted-foreground hover:text-foreground"
                     >
-                      全部取消
+                      {t('changes.unstageAll')}
                     </button>
                   </div>
                   <div className="space-y-0.5">
@@ -314,8 +316,8 @@ export const WorkingChangesView: React.FC = () => {
                               e.stopPropagation();
                               runGitAction(
                                 () => unstageFile(file.path),
-                                `已取消暂存: ${file.path}`,
-                                `取消暂存失败: ${file.path}`
+                                `${t('changes.unstagedToast')}: ${file.path}`,
+                                `${t('changes.unstageFailed')}: ${file.path}`
                               );
                             }}
                             className="text-emerald-400 hover:text-emerald-300 shrink-0"
@@ -335,8 +337,8 @@ export const WorkingChangesView: React.FC = () => {
                             e.stopPropagation();
                             runGitAction(
                               () => unstageFile(file.path),
-                              `已取消暂存: ${file.path}`,
-                              `取消暂存失败: ${file.path}`
+                              `${t('changes.unstagedToast')}: ${file.path}`,
+                              `${t('changes.unstageFailed')}: ${file.path}`
                             );
                           }}
                         >
@@ -352,10 +354,10 @@ export const WorkingChangesView: React.FC = () => {
               {unstagedFiles.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>未暂存改动 ({unstagedFiles.length})</span>
+                    <span>{t('changes.section.unstaged')} ({unstagedFiles.length})</span>
                     <button
                       onClick={() => {
-                        runGitAction(() => stageAll(), '已暂存所有修改', '暂存失败');
+                        runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                       }}
                       className="text-[9px] text-muted-foreground hover:text-foreground"
                     >
@@ -380,8 +382,8 @@ export const WorkingChangesView: React.FC = () => {
                               e.stopPropagation();
                               runGitAction(
                                 () => stageFile(file.path),
-                                `已暂存: ${file.path}`,
-                                `暂存失败: ${file.path}`
+                                `${t('changes.stagedToast')}: ${file.path}`,
+                                `${t('changes.stageFailed')}: ${file.path}`
                               );
                             }}
                             className="text-muted-foreground hover:text-emerald-400 shrink-0"
@@ -468,8 +470,8 @@ export const WorkingChangesView: React.FC = () => {
                                   e.stopPropagation();
                                   runGitAction(
                                     () => stageFile(file.path),
-                                    `已标记解决: ${file.path}`,
-                                    `标记解决失败: ${file.path}`
+                                    `${t('changes.resolved')}: ${file.path}`,
+                                    `${t('changes.resolvedFailed')}: ${file.path}`
                                   );
                                 }}
                               >
@@ -499,8 +501,8 @@ export const WorkingChangesView: React.FC = () => {
                                   e.stopPropagation();
                                   runGitAction(
                                     () => stageFile(file.path),
-                                    `已暂存: ${file.path}`,
-                                    `暂存失败: ${file.path}`
+                                    `${t('changes.stagedToast')}: ${file.path}`,
+                                    `${t('changes.stageFailed')}: ${file.path}`
                                   );
                                 }}
                               >
@@ -519,7 +521,7 @@ export const WorkingChangesView: React.FC = () => {
               {untrackedFiles.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>未跟踪文件 ({untrackedFiles.length})</span>
+                    <span>{t('changes.untracked')} ({untrackedFiles.length})</span>
                   </div>
                   <div className="space-y-0.5">
                     {untrackedFiles.map((file) => (
@@ -539,8 +541,8 @@ export const WorkingChangesView: React.FC = () => {
                               e.stopPropagation();
                               runGitAction(
                                 () => stageFile(file.path),
-                                `已添加跟踪: ${file.path}`,
-                                `添加跟踪失败: ${file.path}`
+                                `${t('changes.tracked')}: ${file.path}`,
+                                `${t('changes.trackedFailed')}: ${file.path}`
                               );
                             }}
                             className="text-muted-foreground hover:text-emerald-400 shrink-0"
@@ -560,8 +562,8 @@ export const WorkingChangesView: React.FC = () => {
                             e.stopPropagation();
                             runGitAction(
                               () => stageFile(file.path),
-                              `已添加跟踪: ${file.path}`,
-                              `添加跟踪失败: ${file.path}`
+                              `${t('changes.tracked')}: ${file.path}`,
+                              `${t('changes.trackedFailed')}: ${file.path}`
                             );
                           }}
                         >
@@ -684,14 +686,14 @@ export const WorkingChangesView: React.FC = () => {
                   if (activeFile.staged) {
                     runGitAction(
                       () => unstageFile(activeFile.path),
-                      `已取消暂存: ${activeFile.path}`,
-                      `取消暂存失败: ${activeFile.path}`
+                      `${t('changes.unstagedToast')}: ${activeFile.path}`,
+                      `${t('changes.unstageFailed')}: ${activeFile.path}`
                     );
                   } else {
                     runGitAction(
                       () => stageFile(activeFile.path),
-                      `已暂存文件: ${activeFile.path}`,
-                      `暂存失败: ${activeFile.path}`
+                      `${t('changes.stagedToast')}: ${activeFile.path}`,
+                      `${t('changes.stageFailed')}: ${activeFile.path}`
                     );
                   }
                 }}

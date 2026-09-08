@@ -28,6 +28,7 @@ import {
   Eye,
   MoreVertical,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore } from '@/stores/layoutStore';
@@ -46,6 +47,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const LeftSidebar: React.FC = () => {
+  const { t, lang } = useI18n();
   const {
     currentRepo,
     activeTab,
@@ -626,7 +628,7 @@ export const LeftSidebar: React.FC = () => {
                 activeTab === 'changes' ? "text-primary" : "text-muted-foreground"
               )}
             />
-            <span>工作区变更</span>
+            <span>{t('sidebar.changes')}</span>
           </div>
           {changesCount > 0 ? (
             <Badge variant="warning" className="h-4 px-1.5 text-[10px] font-mono">
@@ -653,7 +655,7 @@ export const LeftSidebar: React.FC = () => {
                 activeTab === 'history' ? "text-primary" : "text-muted-foreground"
               )}
             />
-            <span>提交历史 & Graph</span>
+            <span>{t('sidebar.history')}</span>
           </div>
         </button>
 
@@ -673,7 +675,7 @@ export const LeftSidebar: React.FC = () => {
                 activeTab === 'pullRequests' ? "text-sky-400" : "text-muted-foreground"
               )}
             />
-            <span>Pull Requests</span>
+            <span>{t('sidebar.pullRequests')}</span>
           </div>
           <Badge variant="outline" className="h-3.5 px-1 text-[9px] font-mono">
             {pullRequests.length}
@@ -696,7 +698,7 @@ export const LeftSidebar: React.FC = () => {
                 activeTab === 'actions' ? "text-emerald-400" : "text-muted-foreground"
               )}
             />
-            <span>GitHub Actions</span>
+            <span>{t('sidebar.actions')}</span>
           </div>
           <Badge variant="success" className="h-3.5 px-1 text-[9px] font-mono">
             CI
@@ -777,11 +779,11 @@ export const LeftSidebar: React.FC = () => {
           {/* GitKraken-style Commit View Count Indicator */}
           <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#101013] border-b border-border/50 flex items-center justify-between text-[11px]">
             <div className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="text-foreground/90 font-medium">Viewing</span>
+              <span className="text-foreground/90 font-medium">{t('sidebar.viewing')}</span>
               <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-mono border-primary/40 text-primary">
                 {commits.length || 50}
               </Badge>
-              <span className="text-[10px] opacity-70">commits</span>
+              <span className="text-[10px] opacity-70">{t('sidebar.commits')}</span>
             </div>
             <button
               onClick={() => setHealthModalOpen(true)}
@@ -789,7 +791,7 @@ export const LeftSidebar: React.FC = () => {
               title="仓库健康度诊断"
             >
               <Sparkles className="h-2.5 w-2.5" />
-              <span>诊断</span>
+              <span>{t('sidebar.diagnose')}</span>
             </button>
           </div>
 
@@ -801,7 +803,7 @@ export const LeftSidebar: React.FC = () => {
                 ref={searchInputRef}
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Filter (Ctrl+Alt+F)..."
+                placeholder={t('sidebar.filterPlaceholder')}
                 className="h-7 pl-6 pr-6 text-[11px] bg-secondary/30 border-border/50 focus-visible:ring-1"
               />
               {searchFilter && (
@@ -830,7 +832,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>LOCAL ({localGrouped.totalCount})</span>
+                    <span>{t('sidebar.local')} ({localGrouped.totalCount})</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
@@ -1055,7 +1057,7 @@ export const LeftSidebar: React.FC = () => {
 
                     {localGrouped.totalCount === 0 && (
                       <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
-                        {searchFilter ? '未匹配到本地分支' : '暂无本地分支'}
+                        {searchFilter ? (lang === 'zh' ? '未匹配到本地分支' : 'No matching branches') : t('sidebar.noLocalBranches')}
                       </div>
                     )}
                   </div>
@@ -1074,7 +1076,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>REMOTE ({remoteGrouped.totalCount})</span>
+                    <span>{t('sidebar.remote')} ({remoteGrouped.totalCount})</span>
                   </div>
                 </div>
 
@@ -1159,7 +1161,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>CLOUD PATCHES</span>
+                    <span>{t('sidebar.cloudPatches')}</span>
                   </div>
                   <Badge variant="outline" className="h-3 px-1 text-[8px] opacity-60 font-mono">
                     0
@@ -1237,7 +1239,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>ISSUES</span>
+                    <span>{t('sidebar.issues')}</span>
                   </div>
                   <CircleDot className="h-3 w-3 text-emerald-400/70" />
                 </div>
@@ -1260,7 +1262,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>TEAMS</span>
+                    <span>{t('sidebar.teams')}</span>
                   </div>
                   <Users className="h-3 w-3 text-muted-foreground opacity-60" />
                 </div>
@@ -1283,7 +1285,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>TAGS ({filteredTags.length})</span>
+                    <span>{t('sidebar.tags')} ({filteredTags.length})</span>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                     {tags.length > 0 && (
@@ -1291,7 +1293,7 @@ export const LeftSidebar: React.FC = () => {
                         variant="ghost"
                         size="xs"
                         className="h-4 w-4 p-0 hover:text-emerald-400"
-                        title="推送所有 Tags 到远程 (git push --tags)"
+                        title={t('sidebar.pushAllTags')}
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
@@ -1310,7 +1312,7 @@ export const LeftSidebar: React.FC = () => {
                       variant="ghost"
                       size="xs"
                       className="h-4 w-4 p-0 hover:text-primary"
-                      title="新建标签"
+                      title={t('sidebar.newTag')}
                       onClick={(e) => {
                         e.stopPropagation();
                         setNewTagOpen(true);
@@ -1398,7 +1400,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>STASHES ({stashes.length})</span>
+                    <span>{t('sidebar.stashes')} ({stashes.length})</span>
                   </div>
                   <Button
                     variant="ghost"
@@ -1408,7 +1410,7 @@ export const LeftSidebar: React.FC = () => {
                       e.stopPropagation();
                       setNewStashOpen(!newStashOpen);
                     }}
-                    title="暂存当前修改 (Stash Changes)"
+                    title={t('sidebar.stashChanges')}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>

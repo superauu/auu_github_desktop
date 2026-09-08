@@ -25,6 +25,7 @@ import {
   Square,
   AlertTriangle,
 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore } from '@/stores/layoutStore';
@@ -63,6 +64,7 @@ export const RightPane: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [isAmend, setIsAmend] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { t } = useI18n();
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [checks, setChecks] = useState<GitHubCheckRun[]>([]);
   const [copiedHash, setCopiedHash] = useState(false);
@@ -307,9 +309,9 @@ export const RightPane: React.FC = () => {
         <div className="h-12 w-12 rounded-2xl bg-muted/40 border border-border/50 flex items-center justify-center mb-3 text-muted-foreground/60 shadow-xs">
           <Layers className="h-6 w-6 stroke-[1.5]" />
         </div>
-        <h3 className="font-semibold text-xs text-foreground/80 mb-1">未选择仓库</h3>
+        <h3 className="font-semibold text-xs text-foreground/80 mb-1">{t('welcome.rightPane.title')}</h3>
         <p className="text-[11px] text-muted-foreground/70 max-w-[210px] leading-relaxed">
-          请在左侧或主界面打开一个 Git 仓库以查看提交历史或工作区变更。
+          {t('welcome.rightPane.desc')}
         </p>
       </aside>
     );
@@ -487,7 +489,7 @@ export const RightPane: React.FC = () => {
                       )}
                     >
                       <List className="h-2.5 w-2.5" />
-                      <span>Path</span>
+                      <span>{t('rightPane.path')}</span>
                     </button>
                     <button
                       onClick={() => setFileViewMode('tree')}
@@ -499,7 +501,7 @@ export const RightPane: React.FC = () => {
                       )}
                     >
                       <Network className="h-2.5 w-2.5" />
-                      <span>Tree</span>
+                      <span>{t('rightPane.tree')}</span>
                     </button>
                   </div>
                 </div>
@@ -758,13 +760,13 @@ export const RightPane: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-foreground">
-                    {totalChanges} 个文件变更
+                    {totalChanges} {t('rightPane.filesChanged')}
                   </span>
                   <Badge
                     variant={stagedCount > 0 ? "success" : "warning"}
                     className="h-4 text-[9px] font-mono"
                   >
-                    {stagedCount} 已暂存
+                    {stagedCount} {t('rightPane.staged')}
                   </Badge>
                 </div>
 
@@ -780,7 +782,7 @@ export const RightPane: React.FC = () => {
                     )}
                   >
                     <List className="h-2.5 w-2.5" />
-                    <span>Path</span>
+                    <span>{t('rightPane.path')}</span>
                   </button>
                   <button
                     onClick={() => setFileViewMode('tree')}
@@ -792,7 +794,7 @@ export const RightPane: React.FC = () => {
                     )}
                   >
                     <Network className="h-2.5 w-2.5" />
-                    <span>Tree</span>
+                    <span>{t('rightPane.tree')}</span>
                   </button>
                 </div>
               </div>
@@ -801,7 +803,7 @@ export const RightPane: React.FC = () => {
               <div className="rounded-xl border border-border/70 bg-card/60 p-1.5 max-h-48 overflow-y-auto space-y-0.5">
                 {allChangesFiles.length === 0 ? (
                   <div className="py-6 text-center text-muted-foreground text-[11px]">
-                    暂无待提交的文件修改
+                    {t('rightPane.noPendingChanges')}
                   </div>
                 ) : fileViewMode === 'path' ? (
                   /* Flat Path View */
@@ -896,7 +898,7 @@ export const RightPane: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-medium text-foreground">
-                  提交信息 (Commit Message)
+                  {t('rightPane.commitMessage')}
                 </label>
 
                 {/* GitKraken-style Recompose commit with AI */}
@@ -909,7 +911,7 @@ export const RightPane: React.FC = () => {
                   title="根据当前修改智能生成语义化提交说明"
                 >
                   <Sparkles className="h-2.5 w-2.5 text-sky-400" />
-                  <span>{isAiGenerating ? 'AI 生成中...' : 'Recompose with AI'}</span>
+                  <span>{isAiGenerating ? t('settings.ai.testing') : t('rightPane.recomposeAi')}</span>
                 </Button>
               </div>
 
@@ -922,7 +924,7 @@ export const RightPane: React.FC = () => {
                     handleCommit(false);
                   }
                 }}
-                placeholder="简明描述改动 (Ctrl + Enter 快速提交)..."
+                placeholder={t('rightPane.messagePlaceholder')}
                 rows={4}
                 className="w-full resize-none rounded-lg border border-input bg-background/80 p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors font-mono"
               />
@@ -936,7 +938,7 @@ export const RightPane: React.FC = () => {
                 onChange={(e) => setIsAmend(e.target.checked)}
                 className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
               />
-              <span>修改上一条提交 (Amend last commit)</span>
+              <span>{t('rightPane.amend')}</span>
             </label>
 
             {/* Commit Action Buttons */}
@@ -952,15 +954,15 @@ export const RightPane: React.FC = () => {
                   <Check className="h-3.5 w-3.5 shrink-0" />
                 )}
                 <span className="truncate min-w-0" title={isAmend
-                  ? '覆盖提交 (Amend)'
+                  ? t('rightPane.commitAmend')
                   : stagedCount === 0 && totalChanges > 0
-                  ? `暂存全部并提交 (${totalChanges} 个文件)`
-                  : '提交变更 (Commit)'}>
+                  ? `${t('rightPane.stageAllCommit')} (${totalChanges} ${t('rightPane.filesSuffix')})`
+                  : t('rightPane.commit')}>
                   {isAmend
-                    ? '覆盖提交 (Amend)'
+                    ? t('rightPane.commitAmend')
                     : stagedCount === 0 && totalChanges > 0
-                    ? `暂存全部并提交 (${totalChanges} 个文件)`
-                    : '提交变更 (Commit)'}
+                    ? `${t('rightPane.stageAllCommit')} (${totalChanges} ${t('rightPane.filesSuffix')})`
+                    : t('rightPane.commit')}
                 </span>
               </Button>
 
@@ -972,11 +974,11 @@ export const RightPane: React.FC = () => {
               >
                 <Send className="h-3 w-3 shrink-0" />
                 <span className="truncate min-w-0" title={stagedCount === 0 && totalChanges > 0
-                  ? '暂存全部、提交并推送'
-                  : '提交并推送 (Commit & Push)'}>
+                  ? t('rightPane.stageAllCommitPush')
+                  : t('rightPane.commitPush')}>
                   {stagedCount === 0 && totalChanges > 0
-                    ? '暂存全部、提交并推送'
-                    : '提交并推送 (Commit & Push)'}
+                    ? t('rightPane.stageAllCommitPush')
+                    : t('rightPane.commitPush')}
                 </span>
               </Button>
             </div>
