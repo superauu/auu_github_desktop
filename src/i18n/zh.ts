@@ -134,9 +134,6 @@ export const zh = {
   'sidebar.filterPlaceholder': '筛选 (Ctrl+Alt+F)...',
   'sidebar.local': '本地分支',
   'sidebar.remote': '远程分支',
-  'sidebar.cloudPatches': '云端补丁',
-  'sidebar.issues': '议题',
-  'sidebar.teams': '团队',
   'sidebar.tags': '标签',
   'sidebar.stashes': '贮藏',
   'sidebar.mergeInto': '合并到当前分支',
@@ -446,8 +443,6 @@ export const zh = {
   'palette.systemModeRestored': '已恢复为跟随系统外观',
   'palette.connectGithub': '连接 / 配置 GitHub 账号与 Token...',
   'palette.openPreferences': '打开首选项设置 (Preferences)',
-  'sidebar.noIssues': '暂无关联的 GitHub / GitLab Issues。',
-  'sidebar.teamsSynced': '团队成员协作状态已同步至本地。',
   'sidebar.newTagTitle': '新建 Tag (如 v1.0.0)',
   'sidebar.stashWorkingChanges': '贮藏当前工作区修改',
 
@@ -853,7 +848,6 @@ export const zh = {
   'palette.placeholder': '输入命令、分支、Tag 或操作 (如 Commit, Push, CI)...',
   'palette.noMatch': '未找到匹配的命令或分支',
   'palette.group.nav': '视图导航',
-  'sidebar.noCloudPatches': '暂无云端补丁包 (Cloud Patches)。可通过工作区变更生成共享补丁。',
   'sidebar.noMatchBranches': '未匹配到本地分支',
   'toast.copyErrorDetails': '复制错误详情',
 

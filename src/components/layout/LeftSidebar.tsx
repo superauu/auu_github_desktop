@@ -23,8 +23,6 @@ import {
   ListFilter,
   Sparkles,
   Copy,
-  Users,
-  CircleDot,
   Eye,
   MoreVertical,
 } from 'lucide-react';
@@ -87,10 +85,7 @@ export const LeftSidebar: React.FC = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     localBranches: true,
     remoteBranches: false,
-    cloudPatches: false,
     pullRequests: false,
-    issues: false,
-    teams: false,
     tags: false,
     stashes: false,
   });
@@ -1149,31 +1144,6 @@ export const LeftSidebar: React.FC = () => {
                 )}
               </div>
 
-              {/* CLOUD PATCHES Section */}
-              <div>
-                <div
-                  onClick={() => toggleSection('cloudPatches')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
-                >
-                  <div className="flex items-center gap-1">
-                    {expandedSections.cloudPatches ? (
-                      <ChevronDown className="h-3 w-3" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3" />
-                    )}
-                    <span>{t('sidebar.cloudPatches')}</span>
-                  </div>
-                  <Badge variant="outline" className="h-3 px-1 text-[8px] opacity-60 font-mono">
-                    0
-                  </Badge>
-                </div>
-                {expandedSections.cloudPatches && (
-                  <div className="mt-0.5 space-y-0.5 pl-3 text-[11px] text-muted-foreground/70 py-1">
-                    <p>{t('sidebar.noCloudPatches')}</p>
-                  </div>
-                )}
-              </div>
-
               {/* PULL REQUESTS Section */}
               <div>
                 <div
@@ -1223,52 +1193,6 @@ export const LeftSidebar: React.FC = () => {
                         </div>
                       ))
                     )}
-                  </div>
-                )}
-              </div>
-
-              {/* ISSUES Section */}
-              <div>
-                <div
-                  onClick={() => toggleSection('issues')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
-                >
-                  <div className="flex items-center gap-1">
-                    {expandedSections.issues ? (
-                      <ChevronDown className="h-3 w-3" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3" />
-                    )}
-                    <span>{t('sidebar.issues')}</span>
-                  </div>
-                  <CircleDot className="h-3 w-3 text-emerald-400/70" />
-                </div>
-                {expandedSections.issues && (
-                  <div className="mt-0.5 space-y-0.5 pl-3 text-[11px] text-muted-foreground/70 py-1">
-                    <p>{t('sidebar.noIssues')}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* TEAMS Section */}
-              <div>
-                <div
-                  onClick={() => toggleSection('teams')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
-                >
-                  <div className="flex items-center gap-1">
-                    {expandedSections.teams ? (
-                      <ChevronDown className="h-3 w-3" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3" />
-                    )}
-                    <span>{t('sidebar.teams')}</span>
-                  </div>
-                  <Users className="h-3 w-3 text-muted-foreground opacity-60" />
-                </div>
-                {expandedSections.teams && (
-                  <div className="mt-0.5 space-y-0.5 pl-3 text-[11px] text-muted-foreground/70 py-1">
-                    <p>{t('sidebar.teamsSynced')}</p>
                   </div>
                 )}
               </div>

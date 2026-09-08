@@ -134,9 +134,6 @@ export const en = {
   'sidebar.filterPlaceholder': 'Filter (Ctrl+Alt+F)...',
   'sidebar.local': 'LOCAL',
   'sidebar.remote': 'REMOTE',
-  'sidebar.cloudPatches': 'CLOUD PATCHES',
-  'sidebar.issues': 'ISSUES',
-  'sidebar.teams': 'TEAMS',
   'sidebar.tags': 'TAGS',
   'sidebar.stashes': 'STASHES',
   'sidebar.mergeInto': 'Merge into current branch',
@@ -442,8 +439,6 @@ export const en = {
   'palette.systemModeRestored': 'Restored to follow system appearance',
   'palette.connectGithub': 'Connect / configure GitHub account & token...',
   'palette.openPreferences': 'Open Preferences',
-  'sidebar.noIssues': 'No linked GitHub / GitLab issues.',
-  'sidebar.teamsSynced': 'Team collaboration status synced locally.',
   'sidebar.newTagTitle': 'New Tag (e.g. v1.0.0)',
   'sidebar.stashWorkingChanges': 'Stash working changes',
 
@@ -838,7 +833,6 @@ export const en = {
   'palette.placeholder': 'Type a command, branch, tag or action (e.g. Commit, Push, CI)...',
   'palette.noMatch': 'No matching commands',
   'palette.group.nav': 'Navigation',
-  'sidebar.noCloudPatches': 'No cloud patches yet. Generate shared patches from working changes.',
   'sidebar.noMatchBranches': 'No matching local branches',
   'toast.copyErrorDetails': 'Copy error details',
 
