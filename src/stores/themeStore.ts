@@ -23,7 +23,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   initTheme: () => {
-    const saved = (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'system';
+    // 产品进入赛博朋克正式阶段：默认呈现完整霓虹暗色形态
+    const saved = (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'dark';
     const resolvedTheme = resolveEffectiveTheme(saved);
     applyThemeClass(resolvedTheme);
     set({ theme: saved, resolvedTheme });

@@ -4,81 +4,83 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    /* Cyberpunk "Steel Ops" 浅色变体：冷灰蓝底 + 电光青主色 */
+    --background: 212 38% 96%;
+    --foreground: 235 40% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 235 40% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 235 40% 10%;
 
-    --primary: 204 94% 40%;
+    --primary: 190 100% 29%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 214 32% 93%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 214 30% 92%;
+    --secondary-foreground: 235 35% 12%;
 
-    --muted: 214 32% 93%;
-    --muted-foreground: 215 25% 35%;
+    --muted: 214 28% 91%;
+    --muted-foreground: 216 22% 38%;
 
-    --accent: 214 32% 91%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 190 60% 90%;
+    --accent-foreground: 235 40% 10%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 336 100% 48%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214 32% 85%;
-    --input: 214 32% 85%;
-    --ring: 204 94% 40%;
+    --border: 208 30% 82%;
+    --input: 208 30% 82%;
+    --ring: 190 100% 35%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 210 25% 96.5%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 204 94% 40%;
+    --sidebar-background: 212 36% 94.5%;
+    --sidebar-foreground: 235 35% 12%;
+    --sidebar-primary: 190 100% 29%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 214 32% 90%;
-    --sidebar-accent-foreground: 222 47% 11%;
-    --sidebar-border: 214 32% 86%;
+    --sidebar-accent: 200 40% 89%;
+    --sidebar-accent-foreground: 235 40% 10%;
+    --sidebar-border: 208 28% 83%;
   }
 
   .dark {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
+    /* Cyberpunk "Neon Grid" 深色主形态：深黑蓝底 + 霓虹青/品红 */
+    --background: 235 45% 4%;
+    --foreground: 214 100% 93%;
 
-    --card: 222 36% 9.5%;
-    --card-foreground: 210 40% 98%;
+    --card: 233 45% 7.5%;
+    --card-foreground: 214 100% 93%;
 
-    --popover: 222 36% 10%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 234 47% 8.5%;
+    --popover-foreground: 214 100% 93%;
 
-    --primary: 204 94% 56%;
-    --primary-foreground: 222 47% 6%;
+    --primary: 186 100% 50%;
+    --primary-foreground: 220 45% 6%;
 
-    --secondary: 222 25% 13%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 232 32% 13%;
+    --secondary-foreground: 214 100% 90%;
 
-    --muted: 222 25% 12%;
-    --muted-foreground: 218 16% 62%;
+    --muted: 233 30% 11%;
+    --muted-foreground: 216 24% 62%;
 
-    --accent: 222 28% 15%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 231 38% 14%;
+    --accent-foreground: 214 100% 92%;
 
-    --destructive: 348 83% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 336 100% 57%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 222 20% 16%;
-    --input: 222 20% 16%;
-    --ring: 204 94% 56%;
+    --border: 202 60% 17%;
+    --input: 202 60% 17%;
+    --ring: 186 100% 50%;
 
-    --sidebar-background: 222 42% 7%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 204 94% 56%;
-    --sidebar-primary-foreground: 222 47% 6%;
-    --sidebar-accent: 222 28% 13%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 20% 14%;
+    --sidebar-background: 235 48% 5.5%;
+    --sidebar-foreground: 214 80% 90%;
+    --sidebar-primary: 186 100% 50%;
+    --sidebar-primary-foreground: 220 45% 6%;
+    --sidebar-accent: 231 36% 12%;
+    --sidebar-accent-foreground: 214 100% 92%;
+    --sidebar-border: 203 55% 15%;
   }
 }
 
@@ -95,6 +97,11 @@
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.22);
   border-radius: 9999px;
+}
+
+::selection {
+  background: rgba(0, 229, 255, 0.32);
+  color: #f0faff;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -318,3 +325,94 @@ html.compact-mode .diff-line-del {
   }
 }
 
+
+
+/* ==========================================================================
+   Cyberpunk Neon-Grid Atmosphere (dark 主形态)
+   ========================================================================== */
+
+/* 深色下全局霓虹网格 + 顶部青色辉光氛围 */
+.dark body {
+  background-image:
+    radial-gradient(1100px 460px at 72% -12%, rgba(0, 229, 255, 0.07), transparent 62%),
+    radial-gradient(900px 420px at 8% 110%, rgba(255, 46, 166, 0.05), transparent 60%),
+    linear-gradient(rgba(0, 229, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.026) 1px, transparent 1px);
+  background-size: auto, auto, 34px 34px, 34px 34px;
+}
+
+/* 霓虹文字辉光 */
+.text-glow-cyan {
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.65), 0 0 26px rgba(0, 229, 255, 0.28);
+}
+
+.text-glow-pink {
+  text-shadow: 0 0 8px rgba(255, 46, 166, 0.6), 0 0 26px rgba(255, 46, 166, 0.26);
+}
+
+/* 霓虹描边容器 */
+.neon-edge {
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.16), inset 0 0 10px rgba(0, 229, 255, 0.05);
+}
+
+/* CRT 扫描线覆盖层（纯装饰，无交互影响） */
+.cyber-scanlines {
+  position: relative;
+  overflow: hidden;
+}
+
+.cyber-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 229, 255, 0.028) 0px,
+    rgba(0, 229, 255, 0.028) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+/* 霓虹网格英雄区背景 */
+.cyber-grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.07) 1px, transparent 1px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 75%);
+}
+
+/* 霓虹主按钮辉光（仅暗色） */
+.dark .btn-neon {
+  box-shadow: 0 0 14px -2px rgba(0, 229, 255, 0.5), inset 0 0 8px rgba(0, 229, 255, 0.12);
+}
+
+.dark .btn-neon:hover:not(:disabled) {
+  box-shadow: 0 0 22px 0 rgba(0, 229, 255, 0.65), inset 0 0 12px rgba(0, 229, 255, 0.2);
+}
+
+/* 品红辅助按钮 */
+.dark .btn-neon-pink {
+  box-shadow: 0 0 12px -2px rgba(255, 46, 166, 0.45);
+}
+
+@keyframes neon-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.neon-breathe {
+  animation: neon-breathe 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-breathe,
+  .cyber-active-pulse,
+  .cyber-shimmer {
+    animation: none;
+  }
+}

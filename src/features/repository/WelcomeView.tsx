@@ -5,6 +5,7 @@ import {
   GitFork,
   Clock,
   ArrowRight,
+  Terminal,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 
@@ -22,28 +23,34 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
   const { recentRepos, setCurrentRepo } = useRepoStore();
 
   return (
-    <div className="flex-1 h-full flex flex-col items-center justify-center p-6 select-none overflow-y-auto">
-      <div className="max-w-xl w-full space-y-8 animate-in fade-in-50 duration-300">
+    <div className="flex-1 h-full flex flex-col items-center justify-center p-6 select-none overflow-y-auto relative cyber-scanlines">
+      <div className="max-w-xl w-full space-y-8 animate-in fade-in-50 duration-300 relative z-10">
         {/* Hero Section */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-sky-500/10 to-transparent border border-sky-500/20 glow-primary mb-1">
-            <img src="/logo.svg" alt="Auu Git" className="h-10 w-10 drop-shadow-md" />
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-cyan-400/15 to-fuchsia-500/5 border border-cyan-400/25 dark:border-cyan-300/25 mb-1 neon-edge relative">
+            <img src="/logo.svg" alt="Auu Git" className="h-10 w-10 drop-shadow-[0_0_12px_rgba(0,229,255,0.55)]" />
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-neon-green dark:bg-[#00ff9c] neon-breathe shadow-[0_0_8px_rgba(0,255,156,0.8)]" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Auu Git Desktop
+          <h1 className="font-display text-2xl font-bold uppercase tracking-[0.12em] text-foreground dark:text-glow-cyan">
+            Auu&nbsp;Git&nbsp;Desktop
           </h1>
           <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
             轻量、现代、美观、极速的桌面 Git 客户端与 GitHub 开发者仪表盘。
           </p>
+          <div className="hidden sm:flex items-center justify-center gap-2 text-[10px] font-mono text-muted-foreground/70 tracking-wider">
+            <Terminal className="h-3 w-3 text-primary/70" />
+            <span>&gt; git init --neon</span>
+            <span className="inline-block h-3 w-[6px] bg-primary/80 neon-breathe" aria-hidden />
+          </div>
         </div>
 
         {/* Primary Action Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             onClick={onOpenRepo}
-            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/40 transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden"
+            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
           >
-            <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400 w-fit group-hover:scale-105 transition-transform">
+            <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500 dark:text-cyan-300 w-fit transition-transform">
               <FolderOpen className="h-5 w-5" />
             </div>
             <div>
@@ -54,13 +61,14 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                 浏览并载入已有项目
               </div>
             </div>
+            <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-cyan-400 to-fuchsia-500 group-hover:w-full transition-all duration-300" aria-hidden />
           </button>
 
           <button
             onClick={onCloneRepo}
-            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/40 transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden"
+            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
           >
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 w-fit group-hover:scale-105 transition-transform">
+            <div className="p-2 rounded-lg bg-fuchsia-500/10 text-fuchsia-500 dark:text-fuchsia-300/90 w-fit transition-transform">
               <GitFork className="h-5 w-5" />
             </div>
             <div>
@@ -71,13 +79,14 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                 从 GitHub 或 URL 克隆
               </div>
             </div>
+            <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-fuchsia-500 to-cyan-400 group-hover:w-full transition-all duration-300" aria-hidden />
           </button>
 
           <button
             onClick={onInitRepo}
-            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/40 transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden"
+            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
           >
-            <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 w-fit group-hover:scale-105 transition-transform">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-neon-green dark:text-[#00ff9c] w-fit transition-transform">
               <FolderGit2 className="h-5 w-5" />
             </div>
             <div>
@@ -88,6 +97,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                 初始化全新 Git 仓库
               </div>
             </div>
+            <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-emerald-400 to-cyan-400 group-hover:w-full transition-all duration-300" aria-hidden />
           </button>
         </div>
 
@@ -109,7 +119,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                   className="p-3 flex items-center justify-between hover:bg-accent/40 cursor-pointer transition-colors group"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <FolderGit2 className="h-4 w-4 text-primary shrink-0 group-hover:scale-110 transition-transform" />
+                    <FolderGit2 className="h-4 w-4 text-primary shrink-0 transition-transform" />
                     <div className="min-w-0">
                       <div className="font-medium text-xs text-foreground group-hover:text-primary transition-colors truncate">
                         {repo.name}
@@ -123,7 +133,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                     <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded-full bg-accent/60 font-mono">
                       {repo.currentBranch}
                     </span>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ArrowRight className="h-3.5 w-3.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
               ))}

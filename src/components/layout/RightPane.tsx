@@ -943,15 +943,19 @@ export const RightPane: React.FC = () => {
             <div className="space-y-2 pt-1">
               <Button
                 onClick={() => handleCommit(false)}
-                className="w-full h-8 text-xs font-medium gap-1.5 shadow-sm"
+                className="w-full h-8 text-xs font-medium gap-1.5 shadow-sm btn-neon dark:btn-neon px-2"
                 disabled={(!commitMessage.trim()) || (totalChanges === 0 && !isAmend) || isSubmitting}
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
                 ) : (
-                  <Check className="h-3.5 w-3.5" />
+                  <Check className="h-3.5 w-3.5 shrink-0" />
                 )}
-                <span>
+                <span className="truncate min-w-0" title={isAmend
+                  ? '覆盖提交 (Amend)'
+                  : stagedCount === 0 && totalChanges > 0
+                  ? `暂存全部并提交 (${totalChanges} 个文件)`
+                  : '提交变更 (Commit)'}>
                   {isAmend
                     ? '覆盖提交 (Amend)'
                     : stagedCount === 0 && totalChanges > 0
@@ -963,11 +967,13 @@ export const RightPane: React.FC = () => {
               <Button
                 variant="secondary"
                 onClick={() => handleCommit(true)}
-                className="w-full h-8 text-xs font-medium gap-1.5"
+                className="w-full h-8 text-xs font-medium gap-1.5 px-2"
                 disabled={(!commitMessage.trim()) || (totalChanges === 0 && !isAmend) || isSubmitting}
               >
-                <Send className="h-3 w-3" />
-                <span>
+                <Send className="h-3 w-3 shrink-0" />
+                <span className="truncate min-w-0" title={stagedCount === 0 && totalChanges > 0
+                  ? '暂存全部、提交并推送'
+                  : '提交并推送 (Commit & Push)'}>
                   {stagedCount === 0 && totalChanges > 0
                     ? '暂存全部、提交并推送'
                     : '提交并推送 (Commit & Push)'}

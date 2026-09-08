@@ -58,15 +58,28 @@ export default {
           border: "hsl(var(--sidebar-border))",
         },
         git: {
-          added: "#22c55e",
-          modified: "#eab308",
-          deleted: "#ef4444",
-          renamed: "#3b82f6",
-          untracked: "#a855f7",
-          branch: "#6366f1",
-          tag: "#f59e0b",
-          commit: "#06b6d4",
+          added: "#00ff9c",
+          modified: "#ffd60a",
+          deleted: "#ff3d6e",
+          renamed: "#41a6ff",
+          untracked: "#c46bff",
+          branch: "#8b7bff",
+          tag: "#ffb300",
+          commit: "#00e5ff",
+        },
+        neon: {
+          cyan: "#00e5ff",
+          pink: "#ff2ea6",
+          green: "#00ff9c",
+          amber: "#ffb300",
+          purple: "#b26bff",
         }
+      },
+      boxShadow: {
+        "neon-sm": "0 0 8px rgba(0, 229, 255, 0.28)",
+        neon: "0 0 16px rgba(0, 229, 255, 0.30), 0 0 2px rgba(0, 229, 255, 0.55)",
+        "neon-pink": "0 0 16px rgba(255, 46, 166, 0.30), 0 0 2px rgba(255, 46, 166, 0.5)",
+        "neon-green": "0 0 14px rgba(0, 255, 156, 0.30)",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -98,6 +111,11 @@ export default {
         "pulse-subtle": "pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
       fontFamily: {
+        display: [
+          'Orbitron',
+          'Inter',
+          'sans-serif',
+        ],
         sans: [
           'Inter',
           '-apple-system',
