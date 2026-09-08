@@ -857,6 +857,35 @@ export const en = {
   'browser.gitRepo': 'Git repo',
   'browser.select': 'Select',
 
+  // ============ Language purity follow-up keys ============
+  'rightPane.bannerFilesChanged': 'file changes in working directory',
+  'rightPane.viewChanges': 'View Changes',
+  'rightPane.commitHashLabel': 'commit:',
+  'rightPane.recomposeBtn': 'Recompose with AI',
+  'rightPane.authored': 'authored',
+  'rightPane.parentLabel': 'parent:',
+  'rightPane.zeroFiles': '0 files changed',
+  'rightPane.statAdded': 'added',
+  'rightPane.statModified': 'modified',
+  'rightPane.statDeleted': 'deleted',
+  'rightPane.viewAllFiles': 'View all files',
+  'rightPane.collapseAll': 'Collapse All',
+  'rightPane.githubChecks': 'GitHub Checks',
+  'history.col.branchTag': 'BRANCH / TAG',
+  'history.col.graph': 'GRAPH',
+  'history.col.message': 'COMMIT MESSAGE',
+  'history.col.authorDate': 'AUTHOR / DATE',
+  'terminal.title': 'Terminal',
+  'pr.title': 'GitHub Pull Requests',
+  'sidebar.gitAiAgent': 'Git AI Agent',
+  'time.justNow': 'just now',
+  'time.minutesAgo': '{n} min ago',
+  'time.hoursAgo': '{n} hours ago',
+  'time.daysAgo': '{n} days ago',
+  'time.locale': 'en-US',
+  'history.commitCount': 'commits',
+  'history.viewChanges': 'View Changes →',
+
 } as const;
 
 export type TranslationKey = keyof typeof en;

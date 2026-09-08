@@ -126,7 +126,7 @@ export const PullRequestsView: React.FC = () => {
       <div className="h-10 px-4 border-b border-border bg-card/40 flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
           <GitPullRequest className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-foreground">GitHub Pull Requests</span>
+          <span className="font-semibold text-foreground">{t('pr.title')}</span>
           <Badge variant="outline" className="h-4 text-[10px] font-mono">
             {filteredPRs.length} {t('pr.count')}
           </Badge>

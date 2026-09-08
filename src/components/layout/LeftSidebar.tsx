@@ -742,7 +742,7 @@ export const LeftSidebar: React.FC = () => {
           <div className="p-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 space-y-1.5">
             <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-xs">
               <Bot className="h-4 w-4" />
-              <span>Git AI Agent</span>
+              <span>{t('sidebar.gitAiAgent')}</span>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               {t('sidebar.aiAssistant')}
@@ -1186,7 +1186,7 @@ export const LeftSidebar: React.FC = () => {
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
-                    <span>PULL REQUESTS ({pullRequests.length})</span>
+                    <span>{t('sidebar.pullRequests')} ({pullRequests.length})</span>
                   </div>
                   <Button
                     variant="ghost"

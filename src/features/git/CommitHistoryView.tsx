@@ -96,7 +96,7 @@ export const CommitHistoryView: React.FC = () => {
           <GitCommitIcon className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-foreground">{t('history.title')}</span>
           <Badge variant="outline" className="h-4 text-[10px] font-mono">
-            {filteredCommits.length} commits
+            {filteredCommits.length} {t('history.commitCount')}
           </Badge>
           {hasWip && (
             <Badge variant="warning" className="h-4 px-1.5 text-[10px] font-mono gap-1 animate-pulse">
@@ -121,10 +121,10 @@ export const CommitHistoryView: React.FC = () => {
 
       {/* GitKraken-style Column Headers: BRANCH / TAG | GRAPH | COMMIT MESSAGE */}
       <div className="h-7 px-3 border-b border-border/80 bg-muted/20 flex items-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
-        <div className="w-48 truncate pr-2">BRANCH / TAG</div>
-        <div className="w-16 text-center shrink-0">GRAPH</div>
-        <div className="flex-1 min-w-0 pl-3">COMMIT MESSAGE</div>
-        <div className="w-44 text-right pr-2 hidden md:block shrink-0">AUTHOR / DATE</div>
+        <div className="w-48 truncate pr-2">{t('history.col.branchTag')}</div>
+        <div className="w-16 text-center shrink-0">{t('history.col.graph')}</div>
+        <div className="flex-1 min-w-0 pl-3">{t('history.col.message')}</div>
+        <div className="w-44 text-right pr-2 hidden md:block shrink-0">{t('history.col.authorDate')}</div>
       </div>
 
       {/* Commit List Table with SVG Graph */}
@@ -185,7 +185,7 @@ export const CommitHistoryView: React.FC = () => {
 
                   {/* Right Column: Prompt */}
                   <div className="w-44 text-right pr-2 text-[10px] text-sky-600 dark:text-sky-400 font-mono shrink-0 hidden md:block">
-                    View Changes →
+                    {t('history.viewChanges')}
                   </div>
                 </div>
               )}

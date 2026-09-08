@@ -188,7 +188,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       <div className="h-8 px-3 bg-slate-100/90 dark:bg-[#131316] border-b border-border/60 flex items-center justify-between text-xs shrink-0 select-none">
         <div className="flex items-center gap-2 text-foreground/90 font-mono font-medium">
           <TerminalIcon className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-          <span className="text-[11px] tracking-wide text-foreground">Terminal</span>
+          <span className="text-[11px] tracking-wide text-foreground">{t('terminal.title')}</span>
           <span className="text-[10px] text-muted-foreground/60 truncate max-w-[260px] font-sans">
             {repoPath}
           </span>

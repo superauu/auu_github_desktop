@@ -326,7 +326,7 @@ export const RightPane: React.FC = () => {
       {totalChanges > 0 && activeTab === 'history' && (
         <div className="h-8 px-3 bg-sky-500/15 border-b border-sky-500/30 flex items-center justify-between shrink-0 text-sky-300">
           <span className="font-semibold text-[11px] truncate">
-            {totalChanges} file changes in working directory
+            {totalChanges} {t('rightPane.bannerFilesChanged')}
           </span>
           <Button
             variant="default"
@@ -334,7 +334,7 @@ export const RightPane: React.FC = () => {
             onClick={() => setActiveTab('changes')}
             className="h-5 px-2 text-[10px] bg-sky-500 hover:bg-sky-400 text-black font-semibold shrink-0"
           >
-            View Changes
+            {t('rightPane.viewChanges')}
           </Button>
         </div>
       )}
@@ -374,7 +374,7 @@ export const RightPane: React.FC = () => {
             {/* Commit Header & AI Recompose Button */}
             <div className="flex flex-wrap items-center justify-between gap-y-1 pb-0.5">
               <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                <span className="text-muted-foreground/80">commit:</span>
+                <span className="text-muted-foreground/80">{t('rightPane.commitHashLabel')}</span>
                 <button
                   onClick={() => copyHash(selectedCommit.hash)}
                   className="font-semibold text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1"
@@ -400,7 +400,7 @@ export const RightPane: React.FC = () => {
                 title={t('rightPane.aiReorganize')}
               >
                 <Sparkles className="h-3 w-3 text-white animate-pulse" />
-                <span className="font-semibold tracking-tight">Recompose commit with AI</span>
+                <span className="font-semibold tracking-tight">{t('rightPane.recomposeBtn')}</span>
                 <ChevronDown className="h-2.5 w-2.5 opacity-80" />
               </button>
             </div>
@@ -426,13 +426,13 @@ export const RightPane: React.FC = () => {
                 <div className="min-w-0 space-y-0.5 text-[11px]">
                   <div className="font-semibold text-foreground truncate">{selectedCommit.author.name}</div>
                   <div className="text-muted-foreground text-[10px]">
-                    authored {selectedCommit.author.relativeDate}
+                    {t('rightPane.authored')} {selectedCommit.author.relativeDate}
                   </div>
                 </div>
               </div>
               {selectedCommit.parents.length > 0 && (
                 <div className="text-[10px] text-muted-foreground/80 font-mono shrink-0">
-                  parent: <span className="text-sky-400/90 hover:underline cursor-pointer">{selectedCommit.parents[0].slice(0, 7)}</span>
+                  {t('rightPane.parentLabel')} <span className="text-sky-400/90 hover:underline cursor-pointer">{selectedCommit.parents[0].slice(0, 7)}</span>
                 </div>
               )}
             </div>
@@ -443,25 +443,25 @@ export const RightPane: React.FC = () => {
                 {/* Stats badge (e.g. + 1 added) */}
                 <div className="flex items-center gap-1.5 text-[11px] font-mono">
                   {commitStats.total === 0 ? (
-                    <span className="text-muted-foreground">0 files changed</span>
+                    <span className="text-muted-foreground">{t('rightPane.zeroFiles')}</span>
                   ) : (
                     <div className="flex items-center gap-2">
                       {commitStats.added > 0 && (
                         <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
                           <span>+</span>
-                          <span>{commitStats.added} added</span>
+                          <span>{commitStats.added} {t('rightPane.statAdded')}</span>
                         </span>
                       )}
                       {commitStats.modified > 0 && (
                         <span className="text-amber-400 font-semibold flex items-center gap-0.5">
                           <span>~</span>
-                          <span>{commitStats.modified} modified</span>
+                          <span>{commitStats.modified} {t('rightPane.statModified')}</span>
                         </span>
                       )}
                       {commitStats.deleted > 0 && (
                         <span className="text-rose-400 font-semibold flex items-center gap-0.5">
                           <span>-</span>
-                          <span>{commitStats.deleted} deleted</span>
+                          <span>{commitStats.deleted} {t('rightPane.statDeleted')}</span>
                         </span>
                       )}
                     </div>
@@ -518,7 +518,7 @@ export const RightPane: React.FC = () => {
                   ) : (
                     <Square className="h-3 w-3" />
                   )}
-                  <span>View all files</span>
+                  <span>{t('rightPane.viewAllFiles')}</span>
                 </label>
 
                 {fileViewMode === 'tree' && (
@@ -526,7 +526,7 @@ export const RightPane: React.FC = () => {
                     onClick={() => setTreeFoldersOpen({})}
                     className="hover:text-foreground underline decoration-dotted transition-colors"
                   >
-                    Collapse All
+                    {t('rightPane.collapseAll')}
                   </button>
                 )}
               </div>
@@ -720,7 +720,7 @@ export const RightPane: React.FC = () => {
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  GitHub Checks
+                  {t('rightPane.githubChecks')}
                 </span>
                 <Badge variant="success" className="h-4 text-[9px] gap-1 font-mono">
                   <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
