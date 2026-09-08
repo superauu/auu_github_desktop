@@ -226,6 +226,96 @@ export class GitHubService {
     return res.json();
   }
 
+  /** 从错误响应中提取 GitHub 返回的 message 字段，便于 toast 展示 */
+  private async extractGitHubError(res: Response): Promise<string> {
+    try {
+      const data = await res.json();
+      return data?.message || `HTTP ${res.status}`;
+    } catch {
+      return `HTTP ${res.status}`;
+    }
+  }
+
+  async createPullRequest(
+    owner: string,
+    repo: string,
+    params: { title: string; head: string; base: string; body?: string; draft?: boolean }
+  ): Promise<GitHubPullRequest> {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
+      method: 'POST',
+      headers: {
+        ...this.getHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: params.title,
+        head: params.head,
+        base: params.base,
+        body: params.body || '',
+        draft: params.draft ?? false,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(await this.extractGitHubError(res));
+    }
+    return res.json();
+  }
+
+  async mergePullRequest(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    options?: { mergeMethod?: 'merge' | 'squash' | 'rebase'; commitTitle?: string; commitMessage?: string }
+  ): Promise<{ merged: boolean; message: string }> {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/merge`,
+      {
+        method: 'PUT',
+        headers: {
+          ...this.getHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          merge_method: options?.mergeMethod || 'merge',
+          commit_title: options?.commitTitle,
+          commit_message: options?.commitMessage,
+        }),
+      }
+    );
+    if (!res.ok) {
+      throw new Error(await this.extractGitHubError(res));
+    }
+    return res.json();
+  }
+
+  async updatePullRequestState(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    state: 'closed' | 'open'
+  ): Promise<GitHubPullRequest> {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...this.getHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ state }),
+      }
+    );
+    if (!res.ok) {
+      throw new Error(await this.extractGitHubError(res));
+    }
+    return res.json();
+  }
+
+  async getRepositoryDefaultBranch(owner: string, repo: string): Promise<string> {
+    const details = await this.getRepository(owner, repo);
+    return details.default_branch || 'main';
+  }
+
 }
 
 export const githubService = new GitHubService();

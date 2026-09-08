@@ -267,6 +267,7 @@ export function parseGitBranches(output: string): GitBranch[] {
 
     const name = parts[0];
     if (name.includes('->')) continue; // Skip HEAD aliases like remotes/origin/HEAD -> origin/master
+    if (/\/HEAD$/.test(name)) continue; // `branch -a -v` 下别名行首列不含箭头，按名称兜底过滤
 
     const isRemote = name.startsWith('remotes/');
     const displayName = isRemote ? name.replace(/^remotes\//, '') : name;

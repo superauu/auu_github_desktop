@@ -12,11 +12,15 @@ import {
   Clock,
   AlertCircle,
   MessageSquare,
+  Plus,
+  GitMerge,
+  XCircle,
 } from 'lucide-react';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { githubService } from '@/services/github/GitHubService';
+import { CreatePullRequestModal } from './CreatePullRequestModal';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
@@ -46,6 +50,10 @@ export const PullRequestsView: React.FC = () => {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [realReviewStatus, setRealReviewStatus] = useState<string>('PENDING');
   const [realChecks, setRealChecks] = useState<{ total: number; success: number; failure: number } | null>(null);
+  const [createPROpen, setCreatePROpen] = useState(false);
+  const [mergeMethod, setMergeMethod] = useState<'merge' | 'squash' | 'rebase'>('merge');
+  const [isMerging, setIsMerging] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   const filteredPRs = useMemo(() => {
     return pullRequests.filter((pr) => {
@@ -120,6 +128,46 @@ export const PullRequestsView: React.FC = () => {
     }
   };
 
+  const handleMergePR = async () => {
+    if (!activePR || !currentOwner || !currentRepoName) return;
+    if (!confirm(t('pr.mergeConfirm').replace('{n}', String(activePR.number)).replace('{base}', activePR.base.ref))) {
+      return;
+    }
+    setIsMerging(true);
+    try {
+      const result = await githubService.mergePullRequest(currentOwner, currentRepoName, activePR.number, {
+        mergeMethod,
+      });
+      if (result.merged) {
+        toast.success(t('pr.mergeMerged').replace('{n}', String(activePR.number)), result.message);
+      } else {
+        toast.info(result.message || t('pr.mergeNotMerged'));
+      }
+      await loadPullRequests();
+    } catch (err: any) {
+      toast.error(t('pr.mergeFailed'), err?.message);
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  const handleClosePR = async () => {
+    if (!activePR || !currentOwner || !currentRepoName) return;
+    if (!confirm(t('pr.closeConfirm').replace('{n}', String(activePR.number)))) return;
+    setIsClosing(true);
+    try {
+      await githubService.updatePullRequestState(currentOwner, currentRepoName, activePR.number, 'closed');
+      toast.success(t('pr.closed').replace('{n}', String(activePR.number)));
+      await loadPullRequests();
+    } catch (err: any) {
+      toast.error(t('pr.closeFailed'), err?.message);
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const canManagePR = Boolean(currentOwner && currentRepoName && activePR && activePR.state === 'open');
+
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Header Filter Bar */}
@@ -133,6 +181,19 @@ export const PullRequestsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* New Pull Request */}
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => setCreatePROpen(true)}
+            disabled={!currentOwner || !currentRepoName}
+            className="h-7 text-[11px] gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10"
+            title={currentOwner ? t('pr.createTitle') : t('pr.needLogin')}
+          >
+            <Plus className="h-3 w-3" />
+            <span>{t('pr.newPR')}</span>
+          </Button>
+
           {/* State Filter Buttons */}
           <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
             <button
@@ -334,7 +395,7 @@ export const PullRequestsView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Right Action: Checkout PR Branch */}
+                {/* Right Action: Checkout PR Branch + Merge/Close */}
                 <div className="flex items-center gap-2 shrink-0">
                   <Button
                     variant="outline"
@@ -358,6 +419,46 @@ export const PullRequestsView: React.FC = () => {
                     <ExternalLink className="h-3.5 w-3.5" />
                     <span>{t('pr.viewOnWeb')}</span>
                   </Button>
+
+                  {canManagePR && (
+                    <>
+                      {/* Merge method picker */}
+                      <select
+                        value={mergeMethod}
+                        onChange={(e) => setMergeMethod(e.target.value as 'merge' | 'squash' | 'rebase')}
+                        className="h-7 rounded-md border border-border/70 bg-background/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        title={t('pr.mergeMethod')}
+                      >
+                        <option value="merge">{t('pr.mergeMethod.merge')}</option>
+                        <option value="squash">{t('pr.mergeMethod.squash')}</option>
+                        <option value="rebase">{t('pr.mergeMethod.rebase')}</option>
+                      </select>
+
+                      <Button
+                        variant="default"
+                        size="xs"
+                        onClick={handleMergePR}
+                        disabled={isMerging}
+                        className="h-7 text-xs gap-1.5 btn-neon dark:btn-neon"
+                        title={t('pr.mergeTitle').replace('{n}', String(activePR.number))}
+                      >
+                        <GitMerge className="h-3.5 w-3.5" />
+                        <span>{isMerging ? t('pr.merging') : t('pr.merge')}</span>
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={handleClosePR}
+                        disabled={isClosing}
+                        className="h-7 text-xs gap-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        title={t('pr.closeConfirmTitle')}
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        <span>{isClosing ? t('pr.closing') : t('pr.closePR')}</span>
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -444,6 +545,9 @@ export const PullRequestsView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Create Pull Request Modal */}
+      <CreatePullRequestModal open={createPROpen} onOpenChange={setCreatePROpen} />
     </div>
   );
 };
