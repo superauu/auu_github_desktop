@@ -826,24 +826,29 @@ export const useRepoStore = create<RepoState>((set, get) => {
       const { currentRepo, commits } = get();
       if (!currentRepo) return;
       try {
-        const headCommit = commits[0];
-        const branch = currentRepo.currentBranch;
+        // 必须先记录真正的 HEAD 提交：commits 列表来自 `git log --all`，
+        // commits[0] 可能是其他分支上更新的提交，用它做 redo 会把当前分支
+        // 硬重置到不相关提交，造成数据丢失。
+        const headHash = await gitService.getBranchCommitHash(currentRepo.path, 'HEAD');
+        if (!headHash) {
+          throw new Error('无法获取当前 HEAD 提交，仓库可能还没有任何提交');
+        }
 
         await gitService.undoLastCommit(currentRepo.path);
 
-        if (headCommit && branch) {
-          set((state) => ({
-            redoStack: [
-              {
-                branch,
-                commitHash: headCommit.hash,
-                commitSubject: headCommit.subject || headCommit.shortHash,
-                timestamp: Date.now(),
-              },
-              ...state.redoStack,
-            ],
-          }));
-        }
+        const headCommit = commits.find((c) => c.hash === headHash);
+        set((state) => ({
+          redoStack: [
+            {
+              branch: currentRepo.currentBranch,
+              commitHash: headHash,
+              commitSubject:
+                headCommit?.subject || headCommit?.shortHash || headHash.slice(0, 7),
+              timestamp: Date.now(),
+            },
+            ...state.redoStack,
+          ],
+        }));
 
         await get().refreshAll();
       } catch (err: any) {
