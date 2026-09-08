@@ -977,6 +977,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
       try {
         if (operationState.type === 'rebase') {
           await gitService.rebaseAbort(currentRepo.path);
+        } else if (operationState.type === 'cherry-pick') {
+          await gitService.cherryPickAbort(currentRepo.path);
         } else {
           await gitService.abortMerge(currentRepo.path);
         }
@@ -993,6 +995,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
       try {
         if (operationState.type === 'rebase') {
           await gitService.rebaseContinue(currentRepo.path);
+        } else if (operationState.type === 'cherry-pick') {
+          await gitService.cherryPickContinue(currentRepo.path);
         } else {
           await gitService.commit(
             currentRepo.path,

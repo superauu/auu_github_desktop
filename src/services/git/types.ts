@@ -133,6 +133,8 @@ export interface IGitService {
   rebase(repoPath: string, upstream: string): Promise<string>;
   rebaseContinue(repoPath: string): Promise<void>;
   rebaseAbort(repoPath: string): Promise<void>;
+  cherryPickContinue(repoPath: string): Promise<void>;
+  cherryPickAbort(repoPath: string): Promise<void>;
   undoLastCommit(repoPath: string): Promise<void>;
   redoCommit(repoPath: string, commitHash: string): Promise<void>;
   openTerminal(repoPath: string): Promise<void>;

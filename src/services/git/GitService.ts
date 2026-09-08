@@ -450,11 +450,20 @@ export class GitService implements IGitService {
   }
 
   async rebaseContinue(repoPath: string): Promise<void> {
-    await executeGit(['rebase', '--continue'], repoPath);
+    // 无终端环境下编辑器无法启动，用 core.editor=true 跳过交互式消息编辑
+    await executeGit(['-c', 'core.editor=true', 'rebase', '--continue'], repoPath);
   }
 
   async rebaseAbort(repoPath: string): Promise<void> {
     await executeGit(['rebase', '--abort'], repoPath);
+  }
+
+  async cherryPickContinue(repoPath: string): Promise<void> {
+    await executeGit(['-c', 'core.editor=true', 'cherry-pick', '--continue'], repoPath);
+  }
+
+  async cherryPickAbort(repoPath: string): Promise<void> {
+    await executeGit(['cherry-pick', '--abort'], repoPath);
   }
 
   async undoLastCommit(repoPath: string): Promise<void> {
@@ -666,18 +675,18 @@ export class GitService implements IGitService {
       const isRebasing =
         statusText.includes('rebase in progress') ||
         statusText.includes('You are currently rebasing');
-      const isMerging =
-        statusText.includes('You have unmerged paths') ||
-        statusText.includes('All conflicts fixed but you are still merging') ||
-        statusText.includes('fix conflicts and run "git commit"') ||
-        statusText.includes('merging');
       const isCherryPicking =
         statusText.includes('You are currently cherry-picking');
+      const isMerging =
+        statusText.includes('You have unmerged paths') ||
+        statusText.includes('All conflicts fixed but you are still merging');
 
+      // 顺序很重要：cherry-pick/rebase 冲突时 status 同样包含 unmerged paths，
+      // 必须先匹配更具体的操作类型，否则会被误判为 merge
       let type: 'none' | 'merge' | 'rebase' | 'cherry-pick' = 'none';
       if (isRebasing) type = 'rebase';
-      else if (isMerging) type = 'merge';
       else if (isCherryPicking) type = 'cherry-pick';
+      else if (isMerging) type = 'merge';
       else if (conflictedFiles.length > 0) type = 'merge';
 
       const inConflict = conflictedFiles.length > 0 || isRebasing || isMerging;
