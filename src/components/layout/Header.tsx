@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import {
   GitBranch as GitBranchIcon,
   RefreshCw,
-  ArrowDown,
-  ArrowUp,
   Search,
   Settings as SettingsIcon,
   Sun,
@@ -16,8 +14,11 @@ import {
   PanelRightOpen,
   Github,
   Plus,
-  GitMerge,
   RotateCcw,
+  RotateCw,
+  ArrowDownToLine,
+  ArrowUpToLine,
+  GitPullRequest,
   Archive,
   Inbox,
   Terminal,
@@ -83,6 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
+  const [showPullMenu, setShowPullMenu] = useState(false);
 
   const cycleTheme = () => {
     const nextTheme: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
@@ -169,6 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const aheadCount = status?.ahead || 0;
   const behindCount = status?.behind || 0;
+  const hasChanges = status ? !status.isClean : false;
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -232,7 +235,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Tier 2: GitKraken-style Main Git Action Ribbon Toolbar */}
-        <div className="h-10 px-3 flex items-center justify-between text-xs bg-background/80">
+        <div className="h-11 px-3 flex items-center justify-between text-xs bg-background/80">
           {/* Left: Quick Switcher: repository: auu_saas > branch: main */}
           <div className="flex items-center gap-2 min-w-0">
             <Tooltip>
@@ -440,170 +443,204 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Center: GitKraken-style Operations Ribbon (Undo, Redo, Pull, Push, Branch, Stash, Pop, Merge, Terminal) */}
+          {/* Center: GitKraken-style Operations Ribbon (Undo, Redo, Pull, Push, Branch, Stash, Pop, | Terminal) */}
           {currentRepo && (
-            <div className="hidden md:flex items-center gap-1 bg-secondary/40 border border-border/60 rounded-lg p-0.5">
+            <div className="hidden md:flex items-center gap-0.5 sm:gap-1 py-0.5">
               {/* Undo */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
+                  <button
                     onClick={handleUndo}
                     disabled={isUndoing}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2"
+                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>Undo</span>
-                  </Button>
+                    <span className="text-[10px] leading-tight group-hover:underline">Undo</span>
+                    <RotateCcw className="h-3.5 w-3.5 mt-0.5" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">撤销最新一次提交 (git reset --soft HEAD~1)</TooltipContent>
               </Tooltip>
 
-              <div className="h-3.5 w-[1px] bg-border/60" />
-
-              {/* Fetch */}
+              {/* Redo */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={handleFetch}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2"
+                  <button
+                    disabled={true}
+                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-muted-foreground/40 cursor-not-allowed"
                   >
-                    <RefreshCw className="h-3 w-3 text-cyan-400" />
-                    <span>Fetch</span>
-                  </Button>
+                    <span className="text-[10px] leading-tight">Redo</span>
+                    <RotateCw className="h-3.5 w-3.5 mt-0.5" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">获取远程最新引用 (git fetch)</TooltipContent>
+                <TooltipContent side="bottom">暂无可重做的操作 (Redo)</TooltipContent>
               </Tooltip>
 
-              {/* Pull */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={handlePull}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2 relative"
+              {/* Pull with Dropdown */}
+              <div className="relative">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handlePull}
+                      className="flex flex-col items-center justify-center min-w-[46px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors relative group"
+                    >
+                      <span className="text-[10px] leading-tight group-hover:underline">Pull</span>
+                      <div className="flex items-center justify-center mt-0.5 gap-0.5">
+                        <ArrowDownToLine className="h-3.5 w-3.5" />
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowPullMenu(!showPullMenu);
+                          }}
+                          className="hover:bg-accent/80 rounded p-0.5 -mr-1 cursor-pointer"
+                          title="更多拉取选项"
+                        >
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </span>
+                      </div>
+                      {behindCount > 0 && (
+                        <span className="absolute -top-1 -right-0.5 bg-emerald-500 text-black text-[8px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-xs">
+                          {behindCount}
+                        </span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">从远程拉取最新提交 (git pull)</TooltipContent>
+                </Tooltip>
+
+                {/* Pull Dropdown Options */}
+                {showPullMenu && (
+                  <div
+                    className="absolute left-0 top-full mt-1 w-48 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
+                    onMouseLeave={() => setShowPullMenu(false)}
                   >
-                    <ArrowDown className="h-3 w-3 text-emerald-400" />
-                    <span>Pull</span>
-                    {behindCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-emerald-500 text-black text-[9px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center">
-                        {behindCount}
-                      </span>
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">拉取远程提交 (git pull)</TooltipContent>
-              </Tooltip>
+                    <button
+                      onClick={() => {
+                        setShowPullMenu(false);
+                        handlePull();
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
+                    >
+                      <span>Pull (git pull)</span>
+                      <ArrowDownToLine className="h-3 w-3 text-sky-400" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setShowPullMenu(false);
+                        toast.info('正在执行变基拉取 (git pull --rebase)...');
+                        try {
+                          await pull();
+                          toast.success('变基拉取完成');
+                        } catch (err: any) {
+                          toast.error('变基拉取失败', err?.message);
+                        }
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
+                    >
+                      <span>Pull with Rebase</span>
+                      <GitPullRequest className="h-3 w-3 text-amber-400" />
+                    </button>
+                    <div className="my-1 border-t border-border/60" />
+                    <button
+                      onClick={() => {
+                        setShowPullMenu(false);
+                        handleFetch();
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
+                    >
+                      <span>Fetch All (git fetch)</span>
+                      <RefreshCw className="h-3 w-3 text-cyan-400" />
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Push */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
+                  <button
                     onClick={handlePush}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2 relative"
+                    className={cn(
+                      "flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded transition-colors relative group",
+                      aheadCount > 0
+                        ? "text-amber-300 hover:text-amber-200 hover:bg-amber-500/15 font-medium"
+                        : "text-sky-400 hover:text-sky-300 hover:bg-accent/50"
+                    )}
                   >
-                    <ArrowUp className="h-3 w-3 text-indigo-400" />
-                    <span>Push</span>
+                    <span className="text-[10px] leading-tight group-hover:underline">Push</span>
+                    <ArrowUpToLine className="h-3.5 w-3.5 mt-0.5" />
                     {aheadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-[9px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-sm">
+                      <span className="absolute -top-1 -right-0.5 bg-amber-500 text-black text-[8px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-xs">
                         {aheadCount}
                       </span>
                     )}
-                  </Button>
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">推送本地提交至远程 (git push)</TooltipContent>
               </Tooltip>
 
-              <div className="h-3.5 w-[1px] bg-border/60" />
-
               {/* Branch */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
+                  <button
                     onClick={() => setCreateBranchModalOpen(true)}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2"
+                    className="flex flex-col items-center justify-center min-w-[44px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors group"
                   >
-                    <GitBranchIcon className="h-3 w-3 text-amber-400" />
-                    <span>Branch</span>
-                  </Button>
+                    <span className="text-[10px] leading-tight group-hover:underline">Branch</span>
+                    <GitBranchIcon className="h-3.5 w-3.5 mt-0.5" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">新建分支 (git branch)</TooltipContent>
+                <TooltipContent side="bottom">创建新分支 (git branch)</TooltipContent>
               </Tooltip>
 
               {/* Stash */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
+                  <button
                     onClick={handleQuickStash}
-                    disabled={isStashing}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2"
+                    disabled={isStashing || !hasChanges}
+                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <Archive className="h-3 w-3 text-cyan-400" />
-                    <span>Stash</span>
-                  </Button>
+                    <span className="text-[10px] leading-tight group-hover:underline">Stash</span>
+                    <Archive className="h-3.5 w-3.5 mt-0.5" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">贮藏当前未提交改动 (git stash)</TooltipContent>
+                <TooltipContent side="bottom">
+                  {hasChanges ? '贮藏当前未提交改动 (git stash)' : '当前工作区无改动可贮藏'}
+                </TooltipContent>
               </Tooltip>
 
               {/* Pop */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
+                  <button
                     onClick={handleQuickPop}
                     disabled={stashes.length === 0}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2"
+                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <Inbox className="h-3 w-3 text-cyan-400" />
-                    <span>Pop</span>
-                  </Button>
+                    <span className="text-[10px] leading-tight group-hover:underline">Pop</span>
+                    <Inbox className="h-3.5 w-3.5 mt-0.5" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">恢复最新贮藏到工作区 (git stash pop)</TooltipContent>
+                <TooltipContent side="bottom">
+                  {stashes.length > 0 ? `恢复最新贮藏 (${stashes.length} 个可用)` : '暂无贮藏可恢复'}
+                </TooltipContent>
               </Tooltip>
 
-              {/* Merge */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setMergeModalOpen(true)}
-                    className="gap-1 text-purple-300 hover:text-purple-200 hover:bg-purple-500/20 h-7 px-2 font-medium"
-                  >
-                    <GitMerge className="h-3 w-3 text-purple-400" />
-                    <span>Merge</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">合并指定分支到当前分支 (git merge)</TooltipContent>
-              </Tooltip>
-
-              <div className="h-3.5 w-[1px] bg-border/60" />
+              {/* Vertical Separator */}
+              <div className="h-6 w-[1px] bg-border/60 mx-1" />
 
               {/* Terminal */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="xs"
+                  <button
                     onClick={handleOpenTerminal}
-                    className="gap-1 text-muted-foreground hover:text-foreground h-7 px-2"
+                    className="flex flex-col items-center justify-center min-w-[46px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors group"
                   >
-                    <Terminal className="h-3 w-3" />
-                    <span>Terminal</span>
-                  </Button>
+                    <span className="text-[10px] leading-tight group-hover:underline">Terminal</span>
+                    <Terminal className="h-3.5 w-3.5 mt-0.5" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">在当前仓库路径唤起系统命令行终端</TooltipContent>
+                <TooltipContent side="bottom">在仓库路径调起系统命令行终端</TooltipContent>
               </Tooltip>
             </div>
           )}
