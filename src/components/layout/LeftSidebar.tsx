@@ -176,7 +176,11 @@ export const LeftSidebar: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    const currentBranchName = currentRepo?.currentBranch || '';
+    const currentBranchName =
+      branches.find((b) => b.isCurrent)?.name ||
+      status?.currentBranch ||
+      currentRepo?.currentBranch ||
+      '';
     const isCurrent = branch.isCurrent;
 
     const items: ContextMenuItem[] = [
@@ -281,7 +285,11 @@ export const LeftSidebar: React.FC = () => {
     e.stopPropagation();
 
     const localName = branch.name.replace(/^origin\//, '');
-    const currentBranchName = currentRepo?.currentBranch || '';
+    const currentBranchName =
+      branches.find((b) => b.isCurrent)?.name ||
+      status?.currentBranch ||
+      currentRepo?.currentBranch ||
+      '';
 
     const items: ContextMenuItem[] = [
       {

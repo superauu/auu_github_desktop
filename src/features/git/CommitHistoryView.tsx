@@ -26,7 +26,14 @@ export const CommitHistoryView: React.FC = () => {
     setActiveTab,
     status,
     currentRepo,
+    branches,
   } = useRepoStore();
+
+  const currentBranchName =
+    branches.find((b) => b.isCurrent)?.name ||
+    status?.currentBranch ||
+    currentRepo?.currentBranch ||
+    'HEAD';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
@@ -136,7 +143,7 @@ export const CommitHistoryView: React.FC = () => {
                   <div className="w-48 flex items-center gap-1.5 shrink-0 overflow-hidden pr-3">
                     <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-mono gap-1 bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 max-w-[120px] truncate">
                       <Monitor className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">{currentRepo?.currentBranch || 'HEAD'}</span>
+                      <span className="truncate">{currentBranchName}</span>
                     </Badge>
                   </div>
 

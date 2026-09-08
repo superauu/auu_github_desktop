@@ -29,14 +29,18 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
   sourceBranch,
   targetBranch,
 }) => {
-  const { currentRepo, checkoutBranch, mergeBranch, rebaseBranch } = useRepoStore();
+  const { currentRepo, branches, status, checkoutBranch, mergeBranch, rebaseBranch } = useRepoStore();
   const [loading, setLoading] = useState(false);
   const [selectedAction, setSelectedAction] = useState<'merge' | 'rebase-target' | 'rebase-source'>('merge');
   const [error, setError] = useState<string | null>(null);
 
   if (!open || !sourceBranch || !targetBranch) return null;
 
-  const currentBranchName = currentRepo?.currentBranch || '';
+  const currentBranchName =
+    branches.find((b) => b.isCurrent)?.name ||
+    status?.currentBranch ||
+    currentRepo?.currentBranch ||
+    '';
 
   const handleExecute = async () => {
     setLoading(true);

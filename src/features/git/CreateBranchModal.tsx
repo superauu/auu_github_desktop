@@ -18,14 +18,20 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
   defaultBaseBranch,
   defaultCommitHash,
 }) => {
-  const { currentRepo, branches, commits, createBranch } = useRepoStore();
+  const { currentRepo, branches, status, commits, createBranch } = useRepoStore();
+
+  const currentBranch =
+    branches.find((b) => b.isCurrent)?.name ||
+    status?.currentBranch ||
+    currentRepo?.currentBranch ||
+    'main';
 
   const [branchName, setBranchName] = useState('');
   const [baseType, setBaseType] = useState<'current' | 'branch' | 'commit'>(
     defaultCommitHash ? 'commit' : 'current'
   );
   const [selectedBaseBranch, setSelectedBaseBranch] = useState(
-    defaultBaseBranch || currentRepo?.currentBranch || 'main'
+    defaultBaseBranch || currentBranch
   );
   const [selectedCommitHash, setSelectedCommitHash] = useState(
     defaultCommitHash || (commits[0]?.hash ?? '')
@@ -170,7 +176,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
 
             {baseType === 'current' && (
               <div className="text-[10px] text-muted-foreground px-1">
-                将从当前所在分支 <span className="font-mono text-foreground font-semibold">{currentRepo?.currentBranch}</span> 的最新提交检出。
+                将从当前所在分支 <span className="font-mono text-foreground font-semibold">{currentBranch}</span> 的最新提交检出。
               </div>
             )}
 

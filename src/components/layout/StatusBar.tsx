@@ -8,7 +8,13 @@ import {
 import { useRepoStore } from '@/stores/repoStore';
 
 export const StatusBar: React.FC = () => {
-  const { currentRepo, status } = useRepoStore();
+  const { currentRepo, status, branches } = useRepoStore();
+
+  const currentBranchName =
+    branches.find((b) => b.isCurrent)?.name ||
+    status?.currentBranch ||
+    currentRepo?.currentBranch ||
+    '';
 
   return (
     <footer className="h-6 border-t border-border bg-card/60 backdrop-blur-md px-3 flex items-center justify-between text-[11px] text-muted-foreground select-none shrink-0 z-20">
@@ -25,7 +31,7 @@ export const StatusBar: React.FC = () => {
 
             <div className="flex items-center gap-1 text-indigo-400">
               <GitBranchIcon className="h-3 w-3" />
-              <span>{currentRepo.currentBranch}</span>
+              <span>{currentBranchName}</span>
             </div>
 
             {status && (

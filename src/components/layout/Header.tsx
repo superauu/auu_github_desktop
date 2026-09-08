@@ -143,7 +143,7 @@ export const Header: React.FC<HeaderProps> = ({
   const handleRedo = async () => {
     if (isRedoing || redoStack.length === 0) return;
     const targetItem = redoStack[0];
-    if (targetItem.branch !== currentRepo?.currentBranch) {
+    if (targetItem.branch !== currentBranchName) {
       toast.warning('无法重做', `该提交属于分支: ${targetItem.branch}`);
       return;
     }
@@ -190,8 +190,13 @@ export const Header: React.FC<HeaderProps> = ({
   const aheadCount = status?.ahead || 0;
   const behindCount = status?.behind || 0;
   const hasChanges = status ? !status.isClean : false;
+  const currentBranchName =
+    branches.find((b) => b.isCurrent)?.name ||
+    status?.currentBranch ||
+    currentRepo?.currentBranch ||
+    'main';
   const canUndo = commits.length > 0;
-  const canRedo = redoStack.length > 0 && redoStack[0].branch === currentRepo?.currentBranch;
+  const canRedo = redoStack.length > 0 && redoStack[0].branch === currentBranchName;
   const nextRedoItem = redoStack[0];
 
   return (
@@ -312,7 +317,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="text-[11px] text-muted-foreground font-mono">branch</span>
                   <Badge variant="outline" className="h-4.5 px-1.5 text-[10px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
                     <GitBranchIcon className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
-                    <span className="max-w-[120px] truncate">{currentRepo?.currentBranch || 'master'}</span>
+                    <span className="max-w-[140px] truncate">{currentBranchName}</span>
                   </Badge>
                   <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
                 </button>
@@ -353,41 +358,44 @@ export const Header: React.FC<HeaderProps> = ({
                       {branches
                         .filter((b) => !b.isRemote)
                         .filter((b) => !branchFilter || b.name.toLowerCase().includes(branchFilter.toLowerCase()))
-                        .map((branch) => (
-                          <button
-                            key={branch.name}
-                            onClick={async () => {
-                              if (branch.isCurrent) {
-                                setShowBranchMenu(false);
-                                return;
-                              }
-                              try {
-                                await checkoutBranch(branch.name);
-                                toast.success('已切换至分支', branch.name);
-                              } catch (err: any) {
-                                toast.error('切换分支失败', err?.message);
-                              } finally {
-                                setShowBranchMenu(false);
-                              }
-                            }}
-                            className={cn(
-                              "w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center justify-between transition-colors",
-                              branch.isCurrent
-                                ? "bg-primary/15 text-primary font-medium cursor-default"
-                                : "text-foreground/80 hover:text-foreground hover:bg-accent cursor-pointer"
-                            )}
-                          >
-                            <div className="flex items-center gap-1.5 truncate min-w-0">
-                              <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : "text-muted-foreground")} />
-                              <span className="truncate">{branch.name}</span>
-                            </div>
-                            {branch.isCurrent && (
-                              <span className="text-[9px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
-                                HEAD
-                              </span>
-                            )}
-                          </button>
-                        ))}
+                        .map((branch) => {
+                          const isCurrentBranch = branch.isCurrent || branch.name === currentBranchName;
+                          return (
+                            <button
+                              key={branch.name}
+                              onClick={async () => {
+                                if (isCurrentBranch) {
+                                  setShowBranchMenu(false);
+                                  return;
+                                }
+                                try {
+                                  await checkoutBranch(branch.name);
+                                  toast.success('已切换至分支', branch.name);
+                                } catch (err: any) {
+                                  toast.error('切换分支失败', err?.message);
+                                } finally {
+                                  setShowBranchMenu(false);
+                                }
+                              }}
+                              className={cn(
+                                "w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center justify-between transition-colors",
+                                isCurrentBranch
+                                  ? "bg-primary/15 text-primary font-medium cursor-default"
+                                  : "text-foreground/80 hover:text-foreground hover:bg-accent cursor-pointer"
+                              )}
+                            >
+                              <div className="flex items-center gap-1.5 truncate min-w-0">
+                                <GitBranchIcon className={cn("h-3 w-3 shrink-0", isCurrentBranch ? "text-primary" : "text-muted-foreground")} />
+                                <span className="truncate">{branch.name}</span>
+                              </div>
+                              {isCurrentBranch && (
+                                <span className="text-[9px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
+                                  HEAD
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                       {branches.filter((b) => !b.isRemote).filter((b) => !branchFilter || b.name.toLowerCase().includes(branchFilter.toLowerCase())).length === 0 && (
                         <div className="px-2 py-2 text-center text-xs text-muted-foreground/60 italic">
                           未匹配到分支

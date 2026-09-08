@@ -16,9 +16,13 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
   onOpenChange,
   upstreamBranch: initialUpstreamBranch,
 }) => {
-  const { currentRepo, branches, rebaseBranch, rebaseContinue, rebaseAbort } = useRepoStore();
+  const { currentRepo, branches, status, rebaseBranch, rebaseContinue, rebaseAbort } = useRepoStore();
 
-  const currentBranch = currentRepo?.currentBranch || 'main';
+  const currentBranch =
+    branches.find((b) => b.isCurrent)?.name ||
+    status?.currentBranch ||
+    currentRepo?.currentBranch ||
+    'main';
   const availableBranches = branches.filter((b) => b.name !== currentBranch);
 
   const [selectedBranch, setSelectedBranch] = useState(

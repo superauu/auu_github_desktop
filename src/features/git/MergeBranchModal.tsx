@@ -16,9 +16,13 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
   onOpenChange,
   targetBranch: initialTargetBranch,
 }) => {
-  const { currentRepo, branches, mergeBranch } = useRepoStore();
+  const { currentRepo, branches, status, mergeBranch } = useRepoStore();
 
-  const currentBranch = currentRepo?.currentBranch || 'main';
+  const currentBranch =
+    branches.find((b) => b.isCurrent)?.name ||
+    status?.currentBranch ||
+    currentRepo?.currentBranch ||
+    'main';
   const availableBranches = branches.filter((b) => b.name !== currentBranch);
 
   const [selectedBranch, setSelectedBranch] = useState(

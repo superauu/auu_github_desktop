@@ -33,7 +33,7 @@ export const App: React.FC = () => {
       id: 'auu-git-client-workspace',
       name: 'auu_github_desktop',
       path: 'E:/code/auu_github_desktop',
-      currentBranch: 'master',
+      currentBranch: '',
       lastOpenedAt: Date.now(),
     });
   }, [initTheme, setCurrentRepo, initAuth]);

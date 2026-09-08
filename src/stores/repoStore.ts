@@ -234,22 +234,61 @@ export const useRepoStore = create<RepoState>((set, get) => {
           gitService.getStashes(currentRepo.path),
         ]);
 
-        // If currentBranch in repo metadata changed, update it
-        if (status.currentBranch && status.currentBranch !== currentRepo.currentBranch) {
-          set((state) => ({
-            currentRepo: state.currentRepo
-              ? { ...state.currentRepo, currentBranch: status.currentBranch }
-              : null,
-          }));
+        // Compute authoritative active branch
+        const detectedBranch =
+          branches.find((b) => b.isCurrent)?.name ||
+          status.currentBranch ||
+          currentRepo.currentBranch;
+
+        let activeRepo: RepositoryInfo = {
+          ...currentRepo,
+          currentBranch: detectedBranch || currentRepo.currentBranch || 'main',
+        };
+
+        // Auto-detect GitHub remote & sync with GitHub Store
+        if (!activeRepo.remoteUrl || !activeRepo.gitHubOwner) {
+          try {
+            const detected = await gitService.openRepository(activeRepo.path);
+            if (detected.remoteUrl) {
+              activeRepo = {
+                ...activeRepo,
+                remoteUrl: detected.remoteUrl,
+                isGitHubRepo: detected.isGitHubRepo,
+                gitHubOwner: detected.gitHubOwner,
+                gitHubRepo: detected.gitHubRepo,
+                currentBranch: detected.currentBranch || activeRepo.currentBranch,
+              };
+            }
+          } catch {}
         }
 
-        set({
-          status,
-          commits,
-          branches,
-          tags,
-          stashes,
-          isLoading: false,
+        // Persist updated repo to localStorage
+        try {
+          localStorage.setItem('auu_git_last_active_repo', JSON.stringify(activeRepo));
+        } catch {}
+
+        set((state) => {
+          const updatedTabs = state.openTabs.map((t) =>
+            t.path === activeRepo.path ? { ...t, currentBranch: activeRepo.currentBranch } : t
+          );
+          const updatedRecent = state.recentRepos.map((r) =>
+            r.path === activeRepo.path ? { ...r, currentBranch: activeRepo.currentBranch } : r
+          );
+          try {
+            localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(updatedRecent));
+          } catch {}
+
+          return {
+            currentRepo: activeRepo,
+            openTabs: updatedTabs,
+            recentRepos: updatedRecent,
+            status,
+            commits,
+            branches,
+            tags,
+            stashes,
+            isLoading: false,
+          };
         });
 
         // If no file is selected, select the first available changed file
@@ -265,24 +304,6 @@ export const useRepoStore = create<RepoState>((set, get) => {
         // If no commit selected, select the first commit
         if (!get().selectedCommit && commits.length > 0) {
           set({ selectedCommit: commits[0] });
-        }
-
-        // Auto-detect GitHub remote & sync with GitHub Store
-        let activeRepo = currentRepo;
-        if (!activeRepo.remoteUrl || !activeRepo.gitHubOwner) {
-          try {
-            const detected = await gitService.openRepository(activeRepo.path);
-            if (detected.remoteUrl) {
-              activeRepo = {
-                ...activeRepo,
-                remoteUrl: detected.remoteUrl,
-                isGitHubRepo: detected.isGitHubRepo,
-                gitHubOwner: detected.gitHubOwner,
-                gitHubRepo: detected.gitHubRepo,
-              };
-              set({ currentRepo: activeRepo });
-            }
-          } catch {}
         }
 
         if (activeRepo.gitHubOwner && activeRepo.gitHubRepo) {
@@ -459,7 +480,36 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.checkoutBranch(currentRepo.path, name);
-        set({ redoStack: [] });
+        const updatedRepo = { ...currentRepo, currentBranch: name };
+        try {
+          localStorage.setItem('auu_git_last_active_repo', JSON.stringify(updatedRepo));
+        } catch {}
+
+        set((state) => {
+          const updatedTabs = state.openTabs.map((t) =>
+            t.path === updatedRepo.path ? { ...t, currentBranch: name } : t
+          );
+          const updatedRecent = state.recentRepos.map((r) =>
+            r.path === updatedRepo.path ? { ...r, currentBranch: name } : r
+          );
+          try {
+            localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(updatedRecent));
+          } catch {}
+
+          const updatedBranches = state.branches.map((b) => ({
+            ...b,
+            isCurrent: b.name === name,
+          }));
+
+          return {
+            currentRepo: updatedRepo,
+            openTabs: updatedTabs,
+            recentRepos: updatedRecent,
+            branches: updatedBranches,
+            redoStack: [],
+          };
+        });
+
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
