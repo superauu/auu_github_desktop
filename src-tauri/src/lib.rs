@@ -2,6 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::process::Command;
 
+/// 去除 Windows canonicalize 返回的 \\?\ 前缀（含 UNC 形式）。
+/// 前端会把路径中的反斜杠统一成正斜杠，而 "//?/E:/" 形式 Win32 不识别，
+/// 会导致以该路径作为 cwd 的 git 命令全部启动失败。
+fn normalize_display_path(p: &std::path::Path) -> String {
+    let s = p.to_string_lossy().to_string();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{}", rest);
+    }
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        return rest.to_string();
+    }
+    s
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GitCommandResult {
@@ -164,7 +178,11 @@ fn validate_directory(path: String) -> Result<DirectoryValidationResult, String>
     let is_directory = p.is_dir();
     let is_git_repo = is_directory && p.join(".git").exists();
     let name = p.file_name().map(|n| n.to_string_lossy().to_string());
-    let full_path = p.canonicalize().ok().map(|cp| cp.to_string_lossy().to_string()).or(Some(path));
+    let full_path = p
+        .canonicalize()
+        .ok()
+        .map(|cp| normalize_display_path(&cp))
+        .or(Some(path));
 
     Ok(DirectoryValidationResult {
         exists: true,
@@ -184,7 +202,7 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
 
     let canonical = target.canonicalize().unwrap_or(target.clone());
     let has_git = canonical.join(".git").exists();
-    let parent_path = canonical.parent().map(|p| p.to_string_lossy().to_string());
+    let parent_path = canonical.parent().map(normalize_display_path);
 
     let mut directories = Vec::new();
     if let Ok(entries) = fs::read_dir(&canonical) {
@@ -200,7 +218,7 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
                         let has_git = entry_path.join(".git").exists();
                         directories.push(DirectoryEntry {
                             name,
-                            path: entry_path.to_string_lossy().to_string(),
+                            path: normalize_display_path(&entry_path),
                             has_git,
                         });
                     }
