@@ -335,7 +335,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Tier 2: Main Git Action Ribbon & Breadcrumb Toolbar */}
-        <div className="h-10 px-3 flex items-center justify-between gap-2 text-xs bg-background/80 overflow-hidden">
+        <div className="h-10 px-3 flex items-center justify-between gap-2 text-xs bg-background/80 overflow-x-clip">
           {/* Left: Sidebar Toggle + Repo/Branch Dropdowns */}
           <div className="flex items-center gap-2 min-w-0">
             <Tooltip>
