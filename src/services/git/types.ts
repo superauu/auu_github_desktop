@@ -103,8 +103,10 @@ export interface IGitService {
   cloneRepository(url: string, targetPath: string, branch?: string): Promise<void>;
   getStatus(repoPath: string): Promise<GitStatusResult>;
   getBranches(repoPath: string): Promise<GitBranch[]>;
+  getBranchCommitHash(repoPath: string, branchName: string): Promise<string | null>;
   getTags(repoPath: string): Promise<GitTag[]>;
   getCommits(repoPath: string, limit?: number): Promise<GitCommit[]>;
+  getCommitsForBranch(repoPath: string, branchName: string, limit?: number): Promise<GitCommit[]>;
   getStashes(repoPath: string): Promise<GitStash[]>;
   stageFile(repoPath: string, filePath: string): Promise<void>;
   unstageFile(repoPath: string, filePath: string): Promise<void>;

@@ -60,6 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
     toggleRightPane,
     recentRepos,
     setCurrentRepo,
+    openTabs,
+    closeTab,
+    switchTab,
     fetchRemote,
     pull,
     push,
@@ -202,18 +205,139 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <TooltipProvider delayDuration={300}>
       <header className="flex flex-col border-b border-border/80 select-none z-30 shrink-0 bg-background/95 dark:bg-[#0b0d14]/95 backdrop-blur-md">
-        {/* Single Main Action Toolbar */}
-        <div className="h-11 px-3 flex items-center justify-between text-xs bg-background/80">
-          {/* Left: Branding Logo + Sidebar Toggle + Repo/Branch Dropdowns */}
-          <div className="flex items-center gap-2 min-w-0">
-            {/* App Branding: Auu Git Desktop */}
-            <div className="flex items-center gap-1.5 pr-1 shrink-0">
+        {/* Tier 1: Multi-Repository Workspace Tabs */}
+        <div className="h-8 bg-card/60 dark:bg-[#07090e] border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
+          {/* Left: Branding + Open Repo Tabs + Add Tab (+) */}
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+            {/* Logo */}
+            <div className="flex items-center gap-1.5 px-2 mr-1 shrink-0 select-none">
               <img src="/logo.svg" alt="Auu Git" className="h-4 w-4 rounded drop-shadow-sm" />
-              <span className="font-bold text-[12px] tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-sky-600 dark:from-white dark:via-slate-100 dark:to-sky-400 bg-clip-text text-transparent hidden sm:inline-block">
+              <span className="font-bold text-[11px] tracking-tight bg-gradient-to-r from-slate-900 via-slate-700 to-sky-600 dark:from-white dark:via-slate-200 dark:to-sky-400 bg-clip-text text-transparent hidden sm:inline-block">
                 Auu Git Desktop
               </span>
             </div>
 
+            {/* Vertical divider */}
+            <div className="h-4 w-[1px] bg-border/60 mx-1 shrink-0" />
+
+            {/* Repo Tabs Container */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+              {openTabs.map((repo) => {
+                const isActive = currentRepo?.path === repo.path;
+                return (
+                  <div
+                    key={repo.path}
+                    onClick={() => switchTab(repo.path)}
+                    className={cn(
+                      "h-6 px-2.5 rounded-t-md border-t border-x flex items-center gap-1.5 cursor-pointer text-xs transition-all group shrink-0 select-none",
+                      isActive
+                        ? "bg-background dark:bg-[#0e121b] border-border text-foreground font-semibold shadow-xs border-t-primary"
+                        : "bg-muted/30 dark:bg-muted/15 border-transparent text-muted-foreground hover:bg-muted/60 dark:hover:bg-muted/30 hover:text-foreground"
+                    )}
+                    title={repo.path}
+                  >
+                    <FolderGit2 className={cn("h-3 w-3 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                    <span className="truncate max-w-[130px] text-[11px]">{repo.name}</span>
+                    {repo.currentBranch && (
+                      <span className={cn(
+                        "text-[9px] font-mono px-1 py-0.2 rounded hidden sm:inline-block truncate max-w-[70px]",
+                        isActive ? "bg-primary/10 text-primary font-medium" : "bg-muted text-muted-foreground"
+                      )}>
+                        {repo.currentBranch}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeTab(repo.path);
+                      }}
+                      className={cn(
+                        "p-0.5 rounded hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-all ml-0.5",
+                        isActive ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-100"
+                      )}
+                      title="关闭仓库标签页"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* New Repo Tab Button (+) */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => onOpenRepoDialog?.()}
+                    className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">打开或克隆本地代码仓库 (Ctrl+O)</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          {/* Right: Theme Toggle, GitHub Auth, Settings */}
+          <div className="flex items-center gap-1 shrink-0 pl-2">
+            {/* Theme Toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={cycleTheme}
+                >
+                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-indigo-400" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">切换色彩模式</TooltipContent>
+            </Tooltip>
+
+            {/* GitHub Auth Profile */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onOpenGitHubAuth}
+                  className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
+                >
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.login} className="h-3.5 w-3.5 rounded-full border border-border" />
+                  ) : (
+                    <Github className="h-3 w-3 text-foreground" />
+                  )}
+                  <span className="font-medium text-[10px] max-w-[60px] truncate hidden xl:inline-block">
+                    {isAuthenticated ? user?.login : isDemoMode ? 'Demo' : '登录'}
+                  </span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {isAuthenticated ? `已登录: ${user?.login}` : '管理 GitHub 账号凭证'}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Settings Dialog */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={onOpenSettings}
+                >
+                  <SettingsIcon className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">打开设置</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* Tier 2: Main Git Action Ribbon & Breadcrumb Toolbar */}
+        <div className="h-10 px-3 flex items-center justify-between text-xs bg-background/80">
+          {/* Left: Sidebar Toggle + Repo/Branch Dropdowns */}
+          <div className="flex items-center gap-2 min-w-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -666,57 +790,7 @@ export const Header: React.FC<HeaderProps> = ({
               <TooltipContent side="bottom">全局命令搜索 (Ctrl+K)</TooltipContent>
             </Tooltip>
 
-            {/* Theme Toggle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={cycleTheme}
-                >
-                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-indigo-400" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">切换色彩模式</TooltipContent>
-            </Tooltip>
-
-            {/* GitHub Auth Profile */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onOpenGitHubAuth}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs hover:bg-accent transition-colors border border-border/50 text-foreground"
-                >
-                  {user?.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.login} className="h-4 w-4 rounded-full border border-border" />
-                  ) : (
-                    <Github className="h-3.5 w-3.5 text-foreground" />
-                  )}
-                  <span className="font-medium text-[11px] max-w-[70px] truncate hidden xl:inline-block">
-                    {isAuthenticated ? user?.login : isDemoMode ? 'Demo' : '登录'}
-                  </span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {isAuthenticated ? `已登录: ${user?.login}` : '管理 GitHub 账号凭证'}
-              </TooltipContent>
-            </Tooltip>
-
-            {/* Settings Dialog */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={onOpenSettings}
-                >
-                  <SettingsIcon className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">打开设置</TooltipContent>
-            </Tooltip>
+            <div className="h-4 w-[1px] bg-border/60 mx-1" />
 
             {/* Right Pane Collapse Toggle */}
             <Tooltip>

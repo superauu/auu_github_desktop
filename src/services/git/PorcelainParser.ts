@@ -228,11 +228,20 @@ export function parseGitBranches(output: string): GitBranch[] {
 
     const isRemote = name.startsWith('remotes/');
     const displayName = isRemote ? name.replace(/^remotes\//, '') : name;
+    const commitHash = parts[1] || '';
+    const commitMessage = parts.slice(2).join(' ') || '';
 
     branches.push({
       name: displayName,
       isCurrent,
       isRemote,
+      lastCommit: commitHash
+        ? {
+            hash: commitHash,
+            message: commitMessage,
+            date: '',
+          }
+        : undefined,
     });
   }
 

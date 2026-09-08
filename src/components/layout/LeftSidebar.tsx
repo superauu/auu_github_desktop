@@ -25,6 +25,8 @@ import {
   Copy,
   Users,
   CircleDot,
+  Eye,
+  MoreVertical,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -50,6 +52,8 @@ export const LeftSidebar: React.FC = () => {
     setActiveTab,
     status,
     branches,
+    selectedBranch,
+    selectAndLocateBranch,
     tags,
     stashes,
     commits,
@@ -108,7 +112,6 @@ export const LeftSidebar: React.FC = () => {
   const [tagNameInput, setTagNameInput] = useState('');
   const [tagMessageInput, setTagMessageInput] = useState('');
   const [healthModalOpen, setHealthModalOpen] = useState(false);
-  const [selectedViewBranch, setSelectedViewBranch] = useState<string | null>(null);
   const [createBranchBase, setCreateBranchBase] = useState<string | undefined>(undefined);
 
   // Universal Context Menu state
@@ -895,11 +898,13 @@ export const LeftSidebar: React.FC = () => {
                             </Badge>
                           </div>
 
-                          {/* Nested Branches inside folder */}
+                           {/* Nested Branches inside folder */}
                           {isFolderOpen && (
                             <div className="pl-4 space-y-0.5 border-l border-border/40 ml-3">
                               {folderBranches.map((branch) => {
                                 const leafName = branch.name.slice(folderName.length + 1);
+                                const isSelected = selectedBranch === branch.name;
+
                                 return (
                                   <div
                                     key={branch.name}
@@ -910,9 +915,8 @@ export const LeftSidebar: React.FC = () => {
                                     onDrop={(e) => handleDrop(e, branch)}
                                     onDragEnd={handleDragEnd}
                                     onClick={() => {
-                                      setSelectedViewBranch(branch.name);
-                                      setActiveTab('history');
-                                      toast.info(`查看分支提交历史: ${branch.name}`);
+                                      selectAndLocateBranch(branch.name);
+                                      toast.info(`已定位分支提交: ${branch.name}`);
                                     }}
                                     onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                                     className={cn(
@@ -921,18 +925,19 @@ export const LeftSidebar: React.FC = () => {
                                       draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                                       branch.isCurrent
                                         ? "bg-primary/15 text-primary font-medium border border-primary/30"
-                                        : selectedViewBranch === branch.name
-                                        ? "bg-accent text-foreground font-medium border border-border/80"
+                                        : isSelected
+                                        ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
                                         : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                                     )}
-                                    title={`拖拽此分支到其它分支上合并/变基 (右键查看操作)`}
+                                    title={branch.name}
                                   >
                                     <div className="flex items-center gap-1.5 truncate min-w-0">
                                       {branch.isCurrent ? (
                                         <Check className="h-3 w-3 text-emerald-400 shrink-0" />
-                                      ) : (
-                                        <GitBranchIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-                                      )}
+                                      ) : isSelected ? (
+                                        <Eye className="h-3 w-3 text-emerald-400 shrink-0" />
+                                      ) : null}
+                                      <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                                       <span className="truncate">{leafName}</span>
                                     </div>
                                     {branch.isCurrent ? (
@@ -940,14 +945,19 @@ export const LeftSidebar: React.FC = () => {
                                         HEAD
                                       </span>
                                     ) : (
-                                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                                      <div className="flex items-center gap-0.5">
+                                        {isSelected && (
+                                          <span className="text-muted-foreground/60 p-0.5" title={branch.name}>
+                                            <MoreVertical className="h-3 w-3" />
+                                          </span>
+                                        )}
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setMergeTargetBranch(branch.name);
                                             setMergeModalOpen(true);
                                           }}
-                                          className="p-1 hover:text-indigo-400 rounded hover:bg-accent"
+                                          className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
                                           title={`合并 ${branch.name} 到当前分支`}
                                         >
                                           <GitMerge className="h-2.5 w-2.5" />
@@ -964,75 +974,84 @@ export const LeftSidebar: React.FC = () => {
                     })}
 
                     {/* Render Root Level Branches (e.g. main, master) */}
-                    {localGrouped.rootBranches.map((branch) => (
-                      <div
-                        key={branch.name}
-                        draggable={true}
-                        onDragStart={(e) => handleDragStart(e, branch)}
-                        onDragOver={(e) => handleDragOver(e, branch)}
-                        onDragLeave={(e) => handleDragLeave(e, branch)}
-                        onDrop={(e) => handleDrop(e, branch)}
-                        onDragEnd={handleDragEnd}
-                        onClick={() => {
-                          setSelectedViewBranch(branch.name);
-                          setActiveTab('history');
-                          toast.info(`查看分支提交历史: ${branch.name}`);
-                        }}
-                        onContextMenu={(e) => handleBranchContextMenu(e, branch)}
-                        className={cn(
-                          "group flex items-center justify-between px-2 py-1.5 rounded-md text-xs transition-all cursor-pointer",
-                          dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
-                          draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
-                          branch.isCurrent
-                            ? "bg-primary/20 text-primary font-semibold border border-primary/40 shadow-xs"
-                            : selectedViewBranch === branch.name
-                            ? "bg-accent text-foreground font-medium border border-border/80"
-                            : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                        )}
-                        title={`拖拽此分支到其它分支上合并/变基 (右键查看操作)`}
-                      >
-                        <div className="flex items-center gap-1.5 truncate min-w-0">
-                          {branch.isCurrent ? (
-                            <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                          ) : (
-                            <GitBranchIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                    {localGrouped.rootBranches.map((branch) => {
+                      const isSelected = selectedBranch === branch.name;
+
+                      return (
+                        <div
+                          key={branch.name}
+                          draggable={true}
+                          onDragStart={(e) => handleDragStart(e, branch)}
+                          onDragOver={(e) => handleDragOver(e, branch)}
+                          onDragLeave={(e) => handleDragLeave(e, branch)}
+                          onDrop={(e) => handleDrop(e, branch)}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => {
+                            selectAndLocateBranch(branch.name);
+                            toast.info(`已定位分支提交: ${branch.name}`);
+                          }}
+                          onContextMenu={(e) => handleBranchContextMenu(e, branch)}
+                          className={cn(
+                            "group flex items-center justify-between px-2 py-1.5 rounded-md text-xs transition-all cursor-pointer",
+                            dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
+                            draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
+                            branch.isCurrent
+                              ? "bg-primary/20 text-primary font-semibold border border-primary/40 shadow-xs"
+                              : isSelected
+                              ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                           )}
-                          <span className="truncate">{branch.name}</span>
+                          title={branch.name}
+                        >
+                          <div className="flex items-center gap-1.5 truncate min-w-0">
+                            {branch.isCurrent ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            ) : isSelected ? (
+                              <Eye className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                            ) : null}
+                            <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
+                            <span className="truncate">{branch.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {branch.isCurrent ? (
+                              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-bold font-mono">
+                                HEAD
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-0.5">
+                                {isSelected && (
+                                  <span className="text-muted-foreground/60 p-0.5" title={branch.name}>
+                                    <MoreVertical className="h-3 w-3" />
+                                  </span>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMergeTargetBranch(branch.name);
+                                    setMergeModalOpen(true);
+                                  }}
+                                  className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title={`合并 ${branch.name} 到当前分支`}
+                                >
+                                  <GitMerge className="h-2.5 w-2.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRebaseUpstreamBranch(branch.name);
+                                    setRebaseModalOpen(true);
+                                  }}
+                                  className="p-1 hover:text-amber-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title={`变基当前分支到 ${branch.name}`}
+                                >
+                                  <GitPullRequest className="h-2.5 w-2.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {branch.isCurrent ? (
-                            <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-bold font-mono">
-                              HEAD
-                            </span>
-                          ) : (
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setMergeTargetBranch(branch.name);
-                                  setMergeModalOpen(true);
-                                }}
-                                className="p-1 hover:text-indigo-400 rounded hover:bg-accent"
-                                title={`合并 ${branch.name} 到当前分支`}
-                              >
-                                <GitMerge className="h-2.5 w-2.5" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRebaseUpstreamBranch(branch.name);
-                                  setRebaseModalOpen(true);
-                                }}
-                                className="p-1 hover:text-amber-400 rounded hover:bg-accent"
-                                title={`变基当前分支到 ${branch.name}`}
-                              >
-                                <GitPullRequest className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {localGrouped.totalCount === 0 && (
                       <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
@@ -1063,6 +1082,8 @@ export const LeftSidebar: React.FC = () => {
                   <div className="mt-0.5 space-y-0.5 pl-1">
                     {remoteBranches.map((branch) => {
                       const localName = branch.name.replace(/^origin\//, '');
+                      const isSelected = selectedBranch === branch.name;
+
                       return (
                         <div
                           key={branch.name}
@@ -1073,22 +1094,22 @@ export const LeftSidebar: React.FC = () => {
                           onDrop={(e) => handleDrop(e, branch)}
                           onDragEnd={handleDragEnd}
                           onClick={() => {
-                            setSelectedViewBranch(branch.name);
-                            setActiveTab('history');
-                            toast.info(`查看远程分支提交历史: ${branch.name}`);
+                            selectAndLocateBranch(branch.name);
+                            toast.info(`已定位远程分支提交: ${branch.name}`);
                           }}
                           onContextMenu={(e) => handleRemoteBranchContextMenu(e, branch)}
                           className={cn(
                             "group flex items-center justify-between px-2 py-1 rounded-md text-xs cursor-pointer transition-all",
                             dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                             draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
-                            selectedViewBranch === branch.name
-                              ? "bg-accent text-foreground font-medium border border-border/80"
+                            isSelected
+                              ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
                               : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                           )}
                           title={`查看此远程分支: ${branch.name} (支持拖拽到其它分支合并/变基，右键查看操作)`}
                         >
                           <div className="flex items-center gap-1.5 truncate">
+                            {isSelected && <Eye className="h-3 w-3 text-emerald-400 shrink-0" />}
                             <Cloud className="h-3 w-3 text-muted-foreground/80 shrink-0" />
                             <span className="truncate">{branch.name}</span>
                           </div>

@@ -39,6 +39,8 @@ interface RepoState {
   isLeftSidebarCollapsed: boolean;
   isRightPaneCollapsed: boolean;
   errorMessage: string | null;
+  selectedBranch: string | null;
+  scrollToCommitHash: string | null;
 
   // Actions
   setCurrentRepo: (repo: RepositoryInfo | null) => void;
@@ -46,6 +48,9 @@ interface RepoState {
   setStatus: (status: GitStatusResult | null) => void;
   setSelectedFile: (file: GitFileChange | null) => void;
   setSelectedCommit: (commit: GitCommit | null) => void;
+  setSelectedBranch: (branch: string | null) => void;
+  setScrollToCommitHash: (hash: string | null) => void;
+  selectAndLocateBranch: (branchName: string) => Promise<void>;
   setBranches: (branches: GitBranch[]) => void;
   setTags: (tags: GitTag[]) => void;
   setStashes: (stashes: GitStash[]) => void;
@@ -100,6 +105,7 @@ interface RepoState {
 }
 
 const RECENT_REPOS_KEY = 'auu_git_recent_repos';
+const OPEN_TABS_KEY = 'auu_git_open_tabs';
 
 export const useRepoStore = create<RepoState>((set, get) => {
   // Load initial recent repos
@@ -111,6 +117,20 @@ export const useRepoStore = create<RepoState>((set, get) => {
     }
   } catch {
     initialRecent = [];
+  }
+
+  // Load initial open tabs
+  let initialTabs: RepositoryInfo[] = [];
+  try {
+    const savedTabs = localStorage.getItem(OPEN_TABS_KEY);
+    if (savedTabs) {
+      initialTabs = JSON.parse(savedTabs);
+    }
+  } catch {
+    initialTabs = [];
+  }
+  if (!initialTabs || initialTabs.length === 0) {
+    initialTabs = initialRecent.slice(0, 4);
   }
 
   return {
@@ -130,7 +150,9 @@ export const useRepoStore = create<RepoState>((set, get) => {
     isLeftSidebarCollapsed: false,
     isRightPaneCollapsed: false,
     errorMessage: null,
-    openTabs: initialRecent.slice(0, 4),
+    openTabs: initialTabs,
+    selectedBranch: null,
+    scrollToCommitHash: null,
 
     setCurrentRepo: (repo) => {
       set((state) => {
@@ -138,6 +160,9 @@ export const useRepoStore = create<RepoState>((set, get) => {
         if (repo && !newTabs.some((t) => t.path === repo.path)) {
           newTabs = [...newTabs, repo];
         }
+        try {
+          localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(newTabs));
+        } catch {}
         return {
           currentRepo: repo,
           selectedFile: null,
@@ -160,6 +185,9 @@ export const useRepoStore = create<RepoState>((set, get) => {
     closeTab: (path: string) => {
       set((state) => {
         const remaining = state.openTabs.filter((t) => t.path !== path);
+        try {
+          localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(remaining));
+        } catch {}
         let nextCurrent = state.currentRepo;
         if (state.currentRepo?.path === path) {
           nextCurrent = remaining.length > 0 ? remaining[0] : null;
@@ -189,6 +217,68 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
     setSelectedCommit: (selectedCommit) => set({ selectedCommit }),
+    setSelectedBranch: (selectedBranch) => set({ selectedBranch }),
+    setScrollToCommitHash: (scrollToCommitHash) => set({ scrollToCommitHash }),
+
+    selectAndLocateBranch: async (branchName: string) => {
+      const { currentRepo, commits, branches } = get();
+      if (!currentRepo) return;
+
+      set({ selectedBranch: branchName, activeTab: 'history' });
+
+      // 1. Try to find the target commit hash from branches or git rev-parse
+      let targetHash: string | null = null;
+      const branchObj = branches.find((b) => b.name === branchName);
+      if (branchObj?.lastCommit?.hash) {
+        targetHash = branchObj.lastCommit.hash;
+      }
+
+      if (!targetHash) {
+        try {
+          targetHash = await gitService.getBranchCommitHash(currentRepo.path, branchName);
+        } catch {}
+      }
+
+      // 2. Find in existing commits list
+      let targetCommit: GitCommit | undefined = undefined;
+      if (targetHash) {
+        targetCommit = commits.find((c) => c.hash === targetHash || c.shortHash === targetHash);
+      }
+
+      // If still not found by hash, try finding by ref name in commit.refs
+      if (!targetCommit) {
+        targetCommit = commits.find((c) =>
+          c.refs?.some((r) => {
+            const clean = r.replace(/^HEAD -> /, '').replace(/^tag: /, '');
+            return clean === branchName || clean.endsWith('/' + branchName);
+          })
+        );
+      }
+
+      // 3. If not found in the current commit list, load more commits including this branch
+      if (!targetCommit && targetHash) {
+        try {
+          const extraCommits = await gitService.getCommitsForBranch(currentRepo.path, branchName, 100);
+          if (extraCommits.length > 0) {
+            const seen = new Set<string>();
+            const combined: GitCommit[] = [];
+            for (const c of [...commits, ...extraCommits]) {
+              if (!seen.has(c.hash)) {
+                seen.add(c.hash);
+                combined.push(c);
+              }
+            }
+            set({ commits: combined });
+            targetCommit = combined.find((c) => c.hash === targetHash || c.shortHash === targetHash);
+          }
+        } catch {}
+      }
+
+      // 4. If commit is found, select it and set scrollToCommitHash to trigger smooth centering scroll
+      if (targetCommit) {
+        set({ selectedCommit: targetCommit, scrollToCommitHash: targetCommit.hash });
+      }
+    },
     setBranches: (branches) => set({ branches }),
     setTags: (tags) => set({ tags }),
     setStashes: (stashes) => set({ stashes }),

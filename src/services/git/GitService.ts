@@ -104,10 +104,20 @@ export class GitService implements IGitService {
 
   async getBranches(repoPath: string): Promise<GitBranch[]> {
     try {
-      const res = await executeGit(['branch', '-a', '-v', '--no-color'], repoPath);
+      const res = await executeGit(['branch', '-a', '-v', '--no-abbrev', '--no-color'], repoPath);
       return parseGitBranches(res.stdout);
     } catch {
       return [];
+    }
+  }
+
+  async getBranchCommitHash(repoPath: string, branchName: string): Promise<string | null> {
+    try {
+      const res = await executeGit(['rev-parse', branchName], repoPath);
+      const hash = res.stdout.trim();
+      return hash || null;
+    } catch {
+      return null;
     }
   }
 
@@ -125,12 +135,25 @@ export class GitService implements IGitService {
     try {
       const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
       const res = await executeGit(
-        ['log', `-n`, String(limit), `--format=${format}`],
+        ['log', '--all', `-n`, String(limit), `--format=${format}`],
         repoPath
       );
       return parseGitLog(res.stdout);
     } catch {
       // Empty repository or brand new repo without commits
+      return [];
+    }
+  }
+
+  async getCommitsForBranch(repoPath: string, branchName: string, limit: number = 100): Promise<GitCommit[]> {
+    try {
+      const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
+      const res = await executeGit(
+        ['log', '--all', branchName, `-n`, String(limit), `--format=${format}`],
+        repoPath
+      );
+      return parseGitLog(res.stdout);
+    } catch {
       return [];
     }
   }

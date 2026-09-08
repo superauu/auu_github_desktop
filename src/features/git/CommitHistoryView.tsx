@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   GitCommit as GitCommitIcon,
-  GitBranch as GitBranchIcon,
   Tag as TagIcon,
   Inbox,
   Search,
@@ -9,6 +8,7 @@ import {
   Monitor,
   Cloud,
   FileCode2,
+  Laptop,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { GitGraphRenderer } from '@/features/graph/GitGraphRenderer';
@@ -27,6 +27,8 @@ export const CommitHistoryView: React.FC = () => {
     status,
     currentRepo,
     branches,
+    selectedBranch,
+    scrollToCommitHash,
   } = useRepoStore();
 
   const currentBranchName =
@@ -44,6 +46,21 @@ export const CommitHistoryView: React.FC = () => {
     (status?.untracked.length || 0);
 
   const hasWip = totalChanges > 0;
+
+  // Auto-scroll to selected commit or target branch commit
+  useEffect(() => {
+    const hashToScroll = scrollToCommitHash || selectedCommit?.hash;
+    if (!hashToScroll) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`commit-row-${hashToScroll}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+
+    return () => clearTimeout(timer);
+  }, [scrollToCommitHash, selectedCommit?.hash]);
 
   const filteredCommits = commits.filter((c) => {
     if (!searchQuery.trim()) return true;
@@ -179,53 +196,82 @@ export const CommitHistoryView: React.FC = () => {
                 return (
                   <div
                     key={commit.hash}
+                    id={`commit-row-${commit.hash}`}
                     onClick={() => setSelectedCommit(commit)}
                     className={cn(
                       "h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group",
                       isSelected
-                        ? "bg-sky-500/10 border-l-2 border-sky-600 dark:border-sky-400 shadow-[inset_0_0_16px_rgba(56,189,248,0.08)] text-foreground font-medium"
+                        ? "bg-sky-500/15 dark:bg-sky-500/20 border-l-2 border-sky-600 dark:border-sky-400 shadow-[inset_0_0_16px_rgba(56,189,248,0.12)] text-foreground font-medium"
                         : "hover:bg-accent/50 dark:hover:bg-white/[0.03] border-l-2 border-transparent text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {/* Left Column: BRANCH / TAG Badges */}
                     <div className="w-48 flex items-center gap-1 shrink-0 overflow-hidden pr-3">
-                      {commit.refs && commit.refs.length > 0 ? (
-                        <>
-                          {commit.refs.slice(0, 2).map((ref) => {
-                            const isHead = ref.includes('HEAD');
-                            const isTag = ref.startsWith('tag:');
-                            const isRemote = ref.includes('origin/');
+                      {(() => {
+                        const rawRefs = commit.refs ? [...commit.refs] : [];
+                        if (
+                          selectedBranch &&
+                          !rawRefs.some((r) => r.includes(selectedBranch))
+                        ) {
+                          const branchObj = branches.find((b) => b.name === selectedBranch);
+                          if (branchObj?.lastCommit?.hash === commit.hash) {
+                            rawRefs.unshift(selectedBranch);
+                          }
+                        }
 
-                            return (
-                              <Badge
-                                key={ref}
-                                title={ref}
-                                variant={isTag ? "warning" : isHead ? "default" : "secondary"}
-                                className={cn(
-                                  "h-4.5 px-1.5 text-[9px] gap-1 font-mono shrink min-w-0 max-w-[96px] truncate rounded-full shadow-xs",
-                                  isTag && "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/40",
-                                  isHead && "bg-sky-500/15 text-sky-800 dark:text-sky-200 border-sky-500/40 shadow-[0_0_8px_rgba(56,189,248,0.25)]",
-                                  isRemote && "bg-secondary text-secondary-foreground border-border"
-                                )}
-                              >
-                                {isTag ? (
-                                  <TagIcon className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400 shrink-0" />
-                                ) : isRemote ? (
-                                  <Cloud className="h-2.5 w-2.5 text-slate-400 shrink-0" />
-                                ) : (
-                                  <GitBranchIcon className="h-2.5 w-2.5 text-sky-600 dark:text-sky-400 shrink-0" />
-                                )}
-                                <span className="truncate">{ref.replace('tag: ', '').replace('HEAD -> ', '')}</span>
+                        if (rawRefs.length === 0) return null;
+
+                        return (
+                          <>
+                            {rawRefs.slice(0, 2).map((ref) => {
+                              const isHead = ref.includes('HEAD');
+                              const isTag = ref.startsWith('tag:');
+                              const isRemote = ref.includes('origin/') || ref.startsWith('remotes/');
+                              const cleanName = ref.replace('tag: ', '').replace('HEAD -> ', '').replace(/^remotes\//, '');
+                              const isSelectedBranch = selectedBranch && (cleanName === selectedBranch || cleanName.endsWith('/' + selectedBranch));
+
+                              return (
+                                <Badge
+                                  key={ref}
+                                  title={ref}
+                                  className={cn(
+                                    "h-5 px-1.5 text-[9px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-xs border transition-all",
+                                    isTag && "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/40",
+                                    isHead && "bg-sky-500/15 text-sky-800 dark:text-sky-200 border-sky-500/40 shadow-[0_0_8px_rgba(56,189,248,0.25)]",
+                                    isRemote && "bg-secondary text-secondary-foreground border-border",
+                                    !isTag && !isHead && !isRemote && (isSelectedBranch
+                                      ? "bg-sky-950/80 dark:bg-sky-950/90 text-sky-200 border-sky-500/80 font-semibold ring-1 ring-sky-500/40 shadow-xs"
+                                      : "bg-slate-800/80 dark:bg-[#161c28] text-slate-200 border-border"
+                                    )
+                                  )}
+                                >
+                                  {isTag ? (
+                                    <>
+                                      <TagIcon className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400 shrink-0" />
+                                      <span className="truncate">{cleanName}</span>
+                                    </>
+                                  ) : isRemote ? (
+                                    <>
+                                      <Cloud className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                                      <span className="truncate">{cleanName}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="truncate">{cleanName}</span>
+                                      <Laptop className="h-2.5 w-2.5 text-slate-300 shrink-0 opacity-80" />
+                                    </>
+                                  )}
+                                </Badge>
+                              );
+                            })}
+                            {rawRefs.length > 2 && (
+                              <Badge variant="outline" className="h-4 px-1 text-[9px] font-mono shrink-0">
+                                +{rawRefs.length - 2}
                               </Badge>
-                            );
-                          })}
-                          {commit.refs.length > 2 && (
-                            <Badge variant="outline" className="h-4 px-1 text-[9px] font-mono shrink-0">
-                              +{commit.refs.length - 2}
-                            </Badge>
-                          )}
-                        </>
-                      ) : null}
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     {/* Spacer for Graph column */}
