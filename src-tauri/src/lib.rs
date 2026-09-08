@@ -241,7 +241,42 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![
+        // ===== GitHub Token 系统凭据管理器（Windows Credential Manager） =====
+// 优先走 keyring；无对应条目时返回 Ok(None)，不视为错误
+fn github_token_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new("auugit", "github_token").map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn store_github_token(token: String) -> Result<(), String> {
+    let entry = github_token_entry()?;
+    entry.set_password(&token).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_github_token() -> Result<Option<String>, String> {
+    let entry = github_token_entry()?;
+    match entry.get_password() {
+        Ok(token) => Ok(Some(token)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn delete_github_token() -> Result<(), String> {
+    let entry = github_token_entry()?;
+    match entry.delete_credential() {
+        Ok(_) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+.invoke_handler(tauri::generate_handler![
+            store_github_token,
+            get_github_token,
+            delete_github_token,
             execute_git,
             read_file_content,
             write_file_content,

@@ -18,6 +18,57 @@ const GITHUB_TOKEN_KEY = 'auu_github_token';
 // 旧版本 demo 模式的遗留键，initAuth 时统一清理
 const LEGACY_DEMO_KEY = 'auu_github_demo_mode';
 
+// ===== Token 持久化：桌面端走系统凭据管理器（keyring），浏览器开发模式回退 localStorage =====
+const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+async function invokeKeyring<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<T>(command, args);
+}
+
+async function persistToken(token: string): Promise<void> {
+  if (isTauri()) {
+    try {
+      await invokeKeyring('store_github_token', { token });
+      return;
+    } catch (err) {
+      console.warn('写入系统凭据管理器失败，回退 localStorage:', err);
+    }
+  }
+  localStorage.setItem(GITHUB_TOKEN_KEY, token);
+}
+
+async function loadToken(): Promise<string | null> {
+  if (isTauri()) {
+    try {
+      const stored = await invokeKeyring<string | null>('get_github_token');
+      if (stored) return stored;
+      // 迁移：把旧版本明文 localStorage token 搬进凭据管理器
+      const legacy = localStorage.getItem(GITHUB_TOKEN_KEY);
+      if (legacy) {
+        await invokeKeyring('store_github_token', { token: legacy });
+        localStorage.removeItem(GITHUB_TOKEN_KEY);
+        return legacy;
+      }
+      return null;
+    } catch (err) {
+      console.warn('读取系统凭据管理器失败，回退 localStorage:', err);
+    }
+  }
+  return localStorage.getItem(GITHUB_TOKEN_KEY);
+}
+
+async function clearToken(): Promise<void> {
+  localStorage.removeItem(GITHUB_TOKEN_KEY);
+  if (isTauri()) {
+    try {
+      await invokeKeyring('delete_github_token');
+    } catch (err) {
+      console.warn('清理系统凭据管理器失败:', err);
+    }
+  }
+}
+
 interface GitHubState {
   token: string | null;
   user: GitHubUser | null;
@@ -120,7 +171,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
     // 清理旧版本 demo 模式的遗留标记
     localStorage.removeItem(LEGACY_DEMO_KEY);
 
-    const savedToken = localStorage.getItem(GITHUB_TOKEN_KEY);
+    const savedToken = await loadToken();
 
     if (savedToken) {
       try {
@@ -133,7 +184,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
         });
       } catch (err: any) {
         console.warn('保存的 GitHub Token 已失效:', err);
-        localStorage.removeItem(GITHUB_TOKEN_KEY);
+        await clearToken();
       }
     }
   },
@@ -142,7 +193,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await githubService.verifyToken(token);
-      localStorage.setItem(GITHUB_TOKEN_KEY, token);
+      await persistToken(token);
       githubService.setToken(token);
       set({
         token,
@@ -159,7 +210,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem(GITHUB_TOKEN_KEY);
+    void clearToken();
     githubService.setToken(null);
     set({
       token: null,
