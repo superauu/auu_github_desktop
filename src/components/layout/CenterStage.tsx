@@ -50,7 +50,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden relative bg-background">
+    <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden relative bg-background">
       {/* Upper Main Git Graph / View Area */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {renderActiveView()}

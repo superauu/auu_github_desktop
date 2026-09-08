@@ -304,7 +304,7 @@ export const RightPane: React.FC = () => {
     return (
       <aside
         style={{ width: rightPaneWidth }}
-        className="border-l border-border bg-card/20 flex flex-col items-center justify-center p-6 text-center select-none shrink-0 h-full overflow-hidden text-xs"
+        className="border-l border-border bg-card/20 flex flex-col items-center justify-center p-6 text-center select-none shrink-0 h-full overflow-hidden text-xs max-w-[55vw]"
       >
         <div className="h-12 w-12 rounded-2xl bg-muted/40 border border-border/50 flex items-center justify-center mb-3 text-muted-foreground/60 shadow-xs">
           <Layers className="h-6 w-6 stroke-[1.5]" />
@@ -320,7 +320,7 @@ export const RightPane: React.FC = () => {
   return (
     <aside
       style={{ width: rightPaneWidth }}
-      className="border-l border-border bg-card/40 flex flex-col select-none shrink-0 h-full overflow-hidden text-xs"
+      className="border-l border-border bg-card/40 flex flex-col select-none shrink-0 h-full overflow-hidden text-xs max-w-[55vw]"
     >
       {/* GitKraken-style Top Banner: 30 file changes in working directory [View Changes] */}
       {totalChanges > 0 && activeTab === 'history' && (
