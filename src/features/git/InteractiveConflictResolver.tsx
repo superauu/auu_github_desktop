@@ -368,7 +368,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
       </div>
 
       {/* Editor Content Area */}
-      <div className="flex-1 overflow-auto bg-[#070a12] text-foreground font-mono text-xs select-text">
+      <div className="flex-1 overflow-auto bg-[#0c0c0e] text-foreground font-mono text-xs select-text">
         {!hasConflicts && initialConflictCount > 0 && (
           <div className="p-4 mx-4 my-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 flex items-center justify-between">
             <div className="flex items-center gap-2.5">

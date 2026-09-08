@@ -178,7 +178,7 @@ export const JobLogsViewerModal: React.FC = () => {
         {/* Terminal Content Screen */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed bg-background dark:bg-[#05070c] text-foreground dark:text-muted-foreground select-text"
+          className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed bg-background dark:bg-[#08080a] text-foreground dark:text-muted-foreground select-text"
         >
           {filteredLines.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground/50">

@@ -712,7 +712,7 @@ export const WorkingChangesView: React.FC = () => {
           />
         ) : (
           /* Diff Content View */
-          <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#070a12] text-foreground select-text">
+          <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
             {fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />

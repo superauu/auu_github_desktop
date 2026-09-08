@@ -775,7 +775,7 @@ export const LeftSidebar: React.FC = () => {
         /* List Mode: Filter Input + Tree Navigator */
         <>
           {/* GitKraken-style Commit View Count Indicator */}
-          <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#0a0c13] border-b border-border/50 flex items-center justify-between text-[11px]">
+          <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#101013] border-b border-border/50 flex items-center justify-between text-[11px]">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <span className="text-foreground/90 font-medium">Viewing</span>
               <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-mono border-primary/40 text-primary">

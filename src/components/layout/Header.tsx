@@ -204,9 +204,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className="flex flex-col border-b border-border/80 select-none z-30 shrink-0 bg-background/95 dark:bg-[#0b0d14]/95 backdrop-blur-md">
+      <header className="flex flex-col border-b border-border/80 select-none z-30 shrink-0 bg-background/95 dark:bg-[#121215]/95 backdrop-blur-md">
         {/* Tier 1: Multi-Repository Workspace Tabs */}
-        <div className="h-8 bg-card/60 dark:bg-[#07090e] border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
+        <div className="h-8 bg-card/60 dark:bg-[#0b0b0d] border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
           {/* Left: Branding + Open Repo Tabs + Add Tab (+) */}
           <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {/* Logo */}
@@ -231,7 +231,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className={cn(
                       "h-6 px-2.5 rounded-t-md border-t border-x flex items-center gap-1.5 cursor-pointer text-xs transition-all group shrink-0 select-none",
                       isActive
-                        ? "bg-background dark:bg-[#0e121b] border-border text-foreground font-semibold shadow-xs border-t-primary"
+                        ? "bg-background dark:bg-[#16161a] border-border text-foreground font-semibold shadow-xs border-t-primary"
                         : "bg-muted/30 dark:bg-muted/15 border-transparent text-muted-foreground hover:bg-muted/60 dark:hover:bg-muted/30 hover:text-foreground"
                     )}
                     title={repo.path}

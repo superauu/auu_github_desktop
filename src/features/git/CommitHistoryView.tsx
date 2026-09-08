@@ -241,7 +241,7 @@ export const CommitHistoryView: React.FC = () => {
                                     isRemote && "bg-secondary text-secondary-foreground border-border",
                                     !isTag && !isHead && !isRemote && (isSelectedBranch
                                       ? "bg-sky-950/80 dark:bg-sky-950/90 text-sky-200 border-sky-500/80 font-semibold ring-1 ring-sky-500/40 shadow-xs"
-                                      : "bg-slate-800/80 dark:bg-[#161c28] text-slate-200 border-border"
+                                      : "bg-slate-800/80 dark:bg-[#1f1f23] text-slate-200 border-border"
                                     )
                                   )}
                                 >

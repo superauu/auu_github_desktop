@@ -45,42 +45,42 @@
   }
 
   .dark {
-    /* Cyberpunk "Neon Grid" 深色主形态：深黑蓝底 + 霓虹青/品红 */
-    --background: 235 45% 4%;
-    --foreground: 210 45% 97%;
+    /* Cyberpunk "Graphite Neon" 暗色形态：中性炭灰底（skill: Cyberpunk UI #0D0D0D / OLED #121212）+ 霓虹青点缀 */
+    --background: 0 0% 5%;
+    --foreground: 0 0% 96%;
 
-    --card: 233 45% 7.5%;
-    --card-foreground: 210 45% 97%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 234 47% 8.5%;
-    --popover-foreground: 210 45% 97%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 96%;
 
     --primary: 186 100% 50%;
-    --primary-foreground: 220 45% 6%;
+    --primary-foreground: 0 0% 7%;
 
-    --secondary: 232 32% 13%;
-    --secondary-foreground: 210 45% 96%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 95%;
 
-    --muted: 233 30% 11%;
-    --muted-foreground: 213 20% 68%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 66%;
 
-    --accent: 231 38% 14%;
-    --accent-foreground: 210 45% 97%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 96%;
 
     --destructive: 336 100% 57%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 202 60% 17%;
-    --input: 202 60% 17%;
+    --border: 0 0% 17%;
+    --input: 0 0% 17%;
     --ring: 186 100% 50%;
 
-    --sidebar-background: 235 48% 5.5%;
-    --sidebar-foreground: 212 45% 95%;
+    --sidebar-background: 0 0% 6.5%;
+    --sidebar-foreground: 0 0% 95%;
     --sidebar-primary: 186 100% 50%;
-    --sidebar-primary-foreground: 220 45% 6%;
-    --sidebar-accent: 231 36% 12%;
-    --sidebar-accent-foreground: 210 45% 97%;
-    --sidebar-border: 203 55% 15%;
+    --sidebar-primary-foreground: 0 0% 7%;
+    --sidebar-accent: 0 0% 13%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 0 0% 15%;
   }
 }
 
@@ -273,14 +273,14 @@ html.compact-mode .diff-line-del {
 }
 
 .dark .cyber-btn-ai {
-  background: linear-gradient(135deg, #0e1424 0%, #162035 100%);
+  background: linear-gradient(135deg, #17171a 0%, #212124 100%);
   border: 1px solid rgba(56, 189, 248, 0.4);
   box-shadow: 0 0 14px -3px rgba(56, 189, 248, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   color: #f0f9ff;
 }
 
 .dark .cyber-btn-ai:hover {
-  background: linear-gradient(135deg, #131c33 0%, #1d2a47 100%);
+  background: linear-gradient(135deg, #1d1d20 0%, #2a2a2e 100%);
   border-color: rgba(56, 189, 248, 0.75);
   box-shadow: 0 0 20px 0px rgba(56, 189, 248, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   color: #ffffff;
@@ -298,7 +298,7 @@ html.compact-mode .diff-line-del {
 }
 
 .dark .cyber-card {
-  background: rgba(14, 18, 28, 0.82);
+  background: rgba(20, 20, 22, 0.82);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -334,10 +334,9 @@ html.compact-mode .diff-line-del {
 /* 深色下全局霓虹网格 + 顶部青色辉光氛围 */
 .dark body {
   background-image:
-    radial-gradient(1100px 460px at 72% -12%, rgba(0, 229, 255, 0.07), transparent 62%),
-    radial-gradient(900px 420px at 8% 110%, rgba(255, 46, 166, 0.05), transparent 60%),
-    linear-gradient(rgba(0, 229, 255, 0.026) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 229, 255, 0.026) 1px, transparent 1px);
+    radial-gradient(1100px 460px at 72% -12%, rgba(255, 255, 255, 0.045), transparent 62%),
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
   background-size: auto, auto, 34px 34px, 34px 34px;
 }
 

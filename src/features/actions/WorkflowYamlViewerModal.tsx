@@ -57,7 +57,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
         </div>
 
         {/* YAML Code Area */}
-        <div className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-foreground/90 dark:text-indigo-100/90 select-text bg-background dark:bg-[#070a12]">
+        <div className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-foreground/90 dark:text-indigo-100/90 select-text bg-background dark:bg-[#0c0c0e]">
           <pre className="whitespace-pre">{activeWorkflowYaml.content}</pre>
         </div>
       </div>
