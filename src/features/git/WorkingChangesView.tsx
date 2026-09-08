@@ -24,11 +24,12 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
-import { ParsedDiffLine } from '@/services/git/PorcelainParser';
+import { ParsedDiffLine, groupDiffIntoHunks } from '@/services/git/PorcelainParser';
 
 interface SplitRow {
   isHeader?: boolean;
   headerContent?: string;
+  hunkIdx?: number;
   left?: {
     lineNo?: number | null;
     content: string;
@@ -44,14 +45,17 @@ interface SplitRow {
 function computeSplitRows(diffLines: ParsedDiffLine[]): SplitRow[] {
   const rows: SplitRow[] = [];
   let i = 0;
+  let hunkIdx = -1;
 
   while (i < diffLines.length) {
     const line = diffLines[i];
 
     if (line.type === 'header') {
+      hunkIdx++;
       rows.push({
         isHeader: true,
         headerContent: line.content,
+        hunkIdx,
       });
       i++;
       continue;
@@ -102,6 +106,9 @@ export const WorkingChangesView: React.FC = () => {
     fileDiffLines,
     stageFile,
     unstageFile,
+    stageHunk,
+    unstageHunk,
+    discardHunk,
     stageAll,
     unstageAll,
     discardChanges,
@@ -189,6 +196,89 @@ export const WorkingChangesView: React.FC = () => {
     if (diffMode !== 'split' || fileDiffLines.length === 0) return [];
     return computeSplitRows(fileDiffLines);
   }, [diffMode, fileDiffLines]);
+
+  // 块级操作：按 @@ 头切分 hunk，并为统一视图的每个块头记录索引
+  const hunks = useMemo(() => groupDiffIntoHunks(fileDiffLines), [fileDiffLines]);
+
+  const headerHunkIdx = useMemo(() => {
+    const map = new Map<number, number>();
+    let h = -1;
+    fileDiffLines.forEach((l, i) => {
+      if (l.type === 'header') {
+        h++;
+        map.set(i, h);
+      }
+    });
+    return map;
+  }, [fileDiffLines]);
+
+  // 冲突文件走专用解决器（git apply 对 unmerged 路径无效），不提供块级按钮
+  const showHunkActions = !!activeFile && activeFile.status !== 'conflicted' && hunks.length > 0;
+
+  const handleHunkAction = (hunkIdx: number, mode: 'stage' | 'unstage' | 'discard') => {
+    if (!activeFile) return;
+    const hunk = hunks[hunkIdx];
+    if (!hunk) return;
+    const path = activeFile.path;
+
+    if (mode === 'discard') {
+      if (!confirm(`${t('changes.discardConfirmPrefix')} "${path}" ${t('changes.discardConfirm')}`)) return;
+    }
+
+    const action =
+      mode === 'stage'
+        ? () => stageHunk(path, hunk, activeFile.status === 'untracked')
+        : mode === 'unstage'
+        ? () => unstageHunk(path, hunk)
+        : () => discardHunk(path, hunk);
+    const successKey =
+      mode === 'stage'
+        ? 'changes.hunkStaged'
+        : mode === 'unstage'
+        ? 'changes.hunkUnstaged'
+        : 'changes.hunkDiscarded';
+
+    runGitAction(action, `${t(successKey)}: ${path}`, `${t('changes.hunkOpFailed')}: ${path}`);
+  };
+
+  const renderHunkActions = (hunkIdx: number) => {
+    if (!showHunkActions || hunkIdx < 0 || !activeFile) return null;
+    const isUntracked = activeFile.status === 'untracked';
+    const btnBase =
+      'h-5 w-5 rounded flex items-center justify-center shrink-0 transition-colors';
+    return (
+      <div className="flex items-center gap-0.5 shrink-0">
+        {activeFile.staged && !isUntracked ? (
+          <button
+            onClick={() => handleHunkAction(hunkIdx, 'unstage')}
+            className={cn(btnBase, 'text-sky-500/70 hover:text-sky-400 hover:bg-sky-500/10')}
+            title={t('changes.unstageHunk')}
+          >
+            <Minus className="h-3 w-3" />
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={() => handleHunkAction(hunkIdx, 'stage')}
+              className={cn(btnBase, 'text-emerald-500/70 hover:text-emerald-400 hover:bg-emerald-500/10')}
+              title={t('changes.stageHunk')}
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+            {!isUntracked && (
+              <button
+                onClick={() => handleHunkAction(hunkIdx, 'discard')}
+                className={cn(btnBase, 'text-rose-500/70 hover:text-rose-400 hover:bg-rose-500/10')}
+                title={t('changes.discardHunk')}
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
@@ -730,9 +820,10 @@ export const WorkingChangesView: React.FC = () => {
                     return (
                       <div
                         key={idx}
-                        className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px] w-full"
+                        className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px] w-full flex items-center justify-between gap-2"
                       >
-                        {row.headerContent}
+                        <span className="truncate">{row.headerContent}</span>
+                        {renderHunkActions(row.hunkIdx ?? -1)}
                       </div>
                     );
                   }
@@ -795,9 +886,10 @@ export const WorkingChangesView: React.FC = () => {
                   return (
                     <div
                       key={idx}
-                      className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px]"
+                      className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px] flex items-center justify-between gap-2"
                     >
-                      {line.content}
+                      <span className="truncate">{line.content}</span>
+                      {renderHunkActions(headerHunkIdx.get(idx) ?? -1)}
                     </div>
                   );
                 }

@@ -20,6 +20,7 @@ import {
   parseGitTags,
   parsePorcelainV2,
   unquoteGitPath,
+  buildHunkPatch,
 } from './PorcelainParser';
 
 export class GitService implements IGitService {
@@ -243,6 +244,44 @@ export class GitService implements IGitService {
     } catch {
       await executeGit(['checkout', '--', filePath], repoPath);
     }
+  }
+
+  /**
+   * 块级（hunk 级）暂存/取消暂存/放弃。
+   * executeGit 不支持 stdin，将重建的 patch 写入 .git 内临时文件再 git apply，
+   * 桌面端（Tauri write_file_content）与浏览器开发模式（/api/fs/write-file）通用。
+   */
+  private async applyHunkPatch(
+    repoPath: string,
+    patch: string,
+    extraArgs: string[]
+  ): Promise<void> {
+    if (!patch.trim()) {
+      throw new Error('Empty hunk patch');
+    }
+    const patchPath = '.git/auu_hunk_stage.patch';
+    await this.writeWorkingFile(repoPath, patchPath, patch);
+    await executeGit(['apply', '--whitespace=nowarn', ...extraArgs, patchPath], repoPath);
+  }
+
+  async stageHunk(
+    repoPath: string,
+    filePath: string,
+    hunk: ParsedDiffLine[],
+    isUntracked: boolean = false
+  ): Promise<void> {
+    const patch = buildHunkPatch(filePath, hunk, 'stage', isUntracked);
+    await this.applyHunkPatch(repoPath, patch, ['--cached']);
+  }
+
+  async unstageHunk(repoPath: string, filePath: string, hunk: ParsedDiffLine[]): Promise<void> {
+    const patch = buildHunkPatch(filePath, hunk, 'unstage');
+    await this.applyHunkPatch(repoPath, patch, ['--cached', '--reverse']);
+  }
+
+  async discardHunk(repoPath: string, filePath: string, hunk: ParsedDiffLine[]): Promise<void> {
+    const patch = buildHunkPatch(filePath, hunk, 'discard');
+    await this.applyHunkPatch(repoPath, patch, ['--reverse']);
   }
 
   async commit(repoPath: string, message: string, amend?: boolean): Promise<string> {

@@ -70,6 +70,9 @@ interface RepoState {
   loadFileDiff: (file: GitFileChange, commitHash?: string) => Promise<void>;
   stageFile: (filePath: string) => Promise<void>;
   unstageFile: (filePath: string) => Promise<void>;
+  stageHunk: (filePath: string, hunk: ParsedDiffLine[], isUntracked?: boolean) => Promise<void>;
+  unstageHunk: (filePath: string, hunk: ParsedDiffLine[]) => Promise<void>;
+  discardHunk: (filePath: string, hunk: ParsedDiffLine[]) => Promise<void>;
   stageAll: () => Promise<void>;
   unstageAll: () => Promise<void>;
   discardChanges: (filePath: string) => Promise<void>;
@@ -505,6 +508,42 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.unstageFile(currentRepo.path, filePath);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    stageHunk: async (filePath, hunk, isUntracked = false) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.stageHunk(currentRepo.path, filePath, hunk, isUntracked);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    unstageHunk: async (filePath, hunk) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.unstageHunk(currentRepo.path, filePath, hunk);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    discardHunk: async (filePath, hunk) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.discardHunk(currentRepo.path, filePath, hunk);
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });

@@ -110,6 +110,9 @@ export interface IGitService {
   getStashes(repoPath: string): Promise<GitStash[]>;
   stageFile(repoPath: string, filePath: string): Promise<void>;
   unstageFile(repoPath: string, filePath: string): Promise<void>;
+  stageHunk(repoPath: string, filePath: string, hunk: ParsedDiffLine[], isUntracked?: boolean): Promise<void>;
+  unstageHunk(repoPath: string, filePath: string, hunk: ParsedDiffLine[]): Promise<void>;
+  discardHunk(repoPath: string, filePath: string, hunk: ParsedDiffLine[]): Promise<void>;
   stageAll(repoPath: string): Promise<void>;
   unstageAll(repoPath: string): Promise<void>;
   discardChanges(repoPath: string, filePath: string): Promise<void>;

@@ -338,6 +338,64 @@ export interface ParsedDiffLine {
 }
 
 /**
+ * 将逐行 diff 按 `@@` 块头切分为 hunk 数组，
+ * 用于块级暂存（每个 hunk 可独立 stage/unstage/discard）。
+ */
+export function groupDiffIntoHunks(lines: ParsedDiffLine[]): ParsedDiffLine[][] {
+  const hunks: ParsedDiffLine[][] = [];
+  for (const line of lines) {
+    if (line.type === 'header') {
+      hunks.push([line]);
+    } else if (hunks.length > 0) {
+      hunks[hunks.length - 1].push(line);
+    }
+  }
+  return hunks.filter((h) => h.length > 0);
+}
+
+export type HunkPatchMode = 'stage' | 'unstage' | 'discard';
+
+/**
+ * 用单个 hunk 重建一段 git apply 可用的完整 patch。
+ * - stage: 未暂存 hunk → 写入 index（--cached）；未跟踪文件合成 new file patch
+ * - unstage: 已暂存 hunk → --cached --reverse
+ * - discard: 未暂存 hunk → 工作区 --reverse（未跟踪文件不支持）
+ */
+export function buildHunkPatch(
+  filePath: string,
+  hunk: ParsedDiffLine[],
+  mode: HunkPatchMode,
+  isUntracked: boolean = false
+): string {
+  if (hunk.length === 0 || hunk[0].type !== 'header') return '';
+
+  const headerMatch = hunk[0].content.match(
+    /@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/
+  );
+  // count 缺省时代表 1 行；0 行表示该侧为空（新建/删除）
+  const oldCount = headerMatch ? (headerMatch[2] !== undefined ? parseInt(headerMatch[2], 10) : 1) : 1;
+  const newCount = headerMatch ? (headerMatch[4] !== undefined ? parseInt(headerMatch[4], 10) : 1) : 1;
+  const oldSideEmpty = oldCount === 0;
+  const newSideEmpty = newCount === 0;
+
+  const body = hunk.map((l) => l.content).join('\n');
+  const safePath = filePath.replace(/\\/g, '/');
+
+  const lines: string[] = [`diff --git a/${safePath} b/${safePath}`];
+  if (isUntracked && mode === 'stage') {
+    lines.push('new file mode 100644');
+    lines.push('--- /dev/null');
+    lines.push(`+++ b/${safePath}`);
+  } else {
+    lines.push(oldSideEmpty ? '--- /dev/null' : `--- a/${safePath}`);
+    lines.push(newSideEmpty ? '+++ /dev/null' : `+++ b/${safePath}`);
+  }
+  lines.push(body);
+
+  return lines.join('\n') + '\n';
+}
+
+/**
  * Parses raw unified diff output into structured line objects
  */
 export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {

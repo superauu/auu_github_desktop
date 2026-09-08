@@ -885,6 +885,13 @@ export const en = {
   'time.locale': 'en-US',
   'history.commitCount': 'commits',
   'history.viewChanges': 'View Changes →',
+  'changes.stageHunk': 'Stage this hunk',
+  'changes.unstageHunk': 'Unstage this hunk',
+  'changes.discardHunk': 'Discard this hunk',
+  'changes.hunkStaged': 'Hunk staged',
+  'changes.hunkUnstaged': 'Hunk unstaged',
+  'changes.hunkDiscarded': 'Hunk discarded',
+  'changes.hunkOpFailed': 'Hunk operation failed',
 
 } as const;
 

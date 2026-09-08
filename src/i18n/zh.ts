@@ -901,5 +901,12 @@ export const zh = {
   'time.locale': 'zh-CN',
   'history.commitCount': '个提交',
   'history.viewChanges': '查看变更 →',
+  'changes.stageHunk': '暂存此块',
+  'changes.unstageHunk': '取消暂存此块',
+  'changes.discardHunk': '放弃此块',
+  'changes.hunkStaged': '已暂存所选块',
+  'changes.hunkUnstaged': '已取消暂存所选块',
+  'changes.hunkDiscarded': '已放弃所选块改动',
+  'changes.hunkOpFailed': '块操作失败',
 
 } as const;
