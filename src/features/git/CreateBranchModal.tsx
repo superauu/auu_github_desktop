@@ -40,6 +40,19 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 弹窗常驻挂载，useState 初值只在首次挂载生效；
+  // 每次打开时同步右键菜单传入的基底分支/提交，否则会被忽略而总是从 HEAD 创建
+  React.useEffect(() => {
+    if (!open) return;
+    if (defaultCommitHash) {
+      setBaseType('commit');
+      setSelectedCommitHash(defaultCommitHash);
+    } else if (defaultBaseBranch) {
+      setBaseType('branch');
+      setSelectedBaseBranch(defaultBaseBranch);
+    }
+  }, [open, defaultBaseBranch, defaultCommitHash]);
+
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {

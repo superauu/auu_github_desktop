@@ -496,6 +496,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
+        throw err;
       }
     },
 
@@ -507,6 +508,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
+        throw err;
       }
     },
 
@@ -518,6 +520,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
+        throw err;
       }
     },
 
@@ -529,6 +532,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
+        throw err;
       }
     },
 
@@ -540,6 +544,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
+        throw err;
       }
     },
 

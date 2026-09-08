@@ -152,6 +152,25 @@ export const WorkingChangesView: React.FC = () => {
 
   const totalChanges = stagedFiles.length + unstagedFiles.length + untrackedFiles.length;
 
+  // 统一处理暂存/取消暂存/放弃修改：等待真实结果后再提示，失败弹错误 toast
+  const runGitAction = async (action: () => Promise<void>, successMsg: string, failMsg: string) => {
+    try {
+      await action();
+      toast.success(successMsg);
+    } catch (err: any) {
+      toast.error(failMsg, err?.message);
+    }
+  };
+
+  const handleDiscard = (path: string) => {
+    if (!confirm(`确认放弃 "${path}" 的所有未暂存修改吗？此操作不可恢复！`)) return;
+    runGitAction(
+      () => discardChanges(path),
+      `已还原文件: ${path}`,
+      `还原失败: ${path}`
+    );
+  };
+
   const copyFilePath = () => {
     if (!activeFile) return;
     navigator.clipboard.writeText(activeFile.path);
@@ -186,11 +205,9 @@ export const WorkingChangesView: React.FC = () => {
               <button
                 onClick={() => {
                   if (stagedFiles.length === totalChanges) {
-                    unstageAll();
-                    toast.info('已取消全部暂存');
+                    runGitAction(() => unstageAll(), '已取消全部暂存', '取消暂存失败');
                   } else {
-                    stageAll();
-                    toast.success('已暂存全部工作区变动');
+                    runGitAction(() => stageAll(), '已暂存全部工作区变动', '暂存失败');
                   }
                 }}
                 className="text-muted-foreground hover:text-foreground transition-colors"
@@ -233,8 +250,7 @@ export const WorkingChangesView: React.FC = () => {
                 variant="ghost"
                 size="xs"
                 onClick={() => {
-                  stageAll();
-                  toast.success('已暂存所有工作区修改');
+                  runGitAction(() => stageAll(), '已暂存所有工作区修改', '暂存失败');
                 }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               >
@@ -245,8 +261,7 @@ export const WorkingChangesView: React.FC = () => {
                 variant="ghost"
                 size="xs"
                 onClick={() => {
-                  unstageAll();
-                  toast.info('已取消全部暂存');
+                  runGitAction(() => unstageAll(), '已取消全部暂存', '取消暂存失败');
                 }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               >
@@ -274,8 +289,7 @@ export const WorkingChangesView: React.FC = () => {
                     <span>已暂存 ({stagedFiles.length})</span>
                     <button
                       onClick={() => {
-                        unstageAll();
-                        toast.info('已取消全部暂存');
+                        runGitAction(() => unstageAll(), '已取消全部暂存', '取消暂存失败');
                       }}
                       className="text-[9px] text-muted-foreground hover:text-foreground"
                     >
@@ -298,8 +312,11 @@ export const WorkingChangesView: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              unstageFile(file.path);
-                              toast.info(`已取消暂存: ${file.path}`);
+                              runGitAction(
+                                () => unstageFile(file.path),
+                                `已取消暂存: ${file.path}`,
+                                `取消暂存失败: ${file.path}`
+                              );
                             }}
                             className="text-emerald-400 hover:text-emerald-300 shrink-0"
                             title="点击取消暂存"
@@ -316,8 +333,11 @@ export const WorkingChangesView: React.FC = () => {
                           title="取消暂存"
                           onClick={(e) => {
                             e.stopPropagation();
-                            unstageFile(file.path);
-                            toast.info(`已取消暂存: ${file.path}`);
+                            runGitAction(
+                              () => unstageFile(file.path),
+                              `已取消暂存: ${file.path}`,
+                              `取消暂存失败: ${file.path}`
+                            );
                           }}
                         >
                           <Minus className="h-3 w-3" />
@@ -335,8 +355,7 @@ export const WorkingChangesView: React.FC = () => {
                     <span>未暂存改动 ({unstagedFiles.length})</span>
                     <button
                       onClick={() => {
-                        stageAll();
-                        toast.success('已暂存所有修改');
+                        runGitAction(() => stageAll(), '已暂存所有修改', '暂存失败');
                       }}
                       className="text-[9px] text-muted-foreground hover:text-foreground"
                     >
@@ -359,8 +378,11 @@ export const WorkingChangesView: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              stageFile(file.path);
-                              toast.success(`已暂存: ${file.path}`);
+                              runGitAction(
+                                () => stageFile(file.path),
+                                `已暂存: ${file.path}`,
+                                `暂存失败: ${file.path}`
+                              );
                             }}
                             className="text-muted-foreground hover:text-emerald-400 shrink-0"
                             title="点击暂存此文件"
@@ -444,8 +466,11 @@ export const WorkingChangesView: React.FC = () => {
                                 title="标记为已解决并暂存"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  stageFile(file.path);
-                                  toast.success(`已标记解决: ${file.path}`);
+                                  runGitAction(
+                                    () => stageFile(file.path),
+                                    `已标记解决: ${file.path}`,
+                                    `标记解决失败: ${file.path}`
+                                  );
                                 }}
                               >
                                 <Plus className="h-3 w-3" />
@@ -460,8 +485,7 @@ export const WorkingChangesView: React.FC = () => {
                                 title="放弃修改 (Discard)"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  discardChanges(file.path);
-                                  toast.info(`已还原文件: ${file.path}`);
+                                  handleDiscard(file.path);
                                 }}
                               >
                                 <RotateCcw className="h-3 w-3" />
@@ -473,8 +497,11 @@ export const WorkingChangesView: React.FC = () => {
                                 title="暂存此文件 (Stage)"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  stageFile(file.path);
-                                  toast.success(`已暂存: ${file.path}`);
+                                  runGitAction(
+                                    () => stageFile(file.path),
+                                    `已暂存: ${file.path}`,
+                                    `暂存失败: ${file.path}`
+                                  );
                                 }}
                               >
                                 <Plus className="h-3 w-3" />
@@ -510,8 +537,11 @@ export const WorkingChangesView: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              stageFile(file.path);
-                              toast.success(`已添加跟踪: ${file.path}`);
+                              runGitAction(
+                                () => stageFile(file.path),
+                                `已添加跟踪: ${file.path}`,
+                                `添加跟踪失败: ${file.path}`
+                              );
                             }}
                             className="text-muted-foreground hover:text-emerald-400 shrink-0"
                             title="点击添加跟踪并暂存"
@@ -528,8 +558,11 @@ export const WorkingChangesView: React.FC = () => {
                           title="跟踪并暂存"
                           onClick={(e) => {
                             e.stopPropagation();
-                            stageFile(file.path);
-                            toast.success(`已添加跟踪: ${file.path}`);
+                            runGitAction(
+                              () => stageFile(file.path),
+                              `已添加跟踪: ${file.path}`,
+                              `添加跟踪失败: ${file.path}`
+                            );
                           }}
                         >
                           <Plus className="h-3 w-3" />
@@ -649,11 +682,17 @@ export const WorkingChangesView: React.FC = () => {
                 className="h-6 text-[10px] gap-1"
                 onClick={() => {
                   if (activeFile.staged) {
-                    unstageFile(activeFile.path);
-                    toast.info(`已取消暂存: ${activeFile.path}`);
+                    runGitAction(
+                      () => unstageFile(activeFile.path),
+                      `已取消暂存: ${activeFile.path}`,
+                      `取消暂存失败: ${activeFile.path}`
+                    );
                   } else {
-                    stageFile(activeFile.path);
-                    toast.success(`已暂存文件: ${activeFile.path}`);
+                    runGitAction(
+                      () => stageFile(activeFile.path),
+                      `已暂存文件: ${activeFile.path}`,
+                      `暂存失败: ${activeFile.path}`
+                    );
                   }
                 }}
               >

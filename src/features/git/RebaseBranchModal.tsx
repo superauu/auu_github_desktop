@@ -32,6 +32,14 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [inConflictState, setInConflictState] = useState(false);
 
+  // 弹窗常驻挂载，useState 初值只在首次挂载生效；
+  // 每次打开时同步右键菜单等入口传入的上游分支
+  React.useEffect(() => {
+    if (open && initialUpstreamBranch) {
+      setSelectedBranch(initialUpstreamBranch);
+    }
+  }, [open, initialUpstreamBranch]);
+
   if (!open) return null;
 
   const handleRebase = async (e: React.FormEvent) => {

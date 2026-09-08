@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GitMerge, X, Loader2, AlertCircle, Check, ArrowRight } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,14 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
   const [customMessage, setCustomMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 弹窗常驻挂载，useState 初值只在首次挂载生效；
+  // 每次打开时同步右键菜单等入口传入的目标分支
+  useEffect(() => {
+    if (open && initialTargetBranch) {
+      setSelectedBranch(initialTargetBranch);
+    }
+  }, [open, initialTargetBranch]);
 
   if (!open) return null;
 
