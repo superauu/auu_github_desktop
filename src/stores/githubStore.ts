@@ -12,6 +12,7 @@ import {
 } from '@/services/github/types';
 import { githubService } from '@/services/github/GitHubService';
 import { toast } from '@/stores/toastStore';
+import { tNow } from '@/i18n';
 
 const GITHUB_TOKEN_KEY = 'auu_github_token';
 // 旧版本 demo 模式的遗留键，initAuth 时统一清理
@@ -77,7 +78,14 @@ interface GitHubState {
   loadPullRequests: () => Promise<void>;
   selectPR: (pr: GitHubPullRequest | null) => void;
   setPRFilterState: (filter: 'open' | 'closed' | 'all') => void;
+
+  // Push CI Watcher
+  watchPushChecks: (sha: string) => void;
 }
+
+/** 推送后 CI 监听定时器（同 SHA 去重，新推送替换旧监听） */
+let pushWatchTimer: ReturnType<typeof setTimeout> | null = null;
+let pushWatchedSha: string | null = null;
 
 export const useGitHubStore = create<GitHubState>((set, get) => ({
   token: null,
@@ -413,5 +421,59 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
 
   setPRFilterState: (filter: 'open' | 'closed' | 'all') => {
     set({ prFilterState: filter });
+  },
+
+  watchPushChecks: (sha: string) => {
+    const { currentOwner, currentRepoName } = get();
+    if (!currentOwner || !currentRepoName || !sha) return;
+    if (pushWatchedSha === sha && pushWatchTimer) return;
+
+    // 新推送替换旧监听
+    if (pushWatchTimer) clearTimeout(pushWatchTimer);
+
+    const POLL_INTERVAL = 15_000;
+    const MAX_POLLS = 20; // 约 5 分钟
+    let polls = 0;
+
+    pushWatchedSha = sha;
+    toast.info(tNow('ci.watching'), `${currentOwner}/${currentRepoName} @ ${sha.slice(0, 7)}`);
+
+    const poll = async () => {
+      polls++;
+      let runs: GitHubCheckRun[] = [];
+      try {
+        runs = await githubService.getCommitChecks(currentOwner!, currentRepoName!, sha);
+      } catch {
+        runs = [];
+      }
+
+      if (runs.length === 0) {
+        if (polls >= MAX_POLLS) return; // 仓库没有配置 CI，静默放弃
+        pushWatchTimer = setTimeout(poll, POLL_INTERVAL);
+        return;
+      }
+
+      const pending = runs.filter((r) => r.status !== 'completed').length;
+      if (pending > 0) {
+        if (polls >= MAX_POLLS) {
+          toast.info(tNow('ci.stillRunning'), tNow('ci.watchingDesc'));
+          return;
+        }
+        pushWatchTimer = setTimeout(poll, POLL_INTERVAL);
+        return;
+      }
+
+      const failures = runs.filter((r) => r.conclusion === 'failure').length;
+      if (failures > 0) {
+        toast.error(
+          tNow('ci.failed'),
+          `${runs.length - failures}/${runs.length} ${tNow('ci.passedCount')}`
+        );
+      } else {
+        toast.success(tNow('ci.passed'), `${runs.length} ${tNow('ci.passedCount')}`);
+      }
+    };
+
+    pushWatchTimer = setTimeout(poll, POLL_INTERVAL);
   },
 }));

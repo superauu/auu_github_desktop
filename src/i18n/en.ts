@@ -950,6 +950,12 @@ export const en = {
   'history.resetFailed': 'Reset failed',
   'history.resetSoftConfirm': 'Soft reset to {h}?\nLater commits will be undone; changes stay staged.',
   'history.resetHardConfirm': 'Hard reset to {h}?\nAll later commits and uncommitted changes will be discarded permanently!',
+  'ci.watching': 'Pushed — watching CI checks...',
+  'ci.watchingDesc': 'Check the Actions page for progress later',
+  'ci.passed': 'All CI checks passed',
+  'ci.failed': 'Some CI checks failed',
+  'ci.passedCount': 'checks passed',
+  'ci.stillRunning': 'CI is still running',
 
 } as const;
 

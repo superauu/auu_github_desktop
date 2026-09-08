@@ -459,8 +459,19 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       set({ isLoading: true, errorMessage: null });
       try {
+        // 记录推送前本地 HEAD，成功后交给 GitHub 监听 CI 结果
+        let pushedSha: string | null = null;
+        try {
+          pushedSha = await gitService.getBranchCommitHash(currentRepo.path, 'HEAD');
+        } catch {
+          pushedSha = null;
+        }
+
         await gitService.push(currentRepo.path, remote, branch, options);
         await get().refreshAll();
+        if (pushedSha) {
+          useGitHubStore.getState().watchPushChecks(pushedSha);
+        }
       } catch (err: any) {
         set({ errorMessage: err.message, isLoading: false });
         throw err;

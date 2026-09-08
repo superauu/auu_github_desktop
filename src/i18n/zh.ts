@@ -966,5 +966,11 @@ export const zh = {
   'history.resetFailed': '重置失败',
   'history.resetSoftConfirm': '确定软重置到 {h} 吗？\n其后的提交将撤销，改动保留在暂存区。',
   'history.resetHardConfirm': '确定硬重置到 {h} 吗？\n其后所有提交与未提交改动都将被丢弃，且无法恢复！',
+  'ci.watching': '已推送，正在监听 CI 检查...',
+  'ci.watchingDesc': '可稍后在 Actions 页查看进度',
+  'ci.passed': 'CI 全部通过',
+  'ci.failed': 'CI 存在失败项',
+  'ci.passedCount': '项检查通过',
+  'ci.stillRunning': 'CI 仍在运行中',
 
 } as const;
