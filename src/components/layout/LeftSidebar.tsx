@@ -34,6 +34,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { MergeBranchModal } from '@/features/git/MergeBranchModal';
 import { RebaseBranchModal } from '@/features/git/RebaseBranchModal';
+import { HealthDiagnosisModal } from '@/features/git/HealthDiagnosisModal';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -90,6 +91,7 @@ export const LeftSidebar: React.FC = () => {
   const [newTagOpen, setNewTagOpen] = useState(false);
   const [tagNameInput, setTagNameInput] = useState('');
   const [tagMessageInput, setTagMessageInput] = useState('');
+  const [healthModalOpen, setHealthModalOpen] = useState(false);
 
   // Shortcut to focus search filter (Ctrl+Alt+F)
   useEffect(() => {
@@ -341,7 +343,7 @@ export const LeftSidebar: React.FC = () => {
             </button>
             <button
               onClick={() => {
-                toast.success('本地分支健康状况良好', '无未解决的代码冲突与悬空提交');
+                setHealthModalOpen(true);
               }}
               className="w-full text-left p-2 rounded-lg bg-card/60 hover:bg-accent/60 border border-border/60 transition-colors space-y-0.5"
             >
@@ -896,6 +898,10 @@ export const LeftSidebar: React.FC = () => {
         open={rebaseModalOpen}
         onOpenChange={setRebaseModalOpen}
         upstreamBranch={rebaseUpstreamBranch}
+      />
+      <HealthDiagnosisModal
+        open={healthModalOpen}
+        onOpenChange={setHealthModalOpen}
       />
     </aside>
   );

@@ -1,3 +1,5 @@
+import { useSettingsStore } from '@/stores/settingsStore';
+
 export interface GitCommandResult {
   exitCode: number;
   stdout: string;
@@ -21,13 +23,15 @@ export class GitExecutionError extends Error {
 }
 
 export async function executeGit(args: string[], cwd: string): Promise<GitCommandResult> {
+  const customPath = useSettingsStore.getState().gitCliPath?.trim() || 'git';
+
   // Check if running inside Tauri 2 desktop window
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
   if (isTauri) {
     try {
       const { Command } = await import('@tauri-apps/plugin-shell');
-      const cmd = Command.create('git', args, { cwd });
+      const cmd = Command.create(customPath, args, { cwd });
       const output = await cmd.execute();
       const isDiff = args.includes('diff');
       if (output.code !== 0 && (!isDiff || output.code !== 1)) {
@@ -56,7 +60,7 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ args, cwd }),
+      body: JSON.stringify({ args, cwd, gitBinary: customPath }),
     });
 
     if (!res.ok) {

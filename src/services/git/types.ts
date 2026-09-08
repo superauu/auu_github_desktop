@@ -123,4 +123,22 @@ export interface IGitService {
   rebaseAbort(repoPath: string): Promise<void>;
   undoLastCommit(repoPath: string): Promise<void>;
   openTerminal(repoPath: string): Promise<void>;
+  fetchAndCheckoutPR(repoPath: string, prNumber: number, customBranchName?: string): Promise<string>;
+  diagnoseRepository(repoPath: string): Promise<RepoHealthDiagnosis>;
 }
+
+export interface HealthIssue {
+  type: 'conflict' | 'detached' | 'unpushed' | 'behind' | 'in_progress' | 'clean';
+  level: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  description: string;
+  actionHint?: string;
+}
+
+export interface RepoHealthDiagnosis {
+  score: number;
+  status: 'healthy' | 'warning' | 'danger';
+  issues: HealthIssue[];
+  summary: string;
+}
+

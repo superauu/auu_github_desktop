@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CheckSquare,
   Square,
@@ -18,6 +18,74 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import { ParsedDiffLine } from '@/services/git/PorcelainParser';
+
+interface SplitRow {
+  isHeader?: boolean;
+  headerContent?: string;
+  left?: {
+    lineNo?: number | null;
+    content: string;
+    type: 'delete' | 'context';
+  };
+  right?: {
+    lineNo?: number | null;
+    content: string;
+    type: 'add' | 'context';
+  };
+}
+
+function computeSplitRows(diffLines: ParsedDiffLine[]): SplitRow[] {
+  const rows: SplitRow[] = [];
+  let i = 0;
+
+  while (i < diffLines.length) {
+    const line = diffLines[i];
+
+    if (line.type === 'header') {
+      rows.push({
+        isHeader: true,
+        headerContent: line.content,
+      });
+      i++;
+      continue;
+    }
+
+    if (line.type === 'context') {
+      rows.push({
+        left: { lineNo: line.oldNo, content: line.content, type: 'context' },
+        right: { lineNo: line.newNo, content: line.content, type: 'context' },
+      });
+      i++;
+      continue;
+    }
+
+    // Accumulate consecutive deletes and adds to align them side-by-side
+    const deletes: ParsedDiffLine[] = [];
+    const adds: ParsedDiffLine[] = [];
+
+    while (i < diffLines.length && (diffLines[i].type === 'delete' || diffLines[i].type === 'add')) {
+      if (diffLines[i].type === 'delete') {
+        deletes.push(diffLines[i]);
+      } else {
+        adds.push(diffLines[i]);
+      }
+      i++;
+    }
+
+    const maxLen = Math.max(deletes.length, adds.length);
+    for (let k = 0; k < maxLen; k++) {
+      const del = deletes[k];
+      const add = adds[k];
+      rows.push({
+        left: del ? { lineNo: del.oldNo, content: del.content, type: 'delete' } : undefined,
+        right: add ? { lineNo: add.newNo, content: add.content, type: 'add' } : undefined,
+      });
+    }
+  }
+
+  return rows;
+}
 
 export const WorkingChangesView: React.FC = () => {
   const { changesFileListWidth, setChangesFileListWidth } = useLayoutStore();
@@ -75,6 +143,11 @@ export const WorkingChangesView: React.FC = () => {
   // Compute diff addition / deletion counts
   const addCount = fileDiffLines.filter((l) => l.type === 'add').length;
   const delCount = fileDiffLines.filter((l) => l.type === 'delete').length;
+
+  const splitRows = useMemo(() => {
+    if (diffMode !== 'split' || fileDiffLines.length === 0) return [];
+    return computeSplitRows(fileDiffLines);
+  }, [diffMode, fileDiffLines]);
 
   return (
     <div className="flex-1 h-full flex overflow-hidden select-none bg-background">
@@ -411,7 +484,7 @@ export const WorkingChangesView: React.FC = () => {
                   className={cn(
                     "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
                     diffMode === 'unified'
-                      ? "bg-accent text-accent-foreground shadow-xs"
+                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -422,7 +495,7 @@ export const WorkingChangesView: React.FC = () => {
                   className={cn(
                     "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
                     diffMode === 'split'
-                      ? "bg-accent text-accent-foreground shadow-xs"
+                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -461,7 +534,74 @@ export const WorkingChangesView: React.FC = () => {
                 {activeFile ? '暂无代码差异或该文件为新增加的未跟踪文件' : '请在左侧选择需要对比的文件'}
               </div>
             </div>
+          ) : diffMode === 'split' ? (
+            /* Split Two-Column View */
+            <div className="min-w-full">
+              {splitRows.map((row, idx) => {
+                if (row.isHeader) {
+                  return (
+                    <div
+                      key={idx}
+                      className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px] w-full"
+                    >
+                      {row.headerContent}
+                    </div>
+                  );
+                }
+
+                const hasLeft = !!row.left;
+                const hasRight = !!row.right;
+                const isLeftDel = row.left?.type === 'delete';
+                const isRightAdd = row.right?.type === 'add';
+
+                return (
+                  <div
+                    key={idx}
+                    className="grid grid-cols-2 divide-x divide-border/60 hover:bg-accent/40 dark:hover:bg-white/[0.03] transition-colors"
+                  >
+                    {/* Left Column (Original / Deletions) */}
+                    <div
+                      className={cn(
+                        "flex items-stretch overflow-hidden min-w-0 border-l-2",
+                        isLeftDel
+                          ? "diff-line-del font-medium dark:font-normal"
+                          : hasLeft
+                          ? "border-transparent text-foreground/85"
+                          : "border-transparent bg-muted/15 opacity-40 select-none"
+                      )}
+                    >
+                      <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
+                        {row.left?.lineNo ?? ''}
+                      </div>
+                      <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
+                        {row.left?.content ?? ''}
+                      </div>
+                    </div>
+
+                    {/* Right Column (Modified / Additions) */}
+                    <div
+                      className={cn(
+                        "flex items-stretch overflow-hidden min-w-0 border-l-2",
+                        isRightAdd
+                          ? "diff-line-add font-medium dark:font-normal"
+                          : hasRight
+                          ? "border-transparent text-foreground/85"
+                          : "border-transparent bg-muted/15 opacity-40 select-none"
+                      )}
+                    >
+                      <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
+                        {row.right?.lineNo ?? ''}
+                      </div>
+                      <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
+                        {row.right?.content ?? ''}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
+            /* Unified Single Column View */
             fileDiffLines.map((line, idx) => {
               if (line.type === 'header') {
                 return (

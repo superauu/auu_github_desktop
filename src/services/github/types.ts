@@ -158,3 +158,14 @@ export interface GitHubPullRequest {
   deletions?: number;
   changed_files?: number;
 }
+
+export interface GitHubReview {
+  id: number;
+  user: {
+    login: string;
+    avatar_url: string;
+  };
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+  submitted_at: string;
+}
+

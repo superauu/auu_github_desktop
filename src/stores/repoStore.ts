@@ -7,6 +7,7 @@ import {
   GitStash,
   GitTag,
   RepositoryInfo,
+  RepoHealthDiagnosis,
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
@@ -82,6 +83,8 @@ interface RepoState {
   softResetCommit: (hash: string) => Promise<void>;
   undoLastCommit: () => Promise<void>;
   openTerminal: () => Promise<void>;
+  fetchAndCheckoutPR: (prNumber: number, customBranchName?: string) => Promise<string>;
+  diagnoseRepository: () => Promise<RepoHealthDiagnosis>;
   openTabs: RepositoryInfo[];
   closeTab: (path: string) => void;
   switchTab: (path: string) => void;
@@ -659,6 +662,28 @@ export const useRepoStore = create<RepoState>((set, get) => {
         set({ errorMessage: err.message });
         throw err;
       }
+    },
+
+    fetchAndCheckoutPR: async (prNumber: number, customBranchName?: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) throw new Error('未打开任何 Git 仓库');
+      set({ isLoading: true, errorMessage: null });
+      try {
+        const branch = await gitService.fetchAndCheckoutPR(currentRepo.path, prNumber, customBranchName);
+        await get().refreshAll();
+        return branch;
+      } catch (err: any) {
+        set({ errorMessage: err.message, isLoading: false });
+        throw err;
+      }
+    },
+
+    diagnoseRepository: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) {
+        throw new Error('未打开任何 Git 仓库');
+      }
+      return await gitService.diagnoseRepository(currentRepo.path);
     },
   };
 });

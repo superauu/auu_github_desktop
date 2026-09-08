@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings,
   Terminal,
@@ -9,11 +9,16 @@ import {
   Check,
   RotateCcw,
   LayoutGrid,
+  Sparkles,
+  RefreshCw,
+  Cpu,
 } from 'lucide-react';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { toast } from '@/stores/toastStore';
 import { useGitHubStore } from '@/stores/githubStore';
+import { gitService } from '@/services/git/GitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +31,7 @@ interface SettingsDialogProps {
   onOpenGitHubAuth?: () => void;
 }
 
-type SettingsTab = 'general' | 'git' | 'github' | 'appearance' | 'shortcuts';
+type SettingsTab = 'general' | 'git' | 'github' | 'ai' | 'appearance' | 'shortcuts';
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   open,
@@ -36,9 +41,81 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const { theme, setTheme } = useThemeStore();
   const { resetLayout } = useLayoutStore();
   const { user, isAuthenticated, logout } = useGitHubStore();
+  const {
+    gitCliPath,
+    setGitCliPath,
+    compactMode,
+    setCompactMode,
+    autoFetchInterval,
+    setAutoFetchInterval,
+    aiConfig,
+    setAiConfig,
+  } = useSettingsStore();
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
-  const [gitPath, setGitPath] = useState('git');
-  const [autoFetchInterval, setAutoFetchInterval] = useState('10m');
+  const [gitVersion, setGitVersion] = useState<string>('正在检测系统 Git 版本...');
+  const [isDetectingGit, setIsDetectingGit] = useState<boolean>(false);
+  const [isTestingAi, setIsTestingAi] = useState<boolean>(false);
+
+  // Load real Git version dynamically
+  const detectGitVersion = async () => {
+    setIsDetectingGit(true);
+    try {
+      const ver = await gitService.getGitVersion();
+      setGitVersion(ver || '未检测到可用 Git CLI');
+    } catch (err: any) {
+      setGitVersion('检测失败: 请确认 Git 路径正确配置');
+    } finally {
+      setIsDetectingGit(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      detectGitVersion();
+    }
+  }, [open, gitCliPath]);
+
+  // Test custom AI connection
+  const handleTestAiConnection = async () => {
+    if (aiConfig.provider === 'builtin') {
+      toast.success('本地深度 Diff 语法分析引擎已就绪', '纯本地免 Key 模式，零网络延迟');
+      return;
+    }
+
+    if (!aiConfig.apiKey.trim()) {
+      toast.warning('请输入 API Key 后再测试连接');
+      return;
+    }
+
+    setIsTestingAi(true);
+    try {
+      const endpoint = aiConfig.endpoint.replace(/\/+$/, '') + '/chat/completions';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${aiConfig.apiKey.trim()}`,
+        },
+        body: JSON.stringify({
+          model: aiConfig.model || 'deepseek-chat',
+          messages: [{ role: 'user', content: 'Ping! Output pong.' }],
+          max_tokens: 5,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errorText.slice(0, 100)}`);
+      }
+
+      toast.success('AI API 连接测试成功！', `已成功连通 ${aiConfig.model}`);
+    } catch (err: any) {
+      toast.error('AI 连接测试失败', err.message);
+    } finally {
+      setIsTestingAi(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -58,7 +135,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="w-full max-w-2xl h-[480px] rounded-xl border border-border bg-card shadow-2xl flex overflow-hidden animate-in zoom-in-95"
+        className="w-full max-w-2xl h-[500px] rounded-xl border border-border bg-card shadow-2xl flex overflow-hidden animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left Settings Navigation */}
@@ -94,6 +171,19 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               >
                 <Terminal className="h-3.5 w-3.5" />
                 <span>Git 核心配置</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('ai')}
+                className={cn(
+                  "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
+                  activeTab === 'ai'
+                    ? "bg-accent text-accent-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                <span>AI 智能引擎</span>
               </button>
 
               <button
@@ -135,6 +225,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             <span className="text-xs font-semibold text-foreground capitalize">
               {activeTab === 'appearance' && '外观与色彩主题'}
               {activeTab === 'git' && 'Git 执行引擎与自动获取'}
+              {activeTab === 'ai' && 'AI 提交说明生成引擎配置'}
               {activeTab === 'github' && 'GitHub 认证与安全凭证'}
               {activeTab === 'shortcuts' && '全局键盘快捷键'}
             </span>
@@ -186,9 +277,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   <div className="flex items-center justify-between py-2">
                     <div>
                       <div className="font-medium text-foreground">紧凑模式 (Compact UI)</div>
-                      <div className="text-[11px] text-muted-foreground">缩减元素内边距以显示更多内容</div>
+                      <div className="text-[11px] text-muted-foreground">缩减元素内边距与字体行高以展示更多代码</div>
                     </div>
-                    <input type="checkbox" className="rounded border-input text-primary h-4 w-4" defaultChecked />
+                    <input
+                      type="checkbox"
+                      checked={compactMode}
+                      onChange={(e) => {
+                        setCompactMode(e.target.checked);
+                        toast.info(e.target.checked ? '已开启紧凑排版模式' : '已恢复标准排版模式');
+                      }}
+                      className="rounded border-input text-primary h-4 w-4 cursor-pointer"
+                    />
                   </div>
                 </div>
 
@@ -227,24 +326,43 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   <label className="text-xs font-medium text-foreground block mb-1">
                     系统 Git CLI 可执行文件路径
                   </label>
-                  <Input
-                    value={gitPath}
-                    onChange={(e) => setGitPath(e.target.value)}
-                    placeholder="例如 git 或 C:\Program Files\Git\bin\git.exe"
-                    className="font-mono"
-                  />
-                  <span className="text-[10px] text-muted-foreground mt-1 block">
-                    当前检测系统 Git 版本: <span className="font-mono text-emerald-400">git 2.50.1</span>
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={gitCliPath}
+                      onChange={(e) => setGitCliPath(e.target.value)}
+                      placeholder="例如 git 或 C:\Program Files\Git\bin\git.exe"
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={detectGitVersion}
+                      disabled={isDetectingGit}
+                      className="h-8 px-2.5 shrink-0 gap-1 text-xs"
+                    >
+                      <RefreshCw className={cn("h-3 w-3", isDetectingGit && "animate-spin")} />
+                      <span>检测</span>
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-1.5">
+                    <span>当前检测到的系统 Git 版本:</span>
+                    <span className="font-mono font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                      {gitVersion}
+                    </span>
+                  </div>
                 </div>
 
-                <div>
+                <div className="pt-2 border-t border-border">
                   <label className="text-xs font-medium text-foreground block mb-1">
                     后台自动获取变更 (Auto Fetch)
                   </label>
                   <select
                     value={autoFetchInterval}
-                    onChange={(e) => setAutoFetchInterval(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setAutoFetchInterval(val);
+                      toast.info(`已设置自动获取间隔: ${val === 'never' ? '从不' : val}`);
+                    }}
                     className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-xs"
                   >
                     <option value="never" className="bg-popover text-foreground">从不 (Never)</option>
@@ -252,7 +370,120 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <option value="10m" className="bg-popover text-foreground">每 10 分钟 (推荐)</option>
                     <option value="30m" className="bg-popover text-foreground">每 30 分钟</option>
                   </select>
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    开启后将在后台静默执行 git fetch，实时更新 Ahead/Behind 提交计数。
+                  </div>
                 </div>
+              </div>
+            )}
+
+            {/* AI Tab */}
+            {activeTab === 'ai' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-foreground block mb-2">
+                    AI 提交说明生成策略
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setAiConfig({ provider: 'builtin' })}
+                      className={cn(
+                        "p-3 rounded-lg border text-left transition-all relative space-y-1",
+                        aiConfig.provider === 'builtin'
+                          ? "border-primary bg-primary/10 text-foreground shadow-sm"
+                          : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                        <Cpu className="h-3.5 w-3.5 text-primary" />
+                        <span>本地深度 Diff 引擎</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        无需 API Key，通过深入解析暂存区语义生成规范提交，零网络延迟与百分百数据安全
+                      </div>
+                      {aiConfig.provider === 'builtin' && (
+                        <Check className="h-3.5 w-3.5 text-primary absolute top-2.5 right-2.5" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setAiConfig({ provider: 'openai-compatible' })}
+                      className={cn(
+                        "p-3 rounded-lg border text-left transition-all relative space-y-1",
+                        aiConfig.provider === 'openai-compatible'
+                          ? "border-primary bg-primary/10 text-foreground shadow-sm"
+                          : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                        <span>自定义大模型 API</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        支持接入 DeepSeek、OpenAI、Ollama 或各类兼容器接口，智能生成自然语言 Commit 摘要
+                      </div>
+                      {aiConfig.provider === 'openai-compatible' && (
+                        <Check className="h-3.5 w-3.5 text-primary absolute top-2.5 right-2.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {aiConfig.provider === 'openai-compatible' && (
+                  <div className="p-3.5 rounded-xl border border-border/80 bg-accent/20 space-y-3 animate-in fade-in">
+                    <div>
+                      <label className="text-[11px] font-medium text-foreground block mb-1">
+                        API 端点 (Base URL)
+                      </label>
+                      <Input
+                        value={aiConfig.endpoint}
+                        onChange={(e) => setAiConfig({ endpoint: e.target.value })}
+                        placeholder="例如 https://api.deepseek.com/v1 或 https://api.openai.com/v1"
+                        className="font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-medium text-foreground block mb-1">
+                          模型名称 (Model)
+                        </label>
+                        <Input
+                          value={aiConfig.model}
+                          onChange={(e) => setAiConfig({ model: e.target.value })}
+                          placeholder="例如 deepseek-chat 或 gpt-4o-mini"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-medium text-foreground block mb-1">
+                          API Key
+                        </label>
+                        <Input
+                          type="password"
+                          value={aiConfig.apiKey}
+                          onChange={(e) => setAiConfig({ apiKey: e.target.value })}
+                          placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-1 flex items-center justify-end">
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={handleTestAiConnection}
+                        disabled={isTestingAi}
+                        className="h-7 text-xs gap-1.5 border-purple-500/40 text-purple-300 hover:bg-purple-500/10"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        <span>{isTestingAi ? '正在测试...' : '测试连接 (Test Connection)'}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

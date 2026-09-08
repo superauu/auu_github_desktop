@@ -173,3 +173,20 @@ button, a, input, select, textarea {
   transition-duration: 120ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Compact Mode UI optimizations */
+html.compact-mode {
+  font-size: 13px;
+}
+html.compact-mode button {
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+html.compact-mode .diff-line-header,
+html.compact-mode .diff-line-add,
+html.compact-mode .diff-line-del {
+  padding-top: 1px;
+  padding-bottom: 1px;
+  line-height: 1.35;
+}
+

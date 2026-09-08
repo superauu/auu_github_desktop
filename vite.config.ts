@@ -23,7 +23,7 @@ function gitApiPlugin(): Plugin {
 
         req.on('end', () => {
           try {
-            const { args, cwd } = JSON.parse(body || '{}');
+            const { args, cwd, gitBinary } = JSON.parse(body || '{}');
             if (!Array.isArray(args)) {
               res.statusCode = 400;
               res.end(JSON.stringify({ error: 'Invalid args: must be array' }));
@@ -31,7 +31,8 @@ function gitApiPlugin(): Plugin {
             }
 
             const workingDir = cwd || process.cwd();
-            const child = spawn('git', args, {
+            const gitCmd = (gitBinary && typeof gitBinary === 'string' && gitBinary.trim()) ? gitBinary.trim() : 'git';
+            const child = spawn(gitCmd, args, {
               cwd: workingDir,
               windowsHide: true,
             });

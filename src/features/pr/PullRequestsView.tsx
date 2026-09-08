@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   GitPullRequest,
   Search,
@@ -9,9 +9,13 @@ import {
   DownloadCloud,
   ShieldCheck,
   RotateCw,
+  Clock,
+  AlertCircle,
+  MessageSquare,
 } from 'lucide-react';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useRepoStore } from '@/stores/repoStore';
+import { githubService } from '@/services/github/GitHubService';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
@@ -30,12 +34,17 @@ export const PullRequestsView: React.FC = () => {
     prFilterState,
     setPRFilterState,
     loadPullRequests,
+    currentOwner,
+    currentRepoName,
+    isDemoMode,
   } = useGitHubStore();
 
-  const { checkoutBranch, createBranch, branches } = useRepoStore();
+  const { fetchAndCheckoutPR } = useRepoStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [realReviewStatus, setRealReviewStatus] = useState<string>('PENDING');
+  const [realChecks, setRealChecks] = useState<{ total: number; success: number; failure: number } | null>(null);
 
   const filteredPRs = useMemo(() => {
     return pullRequests.filter((pr) => {
@@ -57,22 +66,51 @@ export const PullRequestsView: React.FC = () => {
 
   const activePR = selectedPR || filteredPRs[0] || null;
 
+  // Dynamically load real review and check runs for activePR
+  useEffect(() => {
+    if (!activePR) return;
+
+    if (!isDemoMode && currentOwner && currentRepoName) {
+      // Fetch real PR reviews
+      githubService.getPullRequestReviews(currentOwner, currentRepoName, activePR.number).then((reviews) => {
+        if (reviews.some((r) => r.state === 'CHANGES_REQUESTED')) {
+          setRealReviewStatus('CHANGES_REQUESTED');
+        } else if (reviews.some((r) => r.state === 'APPROVED')) {
+          setRealReviewStatus('APPROVED');
+        } else if (reviews.some((r) => r.state === 'COMMENTED')) {
+          setRealReviewStatus('COMMENTED');
+        } else {
+          setRealReviewStatus('PENDING');
+        }
+      }).catch(() => {
+        setRealReviewStatus('PENDING');
+      });
+
+      // Fetch real PR commit checks
+      githubService.getCommitChecks(currentOwner, currentRepoName, activePR.head.sha).then((checkRuns) => {
+        const total = checkRuns.length;
+        const success = checkRuns.filter((c) => c.conclusion === 'success').length;
+        const failure = checkRuns.filter((c) => c.conclusion === 'failure').length;
+        setRealChecks({ total, success, failure });
+      }).catch(() => {
+        setRealChecks(null);
+      });
+    } else {
+      // Fallback for Demo mode
+      setRealReviewStatus(activePR.review_status || 'APPROVED');
+      setRealChecks(activePR.checks_summary || { total: 4, success: 4, failure: 0 });
+    }
+  }, [activePR, isDemoMode, currentOwner, currentRepoName]);
+
   const handleCheckoutPR = async () => {
     if (!activePR) return;
     setIsCheckingOut(true);
-    const localBranchName = `pr-${activePR.number}`;
+    toast.info(`正在从 GitHub 远端拉取 PR #${activePR.number} 提交记录...`);
     try {
-      // Check if branch already exists
-      const exists = branches.some((b) => b.name === localBranchName);
-      if (exists) {
-        await checkoutBranch(localBranchName);
-      } else {
-        await createBranch(localBranchName);
-        await checkoutBranch(localBranchName);
-      }
+      const localBranch = await fetchAndCheckoutPR(activePR.number);
       toast.success(
-        `已检出 PR #${activePR.number} 分支`,
-        `本地工作区分支已切换至: ${localBranchName}`
+        `PR #${activePR.number} 远程分支拉取成功！`,
+        `本地工作区分支已切换至: ${localBranch}`
       );
     } catch (err: any) {
       toast.error('检出 PR 分支失败', err.message);
@@ -331,9 +369,28 @@ export const PullRequestsView: React.FC = () => {
                       <div className="text-[10px] text-muted-foreground uppercase font-semibold">
                         评审状态 (Review)
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>已批准 (Approved)</span>
+                      <div className="flex items-center gap-1.5 text-xs font-medium">
+                        {realReviewStatus === 'APPROVED' ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                            <span className="text-emerald-400">已批准 (Approved)</span>
+                          </>
+                        ) : realReviewStatus === 'CHANGES_REQUESTED' ? (
+                          <>
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
+                            <span className="text-rose-400">请求修改 (Changes Requested)</span>
+                          </>
+                        ) : realReviewStatus === 'COMMENTED' ? (
+                          <>
+                            <MessageSquare className="h-3.5 w-3.5 text-cyan-400" />
+                            <span className="text-cyan-400">已有评审意见 (Commented)</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-3.5 w-3.5 text-amber-400" />
+                            <span className="text-amber-400">待评审 (Pending Review)</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -341,9 +398,21 @@ export const PullRequestsView: React.FC = () => {
                       <div className="text-[10px] text-muted-foreground uppercase font-semibold">
                         CI / CD 检查 (Checks)
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 font-mono">
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        <span>4 / 4 全部通过</span>
+                      <div className="flex items-center gap-1.5 text-xs font-medium font-mono">
+                        {realChecks ? (
+                          <>
+                            <ShieldCheck className={cn("h-3.5 w-3.5", realChecks.failure > 0 ? "text-rose-400" : "text-emerald-400")} />
+                            <span className={cn(realChecks.failure > 0 ? "text-rose-400" : "text-emerald-400")}>
+                              {realChecks.success} / {realChecks.total} 通过
+                              {realChecks.failure > 0 ? ` (${realChecks.failure} 失败)` : ''}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-muted-foreground">未配置检查或正在检测</span>
+                          </>
+                        )}
                       </div>
                     </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { LeftSidebar } from './LeftSidebar';
 import { CenterStage } from './CenterStage';
@@ -12,6 +12,7 @@ import { ToastContainer } from '@/components/ui/ToastContainer';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { useRepoStore } from '@/stores/repoStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -21,7 +22,35 @@ export const AppLayout: React.FC = () => {
   const [githubAuthOpen, setGithubAuthOpen] = useState(false);
 
   const { leftSidebarWidth, setLeftSidebarWidth, rightPaneWidth, setRightPaneWidth } = useLayoutStore();
-  const { isLeftSidebarCollapsed, isRightPaneCollapsed } = useRepoStore();
+  const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote } = useRepoStore();
+  const { compactMode, autoFetchInterval } = useSettingsStore();
+
+  // Apply compact mode on mount
+  useEffect(() => {
+    if (compactMode) {
+      document.documentElement.classList.add('compact-mode');
+    } else {
+      document.documentElement.classList.remove('compact-mode');
+    }
+  }, [compactMode]);
+
+  // Background Auto Fetch timer
+  useEffect(() => {
+    if (!currentRepo || autoFetchInterval === 'never') return;
+
+    let intervalMs = 10 * 60 * 1000;
+    if (autoFetchInterval === '5m') intervalMs = 5 * 60 * 1000;
+    if (autoFetchInterval === '10m') intervalMs = 10 * 60 * 1000;
+    if (autoFetchInterval === '30m') intervalMs = 30 * 60 * 1000;
+
+    const timer = setInterval(() => {
+      fetchRemote().catch((err) => {
+        console.warn('Auto fetch failed silently:', err);
+      });
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [currentRepo, autoFetchInterval, fetchRemote]);
 
   const handleOpenRepoDialog = (mode: 'open' | 'clone' | 'init' = 'open') => {
     setRepoDialogMode(mode);

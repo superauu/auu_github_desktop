@@ -6,6 +6,7 @@ import {
   GitHubUser,
   GitHubWorkflow,
   GitHubWorkflowRun,
+  GitHubReview,
   JobLogsData,
   WorkflowDispatchParams,
   WorkflowYamlContent,
@@ -206,6 +207,19 @@ export class GitHubService {
   ): Promise<GitHubPullRequest[]> {
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=30`,
+      { headers: this.getHeaders() }
+    );
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  async getPullRequestReviews(
+    owner: string,
+    repo: string,
+    pullNumber: number
+  ): Promise<GitHubReview[]> {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/reviews`,
       { headers: this.getHeaders() }
     );
     if (!res.ok) return [];

@@ -21,6 +21,8 @@ import {
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore } from '@/stores/layoutStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { aiCommitService } from '@/services/ai/AiCommitService';
 import { GitHubCheckRun } from '@/services/github/types';
 import { GitFileChange } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
@@ -32,6 +34,7 @@ import { cn } from '@/utils/cn';
 export const RightPane: React.FC = () => {
   const { rightPaneWidth } = useLayoutStore();
   const {
+    currentRepo,
     isRightPaneCollapsed,
     status,
     selectedCommit,
@@ -46,6 +49,7 @@ export const RightPane: React.FC = () => {
   } = useRepoStore();
 
   const { fetchCommitChecks } = useGitHubStore();
+  const { aiConfig } = useSettingsStore();
 
   const [commitMessage, setCommitMessage] = useState('');
   const [isAmend, setIsAmend] = useState(false);
@@ -72,44 +76,39 @@ export const RightPane: React.FC = () => {
   const unstagedCount = (status?.unstaged.length || 0) + (status?.untracked.length || 0);
   const totalChanges = stagedCount + unstagedCount;
 
-  // AI Commit Message Generation (GitKraken style)
-  const handleAiGenerateCommit = () => {
-    setIsAiGenerating(true);
-    const files = [...(status?.staged || []), ...(status?.unstaged || []), ...(status?.untracked || [])];
-    if (files.length === 0) {
-      toast.warning('无变更文件', '工作区暂无可供 AI 分析的文件');
-      setIsAiGenerating(false);
+  // AI Commit Message Generation (GitKraken style + Real Deep Diff / LLM API)
+  const handleAiGenerateCommit = async () => {
+    if (!currentRepo) {
+      toast.warning('未打开仓库', '请先打开一个 Git 仓库');
       return;
     }
 
-    setTimeout(() => {
-      // Analyze modified paths to draft Conventional Commits
-      const first = files[0].path.toLowerCase();
-      let prefix = 'feat';
-      let scope = '';
+    const files = [...(status?.staged || []), ...(status?.unstaged || []), ...(status?.untracked || [])];
+    if (files.length === 0) {
+      toast.warning('无变更文件', '工作区暂无可供 AI 分析的文件');
+      return;
+    }
 
-      if (first.includes('style') || first.includes('css') || first.includes('ui') || first.includes('layout')) {
-        prefix = 'style';
-        scope = 'ui';
-      } else if (first.includes('fix') || first.includes('bug')) {
-        prefix = 'fix';
-        scope = 'core';
-      } else if (first.includes('doc') || first.includes('md')) {
-        prefix = 'docs';
-        scope = 'guide';
-      } else if (first.includes('store') || first.includes('service') || first.includes('git')) {
-        prefix = 'feat';
-        scope = 'git';
-      } else {
-        prefix = 'chore';
-        scope = 'workspace';
-      }
+    setIsAiGenerating(true);
+    try {
+      const generated = await aiCommitService.generateCommitMessage({
+        repoPath: currentRepo.path,
+        files,
+        aiConfig,
+      });
 
-      const generated = `${prefix}(${scope}): update ${files.slice(0, 3).map((f) => f.path.split(/[\\/]/).pop()).join(', ')}${files.length > 3 ? ` and ${files.length - 3} other files` : ''}`;
       setCommitMessage(generated);
-      toast.success('AI 已生成提交说明', generated);
+      const isLlm = Boolean(aiConfig.apiKey && aiConfig.apiKey.trim());
+      toast.success(
+        isLlm ? 'AI (大模型) 提交说明生成成功' : '智能语义分析提交说明已生成',
+        generated.split('\n')[0]
+      );
+    } catch (err: any) {
+      console.error('AI 提交说明生成失败:', err);
+      toast.error('生成失败', err?.message || '无法分析文件生成提交说明');
+    } finally {
       setIsAiGenerating(false);
-    }, 450);
+    }
   };
 
   const handleCommit = async (andPush: boolean = false) => {
