@@ -47,25 +47,25 @@
   .dark {
     /* Cyberpunk "Neon Grid" 深色主形态：深黑蓝底 + 霓虹青/品红 */
     --background: 235 45% 4%;
-    --foreground: 214 100% 93%;
+    --foreground: 210 45% 97%;
 
     --card: 233 45% 7.5%;
-    --card-foreground: 214 100% 93%;
+    --card-foreground: 210 45% 97%;
 
     --popover: 234 47% 8.5%;
-    --popover-foreground: 214 100% 93%;
+    --popover-foreground: 210 45% 97%;
 
     --primary: 186 100% 50%;
     --primary-foreground: 220 45% 6%;
 
     --secondary: 232 32% 13%;
-    --secondary-foreground: 214 100% 90%;
+    --secondary-foreground: 210 45% 96%;
 
     --muted: 233 30% 11%;
-    --muted-foreground: 216 24% 62%;
+    --muted-foreground: 213 20% 68%;
 
     --accent: 231 38% 14%;
-    --accent-foreground: 214 100% 92%;
+    --accent-foreground: 210 45% 97%;
 
     --destructive: 336 100% 57%;
     --destructive-foreground: 0 0% 100%;
@@ -75,11 +75,11 @@
     --ring: 186 100% 50%;
 
     --sidebar-background: 235 48% 5.5%;
-    --sidebar-foreground: 214 80% 90%;
+    --sidebar-foreground: 212 45% 95%;
     --sidebar-primary: 186 100% 50%;
     --sidebar-primary-foreground: 220 45% 6%;
     --sidebar-accent: 231 36% 12%;
-    --sidebar-accent-foreground: 214 100% 92%;
+    --sidebar-accent-foreground: 210 45% 97%;
     --sidebar-border: 203 55% 15%;
   }
 }
