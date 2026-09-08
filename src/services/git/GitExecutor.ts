@@ -32,8 +32,9 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
     try {
       // 优先通过 Tauri 2 核心 invoke 调用 Rust 原生 execute_git 命令（安全、静默、无权限限制）
       const { invoke } = await import('@tauri-apps/api/core');
+      // 关闭 quotepath，避免中文等非 ASCII 路径被转义成八进制无法显示和操作
       const result = await invoke<GitCommandResult>('execute_git', {
-        args,
+        args: ['-c', 'core.quotepath=false', ...args],
         cwd,
         gitBinary: customPath,
       });
@@ -62,7 +63,11 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ args, cwd, gitBinary: customPath }),
+      body: JSON.stringify({
+        args: ['-c', 'core.quotepath=false', ...args],
+        cwd,
+        gitBinary: customPath,
+      }),
     });
 
     const rawText = await res.text();

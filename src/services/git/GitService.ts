@@ -19,6 +19,7 @@ import {
   parseGitLog,
   parseGitTags,
   parsePorcelainV2,
+  unquoteGitPath,
 } from './PorcelainParser';
 
 export class GitService implements IGitService {
@@ -361,7 +362,7 @@ export class GitService implements IGitService {
       return lines.map((line) => {
         const parts = line.split(/\t+/);
         const statusCode = parts[0]?.charAt(0) || 'M';
-        const filePath = parts[1] || parts[0]?.slice(1).trim() || '';
+        const filePath = unquoteGitPath(parts[1] || parts[0]?.slice(1).trim() || '');
         let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
         if (statusCode === 'A') status = 'added';
         else if (statusCode === 'D') status = 'deleted';

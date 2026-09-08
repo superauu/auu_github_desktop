@@ -8,6 +8,46 @@ import {
 } from './types';
 
 /**
+ * 还原 git C 风格引号路径（如 "src/\346\226\207\344\273\266.txt"）。
+ * 八进制转义为 UTF-8 字节序列，需按字节聚合后统一解码，
+ * 否则中文等非 ASCII 字符会变成 mojibake。
+ */
+export function unquoteGitPath(path: string): string {
+  if (path.length < 2 || !path.startsWith('"') || !path.endsWith('"')) return path;
+
+  const inner = path.slice(1, -1);
+  const bytes: number[] = [];
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === '\\' && i + 1 < inner.length) {
+      const oct = inner.slice(i + 1, i + 4);
+      if (/^[0-7]{3}$/.test(oct)) {
+        bytes.push(parseInt(oct, 8));
+        i += 3;
+        continue;
+      }
+      const next = inner[i + 1];
+      switch (next) {
+        case 'n': bytes.push(10); break;
+        case 't': bytes.push(9); break;
+        case 'r': bytes.push(13); break;
+        case '"': bytes.push(34); break;
+        case '\\': bytes.push(92); break;
+        default: bytes.push(next.charCodeAt(0) & 0xff);
+      }
+      i++;
+    } else {
+      bytes.push(...new TextEncoder().encode(ch));
+    }
+  }
+  try {
+    return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+  } catch {
+    return path;
+  }
+}
+
+/**
  * Parses output from `git status --porcelain=v2 --branch`
  */
 export function parsePorcelainV2(output: string): GitStatusResult {
@@ -42,7 +82,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
     }
     // Untracked files: `? <path>`
     else if (line.startsWith('? ')) {
-      const filePath = line.substring(2).trim();
+      const filePath = unquoteGitPath(line.substring(2).trim());
       untracked.push({
         path: filePath,
         status: 'untracked',
@@ -54,7 +94,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
       const parts = line.split(' ');
       if (parts.length >= 9) {
         const xy = parts[1];
-        const filePath = parts.slice(8).join(' ');
+        const filePath = unquoteGitPath(parts.slice(8).join(' '));
         const stagedCode = xy[0];
         const unstagedCode = xy[1];
 
@@ -82,8 +122,8 @@ export function parsePorcelainV2(output: string): GitStatusResult {
       const parts = line.split('\t');
       const headerParts = parts[0].split(' ');
       const xy = headerParts[1];
-      const filePath = headerParts[headerParts.length - 1];
-      const origPath = parts[1];
+      const filePath = unquoteGitPath(headerParts[headerParts.length - 1]);
+      const origPath = unquoteGitPath(parts[1] || '');
 
       const stagedCode = xy[0];
       const unstagedCode = xy[1];
@@ -108,7 +148,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
     // Unmerged / conflict files: `u <XY> ... <path>`
     else if (line.startsWith('u ')) {
       const parts = line.split(' ');
-      const filePath = parts.slice(10).join(' ');
+      const filePath = unquoteGitPath(parts.slice(10).join(' '));
       unstaged.push({
         path: filePath,
         status: 'conflicted',

@@ -32,7 +32,9 @@ function gitApiPlugin(): Plugin {
 
             const workingDir = cwd || process.cwd();
             const gitCmd = (gitBinary && typeof gitBinary === 'string' && gitBinary.trim()) ? gitBinary.trim() : 'git';
-            const child = spawn(gitCmd, args, {
+            // 关闭 quotepath，避免中文等非 ASCII 路径被转义（与桌面端 executeGit 保持一致）
+            const finalArgs = ['-c', 'core.quotepath=false', ...args];
+            const child = spawn(gitCmd, finalArgs, {
               cwd: workingDir,
               windowsHide: true,
             });
