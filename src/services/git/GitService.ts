@@ -296,10 +296,49 @@ export class GitService implements IGitService {
     return res.stdout;
   }
 
-  async push(repoPath: string, remote: string = 'origin', branch?: string): Promise<void> {
-    const args = ['push', remote];
-    if (branch) {
-      args.push(branch);
+  async push(
+    repoPath: string,
+    remote: string = 'origin',
+    branch?: string,
+    options?: { setUpstream?: boolean; forceWithLease?: boolean }
+  ): Promise<void> {
+    const args = ['push'];
+    if (options?.forceWithLease) {
+      // 只在远程引用未被他人在此期间更新时覆盖，比裸 --force 安全
+      args.push('--force-with-lease');
+    }
+
+    // 分支没有上游时自动补 -u：首推即可建立跟踪关系，后续 pull/状态对比不再失效。
+    // 注意 `git push -u origin` 缺省 refspec 时仍会因无上游而失败，必须显式带上分支名
+    let setUpstream = options?.setUpstream ?? false;
+    let refspec = branch;
+    if (!setUpstream) {
+      try {
+        await executeGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], repoPath);
+      } catch {
+        setUpstream = true;
+      }
+    }
+    if (setUpstream && !refspec) {
+      try {
+        const headRes = await executeGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath);
+        const head = headRes.stdout.trim();
+        if (head && head !== 'HEAD') {
+          refspec = head;
+        } else {
+          setUpstream = false; // 游离 HEAD 无法建立上游
+        }
+      } catch {
+        setUpstream = false;
+      }
+    }
+    if (setUpstream) {
+      args.push('-u');
+    }
+
+    args.push(remote);
+    if (refspec) {
+      args.push(refspec);
     }
     await executeGit(args, repoPath);
   }

@@ -17,6 +17,7 @@ import {
   RotateCw,
   ArrowDownToLine,
   ArrowUpToLine,
+  AlertTriangle,
   GitPullRequest,
   Archive,
   Inbox,
@@ -92,6 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [isRedoing, setIsRedoing] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
   const [showPullMenu, setShowPullMenu] = useState(false);
+  const [showPushMenu, setShowPushMenu] = useState(false);
 
   const cycleTheme = () => {
     const nextTheme: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
@@ -125,6 +127,17 @@ export const Header: React.FC<HeaderProps> = ({
     toast.info(t('header.pushing'));
     try {
       await push();
+      toast.success(t('header.pushed'));
+    } catch (err: any) {
+      toast.error(t('header.pushFailed'), err.message);
+    }
+  };
+
+  const handleForcePush = async () => {
+    if (!confirm(t('header.forcePushConfirm'))) return;
+    toast.info(t('header.pushing'));
+    try {
+      await push(undefined, undefined, { forceWithLease: true });
       toast.success(t('header.pushed'));
     } catch (err: any) {
       toast.error(t('header.pushFailed'), err.message);
@@ -671,29 +684,72 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
 
-              {/* Push */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handlePush}
-                    className={cn(
-                      "flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded transition-colors relative group",
-                      aheadCount > 0
-                        ? "text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/15 font-medium"
-                        : "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10"
-                    )}
+              {/* Push with Dropdown */}
+              <div className="relative">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handlePush}
+                      className={cn(
+                        "flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded transition-colors relative group",
+                        aheadCount > 0
+                          ? "text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/15 font-medium"
+                          : "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10"
+                      )}
+                    >
+                      <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.push')}</span>
+                      <div className="flex items-center justify-center mt-0.5 gap-0.5">
+                        <ArrowUpToLine className="h-3.5 w-3.5" />
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowPushMenu(!showPushMenu);
+                          }}
+                          className="hover:bg-accent/80 rounded p-0.5 -mr-1 cursor-pointer"
+                          title={t('header.morePushOptions')}
+                        >
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </span>
+                      </div>
+                      {aheadCount > 0 && (
+                        <span className="absolute -top-1 -right-0.5 bg-amber-500 text-black text-[8px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-xs">
+                          {aheadCount}
+                        </span>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{t('header.pushTooltip')}</TooltipContent>
+                </Tooltip>
+
+                {/* Push Dropdown Options */}
+                {showPushMenu && (
+                  <div
+                    className="absolute left-0 top-full mt-1 w-52 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
+                    onMouseLeave={() => setShowPushMenu(false)}
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.push')}</span>
-                    <ArrowUpToLine className="h-3.5 w-3.5 mt-0.5" />
-                    {aheadCount > 0 && (
-                      <span className="absolute -top-1 -right-0.5 bg-amber-500 text-black text-[8px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-xs">
-                        {aheadCount}
-                      </span>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('header.pushTooltip')}</TooltipContent>
-              </Tooltip>
+                    <button
+                      onClick={() => {
+                        setShowPushMenu(false);
+                        handlePush();
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
+                    >
+                      <span>{t('header.push')}</span>
+                      <ArrowUpToLine className="h-3 w-3 text-cyan-400" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setShowPushMenu(false);
+                        await handleForcePush();
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
+                    >
+                      <span>{t('header.forcePush')}</span>
+                      <AlertTriangle className="h-3 w-3 text-amber-400" />
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Branch */}
               <Tooltip>

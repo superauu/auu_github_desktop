@@ -117,7 +117,7 @@ export interface IGitService {
   unstageAll(repoPath: string): Promise<void>;
   discardChanges(repoPath: string, filePath: string): Promise<void>;
   commit(repoPath: string, message: string, amend?: boolean): Promise<string>;
-  push(repoPath: string, remote?: string, branch?: string): Promise<void>;
+  push(repoPath: string, remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }): Promise<void>;
   pull(repoPath: string, rebase?: boolean): Promise<void>;
   fetch(repoPath: string): Promise<void>;
   createBranch(repoPath: string, name: string, startPoint?: string): Promise<void>;
