@@ -38,6 +38,8 @@ export const CommitHistoryView: React.FC = () => {
     branches,
     selectedBranch,
     scrollToCommitHash,
+    commitsLoadedAll,
+    loadMoreCommits,
     revertCommit,
     cherryPickCommit,
     softResetCommit,
@@ -398,6 +400,24 @@ export const CommitHistoryView: React.FC = () => {
                   </div>
                 );
               })}
+
+              {/* Progressive history loading footer */}
+              {filteredCommits.length > 0 && (
+                <div className="py-3 flex justify-center">
+                  {!commitsLoadedAll ? (
+                    <button
+                      onClick={() => loadMoreCommits().catch(() => {})}
+                      className="px-3 py-1 rounded-md text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-border/60 transition-colors"
+                    >
+                      {t('history.loadMore')}
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground/60">
+                      {t('history.allLoaded')}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

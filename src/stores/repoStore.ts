@@ -32,6 +32,8 @@ interface RepoState {
   selectedCommit: GitCommit | null;
   fileDiffLines: ParsedDiffLine[];
   commits: GitCommit[];
+  commitsLimit: number;
+  commitsLoadedAll: boolean;
   branches: GitBranch[];
   tags: GitTag[];
   stashes: GitStash[];
@@ -64,6 +66,7 @@ interface RepoState {
 
   // Async Git Operations
   refreshAll: () => Promise<void>;
+  loadMoreCommits: () => Promise<void>;
   fetchRemote: () => Promise<void>;
   pull: (rebase?: boolean) => Promise<void>;
   push: (remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }) => Promise<void>;
@@ -158,6 +161,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
     selectedCommit: null,
     fileDiffLines: [],
     commits: [],
+    commitsLimit: 100,
+    commitsLoadedAll: false,
     branches: [],
     tags: [],
     stashes: [],
@@ -332,15 +337,23 @@ export const useRepoStore = create<RepoState>((set, get) => {
         return { recentRepos: updated };
       }),
 
+    loadMoreCommits: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      set((state) => ({ commitsLimit: state.commitsLimit + 100 }));
+      await get().refreshAll();
+    },
+
     refreshAll: async () => {
       const { currentRepo } = get();
       if (!currentRepo) return;
 
       set({ isLoading: true, errorMessage: null });
       try {
+        const { commitsLimit } = get();
         const [status, commits, branches, tags, stashes, operationState] = await Promise.all([
           gitService.getStatus(currentRepo.path),
-          gitService.getCommits(currentRepo.path, 50),
+          gitService.getCommits(currentRepo.path, commitsLimit),
           gitService.getBranches(currentRepo.path),
           gitService.getTags(currentRepo.path),
           gitService.getStashes(currentRepo.path),
@@ -397,6 +410,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
             recentRepos: updatedRecent,
             status,
             commits,
+            commitsLoadedAll: commits.length < commitsLimit,
             branches,
             tags,
             stashes,

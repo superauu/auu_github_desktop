@@ -1015,6 +1015,8 @@ export const en = {
   'err.dirPickerFailed': 'Failed to open the folder picker',
   'err.dirNoBackend': 'Local backend dev service not detected',
   'err.dirListFailed': 'Failed to list directories',
+  'history.loadMore': 'Load more commits',
+  'history.allLoaded': 'All commits loaded',
 
 } as const;
 

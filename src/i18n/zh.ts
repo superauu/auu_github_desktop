@@ -1031,5 +1031,7 @@ export const zh = {
   'err.dirPickerFailed': '打开文件夹选择器失败',
   'err.dirNoBackend': '未检测到后端本地开发服务',
   'err.dirListFailed': '获取目录失败',
+  'history.loadMore': '加载更多提交',
+  'history.allLoaded': '已加载全部提交',
 
 } as const;
