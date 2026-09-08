@@ -22,24 +22,28 @@ import {
   Bot,
   ListFilter,
   Sparkles,
+  Copy,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore } from '@/stores/layoutStore';
-import { GitBranch } from '@/services/git/types';
+import { GitBranch, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { MergeBranchModal } from '@/features/git/MergeBranchModal';
 import { RebaseBranchModal } from '@/features/git/RebaseBranchModal';
 import { HealthDiagnosisModal } from '@/features/git/HealthDiagnosisModal';
+import { DragDropActionModal } from '@/features/git/DragDropActionModal';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 export const LeftSidebar: React.FC = () => {
   const {
+    currentRepo,
     activeTab,
     setActiveTab,
     status,
@@ -49,11 +53,16 @@ export const LeftSidebar: React.FC = () => {
     isLeftSidebarCollapsed,
     createBranch,
     checkoutBranch,
+    deleteBranch,
     createTag,
     deleteTag,
+    pushTag,
     pushAllTags,
+    deleteRemoteTag,
+    push,
     stashPush,
     stashPop,
+    stashApply,
     stashDrop,
   } = useRepoStore();
 
@@ -92,6 +101,398 @@ export const LeftSidebar: React.FC = () => {
   const [tagNameInput, setTagNameInput] = useState('');
   const [tagMessageInput, setTagMessageInput] = useState('');
   const [healthModalOpen, setHealthModalOpen] = useState(false);
+  const [selectedViewBranch, setSelectedViewBranch] = useState<string | null>(null);
+  const [createBranchBase, setCreateBranchBase] = useState<string | undefined>(undefined);
+
+  // Universal Context Menu state
+  const [contextMenu, setContextMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    items: ContextMenuItem[];
+  }>({
+    open: false,
+    x: 0,
+    y: 0,
+    items: [],
+  });
+
+  // Drag & Drop Branch states
+  const [draggedBranch, setDraggedBranch] = useState<GitBranch | null>(null);
+  const [dragOverBranchName, setDragOverBranchName] = useState<string | null>(null);
+  const [dragDropModalOpen, setDragDropModalOpen] = useState(false);
+  const [dragSource, setDragSource] = useState<GitBranch | null>(null);
+  const [dragTarget, setDragTarget] = useState<GitBranch | null>(null);
+
+  // Drag & Drop Handlers for branches
+  const handleDragStart = (e: React.DragEvent, branch: GitBranch) => {
+    setDraggedBranch(branch);
+    e.dataTransfer.setData('text/plain', branch.name);
+    e.dataTransfer.effectAllowed = 'copyMove';
+  };
+
+  const handleDragOver = (e: React.DragEvent, branch: GitBranch) => {
+    if (!draggedBranch || draggedBranch.name === branch.name) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverBranchName !== branch.name) {
+      setDragOverBranchName(branch.name);
+    }
+  };
+
+  const handleDragLeave = (_e: React.DragEvent, branch: GitBranch) => {
+    if (dragOverBranchName === branch.name) {
+      setDragOverBranchName(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetBranch: GitBranch) => {
+    e.preventDefault();
+    setDragOverBranchName(null);
+    if (!draggedBranch || draggedBranch.name === targetBranch.name) {
+      return;
+    }
+
+    setDragSource(draggedBranch);
+    setDragTarget(targetBranch);
+    setDragDropModalOpen(true);
+    setDraggedBranch(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedBranch(null);
+    setDragOverBranchName(null);
+  };
+
+  // Local Branch Context Menu
+  const handleBranchContextMenu = (e: React.MouseEvent, branch: GitBranch) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const currentBranchName = currentRepo?.currentBranch || '';
+    const isCurrent = branch.isCurrent;
+
+    const items: ContextMenuItem[] = [
+      {
+        id: 'checkout',
+        label: isCurrent ? `当前已检出 (${branch.name})` : `检出此分支 (${branch.name})`,
+        icon: <GitBranchIcon className="h-3.5 w-3.5 text-indigo-400" />,
+        disabled: isCurrent,
+        onClick: async () => {
+          try {
+            await checkoutBranch(branch.name);
+            toast.success('已切换至分支', branch.name);
+          } catch (err: any) {
+            toast.error('检出分支失败', err?.message);
+          }
+        },
+      },
+      {
+        id: 'merge',
+        label: `合并 ${branch.name} 到 ${currentBranchName || '当前分支'}...`,
+        icon: <GitMerge className="h-3.5 w-3.5 text-indigo-400" />,
+        disabled: isCurrent,
+        onClick: () => {
+          setMergeTargetBranch(branch.name);
+          setMergeModalOpen(true);
+        },
+      },
+      {
+        id: 'rebase',
+        label: `变基当前分支到 ${branch.name}...`,
+        icon: <GitPullRequest className="h-3.5 w-3.5 text-amber-400" />,
+        disabled: isCurrent,
+        onClick: () => {
+          setRebaseUpstreamBranch(branch.name);
+          setRebaseModalOpen(true);
+        },
+      },
+      { separator: true, id: 'sep-1' },
+      {
+        id: 'new-branch',
+        label: '从此处创建新分支...',
+        icon: <Plus className="h-3.5 w-3.5 text-emerald-400" />,
+        onClick: () => {
+          setCreateBranchBase(branch.name);
+          setCreateBranchModalOpen(true);
+        },
+      },
+      {
+        id: 'push',
+        label: `推送到远程 (git push origin ${branch.name})...`,
+        icon: <UploadCloud className="h-3.5 w-3.5 text-sky-400" />,
+        onClick: async () => {
+          toast.info(`正在推送分支 ${branch.name} 到远程...`);
+          try {
+            await push('origin', branch.name);
+            toast.success(`分支 ${branch.name} 推送成功`);
+          } catch (err: any) {
+            toast.error('推送失败', err?.message);
+          }
+        },
+      },
+      {
+        id: 'copy-name',
+        label: '复制分支名称',
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onClick: () => {
+          navigator.clipboard.writeText(branch.name);
+          toast.info('已复制分支名称到剪贴板', branch.name);
+        },
+      },
+      { separator: true, id: 'sep-2' },
+      {
+        id: 'delete',
+        label: isCurrent ? '无法删除当前检出的分支' : `删除分支 ${branch.name}`,
+        icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
+        disabled: isCurrent,
+        danger: true,
+        onClick: async () => {
+          if (confirm(`确认要删除本地分支 "${branch.name}" 吗？`)) {
+            try {
+              await deleteBranch(branch.name);
+              toast.success(`已删除分支: ${branch.name}`);
+            } catch (err: any) {
+              toast.error('删除分支失败', err?.message);
+            }
+          }
+        },
+      },
+    ];
+
+    setContextMenu({
+      open: true,
+      x: e.clientX,
+      y: e.clientY,
+      items,
+    });
+  };
+
+  // Remote Branch Context Menu
+  const handleRemoteBranchContextMenu = (e: React.MouseEvent, branch: GitBranch) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const localName = branch.name.replace(/^origin\//, '');
+    const currentBranchName = currentRepo?.currentBranch || '';
+
+    const items: ContextMenuItem[] = [
+      {
+        id: 'checkout-remote',
+        label: `检出并追踪到本地 (${localName})`,
+        icon: <ArrowDownToLine className="h-3.5 w-3.5 text-primary" />,
+        onClick: async () => {
+          try {
+            await checkoutBranch(localName);
+            toast.success(`已检出远程追踪分支: ${localName}`);
+          } catch {
+            try {
+              await createBranch(localName, branch.name, true);
+              toast.success(`已检出并追踪远程分支: ${localName}`);
+            } catch (err: any) {
+              toast.error('检出远程分支失败', err.message);
+            }
+          }
+        },
+      },
+      {
+        id: 'merge-remote',
+        label: `合并 ${branch.name} 到 ${currentBranchName || '当前分支'}...`,
+        icon: <GitMerge className="h-3.5 w-3.5 text-indigo-400" />,
+        onClick: () => {
+          setMergeTargetBranch(branch.name);
+          setMergeModalOpen(true);
+        },
+      },
+      {
+        id: 'rebase-remote',
+        label: `变基当前分支到此远程分支...`,
+        icon: <GitPullRequest className="h-3.5 w-3.5 text-amber-400" />,
+        onClick: () => {
+          setRebaseUpstreamBranch(branch.name);
+          setRebaseModalOpen(true);
+        },
+      },
+      { separator: true, id: 'sep-1' },
+      {
+        id: 'new-branch-remote',
+        label: '从此处创建新分支...',
+        icon: <Plus className="h-3.5 w-3.5 text-emerald-400" />,
+        onClick: () => {
+          setCreateBranchBase(branch.name);
+          setCreateBranchModalOpen(true);
+        },
+      },
+      {
+        id: 'copy-name-remote',
+        label: '复制远程分支名称',
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onClick: () => {
+          navigator.clipboard.writeText(branch.name);
+          toast.info('已复制远程分支名称到剪贴板', branch.name);
+        },
+      },
+    ];
+
+    setContextMenu({
+      open: true,
+      x: e.clientX,
+      y: e.clientY,
+      items,
+    });
+  };
+
+  // Tag Context Menu
+  const handleTagContextMenu = (e: React.MouseEvent, tag: GitTag) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const items: ContextMenuItem[] = [
+      {
+        id: 'checkout-tag',
+        label: `检出此标签 (${tag.name})`,
+        icon: <TagIcon className="h-3.5 w-3.5 text-amber-400" />,
+        onClick: async () => {
+          try {
+            await checkoutBranch(tag.name);
+            toast.success(`已检出至标签: ${tag.name}`);
+          } catch (err: any) {
+            toast.error('检出标签失败', err?.message);
+          }
+        },
+      },
+      {
+        id: 'new-branch-tag',
+        label: '从标签创建新分支...',
+        icon: <Plus className="h-3.5 w-3.5 text-emerald-400" />,
+        onClick: () => {
+          setCreateBranchBase(tag.name);
+          setCreateBranchModalOpen(true);
+        },
+      },
+      {
+        id: 'push-tag',
+        label: '推送此标签到远程...',
+        icon: <UploadCloud className="h-3.5 w-3.5 text-sky-400" />,
+        onClick: async () => {
+          try {
+            await pushTag(tag.name);
+            toast.success(`已推送标签到远程: ${tag.name}`);
+          } catch (err: any) {
+            toast.error('推送标签失败', err?.message);
+          }
+        },
+      },
+      {
+        id: 'copy-tag-name',
+        label: '复制标签名称',
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onClick: () => {
+          navigator.clipboard.writeText(tag.name);
+          toast.info('已复制标签名称', tag.name);
+        },
+      },
+      { separator: true, id: 'sep-tag' },
+      {
+        id: 'delete-tag',
+        label: `删除本地标签 ${tag.name}`,
+        icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
+        danger: true,
+        onClick: async () => {
+          if (confirm(`确认要删除标签 "${tag.name}" 吗？`)) {
+            try {
+              await deleteTag(tag.name);
+              toast.success(`已删除标签: ${tag.name}`);
+            } catch (err: any) {
+              toast.error('删除标签失败', err?.message);
+            }
+          }
+        },
+      },
+      {
+        id: 'delete-remote-tag',
+        label: `删除远程标签 ${tag.name}`,
+        icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
+        danger: true,
+        onClick: async () => {
+          if (confirm(`确认要从远程仓库删除标签 "${tag.name}" 吗？此操作不可逆！`)) {
+            try {
+              await deleteRemoteTag(tag.name);
+              toast.success(`已删除远程标签: ${tag.name}`);
+            } catch (err: any) {
+              toast.error('删除远程标签失败', err?.message);
+            }
+          }
+        },
+      },
+    ];
+
+    setContextMenu({
+      open: true,
+      x: e.clientX,
+      y: e.clientY,
+      items,
+    });
+  };
+
+  // Stash Context Menu
+  const handleStashContextMenu = (e: React.MouseEvent, stash: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const items: ContextMenuItem[] = [
+      {
+        id: 'apply-stash',
+        label: '应用贮藏 (Apply Stash)',
+        icon: <Archive className="h-3.5 w-3.5 text-primary" />,
+        onClick: async () => {
+          try {
+            await stashApply(stash.index);
+            toast.success('已应用贮藏修改');
+          } catch (err: any) {
+            toast.error('应用贮藏失败', err?.message);
+          }
+        },
+      },
+      {
+        id: 'pop-stash',
+        label: '弹出并移除贮藏 (Pop Stash)',
+        icon: <Archive className="h-3.5 w-3.5 text-emerald-400" />,
+        onClick: async () => {
+          try {
+            await stashPop(stash.index);
+            toast.success('已应用并弹出贮藏');
+          } catch (err: any) {
+            toast.error('弹出贮藏失败', err?.message);
+          }
+        },
+      },
+      { separator: true, id: 'sep-stash' },
+      {
+        id: 'drop-stash',
+        label: '删除此贮藏 (Drop Stash)',
+        icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
+        danger: true,
+        onClick: async () => {
+          if (confirm(`确认清除此贮藏 stash@{${stash.index}} 吗？`)) {
+            try {
+              await stashDrop(stash.index);
+              toast.info('已清除该贮藏');
+            } catch (err: any) {
+              toast.error('Drop 失败', err?.message);
+            }
+          }
+        },
+      },
+    ];
+
+    setContextMenu({
+      open: true,
+      x: e.clientX,
+      y: e.clientY,
+      items,
+    });
+  };
 
   // Shortcut to focus search filter (Ctrl+Alt+F)
   useEffect(() => {
@@ -468,18 +869,29 @@ export const LeftSidebar: React.FC = () => {
                                 return (
                                   <div
                                     key={branch.name}
+                                    draggable={true}
+                                    onDragStart={(e) => handleDragStart(e, branch)}
+                                    onDragOver={(e) => handleDragOver(e, branch)}
+                                    onDragLeave={(e) => handleDragLeave(e, branch)}
+                                    onDrop={(e) => handleDrop(e, branch)}
+                                    onDragEnd={handleDragEnd}
                                     onClick={() => {
-                                      if (!branch.isCurrent) {
-                                        checkoutBranch(branch.name);
-                                        toast.success(`已检出分支`, branch.name);
-                                      }
+                                      setSelectedViewBranch(branch.name);
+                                      setActiveTab('history');
+                                      toast.info(`查看分支提交历史: ${branch.name}`);
                                     }}
+                                    onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                                     className={cn(
-                                      "group flex items-center justify-between px-2 py-1 rounded-md text-xs transition-colors cursor-pointer",
+                                      "group flex items-center justify-between px-2 py-1 rounded-md text-xs transition-all cursor-pointer",
+                                      dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
+                                      draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                                       branch.isCurrent
                                         ? "bg-primary/15 text-primary font-medium border border-primary/30"
+                                        : selectedViewBranch === branch.name
+                                        ? "bg-accent text-foreground font-medium border border-border/80"
                                         : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                                     )}
+                                    title={`拖拽此分支到其它分支上合并/变基 (右键查看操作)`}
                                   >
                                     <div className="flex items-center gap-1.5 truncate min-w-0">
                                       {branch.isCurrent ? (
@@ -521,18 +933,29 @@ export const LeftSidebar: React.FC = () => {
                     {localGrouped.rootBranches.map((branch) => (
                       <div
                         key={branch.name}
+                        draggable={true}
+                        onDragStart={(e) => handleDragStart(e, branch)}
+                        onDragOver={(e) => handleDragOver(e, branch)}
+                        onDragLeave={(e) => handleDragLeave(e, branch)}
+                        onDrop={(e) => handleDrop(e, branch)}
+                        onDragEnd={handleDragEnd}
                         onClick={() => {
-                          if (!branch.isCurrent) {
-                            checkoutBranch(branch.name);
-                            toast.success(`已检出分支`, branch.name);
-                          }
+                          setSelectedViewBranch(branch.name);
+                          setActiveTab('history');
+                          toast.info(`查看分支提交历史: ${branch.name}`);
                         }}
+                        onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                         className={cn(
-                          "group flex items-center justify-between px-2 py-1.5 rounded-md text-xs transition-colors cursor-pointer",
+                          "group flex items-center justify-between px-2 py-1.5 rounded-md text-xs transition-all cursor-pointer",
+                          dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
+                          draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                           branch.isCurrent
                             ? "bg-primary/20 text-primary font-semibold border border-primary/40 shadow-xs"
+                            : selectedViewBranch === branch.name
+                            ? "bg-accent text-foreground font-medium border border-border/80"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
+                        title={`拖拽此分支到其它分支上合并/变基 (右键查看操作)`}
                       >
                         <div className="flex items-center gap-1.5 truncate min-w-0">
                           {branch.isCurrent ? (
@@ -609,21 +1032,27 @@ export const LeftSidebar: React.FC = () => {
                       return (
                         <div
                           key={branch.name}
-                          onClick={async () => {
-                            try {
-                              await checkoutBranch(localName);
-                              toast.success(`已检出远程追踪分支: ${localName}`);
-                            } catch {
-                              try {
-                                await createBranch(localName, branch.name, true);
-                                toast.success(`已检出并追踪远程分支: ${localName}`);
-                              } catch (err: any) {
-                                toast.error('检出远程分支失败', err.message);
-                              }
-                            }
+                          draggable={true}
+                          onDragStart={(e) => handleDragStart(e, branch)}
+                          onDragOver={(e) => handleDragOver(e, branch)}
+                          onDragLeave={(e) => handleDragLeave(e, branch)}
+                          onDrop={(e) => handleDrop(e, branch)}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => {
+                            setSelectedViewBranch(branch.name);
+                            setActiveTab('history');
+                            toast.info(`查看远程分支提交历史: ${branch.name}`);
                           }}
-                          className="group flex items-center justify-between px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 cursor-pointer transition-colors"
-                          title={`点击检出此远程分支: ${branch.name}`}
+                          onContextMenu={(e) => handleRemoteBranchContextMenu(e, branch)}
+                          className={cn(
+                            "group flex items-center justify-between px-2 py-1 rounded-md text-xs cursor-pointer transition-all",
+                            dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
+                            draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
+                            selectedViewBranch === branch.name
+                              ? "bg-accent text-foreground font-medium border border-border/80"
+                              : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                          )}
+                          title={`查看此远程分支: ${branch.name} (支持拖拽到其它分支合并/变基，右键查看操作)`}
                         >
                           <div className="flex items-center gap-1.5 truncate">
                             <Cloud className="h-3 w-3 text-muted-foreground/80 shrink-0" />
@@ -634,6 +1063,20 @@ export const LeftSidebar: React.FC = () => {
                             size="xs"
                             className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
                             title="检出到本地"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await checkoutBranch(localName);
+                                toast.success(`已检出远程追踪分支: ${localName}`);
+                              } catch {
+                                try {
+                                  await createBranch(localName, branch.name, true);
+                                  toast.success(`已检出并追踪远程分支: ${localName}`);
+                                } catch (err: any) {
+                                  toast.error('检出远程分支失败', err.message);
+                                }
+                              }
+                            }}
                           >
                             <ArrowDownToLine className="h-2.5 w-2.5" />
                           </Button>
@@ -731,7 +1174,9 @@ export const LeftSidebar: React.FC = () => {
                     {filteredTags.map((tag) => (
                       <div
                         key={tag.name}
+                        onContextMenu={(e) => handleTagContextMenu(e, tag)}
                         className="flex items-center justify-between px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 cursor-pointer transition-colors group"
+                        title={`Tag: ${tag.name} (右键查看操作)`}
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           <TagIcon className="h-3 w-3 text-amber-500/70 shrink-0" />
@@ -829,7 +1274,9 @@ export const LeftSidebar: React.FC = () => {
                     {stashes.map((stash) => (
                       <div
                         key={stash.index}
+                        onContextMenu={(e) => handleStashContextMenu(e, stash)}
                         className="flex items-center justify-between px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 cursor-pointer transition-colors group"
+                        title="右键查看更多操作"
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           <Archive className="h-3 w-3 text-cyan-400 shrink-0" />
@@ -888,6 +1335,7 @@ export const LeftSidebar: React.FC = () => {
       <CreateBranchModal
         open={createBranchModalOpen}
         onOpenChange={setCreateBranchModalOpen}
+        defaultBaseBranch={createBranchBase}
       />
       <MergeBranchModal
         open={mergeModalOpen}
@@ -902,6 +1350,21 @@ export const LeftSidebar: React.FC = () => {
       <HealthDiagnosisModal
         open={healthModalOpen}
         onOpenChange={setHealthModalOpen}
+      />
+      <DragDropActionModal
+        open={dragDropModalOpen}
+        onOpenChange={setDragDropModalOpen}
+        sourceBranch={dragSource}
+        targetBranch={dragTarget}
+      />
+
+      {/* Universal Context Menu */}
+      <ContextMenu
+        open={contextMenu.open}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        items={contextMenu.items}
+        onClose={() => setContextMenu((prev) => ({ ...prev, open: false }))}
       />
     </aside>
   );

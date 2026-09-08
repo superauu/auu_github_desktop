@@ -9,9 +9,9 @@ interface GitGraphRendererProps {
   isWipSelected?: boolean;
 }
 
-const LANE_WIDTH = 18;
-const LANE_OFFSET = 14;
-const ROW_HEIGHT = 44; // Matches commit item row height
+const LANE_WIDTH = 16;
+const LANE_OFFSET = 32; // Centered in the 64px GRAPH column
+const ROW_HEIGHT = 42; // Matches commit item row height (42px)
 
 const LANE_COLORS = [
   '#38bdf8', // Sky / Cyan (GitKraken main blue)

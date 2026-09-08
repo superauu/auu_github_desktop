@@ -110,6 +110,7 @@ export interface IGitService {
   fetch(repoPath: string): Promise<void>;
   createBranch(repoPath: string, name: string, startPoint?: string): Promise<void>;
   checkoutBranch(repoPath: string, name: string): Promise<void>;
+  deleteBranch(repoPath: string, name: string, force?: boolean): Promise<void>;
   getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean): Promise<any[]>;
   createTag(repoPath: string, name: string, commitHash?: string, message?: string): Promise<void>;
   deleteTag(repoPath: string, name: string): Promise<void>;

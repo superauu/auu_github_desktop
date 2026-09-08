@@ -95,10 +95,10 @@ export const CommitHistoryView: React.FC = () => {
 
       {/* GitKraken-style Column Headers: BRANCH / TAG | GRAPH | COMMIT MESSAGE */}
       <div className="h-7 px-3 border-b border-border/80 bg-muted/20 flex items-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
-        <div className="w-40 truncate">BRANCH / TAG</div>
-        <div className="w-12 text-center">GRAPH</div>
-        <div className="flex-1 min-w-0 pl-2">COMMIT MESSAGE</div>
-        <div className="w-44 text-right pr-2 hidden md:block">AUTHOR / DATE</div>
+        <div className="w-48 truncate pr-2">BRANCH / TAG</div>
+        <div className="w-16 text-center shrink-0">GRAPH</div>
+        <div className="flex-1 min-w-0 pl-3">COMMIT MESSAGE</div>
+        <div className="w-44 text-right pr-2 hidden md:block shrink-0">AUTHOR / DATE</div>
       </div>
 
       {/* Commit List Table with SVG Graph */}
@@ -110,8 +110,8 @@ export const CommitHistoryView: React.FC = () => {
           </div>
         ) : (
           <div className="flex relative">
-            {/* SVG Graph Column (Spanning entire rows) */}
-            <div className="pt-0 pl-40 shrink-0 z-10 absolute left-0 top-0 pointer-events-none">
+            {/* SVG Graph Column (Spanning entire rows, perfectly aligned to w-16 column at left: 12px(px-3) + 192px(w-48) = 204px) */}
+            <div className="pt-0 shrink-0 z-10 absolute left-[204px] top-0 pointer-events-none w-16">
               <GitGraphRenderer
                 commits={filteredCommits}
                 selectedIndex={selectedIndex}
@@ -133,18 +133,18 @@ export const CommitHistoryView: React.FC = () => {
                   title="点击查看并提交工作区变动"
                 >
                   {/* Left Column: Branch Indicator */}
-                  <div className="w-40 flex items-center gap-1 shrink-0 overflow-hidden pr-2">
-                    <Badge variant="outline" className="h-4 px-1 text-[9px] font-mono gap-1 bg-sky-500/20 text-sky-400 border-sky-500/40">
-                      <Monitor className="h-2.5 w-2.5" />
-                      <span className="truncate max-w-[80px]">{currentRepo?.currentBranch || 'HEAD'}</span>
+                  <div className="w-48 flex items-center gap-1.5 shrink-0 overflow-hidden pr-3">
+                    <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-mono gap-1 bg-sky-500/20 text-sky-400 border-sky-500/40 max-w-[120px] truncate">
+                      <Monitor className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">{currentRepo?.currentBranch || 'HEAD'}</span>
                     </Badge>
                   </div>
 
                   {/* Spacer for Graph column */}
-                  <div className="w-12 shrink-0" />
+                  <div className="w-16 shrink-0" />
 
                   {/* Commit message / WIP subject */}
-                  <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 pl-3">
                     <span className="font-mono text-xs font-bold text-sky-400 flex items-center gap-1.5">
                       <FileCode2 className="h-3.5 w-3.5" />
                       <span>// WIP</span>
@@ -181,43 +181,51 @@ export const CommitHistoryView: React.FC = () => {
                     )}
                   >
                     {/* Left Column: BRANCH / TAG Badges */}
-                    <div className="w-40 flex items-center gap-1 shrink-0 overflow-hidden pr-2">
+                    <div className="w-48 flex items-center gap-1 shrink-0 overflow-hidden pr-3">
                       {commit.refs && commit.refs.length > 0 ? (
-                        commit.refs.slice(0, 2).map((ref) => {
-                          const isHead = ref.includes('HEAD');
-                          const isTag = ref.startsWith('tag:');
-                          const isRemote = ref.includes('origin/');
+                        <>
+                          {commit.refs.slice(0, 2).map((ref) => {
+                            const isHead = ref.includes('HEAD');
+                            const isTag = ref.startsWith('tag:');
+                            const isRemote = ref.includes('origin/');
 
-                          return (
-                            <Badge
-                              key={ref}
-                              variant={isTag ? "warning" : isHead ? "default" : "secondary"}
-                              className={cn(
-                                "h-4 px-1 text-[9px] gap-1 font-mono shrink-0 max-w-[100px] truncate",
-                                isTag && "bg-amber-500/15 text-amber-400 border-amber-500/30",
-                                isHead && "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
-                                isRemote && "bg-sky-500/15 text-sky-400 border-sky-500/30"
-                              )}
-                            >
-                              {isTag ? (
-                                <TagIcon className="h-2.5 w-2.5 text-amber-400 shrink-0" />
-                              ) : isRemote ? (
-                                <Cloud className="h-2.5 w-2.5 text-sky-400 shrink-0" />
-                              ) : (
-                                <GitBranchIcon className="h-2.5 w-2.5 shrink-0" />
-                              )}
-                              <span className="truncate">{ref.replace('tag: ', '').replace('HEAD -> ', '')}</span>
+                            return (
+                              <Badge
+                                key={ref}
+                                title={ref}
+                                variant={isTag ? "warning" : isHead ? "default" : "secondary"}
+                                className={cn(
+                                  "h-4 px-1 text-[9px] gap-1 font-mono shrink min-w-0 max-w-[86px] truncate",
+                                  isTag && "bg-amber-500/15 text-amber-400 border-amber-500/30",
+                                  isHead && "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
+                                  isRemote && "bg-sky-500/15 text-sky-400 border-sky-500/30"
+                                )}
+                              >
+                                {isTag ? (
+                                  <TagIcon className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+                                ) : isRemote ? (
+                                  <Cloud className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+                                ) : (
+                                  <GitBranchIcon className="h-2.5 w-2.5 shrink-0" />
+                                )}
+                                <span className="truncate">{ref.replace('tag: ', '').replace('HEAD -> ', '')}</span>
+                              </Badge>
+                            );
+                          })}
+                          {commit.refs.length > 2 && (
+                            <Badge variant="outline" className="h-4 px-1 text-[9px] font-mono shrink-0">
+                              +{commit.refs.length - 2}
                             </Badge>
-                          );
-                        })
+                          )}
+                        </>
                       ) : null}
                     </div>
 
                     {/* Spacer for Graph column */}
-                    <div className="w-12 shrink-0" />
+                    <div className="w-16 shrink-0" />
 
                     {/* Subject */}
-                    <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1 pl-3">
                       <span className="text-xs text-foreground group-hover:text-primary transition-colors truncate">
                         {commit.subject}
                       </span>

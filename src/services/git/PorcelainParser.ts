@@ -250,7 +250,11 @@ export function parseGitTags(output: string): GitTag[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const fields = trimmed.split('\x1f');
+    const fields = trimmed.includes('\x1f')
+      ? trimmed.split('\x1f')
+      : trimmed.includes('%x1f')
+      ? trimmed.split('%x1f')
+      : trimmed.split(/\s+/);
     const name = fields[0];
     const commitHash = fields[1] || '';
     const message = fields[2] || undefined;

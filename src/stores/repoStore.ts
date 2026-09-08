@@ -52,7 +52,7 @@ interface RepoState {
   refreshAll: () => Promise<void>;
   fetchRemote: () => Promise<void>;
   pull: () => Promise<void>;
-  push: () => Promise<void>;
+  push: (remote?: string, branch?: string) => Promise<void>;
   loadFileDiff: (file: GitFileChange) => Promise<void>;
   stageFile: (filePath: string) => Promise<void>;
   unstageFile: (filePath: string) => Promise<void>;
@@ -308,12 +308,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    push: async () => {
+    push: async (remote?: string, branch?: string) => {
       const { currentRepo } = get();
       if (!currentRepo) return;
       set({ isLoading: true, errorMessage: null });
       try {
-        await gitService.push(currentRepo.path);
+        await gitService.push(currentRepo.path, remote, branch);
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message, isLoading: false });

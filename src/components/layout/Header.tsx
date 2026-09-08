@@ -70,11 +70,15 @@ export const Header: React.FC<HeaderProps> = ({
     stashPop,
     setActiveTab,
     stashes,
+    branches,
+    checkoutBranch,
   } = useRepoStore();
 
   const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated, isDemoMode } = useGitHubStore();
   const [showRepoMenu, setShowRepoMenu] = useState(false);
+  const [showBranchMenu, setShowBranchMenu] = useState(false);
+  const [branchFilter, setBranchFilter] = useState('');
   const [createBranchModalOpen, setCreateBranchModalOpen] = useState(false);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
@@ -247,77 +251,192 @@ export const Header: React.FC<HeaderProps> = ({
               </TooltipContent>
             </Tooltip>
 
-            {/* Path indicator with Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowRepoMenu(!showRepoMenu)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
-              >
-                <span className="text-[11px] text-muted-foreground font-mono">repository</span>
-                <span className="font-semibold text-foreground text-xs truncate max-w-[120px]">
-                  {currentRepo ? currentRepo.name : '未打开'}
-                </span>
-                <ChevronRight className="h-3 w-3 text-muted-foreground opacity-60" />
-                <span className="text-[11px] text-muted-foreground font-mono">branch</span>
-                <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-mono gap-1 bg-accent/40 text-foreground border-border/70">
-                  <GitBranchIcon className="h-2.5 w-2.5 text-indigo-400" />
-                  <span className="max-w-[80px] truncate">{currentRepo?.currentBranch || 'master'}</span>
-                </Badge>
-                <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
-              </button>
-
-              {/* Repo Dropdown Menu */}
-              {showRepoMenu && (
-                <div
-                  className="absolute left-0 top-full mt-1 w-64 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
-                  onMouseLeave={() => setShowRepoMenu(false)}
+            {/* Quick Switcher: repository: auu_saas > branch: main */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              {/* Repository Selector Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowRepoMenu(!showRepoMenu);
+                    setShowBranchMenu(false);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
-                  <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    当前仓库
-                  </div>
-                  <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-accent/40 rounded-lg flex items-center justify-between">
-                    <span className="truncate">{currentRepo?.name || '无'}</span>
-                    {currentRepo && <Badge variant="success" className="h-4 text-[9px]">已加载</Badge>}
-                  </div>
+                  <span className="text-[11px] text-muted-foreground font-mono">repository</span>
+                  <span className="font-semibold text-foreground text-xs truncate max-w-[110px]">
+                    {currentRepo ? currentRepo.name : '未打开'}
+                  </span>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
+                </button>
 
-                  <div className="my-1.5 border-t border-border/60" />
-
-                  <button
-                    onClick={() => {
-                      setShowRepoMenu(false);
-                      onOpenRepoDialog?.();
-                    }}
-                    className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center gap-2"
+                {/* Repo Dropdown Menu */}
+                {showRepoMenu && (
+                  <div
+                    className="absolute left-0 top-full mt-1 w-64 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
+                    onMouseLeave={() => setShowRepoMenu(false)}
                   >
-                    <FolderGit2 className="h-3.5 w-3.5 text-primary" />
-                    <span>打开其他本地仓库...</span>
-                  </button>
+                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      当前仓库
+                    </div>
+                    <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-accent/40 rounded-lg flex items-center justify-between">
+                      <span className="truncate">{currentRepo?.name || '无'}</span>
+                      {currentRepo && <Badge variant="success" className="h-4 text-[9px]">已加载</Badge>}
+                    </div>
 
-                  {recentRepos.length > 0 && (
-                    <>
-                      <div className="px-2 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                        最近打开
-                      </div>
-                      <div className="max-h-36 overflow-y-auto space-y-0.5">
-                        {recentRepos.map((repo) => (
+                    <div className="my-1.5 border-t border-border/60" />
+
+                    <button
+                      onClick={() => {
+                        setShowRepoMenu(false);
+                        onOpenRepoDialog?.();
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center gap-2"
+                    >
+                      <FolderGit2 className="h-3.5 w-3.5 text-primary" />
+                      <span>打开其他本地仓库...</span>
+                    </button>
+
+                    {recentRepos.length > 0 && (
+                      <>
+                        <div className="px-2 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          最近打开
+                        </div>
+                        <div className="max-h-36 overflow-y-auto space-y-0.5">
+                          {recentRepos.map((repo) => (
+                            <button
+                              key={repo.path}
+                              onClick={() => {
+                                setCurrentRepo(repo);
+                                setShowRepoMenu(false);
+                                toast.success(`已切换至仓库: ${repo.name}`);
+                              }}
+                              className="w-full text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between"
+                            >
+                              <span className="truncate max-w-[170px]">{repo.name}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono">{repo.currentBranch}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Separator */}
+              <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+
+              {/* Branch Selector Dropdown (GitKraken-style real branch switcher) */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowBranchMenu(!showBranchMenu);
+                    setShowRepoMenu(false);
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
+                >
+                  <span className="text-[11px] text-muted-foreground font-mono">branch</span>
+                  <Badge variant="outline" className="h-4.5 px-1.5 text-[10px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
+                    <GitBranchIcon className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
+                    <span className="max-w-[120px] truncate">{currentRepo?.currentBranch || 'master'}</span>
+                  </Badge>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
+                </button>
+
+                {/* Branch Dropdown Menu */}
+                {showBranchMenu && (
+                  <div
+                    className="absolute left-0 top-full mt-1 w-72 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
+                    onMouseLeave={() => setShowBranchMenu(false)}
+                  >
+                    {/* Search Input */}
+                    <div className="relative mb-1.5 px-1 pt-0.5">
+                      <Search className="h-3 w-3 text-muted-foreground absolute left-3 top-2.5" />
+                      <input
+                        value={branchFilter}
+                        onChange={(e) => setBranchFilter(e.target.value)}
+                        placeholder="搜索并切换分支..."
+                        className="w-full h-7 pl-7 pr-6 text-xs bg-secondary/40 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                        autoFocus
+                      />
+                      {branchFilter && (
+                        <button
+                          onClick={() => setBranchFilter('')}
+                          className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Local Branches List */}
+                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                      <span>本地分支</span>
+                      <span className="font-mono text-[9px]">{branches.filter((b) => !b.isRemote).length}</span>
+                    </div>
+
+                    <div className="max-h-52 overflow-y-auto space-y-0.5 px-0.5">
+                      {branches
+                        .filter((b) => !b.isRemote)
+                        .filter((b) => !branchFilter || b.name.toLowerCase().includes(branchFilter.toLowerCase()))
+                        .map((branch) => (
                           <button
-                            key={repo.path}
-                            onClick={() => {
-                              setCurrentRepo(repo);
-                              setShowRepoMenu(false);
-                              toast.success(`已切换至仓库: ${repo.name}`);
+                            key={branch.name}
+                            onClick={async () => {
+                              if (branch.isCurrent) {
+                                setShowBranchMenu(false);
+                                return;
+                              }
+                              try {
+                                await checkoutBranch(branch.name);
+                                toast.success('已切换至分支', branch.name);
+                              } catch (err: any) {
+                                toast.error('切换分支失败', err?.message);
+                              } finally {
+                                setShowBranchMenu(false);
+                              }
                             }}
-                            className="w-full text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between"
+                            className={cn(
+                              "w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center justify-between transition-colors",
+                              branch.isCurrent
+                                ? "bg-primary/15 text-primary font-medium cursor-default"
+                                : "text-foreground/80 hover:text-foreground hover:bg-accent cursor-pointer"
+                            )}
                           >
-                            <span className="truncate max-w-[170px]">{repo.name}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{repo.currentBranch}</span>
+                            <div className="flex items-center gap-1.5 truncate min-w-0">
+                              <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : "text-muted-foreground")} />
+                              <span className="truncate">{branch.name}</span>
+                            </div>
+                            {branch.isCurrent && (
+                              <span className="text-[9px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
+                                HEAD
+                              </span>
+                            )}
                           </button>
                         ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                      {branches.filter((b) => !b.isRemote).filter((b) => !branchFilter || b.name.toLowerCase().includes(branchFilter.toLowerCase())).length === 0 && (
+                        <div className="px-2 py-2 text-center text-xs text-muted-foreground/60 italic">
+                          未匹配到分支
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Action: New Branch */}
+                    <div className="pt-1.5 mt-1 border-t border-border/50">
+                      <button
+                        onClick={() => {
+                          setShowBranchMenu(false);
+                          setCreateBranchModalOpen(true);
+                        }}
+                        className="w-full text-left px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-md flex items-center gap-1.5"
+                      >
+                        <Plus className="h-3 w-3" />
+                        <span>创建新分支...</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
