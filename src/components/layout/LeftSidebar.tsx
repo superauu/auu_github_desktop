@@ -719,7 +719,7 @@ export const LeftSidebar: React.FC = () => {
             )}
           >
             <ListFilter className="h-3 w-3" />
-            <span>List</span>
+            <span>{t('sidebar.mode.list')}</span>
           </button>
           <button
             onClick={() => setSidebarMode('agents')}
@@ -731,7 +731,7 @@ export const LeftSidebar: React.FC = () => {
             )}
           >
             <Sparkles className="h-3 w-3 text-indigo-400" />
-            <span>Agents</span>
+            <span>{t('sidebar.mode.agents')}</span>
           </button>
         </div>
       </div>

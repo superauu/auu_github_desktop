@@ -661,7 +661,7 @@ export const WorkingChangesView: React.FC = () => {
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    Unified
+                    {t('diff.unified')}
                   </button>
                   <button
                     onClick={() => setDiffMode('split')}
@@ -672,7 +672,7 @@ export const WorkingChangesView: React.FC = () => {
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    Split
+                    {t('diff.split')}
                   </button>
                 </div>
               )}

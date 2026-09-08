@@ -559,7 +559,7 @@ export const Header: React.FC<HeaderProps> = ({
                     disabled={isUndoing || !canUndo}
                     className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Undo</span>
+                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.undo')}</span>
                     <RotateCcw className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -581,7 +581,7 @@ export const Header: React.FC<HeaderProps> = ({
                         : "text-muted-foreground/40 cursor-not-allowed"
                     )}
                   >
-                    <span className={cn("text-[10px] leading-tight hidden xl:block", canRedo && "group-hover:underline")}>Redo</span>
+                    <span className={cn("text-[10px] leading-tight hidden xl:block", canRedo && "group-hover:underline")}>{t('header.redo')}</span>
                     <RotateCw className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -600,7 +600,7 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={handlePull}
                       className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[46px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors relative group"
                     >
-                      <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Pull</span>
+                      <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.pull')}</span>
                       <div className="flex items-center justify-center mt-0.5 gap-0.5">
                         <ArrowDownToLine className="h-3.5 w-3.5" />
                         <span
@@ -683,7 +683,7 @@ export const Header: React.FC<HeaderProps> = ({
                         : "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10"
                     )}
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Push</span>
+                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.push')}</span>
                     <ArrowUpToLine className="h-3.5 w-3.5 mt-0.5" />
                     {aheadCount > 0 && (
                       <span className="absolute -top-1 -right-0.5 bg-amber-500 text-black text-[8px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-xs">
@@ -702,7 +702,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={() => setCreateBranchModalOpen(true)}
                     className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[44px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Branch</span>
+                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.branchAction')}</span>
                     <GitBranchIcon className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -717,7 +717,7 @@ export const Header: React.FC<HeaderProps> = ({
                     disabled={isStashing || !hasChanges}
                     className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Stash</span>
+                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.stash')}</span>
                     <Archive className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -734,7 +734,7 @@ export const Header: React.FC<HeaderProps> = ({
                     disabled={stashes.length === 0}
                     className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Pop</span>
+                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.pop')}</span>
                     <Inbox className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -753,7 +753,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={handleOpenTerminal}
                     className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[46px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Terminal</span>
+                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.terminal')}</span>
                     <Terminal className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -771,7 +771,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={() => setActiveTab('actions')}
                   className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                 >
-                  <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Actions</span>
+                  <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.actions')}</span>
                   <Workflow className="h-3.5 w-3.5 mt-0.5 text-emerald-500 dark:text-emerald-400" />
                 </button>
               </TooltipTrigger>
@@ -785,7 +785,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={onOpenCommandPalette}
                   className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                 >
-                  <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">Search</span>
+                  <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.search')}</span>
                   <Search className="h-3.5 w-3.5 mt-0.5" />
                 </button>
               </TooltipTrigger>

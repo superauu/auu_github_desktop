@@ -663,7 +663,7 @@ export const RightPane: React.FC = () => {
                       }
                       className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-secondary/80 text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      {previewDiffMode === 'unified' ? 'Unified' : 'Split'}
+                      {previewDiffMode === 'unified' ? t('diff.unified') : t('diff.split')}
                     </button>
                     <button
                       onClick={() => setPreviewCommitFile(null)}

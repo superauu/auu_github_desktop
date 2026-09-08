@@ -444,6 +444,11 @@ export const en = {
   'sidebar.newTagTitle': 'New Tag (e.g. v1.0.0)',
   'sidebar.stashWorkingChanges': 'Stash working changes',
 
+  'diff.unified': 'Unified',
+  'diff.split': 'Split',
+  'sidebar.mode.list': 'List',
+  'sidebar.mode.agents': 'Agents',
+
 } as const;
 
 export type TranslationKey = keyof typeof en;
