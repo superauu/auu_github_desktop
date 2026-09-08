@@ -243,6 +243,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
         isLoading: false,
         isDemoMode: false,
       });
+      // 同步持久化，避免重启后 initAuth 依据陈旧的 demo 标记恢复到演示模式
+      localStorage.setItem(GITHUB_DEMO_KEY, 'false');
     } catch (err: any) {
       console.warn('加载真实 GitHub 数据失败，已准备回退:', err);
       set({ error: err.message, isLoading: false });
@@ -321,10 +323,12 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   refreshActions: async () => {
-    const { currentOwner, currentRepoName, isDemoMode } = get();
+    const { currentOwner, currentRepoName, isDemoMode, isAuthenticated } = get();
     if (currentOwner && currentRepoName && !isDemoMode) {
       await get().loadRepoData(currentOwner, currentRepoName);
-    } else {
+    } else if (!isAuthenticated) {
+      // 仅未登录时进入演示模式；已登录但尚未打开仓库时保持真实模式，
+      // 等待打开仓库后由 syncRepo 拉取真实数据（否则会把刚认证的用户静默滑回 demo）
       get().enableDemoMode();
     }
   },
