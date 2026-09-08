@@ -21,9 +21,27 @@ export const AppLayout: React.FC = () => {
   const [repoDialogMode, setRepoDialogMode] = useState<'open' | 'clone' | 'init'>('open');
   const [githubAuthOpen, setGithubAuthOpen] = useState(false);
 
-  const { leftSidebarWidth, setLeftSidebarWidth, rightPaneWidth, setRightPaneWidth } = useLayoutStore();
+  const {
+    leftSidebarWidth,
+    setLeftSidebarWidth,
+    rightPaneWidth,
+    setRightPaneWidth,
+    toggleEmbeddedTerminal,
+  } = useLayoutStore();
   const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote } = useRepoStore();
   const { compactMode, autoFetchInterval } = useSettingsStore();
+
+  // Global Shortcut: Ctrl+` toggles embedded terminal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === '`' || e.code === 'Backquote')) {
+        e.preventDefault();
+        toggleEmbeddedTerminal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleEmbeddedTerminal]);
 
   // Apply compact mode on mount
   useEffect(() => {
@@ -87,17 +105,19 @@ export const AppLayout: React.FC = () => {
           onOpenGitHubAuth={() => setGithubAuthOpen(true)}
         />
         {!isRightPaneCollapsed && (
-          <ResizeHandle
-            currentSize={rightPaneWidth}
-            onSizeChange={setRightPaneWidth}
-            minSize={220}
-            maxSize={650}
-            defaultSize={DEFAULT_LAYOUT.rightPaneWidth}
-            reverse
-            title="按住拖拽调节右侧面板宽度，双击恢复默认"
-          />
+          <>
+            <ResizeHandle
+              currentSize={rightPaneWidth}
+              onSizeChange={setRightPaneWidth}
+              minSize={220}
+              maxSize={650}
+              defaultSize={DEFAULT_LAYOUT.rightPaneWidth}
+              reverse
+              title="按住拖拽调节右侧面板宽度，双击恢复默认"
+            />
+            <RightPane />
+          </>
         )}
-        <RightPane />
       </div>
 
       {/* Bottom Status Bar */}

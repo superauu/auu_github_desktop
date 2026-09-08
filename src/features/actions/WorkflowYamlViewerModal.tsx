@@ -29,7 +29,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
         {/* Header */}
         <div className="h-10 px-4 border-b border-border/80 bg-accent/20 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <FileCode className="h-4 w-4 text-purple-400" />
+            <FileCode className="h-4 w-4 text-sky-400" />
             <span className="text-xs font-mono font-semibold text-foreground">
               {activeWorkflowYaml.path}
             </span>

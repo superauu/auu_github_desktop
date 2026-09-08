@@ -129,12 +129,12 @@ export const CommitHistoryView: React.FC = () => {
                     setActiveTab('changes');
                     toast.info('已快速跳转至工作区未提交变更 (WIP)');
                   }}
-                  className="h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors bg-sky-500/10 hover:bg-sky-500/20 border-l-2 border-sky-400 group"
+                  className="h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors bg-sky-500/10 hover:bg-sky-500/15 border-l-2 border-sky-600 dark:border-sky-400 group"
                   title="点击查看并提交工作区变动"
                 >
                   {/* Left Column: Branch Indicator */}
                   <div className="w-48 flex items-center gap-1.5 shrink-0 overflow-hidden pr-3">
-                    <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-mono gap-1 bg-sky-500/20 text-sky-400 border-sky-500/40 max-w-[120px] truncate">
+                    <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-mono gap-1 bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 max-w-[120px] truncate">
                       <Monitor className="h-2.5 w-2.5 shrink-0" />
                       <span className="truncate">{currentRepo?.currentBranch || 'HEAD'}</span>
                     </Badge>
@@ -145,7 +145,7 @@ export const CommitHistoryView: React.FC = () => {
 
                   {/* Commit message / WIP subject */}
                   <div className="flex items-center gap-2 min-w-0 flex-1 pl-3">
-                    <span className="font-mono text-xs font-bold text-sky-400 flex items-center gap-1.5">
+                    <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
                       <FileCode2 className="h-3.5 w-3.5" />
                       <span>// WIP</span>
                     </span>
@@ -158,7 +158,7 @@ export const CommitHistoryView: React.FC = () => {
                   </div>
 
                   {/* Right Column: Prompt */}
-                  <div className="w-44 text-right pr-2 text-[10px] text-sky-400 font-mono shrink-0 hidden md:block">
+                  <div className="w-44 text-right pr-2 text-[10px] text-sky-600 dark:text-sky-400 font-mono shrink-0 hidden md:block">
                     View Changes →
                   </div>
                 </div>
@@ -174,10 +174,10 @@ export const CommitHistoryView: React.FC = () => {
                     key={commit.hash}
                     onClick={() => setSelectedCommit(commit)}
                     className={cn(
-                      "h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors group",
+                      "h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group",
                       isSelected
-                        ? "bg-primary/15 border-l-2 border-primary font-medium"
-                        : "hover:bg-accent/30 border-l-2 border-transparent"
+                        ? "bg-sky-500/10 border-l-2 border-sky-600 dark:border-sky-400 shadow-[inset_0_0_16px_rgba(56,189,248,0.08)] text-foreground font-medium"
+                        : "hover:bg-accent/50 dark:hover:bg-white/[0.03] border-l-2 border-transparent text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {/* Left Column: BRANCH / TAG Badges */}
@@ -195,18 +195,18 @@ export const CommitHistoryView: React.FC = () => {
                                 title={ref}
                                 variant={isTag ? "warning" : isHead ? "default" : "secondary"}
                                 className={cn(
-                                  "h-4 px-1 text-[9px] gap-1 font-mono shrink min-w-0 max-w-[86px] truncate",
-                                  isTag && "bg-amber-500/15 text-amber-400 border-amber-500/30",
-                                  isHead && "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
-                                  isRemote && "bg-sky-500/15 text-sky-400 border-sky-500/30"
+                                  "h-4.5 px-1.5 text-[9px] gap-1 font-mono shrink min-w-0 max-w-[96px] truncate rounded-full shadow-xs",
+                                  isTag && "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/40",
+                                  isHead && "bg-sky-500/15 text-sky-800 dark:text-sky-200 border-sky-500/40 shadow-[0_0_8px_rgba(56,189,248,0.25)]",
+                                  isRemote && "bg-secondary text-secondary-foreground border-border"
                                 )}
                               >
                                 {isTag ? (
-                                  <TagIcon className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+                                  <TagIcon className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400 shrink-0" />
                                 ) : isRemote ? (
-                                  <Cloud className="h-2.5 w-2.5 text-sky-400 shrink-0" />
+                                  <Cloud className="h-2.5 w-2.5 text-slate-400 shrink-0" />
                                 ) : (
-                                  <GitBranchIcon className="h-2.5 w-2.5 shrink-0" />
+                                  <GitBranchIcon className="h-2.5 w-2.5 text-sky-600 dark:text-sky-400 shrink-0" />
                                 )}
                                 <span className="truncate">{ref.replace('tag: ', '').replace('HEAD -> ', '')}</span>
                               </Badge>

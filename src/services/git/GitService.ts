@@ -1,6 +1,7 @@
 import {
   GitBranch,
   GitCommit,
+  GitFileChange,
   GitStatusResult,
   GitStash,
   GitTag,
@@ -290,6 +291,43 @@ export class GitService implements IGitService {
     }
   }
 
+  async getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]> {
+    try {
+      const res = await executeGit(
+        ['diff-tree', '--no-commit-id', '--name-status', '-r', commitHash],
+        repoPath
+      );
+      const lines = res.stdout.split(/\r?\n/).filter(Boolean);
+      return lines.map((line) => {
+        const parts = line.split(/\t+/);
+        const statusCode = parts[0]?.charAt(0) || 'M';
+        const filePath = parts[1] || parts[0]?.slice(1).trim() || '';
+        let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
+        if (statusCode === 'A') status = 'added';
+        else if (statusCode === 'D') status = 'deleted';
+        else if (statusCode === 'R') status = 'renamed';
+        return {
+          path: filePath,
+          status,
+          staged: false,
+        };
+      });
+    } catch (err) {
+      console.warn('Get commit files warning:', err);
+      return [];
+    }
+  }
+
+  async getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]> {
+    try {
+      const res = await executeGit(['show', '--no-color', `${commitHash}`, '--', filePath], repoPath);
+      return parseDiffOutput(res.stdout);
+    } catch (err) {
+      console.warn('Get commit file diff warning:', err);
+      return [];
+    }
+  }
+
   async createTag(
     repoPath: string,
     name: string,
@@ -361,6 +399,11 @@ export class GitService implements IGitService {
   async undoLastCommit(repoPath: string): Promise<void> {
     // 类似于 GitKraken 的 Undo：安全软重置最新一次提交，保留代码到暂存区
     await executeGit(['reset', '--soft', 'HEAD~1'], repoPath);
+  }
+
+  async redoCommit(repoPath: string, commitHash: string): Promise<void> {
+    // 将 HEAD 和工作区恢复到指定的提交哈希（Redo）
+    await executeGit(['reset', '--hard', commitHash], repoPath);
   }
 
   async openTerminal(repoPath: string): Promise<void> {

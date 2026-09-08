@@ -14,13 +14,13 @@ const LANE_OFFSET = 32; // Centered in the 64px GRAPH column
 const ROW_HEIGHT = 42; // Matches commit item row height (42px)
 
 const LANE_COLORS = [
-  '#38bdf8', // Sky / Cyan (GitKraken main blue)
-  '#a855f7', // Purple
-  '#22c55e', // Emerald
+  '#38bdf8', // Sky Blue (Primary)
+  '#10b981', // Emerald
   '#f59e0b', // Amber
-  '#ec4899', // Pink
-  '#6366f1', // Indigo
+  '#6366f1', // Indigo / Cobalt
+  '#06b6d4', // Cyan
   '#14b8a6', // Teal
+  '#818cf8', // Slate Blue
 ];
 
 interface GraphNode {

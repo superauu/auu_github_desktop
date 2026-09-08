@@ -13,7 +13,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Github,
-  Plus,
   RotateCcw,
   RotateCw,
   ArrowDownToLine,
@@ -22,11 +21,13 @@ import {
   Archive,
   Inbox,
   Terminal,
-  X,
   Workflow,
   ChevronRight,
+  Plus,
+  X,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
+import { useLayoutStore } from '@/stores/layoutStore';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
@@ -59,14 +60,13 @@ export const Header: React.FC<HeaderProps> = ({
     toggleRightPane,
     recentRepos,
     setCurrentRepo,
-    openTabs,
-    closeTab,
-    switchTab,
     fetchRemote,
     pull,
     push,
     undoLastCommit,
-    openTerminal,
+    redoStack,
+    redoLastCommit,
+    commits,
     stashPush,
     stashPop,
     setActiveTab,
@@ -75,6 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
     checkoutBranch,
   } = useRepoStore();
 
+  const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
   const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated, isDemoMode } = useGitHubStore();
   const [showRepoMenu, setShowRepoMenu] = useState(false);
@@ -83,6 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [createBranchModalOpen, setCreateBranchModalOpen] = useState(false);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
+  const [isRedoing, setIsRedoing] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
   const [showPullMenu, setShowPullMenu] = useState(false);
 
@@ -138,6 +140,26 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  const handleRedo = async () => {
+    if (isRedoing || redoStack.length === 0) return;
+    const targetItem = redoStack[0];
+    if (targetItem.branch !== currentRepo?.currentBranch) {
+      toast.warning('无法重做', `该提交属于分支: ${targetItem.branch}`);
+      return;
+    }
+
+    setIsRedoing(true);
+    toast.info(`正在重做恢复提交: ${targetItem.commitSubject}...`);
+    try {
+      await redoLastCommit();
+      toast.success('已成功重做恢复提交', `${targetItem.commitSubject} (${targetItem.commitHash.slice(0, 7)})`);
+    } catch (err: any) {
+      toast.error('重做失败', err?.message);
+    } finally {
+      setIsRedoing(false);
+    }
+  };
+
   const handleQuickStash = async () => {
     if (isStashing) return;
     setIsStashing(true);
@@ -161,83 +183,32 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleOpenTerminal = async () => {
-    try {
-      await openTerminal();
-      toast.success('已调起系统命令行终端');
-    } catch (err: any) {
-      toast.info('已复制仓库路径到剪贴板', currentRepo?.path);
-    }
+    toggleEmbeddedTerminal();
+    toast.info(!isEmbeddedTerminalOpen ? '已调起内嵌命令行终端' : '已收起内嵌终端');
   };
 
   const aheadCount = status?.ahead || 0;
   const behindCount = status?.behind || 0;
   const hasChanges = status ? !status.isClean : false;
+  const canUndo = commits.length > 0;
+  const canRedo = redoStack.length > 0 && redoStack[0].branch === currentRepo?.currentBranch;
+  const nextRedoItem = redoStack[0];
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className="flex flex-col border-b border-border/80 select-none z-30 shrink-0 bg-background/95 backdrop-blur-md">
-        {/* Tier 1: GitKraken-style Multi-Repository Workspace Tabs */}
-        <div className="h-8 bg-card/60 border-b border-border/40 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1 min-w-0">
-            {/* Logo */}
-            <div className="flex items-center gap-1.5 px-2 mr-1">
+      <header className="flex flex-col border-b border-border/80 select-none z-30 shrink-0 bg-background/95 dark:bg-[#0b0d14]/95 backdrop-blur-md">
+        {/* Single Main Action Toolbar */}
+        <div className="h-11 px-3 flex items-center justify-between text-xs bg-background/80">
+          {/* Left: Branding Logo + Sidebar Toggle + Repo/Branch Dropdowns */}
+          <div className="flex items-center gap-2 min-w-0">
+            {/* App Branding: Auu Git Desktop */}
+            <div className="flex items-center gap-1.5 pr-1 shrink-0">
               <img src="/logo.svg" alt="Auu Git" className="h-4 w-4 rounded drop-shadow-sm" />
-              <span className="font-semibold text-[11px] tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent hidden sm:inline-block">
-                Auu Git
+              <span className="font-bold text-[12px] tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-sky-600 dark:from-white dark:via-slate-100 dark:to-sky-400 bg-clip-text text-transparent hidden sm:inline-block">
+                Auu Git Desktop
               </span>
             </div>
 
-            {/* Repo Tabs */}
-            {openTabs.map((repo) => {
-              const isActive = currentRepo?.path === repo.path;
-              return (
-                <div
-                  key={repo.path}
-                  onClick={() => switchTab(repo.path)}
-                  className={cn(
-                    "h-6 px-2.5 rounded-t-md border-t border-x flex items-center gap-1.5 cursor-pointer text-xs transition-all group shrink-0",
-                    isActive
-                      ? "bg-background border-border text-foreground font-semibold shadow-xs"
-                      : "bg-muted/30 border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                  )}
-                  title={repo.path}
-                >
-                  <FolderGit2 className={cn("h-3 w-3", isActive ? "text-primary" : "text-muted-foreground")} />
-                  <span className="truncate max-w-[120px] text-[11px]">{repo.name}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTab(repo.path);
-                    }}
-                    className="p-0.5 rounded hover:bg-accent/80 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="关闭标签页"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                </div>
-              );
-            })}
-
-            {/* New Repo Tab Button (+) */}
-            <button
-              onClick={() => onOpenRepoDialog?.()}
-              className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
-              title="打开或添加本地仓库标签页 (+)"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          {/* Window / Global Quick Links */}
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground pr-1">
-            <span className="opacity-60 hidden lg:inline-block font-mono">Git Client Pro</span>
-          </div>
-        </div>
-
-        {/* Tier 2: GitKraken-style Main Git Action Ribbon Toolbar */}
-        <div className="h-11 px-3 flex items-center justify-between text-xs bg-background/80">
-          {/* Left: Quick Switcher: repository: auu_saas > branch: main */}
-          <div className="flex items-center gap-2 min-w-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -451,28 +422,40 @@ export const Header: React.FC<HeaderProps> = ({
                 <TooltipTrigger asChild>
                   <button
                     onClick={handleUndo}
-                    disabled={isUndoing}
-                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
+                    disabled={isUndoing || !canUndo}
+                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
                     <span className="text-[10px] leading-tight group-hover:underline">Undo</span>
                     <RotateCcw className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">撤销最新一次提交 (git reset --soft HEAD~1)</TooltipContent>
+                <TooltipContent side="bottom">
+                  {canUndo ? '撤销最新一次提交 (git reset --soft HEAD~1)' : '当前分支暂无提交可撤销'}
+                </TooltipContent>
               </Tooltip>
 
               {/* Redo */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    disabled={true}
-                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-muted-foreground/40 cursor-not-allowed"
+                    onClick={handleRedo}
+                    disabled={isRedoing || !canRedo}
+                    className={cn(
+                      "flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded transition-colors group",
+                      canRedo
+                        ? "text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 cursor-pointer"
+                        : "text-muted-foreground/40 cursor-not-allowed"
+                    )}
                   >
-                    <span className="text-[10px] leading-tight">Redo</span>
+                    <span className={cn("text-[10px] leading-tight", canRedo && "group-hover:underline")}>Redo</span>
                     <RotateCw className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">暂无可重做的操作 (Redo)</TooltipContent>
+                <TooltipContent side="bottom">
+                  {canRedo && nextRedoItem
+                    ? `重做并恢复提交: ${nextRedoItem.commitSubject} (${nextRedoItem.commitHash.slice(0, 7)})`
+                    : '暂无可重做的操作 (Redo)'}
+                </TooltipContent>
               </Tooltip>
 
               {/* Pull with Dropdown */}
@@ -481,7 +464,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <TooltipTrigger asChild>
                     <button
                       onClick={handlePull}
-                      className="flex flex-col items-center justify-center min-w-[46px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors relative group"
+                      className="flex flex-col items-center justify-center min-w-[46px] px-2 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors relative group"
                     >
                       <span className="text-[10px] leading-tight group-hover:underline">Pull</span>
                       <div className="flex items-center justify-center mt-0.5 gap-0.5">
@@ -562,8 +545,8 @@ export const Header: React.FC<HeaderProps> = ({
                     className={cn(
                       "flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded transition-colors relative group",
                       aheadCount > 0
-                        ? "text-amber-300 hover:text-amber-200 hover:bg-amber-500/15 font-medium"
-                        : "text-sky-400 hover:text-sky-300 hover:bg-accent/50"
+                        ? "text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/15 font-medium"
+                        : "text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50"
                     )}
                   >
                     <span className="text-[10px] leading-tight group-hover:underline">Push</span>
@@ -583,7 +566,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setCreateBranchModalOpen(true)}
-                    className="flex flex-col items-center justify-center min-w-[44px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors group"
+                    className="flex flex-col items-center justify-center min-w-[44px] px-2 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors group"
                   >
                     <span className="text-[10px] leading-tight group-hover:underline">Branch</span>
                     <GitBranchIcon className="h-3.5 w-3.5 mt-0.5" />
@@ -598,7 +581,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     onClick={handleQuickStash}
                     disabled={isStashing || !hasChanges}
-                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
+                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
                     <span className="text-[10px] leading-tight group-hover:underline">Stash</span>
                     <Archive className="h-3.5 w-3.5 mt-0.5" />
@@ -615,7 +598,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     onClick={handleQuickPop}
                     disabled={stashes.length === 0}
-                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
+                    className="flex flex-col items-center justify-center min-w-[42px] px-2 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
                     <span className="text-[10px] leading-tight group-hover:underline">Pop</span>
                     <Inbox className="h-3.5 w-3.5 mt-0.5" />
@@ -634,7 +617,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <TooltipTrigger asChild>
                   <button
                     onClick={handleOpenTerminal}
-                    className="flex flex-col items-center justify-center min-w-[46px] px-2 py-0.5 rounded text-sky-400 hover:text-sky-300 hover:bg-accent/50 transition-colors group"
+                    className="flex flex-col items-center justify-center min-w-[46px] px-2 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors group"
                   >
                     <span className="text-[10px] leading-tight group-hover:underline">Terminal</span>
                     <Terminal className="h-3.5 w-3.5 mt-0.5" />
@@ -645,35 +628,32 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* Right: Actions, Search, Theme, User, Collapse Right Pane */}
-          <div className="flex items-center gap-1.5">
-            {/* Quick Actions tab shortcut */}
+          {/* Right: Actions, Search, Controls */}
+          <div className="flex items-center gap-1">
+            {/* Actions (GitKraken style) */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
+                <button
                   onClick={() => setActiveTab('actions')}
-                  className="h-7 px-2 gap-1 text-muted-foreground hover:text-foreground hidden sm:flex"
+                  className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors group"
                 >
-                  <Workflow className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>Actions</span>
-                </Button>
+                  <span className="text-[10px] leading-tight group-hover:underline">Actions</span>
+                  <Workflow className="h-3.5 w-3.5 mt-0.5 text-emerald-500 dark:text-emerald-400" />
+                </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">查看 GitHub Actions CI 仪表盘</TooltipContent>
+              <TooltipContent side="bottom">GitHub Actions CI 仪表盘</TooltipContent>
             </Tooltip>
 
-            {/* Command Search */}
+            {/* Search (GitKraken style) */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                <button
                   onClick={onOpenCommandPalette}
+                  className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-700 hover:text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:text-sky-300 dark:hover:bg-accent/50 transition-colors group"
                 >
-                  <Search className="h-3.5 w-3.5" />
-                </Button>
+                  <span className="text-[10px] leading-tight group-hover:underline">Search</span>
+                  <Search className="h-3.5 w-3.5 mt-0.5" />
+                </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">全局命令搜索 (Ctrl+K)</TooltipContent>
             </Tooltip>

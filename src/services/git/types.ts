@@ -15,6 +15,13 @@ export interface GitFileChange {
   deletions?: number;
 }
 
+export interface ParsedDiffLine {
+  type: 'header' | 'context' | 'add' | 'delete';
+  oldNo: number | null;
+  newNo: number | null;
+  content: string;
+}
+
 export interface GitStatusResult {
   currentBranch: string;
   trackingBranch?: string;
@@ -112,6 +119,8 @@ export interface IGitService {
   checkoutBranch(repoPath: string, name: string): Promise<void>;
   deleteBranch(repoPath: string, name: string, force?: boolean): Promise<void>;
   getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean): Promise<any[]>;
+  getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]>;
+  getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]>;
   createTag(repoPath: string, name: string, commitHash?: string, message?: string): Promise<void>;
   deleteTag(repoPath: string, name: string): Promise<void>;
   pushTag(repoPath: string, name: string, remote?: string): Promise<void>;
@@ -123,6 +132,7 @@ export interface IGitService {
   rebaseContinue(repoPath: string): Promise<void>;
   rebaseAbort(repoPath: string): Promise<void>;
   undoLastCommit(repoPath: string): Promise<void>;
+  redoCommit(repoPath: string, commitHash: string): Promise<void>;
   openTerminal(repoPath: string): Promise<void>;
   fetchAndCheckoutPR(repoPath: string, prNumber: number, customBranchName?: string): Promise<string>;
   diagnoseRepository(repoPath: string): Promise<RepoHealthDiagnosis>;

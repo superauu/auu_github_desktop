@@ -122,7 +122,7 @@ export const WorkingChangesView: React.FC = () => {
       case 'renamed':
         return <span className="text-[10px] font-mono font-bold text-blue-400">R</span>;
       case 'untracked':
-        return <span className="text-[10px] font-mono font-bold text-purple-400">U</span>;
+        return <span className="text-[10px] font-mono font-bold text-teal-400">U</span>;
       case 'conflicted':
         return <span className="text-[10px] font-mono font-bold text-rose-500">C</span>;
       default:

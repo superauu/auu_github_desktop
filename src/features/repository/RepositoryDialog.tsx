@@ -187,8 +187,8 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
         <div className="flex items-center justify-between pb-1 border-b border-border/50">
           <div className="flex items-center gap-2">
             {mode === 'open' && <FolderOpen className="h-4 w-4 text-primary" />}
-            {mode === 'clone' && <GitFork className="h-4 w-4 text-purple-400" />}
-            {mode === 'init' && <FolderPlus className="h-4 w-4 text-pink-400" />}
+            {mode === 'clone' && <GitFork className="h-4 w-4 text-emerald-400" />}
+            {mode === 'init' && <FolderPlus className="h-4 w-4 text-cyan-400" />}
             <span className="font-semibold text-xs text-foreground">
               {mode === 'open' && '打开本地 Git 仓库'}
               {mode === 'clone' && '从远程克隆仓库 (Git Clone)'}

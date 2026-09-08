@@ -8,6 +8,7 @@ export interface LayoutState {
   changesFileListWidth: number;
   actionsWorkflowsWidth: number;
   prListWidth: number;
+  isEmbeddedTerminalOpen: boolean;
 
   // 调节动作
   setLeftSidebarWidth: (width: number) => void;
@@ -15,6 +16,8 @@ export interface LayoutState {
   setChangesFileListWidth: (width: number) => void;
   setActionsWorkflowsWidth: (width: number) => void;
   setPrListWidth: (width: number) => void;
+  toggleEmbeddedTerminal: () => void;
+  setEmbeddedTerminalOpen: (open: boolean) => void;
 
   // 恢复默认布局
   resetLayout: () => void;
@@ -26,6 +29,7 @@ export const DEFAULT_LAYOUT = {
   changesFileListWidth: 260,
   actionsWorkflowsWidth: 260,
   prListWidth: 320,
+  isEmbeddedTerminalOpen: true,
 };
 
 export const useLayoutStore = create<LayoutState>()(
@@ -47,6 +51,12 @@ export const useLayoutStore = create<LayoutState>()(
 
       setPrListWidth: (width: number) =>
         set({ prListWidth: Math.max(200, Math.min(550, width)) }),
+
+      toggleEmbeddedTerminal: () =>
+        set((state) => ({ isEmbeddedTerminalOpen: !state.isEmbeddedTerminalOpen })),
+
+      setEmbeddedTerminalOpen: (open: boolean) =>
+        set({ isEmbeddedTerminalOpen: open }),
 
       resetLayout: () => set(DEFAULT_LAYOUT),
     }),

@@ -121,7 +121,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
-                <GitPullRequest className="h-3.5 w-3.5 text-purple-400" />
+                <GitPullRequest className="h-3.5 w-3.5 text-sky-400" />
                 <span>GitHub Pull Requests 审查中心</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 3</span>
               </Command.Item>
@@ -301,7 +301,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
-                <Workflow className="h-3.5 w-3.5 text-purple-400" />
+                <Workflow className="h-3.5 w-3.5 text-sky-400" />
                 <span>连接 / 配置 GitHub 账号与 Token...</span>
               </Command.Item>
 

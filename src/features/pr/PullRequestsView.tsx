@@ -231,7 +231,7 @@ export const PullRequestsView: React.FC = () => {
                               isOpen
                                 ? "text-emerald-400"
                                 : isMerged
-                                ? "text-purple-400"
+                                ? "text-violet-400"
                                 : "text-rose-400"
                             )}
                           />
@@ -264,7 +264,7 @@ export const PullRequestsView: React.FC = () => {
                           variant={isOpen ? 'success' : isMerged ? 'secondary' : 'outline'}
                           className={cn(
                             "h-3.5 text-[9px] px-1",
-                            isMerged && "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                            isMerged && "bg-violet-500/15 text-violet-300 border-violet-500/30"
                           )}
                         >
                           {isOpen ? 'Open' : isMerged ? 'Merged' : 'Closed'}

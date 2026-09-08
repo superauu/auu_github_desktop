@@ -17,11 +17,19 @@ import {
   FolderOpen,
   List,
   Network,
+  ChevronDown,
+  ArrowUpDown,
+  X,
+  FileText,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { gitService } from '@/services/git/GitService';
+import { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import { aiCommitService } from '@/services/ai/AiCommitService';
 import { GitHubCheckRun } from '@/services/github/types';
 import { GitFileChange } from '@/services/git/types';
@@ -62,15 +70,49 @@ export const RightPane: React.FC = () => {
   const [fileViewMode, setFileViewMode] = useState<'path' | 'tree'>('path');
   const [treeFoldersOpen, setTreeFoldersOpen] = useState<Record<string, boolean>>({});
 
+  // Commit files & inspection
+  const [commitFiles, setCommitFiles] = useState<GitFileChange[]>([]);
+  const [isLoadingCommitFiles, setIsLoadingCommitFiles] = useState(false);
+  const [commitSortAsc, setCommitSortAsc] = useState(true);
+  const [commitViewAll, setCommitViewAll] = useState(true);
+  const [previewCommitFile, setPreviewCommitFile] = useState<GitFileChange | null>(null);
+  const [previewDiffLines, setPreviewDiffLines] = useState<ParsedDiffLine[]>([]);
+  const [isLoadingDiff, setIsLoadingDiff] = useState(false);
+  const [previewDiffMode, setPreviewDiffMode] = useState<'unified' | 'split'>('unified');
+
   useEffect(() => {
     if (activeTab === 'history' && selectedCommit) {
       fetchCommitChecks(selectedCommit.hash).then((res) => {
         setChecks(res);
       });
+      if (currentRepo) {
+        setIsLoadingCommitFiles(true);
+        gitService
+          .getCommitFiles(currentRepo.path, selectedCommit.hash)
+          .then((res) => setCommitFiles(res))
+          .catch(() => setCommitFiles([]))
+          .finally(() => setIsLoadingCommitFiles(false));
+      }
+    } else {
+      setCommitFiles([]);
+      setPreviewCommitFile(null);
     }
-  }, [activeTab, selectedCommit, fetchCommitChecks]);
+  }, [activeTab, selectedCommit, currentRepo, fetchCommitChecks]);
 
-  if (isRightPaneCollapsed) return null;
+  const handleInspectCommitFile = async (file: GitFileChange) => {
+    if (!currentRepo || !selectedCommit) return;
+    setPreviewCommitFile(file);
+    setIsLoadingDiff(true);
+    try {
+      const diffs = await gitService.getCommitFileDiff(currentRepo.path, selectedCommit.hash, file.path);
+      setPreviewDiffLines(diffs);
+    } catch (err: any) {
+      toast.error('获取 Diff 失败', err?.message);
+      setPreviewDiffLines([]);
+    } finally {
+      setIsLoadingDiff(false);
+    }
+  };
 
   const stagedCount = status?.staged.length || 0;
   const unstagedCount = (status?.unstaged.length || 0) + (status?.untracked.length || 0);
@@ -206,6 +248,46 @@ export const RightPane: React.FC = () => {
     }
   };
 
+  // Commit files statistics & tree grouping
+  const commitStats = useMemo(() => {
+    let added = 0;
+    let modified = 0;
+    let deleted = 0;
+    for (const f of commitFiles) {
+      if (f.status === 'added') added++;
+      else if (f.status === 'deleted') deleted++;
+      else modified++;
+    }
+    return { added, modified, deleted, total: commitFiles.length };
+  }, [commitFiles]);
+
+  const sortedCommitFiles = useMemo(() => {
+    const list = [...commitFiles];
+    list.sort((a, b) =>
+      commitSortAsc ? a.path.localeCompare(b.path) : b.path.localeCompare(a.path)
+    );
+    return list;
+  }, [commitFiles, commitSortAsc]);
+
+  const commitTreeGrouped = useMemo(() => {
+    const folders: Record<string, GitFileChange[]> = {};
+    const rootFiles: GitFileChange[] = [];
+
+    for (const f of sortedCommitFiles) {
+      const parts = f.path.split(/[\\/]/);
+      if (parts.length > 1) {
+        const folder = parts[0];
+        if (!folders[folder]) folders[folder] = [];
+        folders[folder].push(f);
+      } else {
+        rootFiles.push(f);
+      }
+    }
+    return { folders, rootFiles };
+  }, [sortedCommitFiles]);
+
+  if (isRightPaneCollapsed) return null;
+
   return (
     <aside
       style={{ width: rightPaneWidth }}
@@ -259,14 +341,14 @@ export const RightPane: React.FC = () => {
 
         {/* If viewing a selected commit from history */}
         {activeTab === 'history' && selectedCommit ? (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             {/* Commit Header & AI Recompose Button */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground text-[11px]">commit:</span>
+            <div className="flex items-center justify-between pb-0.5">
+              <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                <span className="text-muted-foreground/80">commit:</span>
                 <button
                   onClick={() => copyHash(selectedCommit.hash)}
-                  className="font-mono text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                  className="font-semibold text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1"
                   title="点击复制完整 Hash"
                 >
                   <span>{selectedCommit.shortHash}</span>
@@ -278,54 +360,335 @@ export const RightPane: React.FC = () => {
                 </button>
               </div>
 
-              {/* GitKraken-style Recompose with AI button */}
-              <Button
-                variant="outline"
-                size="xs"
+              {/* GitKraken-style Recompose commit with AI button */}
+              <button
                 onClick={() => {
                   setCommitMessage(selectedCommit.subject);
                   setActiveTab('changes');
-                  toast.info('已复制提交信息至工作区并切换');
+                  toast.info('已提取提交信息至工作区并切换');
                 }}
-                className="h-6 px-2 text-[10px] gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/15"
+                className="cyber-btn-ai text-white font-medium text-[10px] px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+                title="使用 AI 深度润色或重构提交"
               >
-                <Sparkles className="h-3 w-3 text-purple-400" />
-                <span>Recompose</span>
-              </Button>
+                <Sparkles className="h-3 w-3 text-white animate-pulse" />
+                <span className="font-semibold tracking-tight">Recompose commit with AI</span>
+                <ChevronDown className="h-2.5 w-2.5 opacity-80" />
+              </button>
             </div>
 
             {/* Commit Subject & Body */}
-            <div className="p-3 rounded-xl border border-border/80 bg-accent/20 space-y-2">
+            <div className="p-3.5 rounded-xl border border-border/80 bg-card/90 dark:bg-[#0d0f17]/90 space-y-2 cyber-card">
               <p className="text-xs font-semibold text-foreground leading-relaxed">
                 {selectedCommit.subject}
               </p>
               {selectedCommit.body && (
-                <p className="text-[11px] text-muted-foreground whitespace-pre-wrap font-mono bg-background/50 p-2 rounded border border-border/40">
+                <p className="text-[11px] text-foreground/80 dark:text-muted-foreground whitespace-pre-wrap font-mono bg-muted/60 dark:bg-black/40 p-2.5 rounded-lg border border-border/40">
                   {selectedCommit.body}
                 </p>
               )}
             </div>
 
             {/* GitKraken-style Author Card */}
-            <div className="p-3 rounded-xl border border-border/70 bg-card/60 flex items-start gap-3">
-              <div className="h-8 w-8 rounded-lg bg-indigo-500/20 text-indigo-400 font-bold flex items-center justify-center text-xs shrink-0 border border-indigo-500/30 uppercase">
-                {selectedCommit.author.name.slice(0, 2)}
-              </div>
-              <div className="min-w-0 flex-1 space-y-0.5 text-[11px]">
-                <div className="font-semibold text-foreground truncate">{selectedCommit.author.name}</div>
-                <div className="text-muted-foreground text-[10px]">
-                  authored {selectedCommit.author.relativeDate}
+            <div className="p-3 rounded-xl border border-border/70 bg-card/90 dark:bg-[#0d0f17]/80 flex items-center justify-between gap-3 cyber-card">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800/90 text-sky-700 dark:text-sky-400 font-bold flex items-center justify-center text-xs shrink-0 border border-sky-500/30 shadow-xs uppercase">
+                  {selectedCommit.author.name.slice(0, 2)}
                 </div>
-                {selectedCommit.parents.length > 0 && (
-                  <div className="text-[10px] text-muted-foreground/80 font-mono pt-1 border-t border-border/40">
-                    parent: {selectedCommit.parents[0].slice(0, 7)}
+                <div className="min-w-0 space-y-0.5 text-[11px]">
+                  <div className="font-semibold text-foreground truncate">{selectedCommit.author.name}</div>
+                  <div className="text-muted-foreground text-[10px]">
+                    authored {selectedCommit.author.relativeDate}
+                  </div>
+                </div>
+              </div>
+              {selectedCommit.parents.length > 0 && (
+                <div className="text-[10px] text-muted-foreground/80 font-mono shrink-0">
+                  parent: <span className="text-sky-400/90 hover:underline cursor-pointer">{selectedCommit.parents[0].slice(0, 7)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* GitKraken-style Changed Files Header in Commit View */}
+            <div className="space-y-2 pt-1 border-t border-border/60">
+              <div className="flex items-center justify-between">
+                {/* Stats badge (e.g. + 1 added) */}
+                <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                  {commitStats.total === 0 ? (
+                    <span className="text-muted-foreground">0 files changed</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {commitStats.added > 0 && (
+                        <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
+                          <span>+</span>
+                          <span>{commitStats.added} added</span>
+                        </span>
+                      )}
+                      {commitStats.modified > 0 && (
+                        <span className="text-amber-400 font-semibold flex items-center gap-0.5">
+                          <span>~</span>
+                          <span>{commitStats.modified} modified</span>
+                        </span>
+                      )}
+                      {commitStats.deleted > 0 && (
+                        <span className="text-rose-400 font-semibold flex items-center gap-0.5">
+                          <span>-</span>
+                          <span>{commitStats.deleted} deleted</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right tools: Sort & Path/Tree switcher */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCommitSortAsc(!commitSortAsc)}
+                    className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
+                    title={commitSortAsc ? '按名称升序' : '按名称降序'}
+                  >
+                    <ArrowUpDown className="h-3 w-3" />
+                  </button>
+
+                  <div className="flex items-center bg-secondary/50 rounded p-0.5 border border-border/50">
+                    <button
+                      onClick={() => setFileViewMode('path')}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                        fileViewMode === 'path'
+                          ? "bg-background text-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <List className="h-2.5 w-2.5" />
+                      <span>Path</span>
+                    </button>
+                    <button
+                      onClick={() => setFileViewMode('tree')}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                        fileViewMode === 'tree'
+                          ? "bg-background text-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Network className="h-2.5 w-2.5" />
+                      <span>Tree</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-bar: View all files & Collapse all */}
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground px-0.5">
+                <label
+                  onClick={() => setCommitViewAll(!commitViewAll)}
+                  className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors select-none"
+                >
+                  {commitViewAll ? (
+                    <CheckSquare className="h-3 w-3 text-cyan-400" />
+                  ) : (
+                    <Square className="h-3 w-3" />
+                  )}
+                  <span>View all files</span>
+                </label>
+
+                {fileViewMode === 'tree' && (
+                  <button
+                    onClick={() => setTreeFoldersOpen({})}
+                    className="hover:text-foreground underline decoration-dotted transition-colors"
+                  >
+                    Collapse All
+                  </button>
+                )}
+              </div>
+
+              {/* Commit Changed Files List */}
+              <div className="rounded-xl border border-border/70 bg-card/90 dark:bg-[#0d0f17]/90 p-1.5 max-h-52 overflow-y-auto space-y-0.5 cyber-card">
+                {isLoadingCommitFiles ? (
+                  <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground text-[11px]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+                    <span>正在加载变更文件...</span>
+                  </div>
+                ) : sortedCommitFiles.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground text-[11px]">
+                    此提交无文件改动
+                  </div>
+                ) : fileViewMode === 'path' ? (
+                  /* Flat Path View */
+                  sortedCommitFiles.map((file) => {
+                    const isSelected = previewCommitFile?.path === file.path;
+                    return (
+                      <div
+                        key={file.path}
+                        onClick={() => handleInspectCommitFile(file)}
+                        className={cn(
+                          "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[11px] group transition-colors",
+                          isSelected
+                            ? "bg-sky-500/15 border border-sky-500/40 text-foreground font-medium shadow-[inset_0_0_12px_rgba(56,189,248,0.06)]"
+                            : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                        )}
+                        title={`${file.path} (点击查看 Diff)`}
+                      >
+                        <div className="flex items-center gap-1.5 truncate min-w-0 pr-1">
+                          {getFileStatusIcon(file.status)}
+                          <span className="font-mono truncate">{file.path}</span>
+                        </div>
+                        <span className="text-[9px] uppercase font-mono opacity-70 shrink-0">
+                          {file.status}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  /* Tree View */
+                  <div>
+                    {Object.entries(commitTreeGrouped.folders).map(([folder, files]) => {
+                      const isOpen = treeFoldersOpen[folder] !== false;
+                      return (
+                        <div key={folder} className="space-y-0.5">
+                          <div
+                            onClick={() => toggleTreeFolder(folder)}
+                            className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent/40 cursor-pointer text-[11px] font-medium text-foreground"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {isOpen ? (
+                                <FolderOpen className="h-3 w-3 text-amber-400" />
+                              ) : (
+                                <Folder className="h-3 w-3 text-amber-400" />
+                              )}
+                              <span>{folder}</span>
+                            </div>
+                            <span className="text-[9px] text-muted-foreground font-mono">
+                              {files.length}
+                            </span>
+                          </div>
+                          {isOpen && (
+                            <div className="pl-4 ml-2 border-l border-border/40 space-y-0.5">
+                              {files.map((file) => {
+                                const isSelected = previewCommitFile?.path === file.path;
+                                return (
+                                  <div
+                                    key={file.path}
+                                    onClick={() => handleInspectCommitFile(file)}
+                                    className={cn(
+                                      "px-2 py-0.5 rounded cursor-pointer flex items-center justify-between text-[11px] group transition-colors",
+                                      isSelected
+                                        ? "bg-sky-500/15 border border-sky-500/40 text-foreground font-medium shadow-[inset_0_0_12px_rgba(56,189,248,0.06)]"
+                                        : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-1.5 truncate">
+                                      {getFileStatusIcon(file.status)}
+                                      <span className="font-mono truncate">
+                                        {file.path.slice(folder.length + 1)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {commitTreeGrouped.rootFiles.map((file) => {
+                      const isSelected = previewCommitFile?.path === file.path;
+                      return (
+                        <div
+                          key={file.path}
+                          onClick={() => handleInspectCommitFile(file)}
+                          className={cn(
+                            "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[11px] transition-colors",
+                            isSelected
+                              ? "bg-sky-500/15 border border-sky-500/40 text-foreground font-medium shadow-[inset_0_0_12px_rgba(56,189,248,0.06)]"
+                              : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            {getFileStatusIcon(file.status)}
+                            <span className="font-mono truncate">{file.path}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
 
+            {/* Inline Diff Preview Card (GitKraken-style Inspector) */}
+            {previewCommitFile && (
+              <div className="rounded-xl border border-sky-500/40 dark:border-cyan-500/40 bg-card dark:bg-[#0a0c13] overflow-hidden cyber-card space-y-0">
+                <div className="p-2 bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                    <FileText className="h-3 w-3 text-sky-600 dark:text-cyan-400 shrink-0" />
+                    <span className="font-mono font-semibold text-[11px] text-sky-800 dark:text-cyan-300 truncate">
+                      {previewCommitFile.path}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() =>
+                        setPreviewDiffMode(previewDiffMode === 'unified' ? 'split' : 'unified')
+                      }
+                      className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-secondary/80 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {previewDiffMode === 'unified' ? 'Unified' : 'Split'}
+                    </button>
+                    <button
+                      onClick={() => setPreviewCommitFile(null)}
+                      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+                      title="关闭预览"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {isLoadingDiff ? (
+                  <div className="p-6 flex items-center justify-center gap-2 text-muted-foreground text-[11px]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+                    <span>正在获取差异对比...</span>
+                  </div>
+                ) : previewDiffLines.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground text-[10px]">
+                    无文本差异或为二进制文件
+                  </div>
+                ) : (
+                  <div className="p-2 max-h-56 overflow-auto font-mono text-[10px] leading-tight space-y-0.5 bg-card dark:bg-black/60">
+                    {previewDiffLines.slice(0, 100).map((line, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "px-1 py-0.5 rounded-xs whitespace-pre-wrap break-all flex",
+                          line.type === 'add'
+                            ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-l-2 border-emerald-500"
+                            : line.type === 'delete'
+                            ? "bg-rose-500/10 text-rose-800 dark:text-rose-300 border-l-2 border-rose-500"
+                            : line.type === 'header'
+                            ? "text-sky-800 dark:text-cyan-400/80 bg-sky-500/10 dark:bg-cyan-950/20 font-semibold"
+                            : "text-slate-700 dark:text-muted-foreground"
+                        )}
+                      >
+                        <span className="w-5 shrink-0 opacity-40 select-none">
+                          {line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' '}
+                        </span>
+                        <span>{line.content}</span>
+                      </div>
+                    ))}
+                    {previewDiffLines.length > 100 && (
+                      <div className="pt-2 text-center text-muted-foreground text-[9px]">
+                        仅预览前 100 行差异
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* GitHub Checks Status */}
-            <div className="space-y-2">
+            <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   GitHub Checks
@@ -336,7 +699,7 @@ export const RightPane: React.FC = () => {
                 </Badge>
               </div>
 
-              <div className="rounded-xl border border-border/80 divide-y divide-border/60 bg-background/50 text-[11px] overflow-hidden">
+              <div className="rounded-xl border border-border/80 divide-y divide-border/60 bg-card/90 dark:bg-[#0d0f17]/90 text-[11px] overflow-hidden cyber-card">
                 {checks.length === 0 ? (
                   <div className="p-3 text-center text-[10px] text-muted-foreground">
                     未配置或无正在执行的 Checks
@@ -515,10 +878,10 @@ export const RightPane: React.FC = () => {
                   size="xs"
                   onClick={handleAiGenerateCommit}
                   disabled={isAiGenerating}
-                  className="h-5 px-1.5 text-[10px] gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-500/15"
+                  className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
                   title="根据当前修改智能生成语义化提交说明"
                 >
-                  <Sparkles className="h-2.5 w-2.5 text-purple-400" />
+                  <Sparkles className="h-2.5 w-2.5 text-sky-400" />
                   <span>{isAiGenerating ? 'AI 生成中...' : 'Recompose with AI'}</span>
                 </Button>
               </div>

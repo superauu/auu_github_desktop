@@ -38,7 +38,7 @@ function parseAnsi(text: string): React.ReactNode[] {
       } else if (part === '\x1b[34m' || part === '\x1b[36m') {
         currentColor = 'text-cyan-400';
       } else if (part === '\x1b[35m') {
-        currentColor = 'text-purple-400';
+        currentColor = 'text-violet-400';
       }
       return null;
     }

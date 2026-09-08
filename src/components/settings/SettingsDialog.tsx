@@ -182,7 +182,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                 )}
               >
-                <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                <Sparkles className="h-3.5 w-3.5 text-sky-400" />
                 <span>AI 智能引擎</span>
               </button>
 
@@ -416,7 +416,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       )}
                     >
                       <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+                        <Sparkles className="h-3.5 w-3.5 text-sky-400" />
                         <span>自定义大模型 API</span>
                       </div>
                       <div className="text-[10px] text-muted-foreground">
@@ -476,7 +476,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         size="xs"
                         onClick={handleTestAiConnection}
                         disabled={isTestingAi}
-                        className="h-7 text-xs gap-1.5 border-purple-500/40 text-purple-300 hover:bg-purple-500/10"
+                        className="h-7 text-xs gap-1.5 border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
                       >
                         <Sparkles className="h-3 w-3" />
                         <span>{isTestingAi ? '正在测试...' : '测试连接 (Test Connection)'}</span>

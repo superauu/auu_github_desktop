@@ -15,6 +15,13 @@ import { useGitHubStore } from '@/stores/githubStore';
 
 export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests';
 
+export interface RedoItem {
+  branch: string;
+  commitHash: string;
+  commitSubject: string;
+  timestamp: number;
+}
+
 interface RepoState {
   currentRepo: RepositoryInfo | null;
   recentRepos: RepositoryInfo[];
@@ -27,6 +34,7 @@ interface RepoState {
   branches: GitBranch[];
   tags: GitTag[];
   stashes: GitStash[];
+  redoStack: RedoItem[];
   isLoading: boolean;
   isLeftSidebarCollapsed: boolean;
   isRightPaneCollapsed: boolean;
@@ -53,7 +61,7 @@ interface RepoState {
   fetchRemote: () => Promise<void>;
   pull: () => Promise<void>;
   push: (remote?: string, branch?: string) => Promise<void>;
-  loadFileDiff: (file: GitFileChange) => Promise<void>;
+  loadFileDiff: (file: GitFileChange, commitHash?: string) => Promise<void>;
   stageFile: (filePath: string) => Promise<void>;
   unstageFile: (filePath: string) => Promise<void>;
   stageAll: () => Promise<void>;
@@ -82,6 +90,7 @@ interface RepoState {
   revertCommit: (hash: string) => Promise<void>;
   softResetCommit: (hash: string) => Promise<void>;
   undoLastCommit: () => Promise<void>;
+  redoLastCommit: () => Promise<void>;
   openTerminal: () => Promise<void>;
   fetchAndCheckoutPR: (prNumber: number, customBranchName?: string) => Promise<string>;
   diagnoseRepository: () => Promise<RepoHealthDiagnosis>;
@@ -116,6 +125,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     branches: [],
     tags: [],
     stashes: [],
+    redoStack: [],
     isLoading: false,
     isLeftSidebarCollapsed: false,
     isRightPaneCollapsed: false,
@@ -133,6 +143,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           selectedFile: null,
           selectedCommit: null,
           fileDiffLines: [],
+          redoStack: [],
           openTabs: newTabs,
         };
       });
@@ -321,17 +332,25 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    loadFileDiff: async (file: GitFileChange) => {
-      const { currentRepo } = get();
+    loadFileDiff: async (file: GitFileChange, commitHash?: string) => {
+      const { currentRepo, selectedCommit, activeTab } = get();
       if (!currentRepo) return;
 
       try {
-        const diffLines = await gitService.getFileDiff(
-          currentRepo.path,
-          file.path,
-          file.staged,
-          file.status === 'untracked'
-        );
+        const targetCommit =
+          commitHash || (activeTab === 'history' && selectedCommit ? selectedCommit.hash : undefined);
+
+        let diffLines: ParsedDiffLine[] = [];
+        if (targetCommit) {
+          diffLines = await gitService.getCommitFileDiff(currentRepo.path, targetCommit, file.path);
+        } else {
+          diffLines = await gitService.getFileDiff(
+            currentRepo.path,
+            file.path,
+            file.staged,
+            file.status === 'untracked'
+          );
+        }
         set({ fileDiffLines: diffLines });
       } catch (err: any) {
         console.warn('获取 Diff 失败:', err);
@@ -399,6 +418,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.commit(currentRepo.path, message, amend);
+        set({ redoStack: [] });
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
@@ -413,6 +433,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         await gitService.createBranch(currentRepo.path, name, startPoint);
         if (checkout) {
           await gitService.checkoutBranch(currentRepo.path, name);
+          set({ redoStack: [] });
         }
         await get().refreshAll();
       } catch (err: any) {
@@ -438,6 +459,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.checkoutBranch(currentRepo.path, name);
+        set({ redoStack: [] });
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });
@@ -642,10 +664,49 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     undoLastCommit: async () => {
-      const { currentRepo } = get();
+      const { currentRepo, commits } = get();
       if (!currentRepo) return;
       try {
+        const headCommit = commits[0];
+        const branch = currentRepo.currentBranch;
+
         await gitService.undoLastCommit(currentRepo.path);
+
+        if (headCommit && branch) {
+          set((state) => ({
+            redoStack: [
+              {
+                branch,
+                commitHash: headCommit.hash,
+                commitSubject: headCommit.subject || headCommit.shortHash,
+                timestamp: Date.now(),
+              },
+              ...state.redoStack,
+            ],
+          }));
+        }
+
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    redoLastCommit: async () => {
+      const { currentRepo, redoStack } = get();
+      if (!currentRepo || redoStack.length === 0) return;
+
+      const item = redoStack[0];
+      if (item.branch !== currentRepo.currentBranch) {
+        throw new Error(`无法在当前分支重做，该提交属于分支: ${item.branch}`);
+      }
+
+      try {
+        await gitService.redoCommit(currentRepo.path, item.commitHash);
+        set((state) => ({
+          redoStack: state.redoStack.slice(1),
+        }));
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });

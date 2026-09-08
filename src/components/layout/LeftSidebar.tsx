@@ -23,6 +23,8 @@ import {
   ListFilter,
   Sparkles,
   Copy,
+  Users,
+  CircleDot,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -50,6 +52,7 @@ export const LeftSidebar: React.FC = () => {
     branches,
     tags,
     stashes,
+    commits,
     isLeftSidebarCollapsed,
     createBranch,
     checkoutBranch,
@@ -77,9 +80,13 @@ export const LeftSidebar: React.FC = () => {
   // Group sections expanded
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     localBranches: true,
-    remoteBranches: true,
-    tags: true,
-    stashes: true,
+    remoteBranches: false,
+    cloudPatches: false,
+    pullRequests: false,
+    issues: false,
+    teams: false,
+    tags: false,
+    stashes: false,
   });
 
   // Branch folders expanded state (e.g. "feature", "backup")
@@ -652,7 +659,7 @@ export const LeftSidebar: React.FC = () => {
             <GitPullRequest
               className={cn(
                 "h-3.5 w-3.5",
-                activeTab === 'pullRequests' ? "text-purple-400" : "text-muted-foreground"
+                activeTab === 'pullRequests' ? "text-sky-400" : "text-muted-foreground"
               )}
             />
             <span>Pull Requests</span>
@@ -756,6 +763,25 @@ export const LeftSidebar: React.FC = () => {
       ) : (
         /* List Mode: Filter Input + Tree Navigator */
         <>
+          {/* GitKraken-style Commit View Count Indicator */}
+          <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#0a0c13] border-b border-border/50 flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="text-foreground/90 font-medium">Viewing</span>
+              <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-mono border-primary/40 text-primary">
+                {commits.length || 50}
+              </Badge>
+              <span className="text-[10px] opacity-70">commits</span>
+            </div>
+            <button
+              onClick={() => setHealthModalOpen(true)}
+              className="text-[10px] text-sky-600 dark:text-cyan-400 hover:text-sky-700 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
+              title="仓库健康度诊断"
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              <span>诊断</span>
+            </button>
+          </div>
+
           {/* Quick Filter Box (Ctrl+Alt+F) */}
           <div className="px-2 py-1.5 border-b border-border/40">
             <div className="relative">
@@ -1088,6 +1114,130 @@ export const LeftSidebar: React.FC = () => {
                         暂无远程跟踪分支
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* CLOUD PATCHES Section */}
+              <div>
+                <div
+                  onClick={() => toggleSection('cloudPatches')}
+                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                >
+                  <div className="flex items-center gap-1">
+                    {expandedSections.cloudPatches ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    <span>CLOUD PATCHES</span>
+                  </div>
+                  <Badge variant="outline" className="h-3 px-1 text-[8px] opacity-60 font-mono">
+                    0
+                  </Badge>
+                </div>
+                {expandedSections.cloudPatches && (
+                  <div className="mt-0.5 space-y-0.5 pl-3 text-[11px] text-muted-foreground/70 py-1">
+                    <p>暂无云端补丁包 (Cloud Patches)。可通过工作区变更生成共享补丁。</p>
+                  </div>
+                )}
+              </div>
+
+              {/* PULL REQUESTS Section */}
+              <div>
+                <div
+                  onClick={() => toggleSection('pullRequests')}
+                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                >
+                  <div className="flex items-center gap-1">
+                    {expandedSections.pullRequests ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    <span>PULL REQUESTS ({pullRequests.length})</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
+                    title="在 GitHub 查看全部 PR"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTab('pullRequests');
+                    }}
+                  >
+                    <GitPullRequest className="h-3 w-3" />
+                  </Button>
+                </div>
+                {expandedSections.pullRequests && (
+                  <div className="mt-0.5 space-y-0.5 pl-1">
+                    {pullRequests.length === 0 ? (
+                      <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                        暂无开启的 Pull Requests
+                      </div>
+                    ) : (
+                      pullRequests.map((pr) => (
+                        <div
+                          key={pr.id}
+                          onClick={() => {
+                            setActiveTab('pullRequests');
+                          }}
+                          className="px-2 py-1 rounded-md text-xs hover:bg-accent/50 cursor-pointer flex items-center justify-between text-muted-foreground hover:text-foreground"
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            <GitPullRequest className="h-3 w-3 text-sky-400 shrink-0" />
+                            <span className="truncate">#{pr.number} {pr.title}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ISSUES Section */}
+              <div>
+                <div
+                  onClick={() => toggleSection('issues')}
+                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                >
+                  <div className="flex items-center gap-1">
+                    {expandedSections.issues ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    <span>ISSUES</span>
+                  </div>
+                  <CircleDot className="h-3 w-3 text-emerald-400/70" />
+                </div>
+                {expandedSections.issues && (
+                  <div className="mt-0.5 space-y-0.5 pl-3 text-[11px] text-muted-foreground/70 py-1">
+                    <p>暂无关联的 GitHub / GitLab Issues。</p>
+                  </div>
+                )}
+              </div>
+
+              {/* TEAMS Section */}
+              <div>
+                <div
+                  onClick={() => toggleSection('teams')}
+                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                >
+                  <div className="flex items-center gap-1">
+                    {expandedSections.teams ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    <span>TEAMS</span>
+                  </div>
+                  <Users className="h-3 w-3 text-muted-foreground opacity-60" />
+                </div>
+                {expandedSections.teams && (
+                  <div className="mt-0.5 space-y-0.5 pl-3 text-[11px] text-muted-foreground/70 py-1">
+                    <p>团队成员协作状态已同步至本地。</p>
                   </div>
                 )}
               </div>

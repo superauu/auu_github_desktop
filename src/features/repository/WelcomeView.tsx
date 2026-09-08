@@ -26,11 +26,11 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
       <div className="max-w-xl w-full space-y-8 animate-in fade-in-50 duration-300">
         {/* Hero Section */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-tr from-indigo-500/20 via-purple-500/10 to-transparent border border-border glow-primary mb-1">
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-sky-500/10 to-transparent border border-sky-500/20 glow-primary mb-1">
             <img src="/logo.svg" alt="Auu Git" className="h-10 w-10 drop-shadow-md" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Auu Git Client
+            Auu Git Desktop
           </h1>
           <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
             轻量、现代、美观、极速的桌面 Git 客户端与 GitHub 开发者仪表盘。
@@ -43,7 +43,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             onClick={onOpenRepo}
             className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/40 transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden"
           >
-            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 w-fit group-hover:scale-105 transition-transform">
+            <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400 w-fit group-hover:scale-105 transition-transform">
               <FolderOpen className="h-5 w-5" />
             </div>
             <div>
@@ -60,7 +60,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             onClick={onCloneRepo}
             className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/40 transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden"
           >
-            <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 w-fit group-hover:scale-105 transition-transform">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 w-fit group-hover:scale-105 transition-transform">
               <GitFork className="h-5 w-5" />
             </div>
             <div>
@@ -77,7 +77,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
             onClick={onInitRepo}
             className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/40 transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden"
           >
-            <div className="p-2 rounded-lg bg-pink-500/10 text-pink-400 w-fit group-hover:scale-105 transition-transform">
+            <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 w-fit group-hover:scale-105 transition-transform">
               <FolderGit2 className="h-5 w-5" />
             </div>
             <div>
