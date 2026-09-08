@@ -30,30 +30,32 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
 
   if (isTauri) {
     try {
-      const { Command } = await import('@tauri-apps/plugin-shell');
-      const cmd = Command.create(customPath, args, { cwd });
-      const output = await cmd.execute();
+      // 优先通过 Tauri 2 核心 invoke 调用 Rust 原生 execute_git 命令（安全、静默、无权限限制）
+      const { invoke } = await import('@tauri-apps/api/core');
+      const result = await invoke<GitCommandResult>('execute_git', {
+        args,
+        cwd,
+        gitBinary: customPath,
+      });
+
       const isDiff = args.includes('diff');
-      if (output.code !== 0 && (!isDiff || output.code !== 1)) {
+      if (result.exitCode !== 0 && (!isDiff || result.exitCode !== 1)) {
         throw new GitExecutionError(
           `git ${args.join(' ')}`,
-          output.code ?? 1,
-          output.stdout,
-          output.stderr
+          result.exitCode,
+          result.stdout,
+          result.stderr
         );
       }
-      return {
-        exitCode: output.code ?? 0,
-        stdout: output.stdout,
-        stderr: output.stderr,
-      };
+      return result;
     } catch (err: any) {
       if (err instanceof GitExecutionError) throw err;
-      console.warn('Tauri Git Shell 调用降级为 HTTP 中间件:', err);
+      // 若 invoke 抛出系统错误（如系统中未安装 Git）
+      throw new GitExecutionError(`git ${args.join(' ')}`, -1, '', err?.message || String(err));
     }
   }
 
-  // Fallback to local dev server /api/git endpoint
+  // Fallback to local Vite dev server /api/git endpoint (纯浏览器开发模式专用)
   try {
     const res = await fetch('/api/git', {
       method: 'POST',
@@ -63,12 +65,17 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
       body: JSON.stringify({ args, cwd, gitBinary: customPath }),
     });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text}`);
+    const rawText = await res.text();
+    // 防御 SPA HTML 路由 fallback 导致的 JSON 解析崩溃
+    if (rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE') || rawText.includes('<!doctype')) {
+      throw new Error('未检测到本地后端代理服务，请确保在桌面端或开发环境中运行');
     }
 
-    const data: GitCommandResult = await res.json();
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${rawText}`);
+    }
+
+    const data: GitCommandResult = JSON.parse(rawText);
     const isDiff = args.includes('diff');
     if (data.exitCode !== 0 && (!isDiff || data.exitCode !== 1)) {
       throw new GitExecutionError(

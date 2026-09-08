@@ -683,22 +683,35 @@ export class GitService implements IGitService {
 
   async readWorkingFile(repoPath: string, filePath: string): Promise<string> {
     const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
-    // 1. Try local dev server endpoint
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+    // 1. Tauri 桌面原生模式
+    if (isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<string>('read_file_content', { path: fullPath });
+      } catch (err: any) {
+        console.warn('Tauri 读取文件降级:', err);
+      }
+    }
+
+    // 2. 本地开发服务器 (Dev 模式)
     try {
       const res = await fetch('/api/fs/read-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: fullPath }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        return data.content ?? '';
+      const text = await res.text();
+      if (!text.trim().startsWith('<')) {
+        const data = JSON.parse(text);
+        if (data.content !== undefined) return data.content;
       }
     } catch {
       // ignore
     }
 
-    // 2. Fallback: Pure git hash-object + cat-file
+    // 3. Fallback: Git hash-object + cat-file
     try {
       const hashRes = await executeGit(['hash-object', filePath], repoPath);
       const hash = hashRes.stdout.trim();
@@ -714,7 +727,20 @@ export class GitService implements IGitService {
 
   async writeWorkingFile(repoPath: string, filePath: string, content: string): Promise<void> {
     const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
-    // 1. Try local dev server endpoint
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+    // 1. Tauri 桌面原生模式
+    if (isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('write_file_content', { path: fullPath, content });
+        return;
+      } catch (err: any) {
+        console.warn('Tauri 写入文件降级:', err);
+      }
+    }
+
+    // 2. 本地开发服务器 (Dev 模式)
     try {
       const res = await fetch('/api/fs/write-file', {
         method: 'POST',
@@ -726,21 +752,6 @@ export class GitService implements IGitService {
       }
     } catch {
       // ignore, fallback
-    }
-
-    // 2. Tauri / Fallback: Write via Tauri shell if available
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-    if (isTauri) {
-      try {
-        const { Command } = await import('@tauri-apps/plugin-shell');
-        const base64Content = btoa(unescape(encodeURIComponent(content)));
-        const psScript = `[System.IO.File]::WriteAllBytes('${fullPath.replace(/'/g, "''")}', [System.Convert]::FromBase64String('${base64Content}'))`;
-        const cmd = Command.create('powershell', ['-NoProfile', '-Command', psScript]);
-        await cmd.execute();
-        return;
-      } catch (err: any) {
-        console.warn('Tauri PowerShell 写入文件失败:', err);
-      }
     }
 
     throw new Error(`无法写入文件 ${filePath}`);

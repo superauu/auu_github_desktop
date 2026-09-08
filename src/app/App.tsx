@@ -16,7 +16,7 @@ export const App: React.FC = () => {
     // Initialize GitHub auth / demo state
     initAuth();
 
-    // Restore previously opened repo or default to current workspace repo
+    // Restore previously opened repo
     try {
       const saved = localStorage.getItem('auu_git_last_active_repo');
       if (saved) {
@@ -28,14 +28,8 @@ export const App: React.FC = () => {
       }
     } catch {}
 
-    // Default load current workspace repo
-    setCurrentRepo({
-      id: 'auu-git-client-workspace',
-      name: 'auu_github_desktop',
-      path: 'E:/code/auu_github_desktop',
-      currentBranch: '',
-      lastOpenedAt: Date.now(),
-    });
+    // 首次打开或未记录活跃仓库时，保持 null 呈现迎新欢迎界面
+    setCurrentRepo(null);
   }, [initTheme, setCurrentRepo, initAuth]);
 
   return <AppLayout />;

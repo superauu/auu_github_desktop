@@ -23,6 +23,25 @@ export class GitHubOAuthService {
    * 向 GitHub 申请设备授权码与用户核验码
    */
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+    if (isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const rawJson = await invoke<string>('request_github_device_code', {
+          clientId: GitHubOAuthService.CLIENT_ID,
+          scope: GitHubOAuthService.SCOPES,
+        });
+        const data = JSON.parse(rawJson);
+        if (!data.device_code || !data.user_code) {
+          throw new Error(data.error_description || data.error || 'GitHub 未返回有效授权凭据');
+        }
+        return data as DeviceCodeResponse;
+      } catch (err: any) {
+        throw new Error(`获取 GitHub 设备码失败: ${err.message || String(err)}`);
+      }
+    }
+
     const res = await fetch('/api/github/device-code', {
       method: 'POST',
       headers: {
@@ -34,12 +53,16 @@ export class GitHubOAuthService {
       }),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`获取 GitHub 设备码失败 (HTTP ${res.status}): ${errorText}`);
+    const rawText = await res.text();
+    if (rawText.trim().startsWith('<')) {
+      throw new Error('未检测到后端认证代理服务，请在桌面客户端或开发环境中运行');
     }
 
-    const data = (await res.json()) as DeviceCodeResponse;
+    if (!res.ok) {
+      throw new Error(`获取 GitHub 设备码失败 (HTTP ${res.status}): ${rawText}`);
+    }
+
+    const data = JSON.parse(rawText) as DeviceCodeResponse;
     if (!data.device_code || !data.user_code) {
       throw new Error('GitHub 未返回有效的设备授权凭据');
     }
@@ -62,6 +85,7 @@ export class GitHubOAuthService {
     let interval = Math.max(initialInterval || 5, 5);
     const expiresAt = Date.now() + expiresInSeconds * 1000;
     let attempt = 0;
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
     while (Date.now() < expiresAt) {
       if (options?.signal?.aborted) {
@@ -79,23 +103,42 @@ export class GitHubOAuthService {
         throw new DOMException('用户取消了授权流程', 'AbortError');
       }
 
-      const res = await fetch('/api/github/device-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          client_id: GitHubOAuthService.CLIENT_ID,
-          device_code: deviceCode,
-        }),
-      });
+      let data: DeviceTokenResponse;
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`轮询 GitHub Token 异常 (HTTP ${res.status}): ${errorText}`);
+      if (isTauri) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const rawJson = await invoke<string>('poll_github_device_token', {
+            clientId: GitHubOAuthService.CLIENT_ID,
+            deviceCode,
+          });
+          data = JSON.parse(rawJson);
+        } catch (err: any) {
+          throw new Error(`轮询 GitHub Token 异常: ${err.message || String(err)}`);
+        }
+      } else {
+        const res = await fetch('/api/github/device-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            client_id: GitHubOAuthService.CLIENT_ID,
+            device_code: deviceCode,
+          }),
+        });
+
+        const rawText = await res.text();
+        if (rawText.trim().startsWith('<')) {
+          throw new Error('未检测到后端认证代理服务');
+        }
+
+        if (!res.ok) {
+          throw new Error(`轮询 GitHub Token 异常 (HTTP ${res.status}): ${rawText}`);
+        }
+
+        data = JSON.parse(rawText) as DeviceTokenResponse;
       }
-
-      const data = (await res.json()) as DeviceTokenResponse;
 
       if (data.access_token) {
         return data.access_token;

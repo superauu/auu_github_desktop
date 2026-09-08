@@ -298,6 +298,23 @@ export const RightPane: React.FC = () => {
 
   if (isRightPaneCollapsed) return null;
 
+  if (!currentRepo) {
+    return (
+      <aside
+        style={{ width: rightPaneWidth }}
+        className="border-l border-border bg-card/20 flex flex-col items-center justify-center p-6 text-center select-none shrink-0 h-full overflow-hidden text-xs"
+      >
+        <div className="h-12 w-12 rounded-2xl bg-muted/40 border border-border/50 flex items-center justify-center mb-3 text-muted-foreground/60 shadow-xs">
+          <Layers className="h-6 w-6 stroke-[1.5]" />
+        </div>
+        <h3 className="font-semibold text-xs text-foreground/80 mb-1">未选择仓库</h3>
+        <p className="text-[11px] text-muted-foreground/70 max-w-[210px] leading-relaxed">
+          请在左侧或主界面打开一个 Git 仓库以查看提交历史或工作区变更。
+        </p>
+      </aside>
+    );
+  }
+
   return (
     <aside
       style={{ width: rightPaneWidth }}

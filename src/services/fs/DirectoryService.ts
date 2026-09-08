@@ -39,6 +39,10 @@ export async function pickFolderNative(): Promise<string | null> {
   try {
     const res = await fetch('/api/dialog/pick-folder', { method: 'POST' });
     if (!res.ok) throw new Error('打开文件夹选择器失败');
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('未检测到后端本地开发服务');
+    }
     const data = await res.json();
     return data.path || null;
   } catch (err: any) {
@@ -51,6 +55,17 @@ export async function validateDirectoryPath(path: string): Promise<DirectoryVali
   if (!path || !path.trim()) {
     return { exists: false, isDirectory: false, isGitRepo: false };
   }
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  if (isTauri) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const result = await invoke<DirectoryValidationResult>('validate_directory', { path: path.trim() });
+      return result;
+    } catch (e) {
+      console.warn('Tauri validate_directory failed, fallback to HTTP:', e);
+    }
+  }
+
   try {
     const res = await fetch('/api/fs/validate-path', {
       method: 'POST',
@@ -58,6 +73,10 @@ export async function validateDirectoryPath(path: string): Promise<DirectoryVali
       body: JSON.stringify({ path: path.trim() }),
     });
     if (!res.ok) return { exists: false, isDirectory: false, isGitRepo: false };
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { exists: false, isDirectory: false, isGitRepo: false };
+    }
     return await res.json();
   } catch {
     return { exists: false, isDirectory: false, isGitRepo: false };
@@ -65,11 +84,25 @@ export async function validateDirectoryPath(path: string): Promise<DirectoryVali
 }
 
 export async function listDirectories(path?: string): Promise<ListDirsResult> {
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  if (isTauri) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const result = await invoke<ListDirsResult>('list_directories', { path: path || null });
+      return result;
+    } catch (e) {
+      console.warn('Tauri list_directories failed, fallback to HTTP:', e);
+    }
+  }
+
   const url = path ? `/api/fs/list-dirs?path=${encodeURIComponent(path)}` : '/api/fs/list-dirs';
   const res = await fetch(url);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: '获取目录失败' }));
-    throw new Error(err.error || '获取目录失败');
+    throw new Error('获取目录失败');
+  }
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error('未检测到后端本地开发服务');
   }
   return res.json();
 }
