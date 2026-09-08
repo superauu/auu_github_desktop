@@ -1,4 +1,5 @@
 import { useSettingsStore } from '@/stores/settingsStore';
+import { tNow } from '@/i18n';
 
 export interface GitCommandResult {
   exitCode: number;
@@ -13,7 +14,11 @@ export class GitExecutionError extends Error {
   command: string;
 
   constructor(command: string, exitCode: number, stdout: string, stderr: string) {
-    super(`Git 执行失败 (退出码 ${exitCode}): ${stderr || stdout || '未知错误'}`);
+    super(
+      tNow('err.gitFailed')
+        .replace('{c}', String(exitCode))
+        .replace('{m}', stderr || stdout || tNow('err.unknownGit'))
+    );
     this.name = 'GitExecutionError';
     this.exitCode = exitCode;
     this.stdout = stdout;
@@ -73,7 +78,7 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
     const rawText = await res.text();
     // 防御 SPA HTML 路由 fallback 导致的 JSON 解析崩溃
     if (rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE') || rawText.includes('<!doctype')) {
-      throw new Error('未检测到本地后端代理服务，请确保在桌面端或开发环境中运行');
+      throw new Error(tNow('err.noBackendProxy'));
     }
 
     if (!res.ok) {
@@ -94,6 +99,6 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
     return data;
   } catch (err: any) {
     if (err instanceof GitExecutionError) throw err;
-    throw new GitExecutionError(`git ${args.join(' ')}`, -1, '', err.message || '网络连接或执行异常');
+    throw new GitExecutionError(`git ${args.join(' ')}`, -1, '', err.message || tNow('err.networkExec'));
   }
 }

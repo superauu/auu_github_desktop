@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n';
 export interface DeviceCodeResponse {
   device_code: string;
   user_code: string;
@@ -34,11 +35,11 @@ export class GitHubOAuthService {
         });
         const data = JSON.parse(rawJson);
         if (!data.device_code || !data.user_code) {
-          throw new Error(data.error_description || data.error || 'GitHub 未返回有效授权凭据');
+          throw new Error(data.error_description || data.error || tNow('err.ghNoCredentials'));
         }
         return data as DeviceCodeResponse;
       } catch (err: any) {
-        throw new Error(`获取 GitHub 设备码失败: ${err.message || String(err)}`);
+        throw new Error(tNow('err.ghDeviceFailed').replace('{m}', err.message || String(err)));
       }
     }
 
@@ -55,16 +56,16 @@ export class GitHubOAuthService {
 
     const rawText = await res.text();
     if (rawText.trim().startsWith('<')) {
-      throw new Error('未检测到后端认证代理服务，请在桌面客户端或开发环境中运行');
+      throw new Error(tNow('err.ghNoProxy'));
     }
 
     if (!res.ok) {
-      throw new Error(`获取 GitHub 设备码失败 (HTTP ${res.status}): ${rawText}`);
+      throw new Error(tNow('err.ghDeviceHttp').replace('{s}', String(res.status)));
     }
 
     const data = JSON.parse(rawText) as DeviceCodeResponse;
     if (!data.device_code || !data.user_code) {
-      throw new Error('GitHub 未返回有效的设备授权凭据');
+      throw new Error(tNow('err.ghNoDevice'));
     }
 
     return data;
@@ -114,7 +115,7 @@ export class GitHubOAuthService {
           });
           data = JSON.parse(rawJson);
         } catch (err: any) {
-          throw new Error(`轮询 GitHub Token 异常: ${err.message || String(err)}`);
+          throw new Error(tNow('err.ghPollFailed').replace('{m}', err.message || String(err)));
         }
       } else {
         const res = await fetch('/api/github/device-token', {
@@ -130,11 +131,11 @@ export class GitHubOAuthService {
 
         const rawText = await res.text();
         if (rawText.trim().startsWith('<')) {
-          throw new Error('未检测到后端认证代理服务');
+          throw new Error(tNow('err.ghNoProxy'));
         }
 
         if (!res.ok) {
-          throw new Error(`轮询 GitHub Token 异常 (HTTP ${res.status}): ${rawText}`);
+          throw new Error(tNow('err.ghPollHttp').replace('{s}', String(res.status)));
         }
 
         data = JSON.parse(rawText) as DeviceTokenResponse;
@@ -156,19 +157,19 @@ export class GitHubOAuthService {
       }
 
       if (data.error === 'expired_token') {
-        throw new Error('设备授权验证码已过期，请重新发起登录');
+        throw new Error(tNow('err.ghCodeExpired'));
       }
 
       if (data.error === 'access_denied') {
-        throw new Error('用户在 GitHub 页面上拒绝了授权请求');
+        throw new Error(tNow('err.ghUserDenied'));
       }
 
       if (data.error) {
-        throw new Error(data.error_description || `授权异常: ${data.error}`);
+        throw new Error(data.error_description || tNow('err.ghAuthError').replace('{m}', data.error));
       }
     }
 
-    throw new Error('授权请求已超时，请重试');
+    throw new Error(tNow('err.ghTimeout'));
   }
 
   private sleep(ms: number, signal?: AbortSignal): Promise<void> {

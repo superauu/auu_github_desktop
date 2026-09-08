@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n';
 import {
   GitHubCheckRun,
   GitHubJob,
@@ -40,9 +41,9 @@ export class GitHubService {
 
     if (!res.ok) {
       if (res.status === 401) {
-        throw new Error('GitHub 凭证无效或已过期 (Bad credentials)');
+        throw new Error(tNow('err.ghBadCredentials'));
       }
-      throw new Error(`GitHub 认证失败: HTTP ${res.status}`);
+      throw new Error(tNow('err.ghAuthFailed').replace('{s}', String(res.status)));
     }
 
     return res.json();
@@ -52,7 +53,7 @@ export class GitHubService {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: this.getHeaders(),
     });
-    if (!res.ok) throw new Error(`获取仓库信息失败: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(tNow('err.ghRepoInfo').replace('{s}', String(res.status)));
     return res.json();
   }
 
@@ -123,7 +124,7 @@ export class GitHubService {
     );
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`触发工作流调度失败 (HTTP ${res.status}): ${errText}`);
+      throw new Error(tNow('err.ghDispatch').replace('{s}', String(res.status)).replace('{m}', errText));
     }
   }
 
@@ -142,7 +143,7 @@ export class GitHubService {
       }
     );
     if (!res.ok) {
-      throw new Error(`重新运行工作流失败 (HTTP ${res.status})`);
+      throw new Error(tNow('err.ghRerun').replace('{s}', String(res.status)));
     }
   }
 
@@ -159,7 +160,7 @@ export class GitHubService {
       }
     );
     if (!res.ok) {
-      throw new Error(`取消工作流运行失败 (HTTP ${res.status})`);
+      throw new Error(tNow('err.ghCancel').replace('{s}', String(res.status)));
     }
   }
 
@@ -173,7 +174,7 @@ export class GitHubService {
       { headers: this.getHeaders() }
     );
     if (!res.ok) {
-      throw new Error(`获取构建日志失败 (HTTP ${res.status})`);
+      throw new Error(tNow('err.ghLogs').replace('{s}', String(res.status)));
     }
     const rawLogs = await res.text();
     return {
@@ -193,7 +194,7 @@ export class GitHubService {
       { headers: this.getHeaders() }
     );
     if (!res.ok) {
-      throw new Error(`获取工作流配置文件失败 (HTTP ${res.status})`);
+      throw new Error(tNow('err.ghYaml').replace('{s}', String(res.status)));
     }
     const data = await res.json();
     const content = data.content ? atob(data.content.replace(/\s/g, '')) : '';

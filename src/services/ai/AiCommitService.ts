@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n';
 import { gitService } from '@/services/git/GitService';
 import type { GitFileChange } from '@/services/git/types';
 import type { AiApiConfig } from '@/stores/settingsStore';
@@ -19,7 +20,7 @@ export class AiCommitService {
     const { repoPath, files, aiConfig } = options;
 
     if (!files || files.length === 0) {
-      throw new Error('当前无可提交或分析的文件');
+      throw new Error(tNow('err.aiNoFiles'));
     }
 
     // 1. 采集主要文件的 Diff 内容
@@ -157,13 +158,13 @@ export class AiCommitService {
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '');
-        throw new Error(`API 响应错误 HTTP ${response.status}: ${errorBody.slice(0, 150)}`);
+        throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', errorBody.slice(0, 150)));
       }
 
       const data = await response.json();
       let content = data.choices?.[0]?.message?.content;
       if (!content) {
-        throw new Error('API 返回内容为空');
+        throw new Error(tNow('err.aiEmptyResponse'));
       }
 
       // 过滤包裹的 ``` 或 ```markdown

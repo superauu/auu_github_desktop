@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n';
 export interface DirectoryValidationResult {
   exists: boolean;
   isDirectory: boolean;
@@ -38,10 +39,10 @@ export async function pickFolderNative(): Promise<string | null> {
 
   try {
     const res = await fetch('/api/dialog/pick-folder', { method: 'POST' });
-    if (!res.ok) throw new Error('打开文件夹选择器失败');
+    if (!res.ok) throw new Error(tNow('err.dirPickerFailed'));
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      throw new Error('未检测到后端本地开发服务');
+      throw new Error(tNow('err.dirNoBackend'));
     }
     const data = await res.json();
     return data.path || null;
@@ -98,11 +99,11 @@ export async function listDirectories(path?: string): Promise<ListDirsResult> {
   const url = path ? `/api/fs/list-dirs?path=${encodeURIComponent(path)}` : '/api/fs/list-dirs';
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error('获取目录失败');
+    throw new Error(tNow('err.dirListFailed'));
   }
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
-    throw new Error('未检测到后端本地开发服务');
+    throw new Error(tNow('err.dirNoBackend'));
   }
   return res.json();
 }

@@ -24,6 +24,7 @@ import {
   buildHunkPatch,
   parseBlamePorcelain,
 } from './PorcelainParser';
+import { tNow } from '@/i18n';
 
 export class GitService implements IGitService {
   async isGitInstalled(): Promise<boolean> {
@@ -296,7 +297,7 @@ export class GitService implements IGitService {
 
   async commit(repoPath: string, message: string, amend?: boolean): Promise<string> {
     if (!message.trim()) {
-      throw new Error('提交信息 (Commit Message) 不能为空');
+      throw new Error(tNow('err.commitEmpty'));
     }
     const args = ['commit', '-m', message];
     if (amend) {
@@ -622,9 +623,11 @@ export class GitService implements IGitService {
           repoPath
         );
       } catch {
-        throw new Error(
-          `从远程拉取 PR #${prNumber} 失败: 请确认存在有效远程仓库与网络连接 (${fetchErr.message})`
-        );
+      throw new Error(
+        tNow('err.prFetchFailed')
+          .replace('{n}', String(prNumber))
+          .replace('{m}', fetchErr?.message || '')
+      );
       }
     }
 
@@ -649,9 +652,12 @@ export class GitService implements IGitService {
         issues.push({
           type: 'conflict',
           level: 'error',
-          title: `存在 ${conflictLines.length} 处未解决的代码冲突`,
-          description: `检测到 ${conflictLines.map((l) => l.slice(3)).slice(0, 3).join(', ')}${conflictLines.length > 3 ? ' 等' : ''} 文件包含 Git 冲突标记。`,
-          actionHint: '请在工作区解决冲突标记后执行 git add 标记已解决。',
+          title: tNow('diag.issue.conflictTitle').replace('{n}', String(conflictLines.length)),
+          description: tNow('diag.issue.conflictDesc').replace(
+            '{files}',
+            `${conflictLines.map((l) => l.slice(3)).slice(0, 3).join(', ')}${conflictLines.length > 3 ? '…' : ''}`
+          ),
+          actionHint: tNow('diag.issue.conflictHint'),
         });
       }
     } catch {
@@ -667,18 +673,18 @@ export class GitService implements IGitService {
         issues.push({
           type: 'in_progress',
           level: 'error',
-          title: '当前处于变基 (Rebase) 进行中状态',
-          description: '有未完成的变基流程，等待解决冲突后 continue 或执行 abort 中止。',
-          actionHint: '使用顶部菜单执行 Rebase Continue 或 Rebase Abort。',
+          title: tNow('diag.issue.rebaseTitle'),
+          description: tNow('diag.issue.rebaseDesc'),
+          actionHint: tNow('diag.issue.rebaseHint'),
         });
       } else if (statusText.stdout.includes('You have unmerged paths') || statusText.stdout.includes('All conflicts fixed but you are still merging')) {
         score -= 30;
         issues.push({
           type: 'in_progress',
           level: 'error',
-          title: '当前处于分支合并 (Merge) 中间状态',
-          description: '合并流程尚未通过提交收尾。',
-          actionHint: '提交代码完成合并，或执行 Merge Abort 还原。',
+          title: tNow('diag.issue.mergeTitle'),
+          description: tNow('diag.issue.mergeDesc'),
+          actionHint: tNow('diag.issue.mergeHint'),
         });
       }
     } catch {
@@ -693,9 +699,9 @@ export class GitService implements IGitService {
         issues.push({
           type: 'detached',
           level: 'warning',
-          title: '游离头指针状态 (Detached HEAD)',
-          description: '当前未处于任何具名分支上，在此状态下的新提交可能在切分支后成为孤立悬空提交。',
-          actionHint: '建议通过新建分支 (Branch) 保存当前提交进度。',
+          title: tNow('diag.issue.detachedTitle'),
+          description: tNow('diag.issue.detachedDesc'),
+          actionHint: tNow('diag.issue.detachedHint'),
         });
       }
 
@@ -705,9 +711,9 @@ export class GitService implements IGitService {
         issues.push({
           type: 'behind',
           level: 'warning',
-          title: `本地分支落后远程 ${status.behind} 个提交`,
-          description: '远端存在新的团队提交尚未同步至本地。',
-          actionHint: '建议点击顶部工具栏的 Pull 按钮拉取最新更新。',
+          title: tNow('diag.issue.behindTitle').replace('{n}', String(status.behind)),
+          description: tNow('diag.issue.behindDesc'),
+          actionHint: tNow('diag.issue.behindHint'),
         });
       }
 
@@ -716,9 +722,9 @@ export class GitService implements IGitService {
         issues.push({
           type: 'unpushed',
           level: 'info',
-          title: `本地有 ${status.ahead} 个已提交但未推送的改动`,
-          description: '这些提交仅保存在本地工作区，远端协作者暂不可见。',
-          actionHint: '可使用顶部工具栏的 Push 按钮推送到远端仓库。',
+          title: tNow('diag.issue.unpushedTitle').replace('{n}', String(status.ahead)),
+          description: tNow('diag.issue.unpushedDesc'),
+          actionHint: tNow('diag.issue.unpushedHint'),
         });
       }
     } catch {
@@ -736,8 +742,8 @@ export class GitService implements IGitService {
         issues.push({
           type: 'clean',
           level: 'info',
-          title: `发现 ${unpushedBranches.length} 个本地专有分支`,
-          description: '这些分支未配置上游追踪，如不再需要可清理分支保持整洁。',
+          title: tNow('diag.issue.localOnlyTitle').replace('{n}', String(unpushedBranches.length)),
+          description: tNow('diag.issue.localOnlyDesc'),
         });
       }
     } catch {
@@ -752,17 +758,17 @@ export class GitService implements IGitService {
       issues.push({
         type: 'clean',
         level: 'success',
-        title: '仓库状态极佳，无潜在异常',
-        description: '无未决代码冲突、无中间态悬空提交，分支同步状态健康。',
+        title: tNow('diag.issue.cleanTitle'),
+        description: tNow('diag.issue.cleanDesc'),
       });
     }
 
     const summary =
       status === 'healthy'
-        ? '本地仓库整体结构健康，无阻塞性代码风险。'
+        ? tNow('diag.summary.healthy')
         : status === 'warning'
-        ? '检测到部分建议处理的事项（如落后提交或游离 HEAD）。'
-        : '检测到高风险异常（如冲突未解决或中途中断），建议优先处理。';
+        ? tNow('diag.summary.warning')
+        : tNow('diag.summary.danger');
 
     return {
       score,
@@ -914,7 +920,7 @@ export class GitService implements IGitService {
       // ignore, fallback
     }
 
-    throw new Error(`无法写入文件 ${filePath}`);
+    throw new Error(tNow('err.writeFailed').replace('{p}', filePath));
   }
 }
 
