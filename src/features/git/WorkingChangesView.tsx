@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CheckSquare,
   Square,
@@ -12,6 +12,9 @@ import {
   Split,
   Shield,
   Download,
+  AlignLeft,
+  History,
+  Loader2,
 } from 'lucide-react';
 import { ConflictBanner } from './ConflictBanner';
 import { InteractiveConflictResolver } from './InteractiveConflictResolver';
@@ -25,6 +28,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { ParsedDiffLine, groupDiffIntoHunks } from '@/services/git/PorcelainParser';
+import { gitService } from '@/services/git/GitService';
+import { GitBlameLine, GitCommit } from '@/services/git/types';
 
 interface SplitRow {
   isHeader?: boolean;
@@ -104,6 +109,10 @@ export const WorkingChangesView: React.FC = () => {
     selectedFile,
     setSelectedFile,
     fileDiffLines,
+    commits,
+    setSelectedCommit,
+    setActiveTab,
+    currentRepo,
     stageFile,
     unstageFile,
     stageHunk,
@@ -117,11 +126,17 @@ export const WorkingChangesView: React.FC = () => {
     resolveFileTheirs,
     resetFileConflictMarkers,
   } = useRepoStore();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
   const [copiedPath, setCopiedPath] = useState(false);
   const [showResolver, setShowResolver] = useState(true);
+
+  // 内容视图模式：Diff / Blame 追溯 / 文件历史
+  const [contentMode, setContentMode] = useState<'diff' | 'blame' | 'history'>('diff');
+  const [blameLines, setBlameLines] = useState<GitBlameLine[]>([]);
+  const [fileCommits, setFileCommits] = useState<GitCommit[]>([]);
+  const [loadingFileData, setLoadingFileData] = useState(false);
 
   const stagedFiles = status?.staged || [];
   const unstagedFiles = status?.unstaged || [];
@@ -135,6 +150,42 @@ export const WorkingChangesView: React.FC = () => {
       setShowResolver(true);
     }
   }, [activeFile?.path, activeFile?.status]);
+
+  // 切换文件时回到 Diff 视图并清空 blame/历史数据
+  useEffect(() => {
+    setContentMode('diff');
+    setBlameLines([]);
+    setFileCommits([]);
+  }, [activeFile?.path]);
+
+  // 按需加载 Blame / 文件历史
+  useEffect(() => {
+    if (!currentRepo || !activeFile || contentMode === 'diff') return;
+    let cancelled = false;
+    setLoadingFileData(true);
+    const loader =
+      contentMode === 'blame'
+        ? gitService.blameFile(currentRepo.path, activeFile.path)
+        : gitService.getCommitsForFile(currentRepo.path, activeFile.path);
+    loader
+      .then((data) => {
+        if (cancelled) return;
+        if (contentMode === 'blame') setBlameLines(data as GitBlameLine[]);
+        else setFileCommits(data as GitCommit[]);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          if (contentMode === 'blame') setBlameLines([]);
+          else setFileCommits([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFileData(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contentMode, activeFile?.path, currentRepo]);
 
   const getStatusBadge = (statusType: string) => {
     switch (statusType) {
@@ -278,6 +329,40 @@ export const WorkingChangesView: React.FC = () => {
         )}
       </div>
     );
+  };
+
+  // 从 Blame / 文件历史跳转到提交详情（需在已加载的历史中）
+  const jumpToCommit = (hash: string) => {
+    const commit = commits.find((c) => c.hash === hash || c.shortHash === hash);
+    if (!commit) {
+      toast.info(t('changes.commitNotLoaded'));
+      return;
+    }
+    setSelectedCommit(commit);
+    setActiveTab('history');
+  };
+
+  // 按提交哈希稳定着色，便于在 Blame 视图区分连续改动块
+  const blameTints = [
+    'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
+    'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+    'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    'bg-teal-500/15 text-teal-700 dark:text-teal-300',
+  ];
+  const blameTint = (hash: string) =>
+    blameTints[
+      [...(hash || '0')].reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % blameTints.length
+    ];
+
+  const blameDate = (iso: string) => {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-CN');
+    } catch {
+      return '';
+    }
   };
 
   return (
@@ -710,6 +795,46 @@ export const WorkingChangesView: React.FC = () => {
 
           {activeFile && (
             <div className="flex items-center gap-2 shrink-0">
+              {/* Content Mode: Diff / Blame / File History */}
+              <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
+                <button
+                  onClick={() => setContentMode('diff')}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1",
+                    contentMode === 'diff'
+                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <FileCode className="h-3 w-3" />
+                  <span>{t('changes.mode.diff')}</span>
+                </button>
+                <button
+                  onClick={() => setContentMode('blame')}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1",
+                    contentMode === 'blame'
+                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <AlignLeft className="h-3 w-3" />
+                  <span>{t('changes.mode.blame')}</span>
+                </button>
+                <button
+                  onClick={() => setContentMode('history')}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1",
+                    contentMode === 'history'
+                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <History className="h-3 w-3" />
+                  <span>{t('changes.mode.history')}</span>
+                </button>
+              </div>
+
               {/* Conflict Resolver / Diff Toggle */}
               {activeFile.status === 'conflicted' && (
                 <div className="flex items-center bg-secondary/60 rounded-md p-0.5 border border-rose-500/30">
@@ -740,7 +865,7 @@ export const WorkingChangesView: React.FC = () => {
               )}
 
               {/* Unified / Split Toggle */}
-              {(!showResolver || activeFile.status !== 'conflicted') && (
+              {contentMode === 'diff' && (!showResolver || activeFile.status !== 'conflicted') && (
                 <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
                   <button
                     onClick={() => setDiffMode('unified')}
@@ -795,13 +920,94 @@ export const WorkingChangesView: React.FC = () => {
           )}
         </div>
 
-        {/* Content Pane: Conflict Resolver or Diff View */}
+        {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
         {activeFile?.status === 'conflicted' && showResolver ? (
           <InteractiveConflictResolver
             filePath={activeFile.path}
             onClose={() => setShowResolver(false)}
             onResolved={() => setShowResolver(false)}
           />
+        ) : contentMode === 'blame' ? (
+          /* Blame View */
+          <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
+            {loadingFileData ? (
+              <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground select-none">
+                <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
+                <span className="text-xs">{t('changes.loadingData')}</span>
+              </div>
+            ) : blameLines.length === 0 ? (
+              <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
+                <AlignLeft className="h-8 w-8 mx-auto text-muted-foreground/30" />
+                <div className="text-xs">{t('changes.blameEmpty')}</div>
+              </div>
+            ) : (
+              blameLines.map((bl, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-stretch border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/[0.03] transition-colors"
+                >
+                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 bg-muted/40 dark:bg-background/20">
+                    {bl.lineNo}
+                  </div>
+                  <button
+                    onClick={() => jumpToCommit(bl.hash)}
+                    className={cn(
+                      'w-24 shrink-0 truncate px-1.5 font-mono text-[10px] hover:underline cursor-pointer text-left',
+                      blameTint(bl.hash)
+                    )}
+                    title={`${bl.shortHash} ${bl.summary}`}
+                  >
+                    {bl.shortHash}
+                  </button>
+                  <div className="w-24 shrink-0 truncate px-1.5 text-muted-foreground">
+                    {bl.author}
+                  </div>
+                  <div className="w-20 shrink-0 px-1 text-muted-foreground/70 font-mono text-[10px]">
+                    {blameDate(bl.authorDateIso)}
+                  </div>
+                  <div className="px-2 whitespace-pre font-mono flex-1 overflow-x-auto">
+                    {bl.content}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : contentMode === 'history' ? (
+          /* File History View */
+          <div className="flex-1 overflow-auto bg-card dark:bg-[#0c0c0e] text-foreground select-none">
+            {loadingFileData ? (
+              <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
+                <span className="text-xs">{t('changes.loadingData')}</span>
+              </div>
+            ) : fileCommits.length === 0 ? (
+              <div className="py-24 text-center space-y-2 text-muted-foreground">
+                <History className="h-8 w-8 mx-auto text-muted-foreground/30" />
+                <div className="text-xs">{t('changes.fileHistoryEmpty')}</div>
+              </div>
+            ) : (
+              fileCommits.map((c) => (
+                <div
+                  key={c.hash}
+                  onClick={() => jumpToCommit(c.hash)}
+                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/[0.03] cursor-pointer transition-colors text-[11px]"
+                >
+                  <span className="font-mono text-cyan-600 dark:text-cyan-400 shrink-0">
+                    {c.shortHash}
+                  </span>
+                  <span className="flex-1 truncate" title={c.subject}>
+                    {c.subject}
+                  </span>
+                  <span className="text-muted-foreground shrink-0 max-w-[100px] truncate">
+                    {c.author.name}
+                  </span>
+                  <span className="text-muted-foreground/70 font-mono text-[10px] shrink-0 w-20 text-right">
+                    {c.author.relativeDate}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         ) : (
           /* Diff Content View */
           <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">

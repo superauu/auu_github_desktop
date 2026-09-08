@@ -1,4 +1,5 @@
 import {
+  GitBlameLine,
   GitBranch,
   GitCommit,
   GitFileChange,
@@ -21,6 +22,7 @@ import {
   parsePorcelainV2,
   unquoteGitPath,
   buildHunkPatch,
+  parseBlamePorcelain,
 } from './PorcelainParser';
 
 export class GitService implements IGitService {
@@ -463,6 +465,32 @@ export class GitService implements IGitService {
       return parseDiffOutput(res.stdout);
     } catch (err) {
       console.warn('Get commit file diff warning:', err);
+      return [];
+    }
+  }
+
+  async blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]> {
+    try {
+      const res = await executeGit(['blame', '--line-porcelain', '--', filePath], repoPath);
+      return parseBlamePorcelain(res.stdout);
+    } catch (err) {
+      // 未跟踪/新文件没有 blame 历史
+      console.warn('Blame warning:', err);
+      return [];
+    }
+  }
+
+  async getCommitsForFile(repoPath: string, filePath: string, limit: number = 100): Promise<GitCommit[]> {
+    try {
+      const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
+      // --follow 追踪重命名前的历史
+      const res = await executeGit(
+        ['log', '--follow', `-n`, String(limit), `--format=${format}`, '--', filePath],
+        repoPath
+      );
+      return parseGitLog(res.stdout);
+    } catch (err) {
+      console.warn('File history warning:', err);
       return [];
     }
   }

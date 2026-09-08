@@ -1,4 +1,5 @@
 import {
+  GitBlameLine,
   GitBranch,
   GitCommit,
   GitFileChange,
@@ -354,7 +355,6 @@ export function groupDiffIntoHunks(lines: ParsedDiffLine[]): ParsedDiffLine[][] 
 }
 
 export type HunkPatchMode = 'stage' | 'unstage' | 'discard';
-
 /**
  * 用单个 hunk 重建一段 git apply 可用的完整 patch。
  * - stage: 未暂存 hunk → 写入 index（--cached）；未跟踪文件合成 new file patch
@@ -454,6 +454,65 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
         newNo: newLine++,
         content: line,
       });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 解析 `git blame --line-porcelain` 输出。
+ * --line-porcelain 使每行都重复完整头信息，解析时遇到制表符行即产出一条记录。
+ */
+export function parseBlamePorcelain(output: string): GitBlameLine[] {
+  if (!output.trim()) return [];
+
+  const lines = output.split(/\r?\n/);
+  const result: GitBlameLine[] = [];
+  let hash = '';
+  let finalLine = 0;
+  let author = '';
+  let authorDateIso = '';
+  let summary = '';
+
+  for (const line of lines) {
+    if (line.startsWith('\t')) {
+      result.push({
+        hash,
+        shortHash: hash.slice(0, 7),
+        author,
+        authorDateIso,
+        summary,
+        lineNo: finalLine,
+        content: line.slice(1),
+      });
+      hash = '';
+      finalLine = 0;
+      author = '';
+      authorDateIso = '';
+      summary = '';
+      continue;
+    }
+    if (!line.trim()) continue;
+
+    // 记录头行：`<40位hash> <原始行号> <最终行号> [<行数>]`
+    if (!hash && /^[0-9a-f]{40} \d+ \d+/.test(line)) {
+      const parts = line.split(' ');
+      hash = parts[0];
+      finalLine = parseInt(parts[2], 10) || 0;
+      continue;
+    }
+
+    const sp = line.indexOf(' ');
+    const key = sp === -1 ? line : line.slice(0, sp);
+    const value = sp === -1 ? '' : line.slice(sp + 1);
+    if (key === 'author') {
+      author = value;
+    } else if (key === 'author-time') {
+      const sec = parseInt(value, 10);
+      authorDateIso = Number.isFinite(sec) ? new Date(sec * 1000).toISOString() : '';
+    } else if (key === 'summary') {
+      summary = value;
     }
   }
 

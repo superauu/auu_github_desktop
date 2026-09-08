@@ -911,5 +911,12 @@ export const zh = {
   'changes.hunkUnstaged': '已取消暂存所选块',
   'changes.hunkDiscarded': '已放弃所选块改动',
   'changes.hunkOpFailed': '块操作失败',
+  'changes.mode.diff': '差异',
+  'changes.mode.blame': '追溯',
+  'changes.mode.history': '文件历史',
+  'changes.blameEmpty': '该文件还没有可追溯的提交（未跟踪或新文件）',
+  'changes.fileHistoryEmpty': '该文件没有提交记录',
+  'changes.commitNotLoaded': '该提交不在已加载的历史中，可在提交历史里搜索哈希定位',
+  'changes.loadingData': '正在加载...',
 
 } as const;

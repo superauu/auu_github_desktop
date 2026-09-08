@@ -895,6 +895,13 @@ export const en = {
   'changes.hunkUnstaged': 'Hunk unstaged',
   'changes.hunkDiscarded': 'Hunk discarded',
   'changes.hunkOpFailed': 'Hunk operation failed',
+  'changes.mode.diff': 'Diff',
+  'changes.mode.blame': 'Blame',
+  'changes.mode.history': 'File History',
+  'changes.blameEmpty': 'No blame history yet (untracked or new file)',
+  'changes.fileHistoryEmpty': 'No commits found for this file',
+  'changes.commitNotLoaded': 'Commit not in loaded history — search the hash in the history view',
+  'changes.loadingData': 'Loading...',
 
 } as const;
 

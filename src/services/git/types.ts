@@ -22,6 +22,16 @@ export interface ParsedDiffLine {
   content: string;
 }
 
+export interface GitBlameLine {
+  hash: string;
+  shortHash: string;
+  author: string;
+  authorDateIso: string;
+  summary: string;
+  lineNo: number;
+  content: string;
+}
+
 export interface GitStatusResult {
   currentBranch: string;
   trackingBranch?: string;
@@ -126,6 +136,8 @@ export interface IGitService {
   getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean): Promise<any[]>;
   getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]>;
   getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]>;
+  blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]>;
+  getCommitsForFile(repoPath: string, filePath: string, limit?: number): Promise<GitCommit[]>;
   createTag(repoPath: string, name: string, commitHash?: string, message?: string): Promise<void>;
   deleteTag(repoPath: string, name: string): Promise<void>;
   pushTag(repoPath: string, name: string, remote?: string): Promise<void>;
