@@ -65,7 +65,7 @@ interface RepoState {
   // Async Git Operations
   refreshAll: () => Promise<void>;
   fetchRemote: () => Promise<void>;
-  pull: () => Promise<void>;
+  pull: (rebase?: boolean) => Promise<void>;
   push: (remote?: string, branch?: string) => Promise<void>;
   loadFileDiff: (file: GitFileChange, commitHash?: string) => Promise<void>;
   stageFile: (filePath: string) => Promise<void>;
@@ -436,12 +436,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    pull: async () => {
+    pull: async (rebase?: boolean) => {
       const { currentRepo } = get();
       if (!currentRepo) return;
       set({ isLoading: true, errorMessage: null });
       try {
-        await gitService.pull(currentRepo.path);
+        await gitService.pull(currentRepo.path, rebase);
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message, isLoading: false });

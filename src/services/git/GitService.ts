@@ -265,8 +265,8 @@ export class GitService implements IGitService {
     await executeGit(args, repoPath);
   }
 
-  async pull(repoPath: string): Promise<void> {
-    await executeGit(['pull'], repoPath);
+  async pull(repoPath: string, rebase?: boolean): Promise<void> {
+    await executeGit(rebase ? ['pull', '--rebase'] : ['pull'], repoPath);
   }
 
   async fetch(repoPath: string): Promise<void> {

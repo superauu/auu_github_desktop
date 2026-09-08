@@ -643,7 +643,7 @@ export const Header: React.FC<HeaderProps> = ({
                         setShowPullMenu(false);
                         toast.info('正在执行变基拉取 (git pull --rebase)...');
                         try {
-                          await pull();
+                          await pull(true);
                           toast.success('变基拉取完成');
                         } catch (err: any) {
                           toast.error('变基拉取失败', err?.message);
