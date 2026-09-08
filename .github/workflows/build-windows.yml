@@ -2,14 +2,8 @@ name: Build Windows App (.exe)
 
 on:
   push:
-    branches:
-      - main
-      - master
-    tags:
+    tags: # 仅在推送 v* 标签时构建并发布新版本
       - 'v*'
-  pull_request:
-    branches:
-      - main
   workflow_dispatch: # 允许在 GitHub Actions 控制台手动点击“Run workflow”一键编译
 
 jobs:
