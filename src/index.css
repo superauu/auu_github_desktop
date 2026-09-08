@@ -174,6 +174,15 @@
   color: #7dd3fc;
 }
 
+/* 钳制 Radix ScrollArea 内容表：table 布局的最小内容宽度会把整块内容
+   撑宽溢出面板（右栏被截断的根因），强制块级 + 锁定宽度后行内容自行换行 */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+}
+
 /* Smooth active state transitions */
 button, a, input, select, textarea {
   transition-property: color, background-color, border-color, box-shadow, transform;

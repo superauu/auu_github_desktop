@@ -372,7 +372,7 @@ export const RightPane: React.FC = () => {
         {activeTab === 'history' && selectedCommit ? (
           <div className="space-y-3.5">
             {/* Commit Header & AI Recompose Button */}
-            <div className="flex items-center justify-between pb-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-y-1 pb-0.5">
               <div className="flex items-center gap-1.5 font-mono text-[11px]">
                 <span className="text-muted-foreground/80">commit:</span>
                 <button
@@ -757,7 +757,7 @@ export const RightPane: React.FC = () => {
           <div className="space-y-4">
             {/* GitKraken-style Changes File Explorer with [Path] [Tree] toggle */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-y-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-foreground">
                     {totalChanges} {t('rightPane.filesChanged')}
@@ -896,8 +896,8 @@ export const RightPane: React.FC = () => {
 
             {/* Commit Message Box & AI Generator */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium text-foreground">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <label className="text-[11px] font-medium text-foreground truncate min-w-0">
                   {t('rightPane.commitMessage')}
                 </label>
 
@@ -907,7 +907,7 @@ export const RightPane: React.FC = () => {
                   size="xs"
                   onClick={handleAiGenerateCommit}
                   disabled={isAiGenerating}
-                  className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
+                  className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15 shrink-0"
                   title={t('rightPane.aiGenHint')}
                 >
                   <Sparkles className="h-2.5 w-2.5 text-sky-400" />

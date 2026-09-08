@@ -152,7 +152,7 @@ export const zh = {
   'rightPane.path': '路径',
   'rightPane.tree': '树形',
   'rightPane.noPendingChanges': '暂无待提交的文件修改',
-  'rightPane.commitMessage': '提交信息 (Commit Message)',
+  'rightPane.commitMessage': '提交信息',
   'rightPane.recomposeAi': 'AI 重写提交信息',
   'rightPane.messagePlaceholder': '简明描述改动 (Ctrl + Enter 快速提交)...',
   'rightPane.amend': '修改上一条提交',
