@@ -201,13 +201,20 @@ export const RightPane: React.FC = () => {
     setTimeout(() => setCopiedHash(false), 2000);
   };
 
-  // Group working files into Tree structure
+  // Group working files into Tree structure (deduplicated by path)
   const allChangesFiles = useMemo(() => {
-    return [
+    const map = new Map<string, GitFileChange>();
+    const rawList = [
       ...(status?.staged || []),
       ...(status?.unstaged || []),
       ...(status?.untracked || []),
     ];
+    for (const f of rawList) {
+      if (!map.has(f.path) || f.status === 'conflicted') {
+        map.set(f.path, f);
+      }
+    }
+    return Array.from(map.values());
   }, [status]);
 
   const treeGroupedFiles = useMemo(() => {
@@ -515,11 +522,11 @@ export const RightPane: React.FC = () => {
                   </div>
                 ) : fileViewMode === 'path' ? (
                   /* Flat Path View */
-                  sortedCommitFiles.map((file) => {
+                  sortedCommitFiles.map((file, idx) => {
                     const isSelected = previewCommitFile?.path === file.path;
                     return (
                       <div
-                        key={file.path}
+                        key={`${file.path}-${idx}`}
                         onClick={() => handleInspectCommitFile(file)}
                         className={cn(
                           "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[11px] group transition-colors",
@@ -564,11 +571,11 @@ export const RightPane: React.FC = () => {
                           </div>
                           {isOpen && (
                             <div className="pl-4 ml-2 border-l border-border/40 space-y-0.5">
-                              {files.map((file) => {
+                              {files.map((file, idx) => {
                                 const isSelected = previewCommitFile?.path === file.path;
                                 return (
                                   <div
-                                    key={file.path}
+                                    key={`${file.path}-${idx}`}
                                     onClick={() => handleInspectCommitFile(file)}
                                     className={cn(
                                       "px-2 py-0.5 rounded cursor-pointer flex items-center justify-between text-[11px] group transition-colors",
@@ -592,11 +599,11 @@ export const RightPane: React.FC = () => {
                       );
                     })}
 
-                    {commitTreeGrouped.rootFiles.map((file) => {
+                    {commitTreeGrouped.rootFiles.map((file, idx) => {
                       const isSelected = previewCommitFile?.path === file.path;
                       return (
                         <div
-                          key={file.path}
+                          key={`${file.path}-${idx}`}
                           onClick={() => handleInspectCommitFile(file)}
                           className={cn(
                             "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[11px] transition-colors",
@@ -778,9 +785,9 @@ export const RightPane: React.FC = () => {
                   </div>
                 ) : fileViewMode === 'path' ? (
                   /* Flat Path View */
-                  allChangesFiles.map((file) => (
+                  allChangesFiles.map((file, idx) => (
                     <div
-                      key={file.path}
+                      key={`${file.path}-${idx}`}
                       onClick={() => {
                         setSelectedFile(file);
                         setActiveTab('changes');
@@ -822,9 +829,9 @@ export const RightPane: React.FC = () => {
                           </div>
                           {isOpen && (
                             <div className="pl-4 ml-2 border-l border-border/40 space-y-0.5">
-                              {files.map((file) => (
+                              {files.map((file, idx) => (
                                 <div
-                                  key={file.path}
+                                  key={`${file.path}-${idx}`}
                                   onClick={() => {
                                     setSelectedFile(file);
                                     setActiveTab('changes');
@@ -845,9 +852,9 @@ export const RightPane: React.FC = () => {
                       );
                     })}
 
-                    {treeGroupedFiles.rootFiles.map((file) => (
+                    {treeGroupedFiles.rootFiles.map((file, idx) => (
                       <div
-                        key={file.path}
+                        key={`${file.path}-${idx}`}
                         onClick={() => {
                           setSelectedFile(file);
                           setActiveTab('changes');
