@@ -9,6 +9,11 @@ import {
   Cloud,
   FileCode2,
   Laptop,
+  Copy,
+  Cherry,
+  Undo2,
+  ArrowUpFromLine,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -16,8 +21,10 @@ import { GitGraphRenderer } from '@/features/graph/GitGraphRenderer';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import { GitCommit } from '@/services/git/types';
 
 export const CommitHistoryView: React.FC = () => {
   const { t } = useI18n();
@@ -31,6 +38,10 @@ export const CommitHistoryView: React.FC = () => {
     branches,
     selectedBranch,
     scrollToCommitHash,
+    revertCommit,
+    cherryPickCommit,
+    softResetCommit,
+    hardResetCommit,
   } = useRepoStore();
 
   const currentBranchName =
@@ -41,6 +52,12 @@ export const CommitHistoryView: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ open: boolean; x: number; y: number; commit: GitCommit | null }>({
+    open: false,
+    x: 0,
+    y: 0,
+    commit: null,
+  });
 
   const totalChanges =
     (status?.staged.length || 0) +
@@ -87,6 +104,81 @@ export const CommitHistoryView: React.FC = () => {
     toast.success(t('history.copyHash'), hash);
     setTimeout(() => setCopiedHash(null), 2000);
   };
+
+  // 右键菜单动作：统一 toast 反馈，冲突场景由顶部 ConflictBanner 接管
+  const runCommitAction = async (action: () => Promise<void>, success: string, failed: string) => {
+    try {
+      await action();
+      toast.success(success);
+    } catch (err: any) {
+      toast.error(failed, err?.message);
+    }
+  };
+
+  const ctxMenuItems: ContextMenuItem[] = ctxMenu.commit
+    ? [
+        {
+          id: 'copy-hash',
+          label: t('history.ctx.copyHash'),
+          icon: <Copy className="h-3.5 w-3.5" />,
+          onClick: () => {
+            navigator.clipboard.writeText(ctxMenu.commit!.hash);
+            toast.success(t('history.copyHash'), ctxMenu.commit!.shortHash);
+          },
+        },
+        { id: 'sep-1', separator: true },
+        {
+          id: 'cherry-pick',
+          label: t('history.ctx.cherryPick'),
+          icon: <Cherry className="h-3.5 w-3.5" />,
+          onClick: () =>
+            runCommitAction(
+              () => cherryPickCommit(ctxMenu.commit!.hash),
+              t('history.cherryPicked').replace('{h}', ctxMenu.commit!.shortHash),
+              t('history.cherryPickFailed')
+            ),
+        },
+        {
+          id: 'revert',
+          label: t('history.ctx.revert'),
+          icon: <Undo2 className="h-3.5 w-3.5" />,
+          onClick: () =>
+            runCommitAction(
+              () => revertCommit(ctxMenu.commit!.hash),
+              t('history.reverted').replace('{h}', ctxMenu.commit!.shortHash),
+              t('history.revertFailed')
+            ),
+        },
+        { id: 'sep-2', separator: true },
+        {
+          id: 'reset-soft',
+          label: t('history.ctx.resetSoft'),
+          icon: <ArrowUpFromLine className="h-3.5 w-3.5" />,
+          onClick: () => {
+            if (!confirm(t('history.resetSoftConfirm').replace('{h}', ctxMenu.commit!.shortHash))) return;
+            runCommitAction(
+              () => softResetCommit(ctxMenu.commit!.hash),
+              t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
+              t('history.resetFailed')
+            );
+          },
+        },
+        {
+          id: 'reset-hard',
+          label: t('history.ctx.resetHard'),
+          icon: <ArrowDownToLine className="h-3.5 w-3.5" />,
+          danger: true,
+          onClick: () => {
+            if (!confirm(t('history.resetHardConfirm').replace('{h}', ctxMenu.commit!.shortHash))) return;
+            runCommitAction(
+              () => hardResetCommit(ctxMenu.commit!.hash),
+              t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
+              t('history.resetFailed')
+            );
+          },
+        },
+      ]
+    : [];
 
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
@@ -200,6 +292,11 @@ export const CommitHistoryView: React.FC = () => {
                     key={commit.hash}
                     id={`commit-row-${commit.hash}`}
                     onClick={() => setSelectedCommit(commit)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setSelectedCommit(commit);
+                      setCtxMenu({ open: true, x: e.clientX, y: e.clientY, commit });
+                    }}
                     className={cn(
                       "h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group",
                       isSelected
@@ -305,6 +402,15 @@ export const CommitHistoryView: React.FC = () => {
           </div>
         )}
       </ScrollArea>
+
+      {/* Commit Context Menu (right click on any commit row) */}
+      <ContextMenu
+        open={ctxMenu.open}
+        x={ctxMenu.x}
+        y={ctxMenu.y}
+        items={ctxMenuItems}
+        onClose={() => setCtxMenu((s) => ({ ...s, open: false }))}
+      />
     </div>
   );
 };

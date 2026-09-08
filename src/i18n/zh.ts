@@ -953,5 +953,18 @@ export const zh = {
   'pr.closeConfirm': '确定不合并、直接关闭拉取请求 #{n} 吗？',
   'pr.closed': '拉取请求 #{n} 已关闭',
   'pr.closeFailed': '关闭失败',
+  'history.ctx.copyHash': '复制哈希',
+  'history.ctx.cherryPick': '择取此提交 (Cherry-pick)',
+  'history.ctx.revert': '还原此提交 (Revert)',
+  'history.ctx.resetSoft': '软重置到此提交（保留改动）',
+  'history.ctx.resetHard': '硬重置到此提交（丢弃改动）',
+  'history.cherryPicked': '已择取提交 {h} 到当前分支',
+  'history.cherryPickFailed': 'Cherry-pick 失败',
+  'history.reverted': '已生成 {h} 的还原提交',
+  'history.revertFailed': 'Revert 失败',
+  'history.resetDone': '已重置到 {h}',
+  'history.resetFailed': '重置失败',
+  'history.resetSoftConfirm': '确定软重置到 {h} 吗？\n其后的提交将撤销，改动保留在暂存区。',
+  'history.resetHardConfirm': '确定硬重置到 {h} 吗？\n其后所有提交与未提交改动都将被丢弃，且无法恢复！',
 
 } as const;

@@ -210,6 +210,14 @@ export class GitService implements IGitService {
     await executeGit(['revert', '--no-edit', hash], repoPath);
   }
 
+  async cherryPickCommit(repoPath: string, hash: string): Promise<void> {
+    await executeGit(['cherry-pick', hash], repoPath);
+  }
+
+  async hardResetCommit(repoPath: string, hash: string): Promise<void> {
+    await executeGit(['reset', '--hard', hash], repoPath);
+  }
+
   async softResetCommit(repoPath: string, hash: string): Promise<void> {
     await executeGit(['reset', '--soft', hash], repoPath);
   }

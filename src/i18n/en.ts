@@ -937,6 +937,19 @@ export const en = {
   'pr.closeConfirm': 'Close pull request #{n} without merging?',
   'pr.closed': 'Pull request #{n} closed',
   'pr.closeFailed': 'Failed to close',
+  'history.ctx.copyHash': 'Copy hash',
+  'history.ctx.cherryPick': 'Cherry-pick this commit',
+  'history.ctx.revert': 'Revert this commit',
+  'history.ctx.resetSoft': 'Soft reset to this commit (keep changes)',
+  'history.ctx.resetHard': 'Hard reset to this commit (discard changes)',
+  'history.cherryPicked': 'Cherry-picked {h} onto current branch',
+  'history.cherryPickFailed': 'Cherry-pick failed',
+  'history.reverted': 'Created a revert commit for {h}',
+  'history.revertFailed': 'Revert failed',
+  'history.resetDone': 'Reset to {h}',
+  'history.resetFailed': 'Reset failed',
+  'history.resetSoftConfirm': 'Soft reset to {h}?\nLater commits will be undone; changes stay staged.',
+  'history.resetHardConfirm': 'Hard reset to {h}?\nAll later commits and uncommitted changes will be discarded permanently!',
 
 } as const;
 

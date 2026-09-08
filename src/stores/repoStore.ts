@@ -98,6 +98,8 @@ interface RepoState {
   stashDrop: (index?: number) => Promise<void>;
   revertCommit: (hash: string) => Promise<void>;
   softResetCommit: (hash: string) => Promise<void>;
+  cherryPickCommit: (hash: string) => Promise<void>;
+  hardResetCommit: (hash: string) => Promise<void>;
   undoLastCommit: () => Promise<void>;
   redoLastCommit: () => Promise<void>;
   openTerminal: () => Promise<void>;
@@ -859,6 +861,31 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.softResetCommit(currentRepo.path, hash);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    cherryPickCommit: async (hash: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.cherryPickCommit(currentRepo.path, hash);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    hardResetCommit: async (hash: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.hardResetCommit(currentRepo.path, hash);
+        set({ redoStack: [] });
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });

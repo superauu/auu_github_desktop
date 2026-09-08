@@ -145,6 +145,10 @@ export interface IGitService {
   deleteRemoteTag(repoPath: string, name: string, remote?: string): Promise<void>;
   merge(repoPath: string, branch: string, options?: { noFf?: boolean; message?: string }): Promise<string>;
   abortMerge(repoPath: string): Promise<void>;
+  revertCommit(repoPath: string, hash: string): Promise<void>;
+  softResetCommit(repoPath: string, hash: string): Promise<void>;
+  cherryPickCommit(repoPath: string, hash: string): Promise<void>;
+  hardResetCommit(repoPath: string, hash: string): Promise<void>;
   rebase(repoPath: string, upstream: string): Promise<string>;
   rebaseContinue(repoPath: string): Promise<void>;
   rebaseAbort(repoPath: string): Promise<void>;
