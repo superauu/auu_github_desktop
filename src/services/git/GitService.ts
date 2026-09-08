@@ -24,7 +24,7 @@ import {
 export class GitService implements IGitService {
   async isGitInstalled(): Promise<boolean> {
     try {
-      const res = await executeGit(['--version'], process.cwd());
+      const res = await executeGit(['--version'], '.');
       return res.exitCode === 0;
     } catch {
       return false;
@@ -32,7 +32,7 @@ export class GitService implements IGitService {
   }
 
   async getGitVersion(): Promise<string> {
-    const res = await executeGit(['--version'], process.cwd());
+    const res = await executeGit(['--version'], '.');
     return res.stdout.trim();
   }
 
@@ -95,7 +95,8 @@ export class GitService implements IGitService {
       args.push('-b', branch);
     }
     args.push(url.trim(), normalizedTarget);
-    await executeGit(args, process.cwd());
+    // 克隆目标是绝对路径，工作目录使用当前目录即可（浏览器环境没有 process 对象）
+    await executeGit(args, '.');
   }
 
   async getStatus(repoPath: string): Promise<GitStatusResult> {
