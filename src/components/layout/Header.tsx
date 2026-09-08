@@ -97,49 +97,49 @@ export const Header: React.FC<HeaderProps> = ({
     const nextTheme: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     toast.info(
-      nextTheme === 'dark' ? '已切换为深色暗黑主题' : '已切换为明亮浅色主题'
+      nextTheme === 'dark' ? t('header.themeSwitchedDark') : t('header.themeSwitchedLight')
     );
   };
 
   const handleFetch = async () => {
-    toast.info('正在获取远程更新 (git fetch)...');
+    toast.info(t('header.fetching'));
     try {
       await fetchRemote();
-      toast.success('远程更新获取完成', '本地引用与 Ahead/Behind 状态已刷新');
+      toast.success(t('header.fetchQuietDone'), t('header.fetchQuietDesc'));
     } catch (err: any) {
-      toast.error('Fetch 失败', err.message);
+      toast.error(t('header.fetchFailed'), err.message);
     }
   };
 
   const handlePull = async () => {
-    toast.info('正在拉取远程更新 (git pull)...');
+    toast.info(t('header.pulling'));
     try {
       await pull();
-      toast.success('已成功拉取最新提交');
+      toast.success(t('header.pulled'));
     } catch (err: any) {
-      toast.error('Pull 失败', err.message);
+      toast.error(t('header.pullFailed'), err.message);
     }
   };
 
   const handlePush = async () => {
-    toast.info('正在推送本地提交到远程 (git push)...');
+    toast.info(t('header.pushing'));
     try {
       await push();
-      toast.success('已成功推送到远程仓库');
+      toast.success(t('header.pushed'));
     } catch (err: any) {
-      toast.error('Push 失败', err.message);
+      toast.error(t('header.pushFailed'), err.message);
     }
   };
 
   const handleUndo = async () => {
     if (isUndoing) return;
     setIsUndoing(true);
-    toast.info('正在安全撤销最新提交 (git reset --soft HEAD~1)...');
+    toast.info(t('header.undoing'));
     try {
       await undoLastCommit();
-      toast.success('已撤销上一次提交', '改动已安全放回工作区/暂存区');
+      toast.success(t('header.undone'), t('header.undoneDesc'));
     } catch (err: any) {
-      toast.error('撤销提交失败', err.message);
+      toast.error(t('header.undoFailed'), err.message);
     } finally {
       setIsUndoing(false);
     }
@@ -149,17 +149,17 @@ export const Header: React.FC<HeaderProps> = ({
     if (isRedoing || redoStack.length === 0) return;
     const targetItem = redoStack[0];
     if (targetItem.branch !== currentBranchName) {
-      toast.warning('无法重做', `该提交属于分支: ${targetItem.branch}`);
+      toast.warning(t('header.redoCannot'), `${t('header.redoBelongsTo')}: ${targetItem.branch}`);
       return;
     }
 
     setIsRedoing(true);
-    toast.info(`正在重做恢复提交: ${targetItem.commitSubject}...`);
+    toast.info(`${t('header.redoing')}: ${targetItem.commitSubject}...`);
     try {
       await redoLastCommit();
-      toast.success('已成功重做恢复提交', `${targetItem.commitSubject} (${targetItem.commitHash.slice(0, 7)})`);
+      toast.success(t('header.redone'), `${targetItem.commitSubject} (${targetItem.commitHash.slice(0, 7)})`);
     } catch (err: any) {
-      toast.error('重做失败', err?.message);
+      toast.error(t('header.redoFailed'), err?.message);
     } finally {
       setIsRedoing(false);
     }
@@ -170,9 +170,9 @@ export const Header: React.FC<HeaderProps> = ({
     setIsStashing(true);
     try {
       await stashPush('GitKraken-style Quick Stash');
-      toast.success('工作区变动已安全暂存 (Stash)');
+      toast.success(t('header.stashed'));
     } catch (err: any) {
-      toast.error('贮藏失败', err.message);
+      toast.error(t('changes.stashFailed'), err.message);
     } finally {
       setIsStashing(false);
     }
@@ -181,15 +181,15 @@ export const Header: React.FC<HeaderProps> = ({
   const handleQuickPop = async () => {
     try {
       await stashPop(0);
-      toast.success('已恢复最新贮藏到工作区 (Stash Pop)');
+      toast.success(t('header.popDone'));
     } catch (err: any) {
-      toast.error('弹出贮藏失败', err.message);
+      toast.error(t('header.popFailed'), err.message);
     }
   };
 
   const handleOpenTerminal = async () => {
     toggleEmbeddedTerminal();
-    toast.info(!isEmbeddedTerminalOpen ? '已调起内嵌命令行终端' : '已收起内嵌终端');
+    toast.info(!isEmbeddedTerminalOpen ? t('header.terminalOpened') : t('header.terminalClosed'));
   };
 
   const aheadCount = status?.ahead || 0;
@@ -257,7 +257,7 @@ export const Header: React.FC<HeaderProps> = ({
                         "p-0.5 rounded hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-all ml-0.5",
                         isActive ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-100"
                       )}
-                      title="关闭仓库标签页"
+                      title={t('header.closeRepoTab')}
                     >
                       <X className="h-2.5 w-2.5" />
                     </button>
@@ -275,7 +275,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">打开或克隆本地代码仓库 (Ctrl+O)</TooltipContent>
+                <TooltipContent side="bottom">{t('header.openCloneTooltip')}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -294,7 +294,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-indigo-400" />}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">切换色彩模式</TooltipContent>
+              <TooltipContent side="bottom">{t('header.toggleThemeTooltip')}</TooltipContent>
             </Tooltip>
 
             {/* GitHub Auth Profile */}
@@ -315,7 +315,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {isAuthenticated ? `已登录: ${user?.login}` : '管理 GitHub 账号凭证'}
+                {isAuthenticated ? `${t('header.loggedInAs')}: ${user?.login}` : t('header.manageGithubCreds')}
               </TooltipContent>
             </Tooltip>
 
@@ -331,7 +331,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <SettingsIcon className="h-3 w-3" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">打开设置</TooltipContent>
+              <TooltipContent side="bottom">{t('header.openSettingsTooltip')}</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -384,8 +384,8 @@ export const Header: React.FC<HeaderProps> = ({
                       {t('header.repoMenu.current')}
                     </div>
                     <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-accent/40 rounded-lg flex items-center justify-between">
-                      <span className="truncate">{currentRepo?.name || '无'}</span>
-                      {currentRepo && <Badge variant="success" className="h-4 text-[9px]">已加载</Badge>}
+                      <span className="truncate">{currentRepo?.name || t('common.none')}</span>
+                      {currentRepo && <Badge variant="success" className="h-4 text-[9px]">{t('common.loaded')}</Badge>}
                     </div>
 
                     <div className="my-1.5 border-t border-border/60" />
@@ -460,7 +460,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <input
                         value={branchFilter}
                         onChange={(e) => setBranchFilter(e.target.value)}
-                        placeholder="搜索并切换分支..."
+                        placeholder={t('header.branchMenu.searchPlaceholder')}
                         className="w-full h-7 pl-7 pr-6 text-xs bg-secondary/40 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                         autoFocus
                       />
@@ -476,7 +476,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                     {/* Local Branches List */}
                     <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-                      <span>本地分支</span>
+                      <span>{t('header.localBranches')}</span>
                       <span className="font-mono text-[9px]">{branches.filter((b) => !b.isRemote).length}</span>
                     </div>
 
@@ -496,9 +496,9 @@ export const Header: React.FC<HeaderProps> = ({
                                 }
                                 try {
                                   await checkoutBranch(branch.name);
-                                  toast.success('已切换至分支', branch.name);
+                                  toast.success(t('header.switchedToBranch'), branch.name);
                                 } catch (err: any) {
-                                  toast.error('切换分支失败', err?.message);
+                                  toast.error(t('header.switchBranchFailed'), err?.message);
                                 } finally {
                                   setShowBranchMenu(false);
                                 }
@@ -524,7 +524,7 @@ export const Header: React.FC<HeaderProps> = ({
                         })}
                       {branches.filter((b) => !b.isRemote).filter((b) => !branchFilter || b.name.toLowerCase().includes(branchFilter.toLowerCase())).length === 0 && (
                         <div className="px-2 py-2 text-center text-xs text-muted-foreground/60 italic">
-                          未匹配到分支
+                          {t('header.noMatchBranches')}
                         </div>
                       )}
                     </div>
@@ -539,7 +539,7 @@ export const Header: React.FC<HeaderProps> = ({
                         className="w-full text-left px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-md flex items-center gap-1.5"
                       >
                         <Plus className="h-3 w-3" />
-                        <span>创建新分支...</span>
+                        <span>{t('header.createBranchShort')}</span>
                       </button>
                     </div>
                   </div>
@@ -643,12 +643,12 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       onClick={async () => {
                         setShowPullMenu(false);
-                        toast.info('正在执行变基拉取 (git pull --rebase)...');
+                        toast.info(t('header.rebasePulling'));
                         try {
                           await pull(true);
-                          toast.success('变基拉取完成');
+                          toast.success(t('header.rebasePulled'));
                         } catch (err: any) {
-                          toast.error('变基拉取失败', err?.message);
+                          toast.error(t('header.rebasePullFailed'), err?.message);
                         }
                       }}
                       className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
@@ -775,7 +775,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <Workflow className="h-3.5 w-3.5 mt-0.5 text-emerald-500 dark:text-emerald-400" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">GitHub Actions CI 仪表盘</TooltipContent>
+              <TooltipContent side="bottom">{t('header.actionsDashboardTooltip')}</TooltipContent>
             </Tooltip>
 
             {/* Search (GitKraken style) */}
@@ -789,7 +789,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <Search className="h-3.5 w-3.5 mt-0.5" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">全局命令搜索 (Ctrl+K)</TooltipContent>
+              <TooltipContent side="bottom">{t('header.searchTooltip')}</TooltipContent>
             </Tooltip>
 
             <div className="h-4 w-[1px] bg-border/60 mx-1" />

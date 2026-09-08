@@ -124,7 +124,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <GitPullRequest className="h-3.5 w-3.5 text-sky-400" />
-                <span>GitHub Pull Requests 审查中心</span>
+                <span>{lang === 'zh' ? 'GitHub Pull Requests 审查中心' : t('palette.prCenter')}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 3</span>
               </Command.Item>
 
@@ -136,64 +136,64 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Workflow className="h-3.5 w-3.5 text-emerald-400" />
-                <span>GitHub Actions 开发者仪表盘</span>
+                <span>{lang === 'zh' ? 'GitHub Actions 开发者仪表盘' : t('palette.actionsDash')}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 4</span>
               </Command.Item>
             </Command.Group>
 
             {/* Git Core Actions */}
-            <Command.Group heading="Git 协同操作" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+            <Command.Group heading={lang === 'zh' ? 'Git 协同操作' : t('palette.group.git')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
                 onSelect={async () => {
                   onOpenChange(false);
-                  toast.info('正在获取远程更新 (git fetch)...');
+                  toast.info(t('header.fetching'));
                   try {
                     await fetchRemote();
-                    toast.success('已同步获取远程最新变更 (Fetch completed)');
+                    toast.success(t('header.fetchDone'));
                   } catch (err: any) {
-                    toast.error('Fetch 失败', err.message);
+                    toast.error(t('header.fetchFailed'), err.message);
                   }
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <RefreshCw className="h-3.5 w-3.5 text-indigo-400" />
-                <span>获取远程最新变更 (Git Fetch)</span>
+                <span>{t('palette.gitFetch')}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+Shift+F</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={async () => {
                   onOpenChange(false);
-                  toast.info('正在拉取远程更新 (Git Pull)...');
+                  toast.info(t('header.pulling'));
                   try {
                     await pull();
-                    toast.success('已成功拉取最新提交');
+                    toast.success(t('header.pulled'));
                   } catch (err: any) {
-                    toast.error('Pull 失败', err.message);
+                    toast.error(t('header.pullFailed'), err.message);
                   }
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <ArrowDown className="h-3.5 w-3.5 text-cyan-400" />
-                <span>拉取远程分支 (Git Pull)</span>
+                <span>{t('palette.gitPull')}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+L</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={async () => {
                   onOpenChange(false);
-                  toast.info('正在推送本地提交 (Git Push)...');
+                  toast.info(t('header.pushing'));
                   try {
                     await push();
-                    toast.success('已成功推送到远程');
+                    toast.success(t('header.pushed'));
                   } catch (err: any) {
-                    toast.error('Push 失败', err.message);
+                    toast.error(t('header.pushFailed'), err.message);
                   }
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
-                <span>推送本地提交 (Git Push)</span>
+                <span>{t('palette.gitPush')}</span>
                 <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+P</span>
               </Command.Item>
 
@@ -211,16 +211,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Quick Switch Branches */}
             {branches.length > 0 && (
-              <Command.Group heading="{lang === 'zh' ? '切换本地/远程分支' : 'Switch Branch'}" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+              <Command.Group heading={lang === 'zh' ? '切换本地/远程分支' : t('palette.group.branches')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
                 {branches.map((b) => (
                   <Command.Item
                     key={b.name}
                     onSelect={() => {
                       if (!b.isCurrent) {
                         checkoutBranch(b.name)
-                          .then(() => toast.success(`已切换至分支: ${b.name}`))
+                          .then(() => toast.success(`${t('header.switchedToBranch')}: ${b.name}`))
                           .catch((err: any) =>
-                            toast.error(`切换分支失败: ${b.name}`, err?.message)
+                            toast.error(`${t('header.switchBranchFailed')}: ${b.name}`, err?.message)
                           );
                       }
                       onOpenChange(false);
@@ -231,7 +231,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     <span>{b.name}</span>
                     {b.isCurrent && (
                       <span className="ml-auto text-[9px] px-1 rounded bg-indigo-500/20 text-indigo-300">
-                        当前 HEAD
+                        {t('header.currentHead')}
                       </span>
                     )}
                   </Command.Item>
@@ -241,7 +241,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Quick Tags */}
             {tags.length > 0 && (
-              <Command.Group heading="{lang === 'zh' ? '查看标签 (Tags)' : 'Tags'}" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+              <Command.Group heading={lang === 'zh' ? '查看标签 (Tags)' : 'Tags'} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
                 {tags.map((t) => (
                   <Command.Item
                     key={t.name}
@@ -262,41 +262,41 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             )}
 
             {/* Themes & Preferences */}
-            <Command.Group heading="系统设置与主题" className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+            <Command.Group heading={lang === 'zh' ? '系统设置与主题' : t('palette.group.settings')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
                 onSelect={() => {
                   setTheme('dark');
                   onOpenChange(false);
-                  toast.info('已切换为深色模式');
+                  toast.info(lang === 'zh' ? '已切换为深色模式' : t('palette.switchedToDark'));
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Moon className="h-3.5 w-3.5 text-indigo-400" />
-                <span>切换为深色模式 (Dark Mode)</span>
+                <span>{t('palette.darkMode')}</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => {
                   setTheme('light');
                   onOpenChange(false);
-                  toast.info('已切换为浅色模式');
+                  toast.info(lang === 'zh' ? '已切换为浅色模式' : t('palette.switchedToLight'));
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Sun className="h-3.5 w-3.5 text-amber-400" />
-                <span>切换为浅色模式 (Light Mode)</span>
+                <span>{t('palette.lightMode')}</span>
               </Command.Item>
 
               <Command.Item
                 onSelect={() => {
                   setTheme('system');
                   onOpenChange(false);
-                  toast.info('已恢复为跟随系统外观');
+                  toast.info(t('palette.systemModeRestored'));
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Laptop className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>跟随系统外观 (System Mode)</span>
+                <span>{t('palette.systemMode')}</span>
               </Command.Item>
 
               <Command.Item
@@ -307,7 +307,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Workflow className="h-3.5 w-3.5 text-sky-400" />
-                <span>连接 / 配置 GitHub 账号与 Token...</span>
+                <span>{t('palette.connectGithub')}</span>
               </Command.Item>
 
               <Command.Item
@@ -318,7 +318,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
                 <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>打开首选项设置 (Preferences)</span>
+                <span>{t('palette.openPreferences')}</span>
               </Command.Item>
             </Command.Group>
           </Command.List>

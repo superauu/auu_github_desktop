@@ -143,8 +143,8 @@ export const WorkingChangesView: React.FC = () => {
         return <span className="text-[10px] font-mono font-bold text-teal-400">U</span>;
       case 'conflicted':
         return (
-          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse" title="存在未解决代码冲突">
-            冲突
+          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse" title={t('changes.conflictBadge')}>
+            {t('changes.conflict')}
           </span>
         );
       default:
@@ -177,7 +177,7 @@ export const WorkingChangesView: React.FC = () => {
     if (!activeFile) return;
     navigator.clipboard.writeText(activeFile.path);
     setCopiedPath(true);
-    toast.success('已复制文件路径', activeFile.path);
+    toast.success(t('changes.copiedPath'), activeFile.path);
     setTimeout(() => setCopiedPath(false), 2000);
   };
 
@@ -213,7 +213,7 @@ export const WorkingChangesView: React.FC = () => {
                   }
                 }}
                 className="text-muted-foreground hover:text-foreground transition-colors"
-                title={stagedFiles.length === totalChanges ? "取消全选" : "全选暂存"}
+                title={stagedFiles.length === totalChanges ? t("changes.unselectAll") : t("changes.selectAll")}
               >
                 {stagedFiles.length === totalChanges ? (
                   <CheckSquare className="h-3.5 w-3.5 text-emerald-400" />
@@ -234,17 +234,17 @@ export const WorkingChangesView: React.FC = () => {
                 size="xs"
                 onClick={async () => {
                   try {
-                    await stashPush('工作区快捷暂存');
-                    toast.success('已存入贮藏 (Stash)', '修改已存入贮藏堆栈');
+                    await stashPush(t('changes.quickStashMsg'));
+                    toast.success(t('changes.stashSuccess'), t('changes.stashSuccessDesc'));
                   } catch (err: any) {
-                    toast.error('贮藏失败', err.message);
+                    toast.error(t('changes.stashFailed'), err.message);
                   }
                 }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-cyan-400 gap-1"
-                title="快速暂存当前修改并还原工作区"
+                title={t('changes.quickStashTitle')}
               >
                 <Archive className="h-3 w-3" />
-                <span>贮藏</span>
+                <span>{t('changes.stash')}</span>
               </Button>
             )}
             {unstagedFiles.length > 0 || untrackedFiles.length > 0 ? (
@@ -267,7 +267,7 @@ export const WorkingChangesView: React.FC = () => {
                 }}
                 className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               >
-                取消全部
+                {t('changes.unstageAllSection')}
               </Button>
             ) : null}
           </div>
@@ -321,7 +321,7 @@ export const WorkingChangesView: React.FC = () => {
                               );
                             }}
                             className="text-emerald-400 hover:text-emerald-300 shrink-0"
-                            title="点击取消暂存"
+                            title={t('changes.clickToUnstage')}
                           >
                             <CheckSquare className="h-3.5 w-3.5" />
                           </button>
@@ -332,7 +332,7 @@ export const WorkingChangesView: React.FC = () => {
                           variant="ghost"
                           size="xs"
                           className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:text-rose-400 shrink-0"
-                          title="取消暂存"
+                          title={t('changes.unstageTitle')}
                           onClick={(e) => {
                             e.stopPropagation();
                             runGitAction(
@@ -361,7 +361,7 @@ export const WorkingChangesView: React.FC = () => {
                       }}
                       className="text-[9px] text-muted-foreground hover:text-foreground"
                     >
-                      全部暂存
+                      {t('changes.stageAllSection')}
                     </button>
                   </div>
                   <div className="space-y-0.5">
@@ -387,7 +387,7 @@ export const WorkingChangesView: React.FC = () => {
                               );
                             }}
                             className="text-muted-foreground hover:text-emerald-400 shrink-0"
-                            title="点击暂存此文件"
+                            title={t('changes.clickToStage')}
                           >
                             <Square className="h-3.5 w-3.5" />
                           </button>
@@ -401,7 +401,7 @@ export const WorkingChangesView: React.FC = () => {
                                 variant="ghost"
                                 size="xs"
                                 className="h-5 w-5 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-                                title="打开解决冲突工作台"
+                                title={t('changes.openConflictTool')}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedFile(file);
@@ -414,14 +414,14 @@ export const WorkingChangesView: React.FC = () => {
                                 variant="ghost"
                                 size="xs"
                                 className="h-5 w-5 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                                title="采用当前更改 (Ours)"
+                                title={t('changes.takeOurs')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   try {
                                     await resolveFileOurs(file.path);
-                                    toast.success(`已采用当前版本: ${file.path}`);
+                                    toast.success(`${t('changes.tookOurs')}: ${file.path}`);
                                   } catch (err: any) {
-                                    toast.error('操作失败', err.message);
+                                    toast.error(t('changes.opFailed'), err.message);
                                   }
                                 }}
                               >
@@ -431,14 +431,14 @@ export const WorkingChangesView: React.FC = () => {
                                 variant="ghost"
                                 size="xs"
                                 className="h-5 w-5 p-0 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
-                                title="采用传入更改 (Theirs)"
+                                title={t('changes.takeTheirs')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   try {
                                     await resolveFileTheirs(file.path);
-                                    toast.success(`已采用传入版本: ${file.path}`);
+                                    toast.success(`${t('changes.tookTheirs')}: ${file.path}`);
                                   } catch (err: any) {
-                                    toast.error('操作失败', err.message);
+                                    toast.error(t('changes.opFailed'), err.message);
                                   }
                                 }}
                               >
@@ -448,14 +448,14 @@ export const WorkingChangesView: React.FC = () => {
                                 variant="ghost"
                                 size="xs"
                                 className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                                title="重置回冲突标记 (Reset Markers)"
+                                title={t('changes.resetMarkers')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   try {
                                     await resetFileConflictMarkers(file.path);
-                                    toast.info(`已重置冲突标记: ${file.path}`);
+                                    toast.info(`${t('changes.markersReset')}: ${file.path}`);
                                   } catch (err: any) {
-                                    toast.error('重置失败', err.message);
+                                    toast.error(t('changes.resetFailed'), err.message);
                                   }
                                 }}
                               >
@@ -465,7 +465,7 @@ export const WorkingChangesView: React.FC = () => {
                                 variant="ghost"
                                 size="xs"
                                 className="h-5 w-5 p-0 hover:text-emerald-400"
-                                title="标记为已解决并暂存"
+                                title={t('changes.resolvedTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   runGitAction(
@@ -484,7 +484,7 @@ export const WorkingChangesView: React.FC = () => {
                                 variant="ghost"
                                 size="xs"
                                 className="h-5 w-5 p-0 hover:text-rose-400"
-                                title="放弃修改 (Discard)"
+                                title={t('changes.discardTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDiscard(file.path);
@@ -496,7 +496,7 @@ export const WorkingChangesView: React.FC = () => {
                                 variant="ghost"
                                 size="xs"
                                 className="h-5 w-5 p-0 hover:text-emerald-400"
-                                title="暂存此文件 (Stage)"
+                                title={t('changes.stageTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   runGitAction(
@@ -546,7 +546,7 @@ export const WorkingChangesView: React.FC = () => {
                               );
                             }}
                             className="text-muted-foreground hover:text-emerald-400 shrink-0"
-                            title="点击添加跟踪并暂存"
+                            title={t('changes.clickToTrack')}
                           >
                             <Square className="h-3.5 w-3.5" />
                           </button>
@@ -557,7 +557,7 @@ export const WorkingChangesView: React.FC = () => {
                           variant="ghost"
                           size="xs"
                           className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:text-emerald-400 shrink-0"
-                          title="跟踪并暂存"
+                          title={t('changes.trackStageTitle')}
                           onClick={(e) => {
                             e.stopPropagation();
                             runGitAction(
@@ -585,7 +585,7 @@ export const WorkingChangesView: React.FC = () => {
         minSize={160}
         maxSize={500}
         defaultSize={DEFAULT_LAYOUT.changesFileListWidth}
-        title="按住拖拽调节变更列表宽度，双击恢复默认"
+        title={t('changes.resizeHint')}
       />
 
       {/* Diff Viewer Pane */}
@@ -594,19 +594,19 @@ export const WorkingChangesView: React.FC = () => {
         <div className="h-9 px-3 border-b border-border flex items-center justify-between text-xs bg-card/40 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-mono text-xs font-semibold text-foreground truncate">
-              {activeFile?.path || '未选择任何文件'}
+              {activeFile?.path || t('rightPane.noFileSelected')}
             </span>
             {activeFile && (
               <>
                 <button
                   onClick={copyFilePath}
                   className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground shrink-0"
-                  title="复制路径"
+                  title={t('changes.copyPath')}
                 >
                   {copiedPath ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
                 </button>
                 <Badge variant="outline" className="h-4 px-1.5 text-[9px] uppercase font-mono">
-                  {activeFile.status} {activeFile.staged ? '(已暂存)' : ''}
+                  {activeFile.status} {activeFile.staged ? t('changes.stagedSuffix') : ''}
                 </Badge>
                 {(addCount > 0 || delCount > 0) && (
                   <div className="flex items-center gap-1 text-[10px] font-mono">
@@ -633,7 +633,7 @@ export const WorkingChangesView: React.FC = () => {
                     )}
                   >
                     <Split className="h-3 w-3 text-rose-400" />
-                    <span>解决冲突</span>
+                    <span>{t('changes.resolveConflict')}</span>
                   </button>
                   <button
                     onClick={() => setShowResolver(false)}
@@ -644,7 +644,7 @@ export const WorkingChangesView: React.FC = () => {
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    查看 Diff
+                    {t('changes.viewDiff')}
                   </button>
                 </div>
               )}
@@ -699,7 +699,7 @@ export const WorkingChangesView: React.FC = () => {
                 }}
               >
                 {activeFile.staged ? <Square className="h-3 w-3" /> : <CheckSquare className="h-3 w-3" />}
-                <span>{activeFile.staged ? '取消暂存' : '暂存此文件'}</span>
+                <span>{activeFile.staged ? t('changes.unstageOrStage') : t('changes.stageThisFile')}</span>
               </Button>
             </div>
           )}
@@ -719,7 +719,7 @@ export const WorkingChangesView: React.FC = () => {
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
                 <div className="text-xs">
-                  {activeFile ? '暂无代码差异或该文件为新增加的未跟踪文件' : '请在左侧选择需要对比的文件'}
+                  {activeFile ? t('changes.emptyDiffUntracked') : t('rightPane.noFileSelectedDesc')}
                 </div>
               </div>
             ) : diffMode === 'split' ? (

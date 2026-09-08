@@ -110,7 +110,7 @@ export const RightPane: React.FC = () => {
       const diffs = await gitService.getCommitFileDiff(currentRepo.path, selectedCommit.hash, file.path);
       setPreviewDiffLines(diffs);
     } catch (err: any) {
-      toast.error('获取 Diff 失败', err?.message);
+      toast.error(t('changes.viewDiff'), err?.message);
       setPreviewDiffLines([]);
     } finally {
       setIsLoadingDiff(false);
@@ -124,13 +124,13 @@ export const RightPane: React.FC = () => {
   // AI Commit Message Generation (GitKraken style + Real Deep Diff / LLM API)
   const handleAiGenerateCommit = async () => {
     if (!currentRepo) {
-      toast.warning('未打开仓库', '请先打开一个 Git 仓库');
+      toast.warning(t('rightPane.noRepoTitle'), t('rightPane.noRepoDesc'));
       return;
     }
 
     const files = [...(status?.staged || []), ...(status?.unstaged || []), ...(status?.untracked || [])];
     if (files.length === 0) {
-      toast.warning('无变更文件', '工作区暂无可供 AI 分析的文件');
+      toast.warning(t('rightPane.noChangesTitle'), t('rightPane.noChangesDesc'));
       return;
     }
 
@@ -145,12 +145,12 @@ export const RightPane: React.FC = () => {
       setCommitMessage(generated);
       const isLlm = Boolean(aiConfig.apiKey && aiConfig.apiKey.trim());
       toast.success(
-        isLlm ? 'AI (大模型) 提交说明生成成功' : '智能语义分析提交说明已生成',
+        isLlm ? t('rightPane.aiSuccessLlm') : t('rightPane.aiSuccessBuiltin'),
         generated.split('\n')[0]
       );
     } catch (err: any) {
       console.error('AI 提交说明生成失败:', err);
-      toast.error('生成失败', err?.message || '无法分析文件生成提交说明');
+      toast.error(t('rightPane.aiFailed'), err?.message || t('rightPane.aiFailedDesc'));
     } finally {
       setIsAiGenerating(false);
     }
@@ -158,12 +158,12 @@ export const RightPane: React.FC = () => {
 
   const handleCommit = async (andPush: boolean = false) => {
     if (!commitMessage.trim()) {
-      toast.warning('请输入提交信息', 'Commit message 不能为空');
+      toast.warning(t('rightPane.needCommitMessage'), t('rightPane.needCommitMessageDesc'));
       return;
     }
 
     if (totalChanges === 0 && !isAmend) {
-      toast.warning('无可提交的变更', '当前工作区无任何修改');
+      toast.warning(t('rightPane.nothingToCommit'), t('rightPane.nothingToCommitDesc'));
       return;
     }
 
@@ -171,27 +171,27 @@ export const RightPane: React.FC = () => {
     setError(null);
     try {
       if (stagedCount === 0 && !isAmend) {
-        toast.info('正在自动暂存所有工作区修改...');
+        toast.info(t('rightPane.autoStaging'));
         await stageAll();
       }
 
       await commit(commitMessage.trim(), isAmend);
-      const title = isAmend ? '已覆盖修改上一条提交 (Amend)' : '新提交创建成功！';
+      const title = isAmend ? t('rightPane.amendSuccess') : t('rightPane.commitSuccess');
       toast.success(title, commitMessage.trim());
       setCommitMessage('');
       setIsAmend(false);
 
       if (andPush) {
-        toast.info('正在推送本地提交到远程 (git push)...');
+        toast.info(t('rightPane.pushing'));
         try {
           await push();
-          toast.success('已成功推送到远程仓库');
+          toast.success(t('rightPane.pushSuccess'));
         } catch (pushErr: any) {
-          toast.error('推送失败', pushErr.message);
+          toast.error(t('rightPane.pushFailed'), pushErr.message);
         }
       }
     } catch (err: any) {
-      toast.error('提交失败', err.message);
+      toast.error(t('rightPane.commitFailed'), err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -200,7 +200,7 @@ export const RightPane: React.FC = () => {
   const copyHash = (hash: string) => {
     navigator.clipboard.writeText(hash);
     setCopiedHash(true);
-    toast.success('已复制 Commit Hash', hash);
+    toast.success(t('rightPane.copyHash'), hash);
     setTimeout(() => setCopiedHash(false), 2000);
   };
 
@@ -345,12 +345,12 @@ export const RightPane: React.FC = () => {
           {activeTab === 'history' && selectedCommit ? (
             <>
               <GitCommitIcon className="h-3.5 w-3.5 text-primary" />
-              <span>提交详情 (Commit Details)</span>
+              <span>{t('rightPane.commitDetails')}</span>
             </>
           ) : (
             <>
               <Layers className="h-3.5 w-3.5 text-primary" />
-              <span>检查与提交 (Commit Inspector)</span>
+              <span>{t('rightPane.inspector')}</span>
             </>
           )}
         </div>
@@ -362,7 +362,7 @@ export const RightPane: React.FC = () => {
           <div className="mb-3 p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs flex items-start gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
             <div className="min-w-0">
-              <div className="font-semibold text-[11px]">操作失败</div>
+              <div className="font-semibold text-[11px]">{t('rightPane.operationFailed')}</div>
               <div className="text-[10px] break-all opacity-90">{errorMessage}</div>
             </div>
           </div>
@@ -378,7 +378,7 @@ export const RightPane: React.FC = () => {
                 <button
                   onClick={() => copyHash(selectedCommit.hash)}
                   className="font-semibold text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1"
-                  title="点击复制完整 Hash"
+                  title={t('rightPane.copyHashTitle')}
                 >
                   <span>{selectedCommit.shortHash}</span>
                   {copiedHash ? (
@@ -394,10 +394,10 @@ export const RightPane: React.FC = () => {
                 onClick={() => {
                   setCommitMessage(selectedCommit.subject);
                   setActiveTab('changes');
-                  toast.info('已提取提交信息至工作区并切换');
+                  toast.info(t('rightPane.extractedToChanges'));
                 }}
                 className="cyber-btn-ai text-white font-medium text-[10px] px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-                title="使用 AI 深度润色或重构提交"
+                title={t('rightPane.aiReorganize')}
               >
                 <Sparkles className="h-3 w-3 text-white animate-pulse" />
                 <span className="font-semibold tracking-tight">Recompose commit with AI</span>
@@ -473,7 +473,7 @@ export const RightPane: React.FC = () => {
                   <button
                     onClick={() => setCommitSortAsc(!commitSortAsc)}
                     className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
-                    title={commitSortAsc ? '按名称升序' : '按名称降序'}
+                    title={commitSortAsc ? t('rightPane.sortAsc') : t('rightPane.sortDesc')}
                   >
                     <ArrowUpDown className="h-3 w-3" />
                   </button>
@@ -536,11 +536,11 @@ export const RightPane: React.FC = () => {
                 {isLoadingCommitFiles ? (
                   <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground text-[11px]">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
-                    <span>正在加载变更文件...</span>
+                    <span>{t('rightPane.loadingChanges')}</span>
                   </div>
                 ) : sortedCommitFiles.length === 0 ? (
                   <div className="py-6 text-center text-muted-foreground text-[11px]">
-                    此提交无文件改动
+                    {t('rightPane.noFileChanges')}
                   </div>
                 ) : fileViewMode === 'path' ? (
                   /* Flat Path View */
@@ -556,7 +556,7 @@ export const RightPane: React.FC = () => {
                             ? "bg-sky-500/15 border border-sky-500/40 text-foreground font-medium shadow-[inset_0_0_12px_rgba(56,189,248,0.06)]"
                             : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
                         )}
-                        title={`${file.path} (点击查看 Diff)`}
+                        title={`${file.path} (${t('rightPane.viewDiffHint')})`}
                       >
                         <div className="flex items-center gap-1.5 truncate min-w-0 pr-1">
                           {getFileStatusIcon(file.status)}
@@ -668,7 +668,7 @@ export const RightPane: React.FC = () => {
                     <button
                       onClick={() => setPreviewCommitFile(null)}
                       className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
-                      title="关闭预览"
+                      title={t('rightPane.closePreview')}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -678,11 +678,11 @@ export const RightPane: React.FC = () => {
                 {isLoadingDiff ? (
                   <div className="p-6 flex items-center justify-center gap-2 text-muted-foreground text-[11px]">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
-                    <span>正在获取差异对比...</span>
+                    <span>{t('rightPane.loadingDiff')}</span>
                   </div>
                 ) : previewDiffLines.length === 0 ? (
                   <div className="p-4 text-center text-muted-foreground text-[10px]">
-                    无文本差异或为二进制文件
+                    {t('rightPane.noTextDiff')}
                   </div>
                 ) : (
                   <div className="p-2 max-h-56 overflow-auto font-mono text-[10px] leading-tight space-y-0.5 bg-card dark:bg-black/60">
@@ -708,7 +708,7 @@ export const RightPane: React.FC = () => {
                     ))}
                     {previewDiffLines.length > 100 && (
                       <div className="pt-2 text-center text-muted-foreground text-[9px]">
-                        仅预览前 100 行差异
+                        {t('rightPane.diffTruncated')}
                       </div>
                     )}
                   </div>
@@ -724,14 +724,14 @@ export const RightPane: React.FC = () => {
                 </span>
                 <Badge variant="success" className="h-4 text-[9px] gap-1 font-mono">
                   <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
-                  <span>{checks.length} / {checks.length} 通过</span>
+                  <span>{checks.length} / {checks.length} {t('rightPane.checksPass')}</span>
                 </Badge>
               </div>
 
               <div className="rounded-xl border border-border/80 divide-y divide-border/60 bg-card/90 dark:bg-[#141417]/90 text-[11px] overflow-hidden cyber-card">
                 {checks.length === 0 ? (
                   <div className="p-3 text-center text-[10px] text-muted-foreground">
-                    未配置或无正在执行的 Checks
+                    {t('rightPane.noChecks')}
                   </div>
                 ) : (
                   checks.map((c) => (
@@ -908,7 +908,7 @@ export const RightPane: React.FC = () => {
                   onClick={handleAiGenerateCommit}
                   disabled={isAiGenerating}
                   className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
-                  title="根据当前修改智能生成语义化提交说明"
+                  title={t('rightPane.aiGenHint')}
                 >
                   <Sparkles className="h-2.5 w-2.5 text-sky-400" />
                   <span>{isAiGenerating ? t('settings.ai.testing') : t('rightPane.recomposeAi')}</span>
