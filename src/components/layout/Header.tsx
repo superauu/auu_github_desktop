@@ -213,9 +213,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {/* Logo */}
             <div className="flex items-center gap-1.5 px-2 mr-1 shrink-0 select-none">
-              <img src="/logo.svg" alt="Auu Git" className="h-4 w-4 rounded drop-shadow-sm" />
-              <span className="font-display font-bold text-[11px] tracking-[0.16em] uppercase bg-gradient-to-r from-cyan-600 via-sky-500 to-fuchsia-600 dark:from-cyan-300 dark:via-sky-300 dark:to-fuchsia-400 bg-clip-text text-transparent hidden sm:inline-block">
-                Auu Git Desktop
+              <img src="/logo.svg" alt="AuuGit" className="h-4 w-4 rounded drop-shadow-sm" />
+              <span className="font-display font-bold text-[12px] tracking-[0.14em] bg-gradient-to-r from-cyan-600 via-sky-500 to-fuchsia-600 dark:from-cyan-300 dark:via-sky-300 dark:to-fuchsia-400 bg-clip-text text-transparent hidden sm:inline-block">
+                AuuGit
               </span>
             </div>
 

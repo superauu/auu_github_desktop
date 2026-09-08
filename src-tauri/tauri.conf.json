@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Auu Git",
+  "productName": "AuuGit",
   "version": "0.3.1",
   "identifier": "com.auu.gitclient",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Auu Git Client",
+        "title": "AuuGit",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

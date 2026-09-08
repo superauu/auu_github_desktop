@@ -36,7 +36,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
     {
       id: 'init-1',
       command: 'git status -s',
-      output: 'Auu Git Desktop Embedded Cyber Terminal\nReady for Git & Shell operations.',
+      output: 'AuuGit Embedded Cyber Terminal\nReady for Git & Shell operations.',
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);

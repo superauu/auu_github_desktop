@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for Auu Git Client main window",
+  "description": "Default capabilities for AuuGit main window",
   "windows": ["main"],
   "permissions": [
     "core:default",

@@ -71,7 +71,7 @@ jobs:
       - name: Upload EXE Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Auu-Git-Windows-x64
+          name: AuuGit-Windows-x64
           path: output_exe/*
           if-no-files-found: error
           retention-days: 14

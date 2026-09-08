@@ -109,7 +109,7 @@ export const en = {
   'header.collapseRightPane': 'Collapse commit inspector',
 
   // ============ Welcome ============
-  'welcome.title': 'Auu Git Desktop',
+  'welcome.title': 'AuuGit',
   'welcome.tagline': 'A lightweight, modern, beautiful and blazing-fast desktop Git client & GitHub developer dashboard.',
   'welcome.openRepo': 'Open Local Repository',
   'welcome.openRepoDesc': 'Browse and load an existing project',

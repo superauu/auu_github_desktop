@@ -109,7 +109,7 @@ export const zh = {
   'header.collapseRightPane': '收起右侧面板',
 
   // ============ 欢迎页 ============
-  'welcome.title': 'Auu Git Desktop',
+  'welcome.title': 'AuuGit',
   'welcome.tagline': '轻量、现代、美观、极速的桌面 Git 客户端与 GitHub 开发者仪表盘。',
   'welcome.openRepo': '打开本地仓库',
   'welcome.openRepoDesc': '浏览并载入已有项目',
