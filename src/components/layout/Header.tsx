@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
   const { resolvedTheme, setTheme } = useThemeStore();
-  const { user, isAuthenticated, isDemoMode } = useGitHubStore();
+  const { user, isAuthenticated } = useGitHubStore();
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
@@ -308,7 +308,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <Github className="h-3 w-3 text-foreground" />
                   )}
                   <span className="font-medium text-[10px] max-w-[60px] truncate hidden xl:inline-block">
-                    {isAuthenticated ? user?.login : isDemoMode ? 'Demo' : '登录'}
+                    {isAuthenticated ? user?.login : '登录'}
                   </span>
                 </button>
               </TooltipTrigger>

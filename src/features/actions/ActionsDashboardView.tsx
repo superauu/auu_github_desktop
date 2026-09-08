@@ -8,7 +8,6 @@ import {
   GitCommit,
   GitBranch,
   Workflow,
-  Sparkles,
   Layers,
   ChevronRight,
   ShieldCheck,
@@ -51,7 +50,6 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     openDispatchModal,
     rerunWorkflowRun,
     cancelWorkflowRun,
-    isDemoMode,
     isAuthenticated,
     user,
     currentOwner,
@@ -76,7 +74,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
 
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
-      {/* Top Banner: Auth & Demo Mode Info */}
+      {/* Top Banner: Auth Info */}
       <div className="h-10 px-4 border-b border-border bg-accent/20 flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
           <Workflow className="h-4 w-4 text-primary" />
@@ -84,12 +82,6 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           {currentOwner && currentRepoName && (
             <Badge variant="outline" className="h-4 text-[9px] font-mono border-primary/40 text-primary">
               {currentOwner}/{currentRepoName}
-            </Badge>
-          )}
-          {isDemoMode && (
-            <Badge variant="warning" className="h-4 text-[9px] gap-1 font-normal">
-              <Sparkles className="h-2.5 w-2.5 text-amber-400" />
-              <span>演示模式 (Demo Mode)</span>
             </Badge>
           )}
           {isAuthenticated && user && (

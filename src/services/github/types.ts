@@ -148,12 +148,6 @@ export interface GitHubPullRequest {
     color: string;
     description: string | null;
   }[];
-  review_status?: 'APPROVED' | 'CHANGES_REQUESTED' | 'PENDING' | 'COMMENTED';
-  checks_summary?: {
-    total: number;
-    success: number;
-    failure: number;
-  };
   additions?: number;
   deletions?: number;
   changed_files?: number;

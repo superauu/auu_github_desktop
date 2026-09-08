@@ -49,13 +49,10 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
   const {
     user,
     isAuthenticated,
-    isDemoMode,
     currentOwner,
     currentRepoName,
     login,
     logout,
-    enableDemoMode,
-    disableDemoMode,
     refreshActions,
     isLoading: isStoreLoading,
   } = useGitHubStore();
@@ -509,39 +506,6 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
               </form>
             )}
 
-            {/* Demo Mode Toggle */}
-            <div className="border-t border-border pt-3">
-              <div className="flex items-center justify-between text-xs">
-                <div className="space-y-0.5">
-                  <div className="font-medium text-foreground flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-amber-400" />
-                    <span>离线演示模式 (Demo Mode)</span>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    无需 GitHub 账号，即刻体验 Actions 与 PR 仪表盘
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant={isDemoMode ? "default" : "outline"}
-                  size="xs"
-                  onClick={() => {
-                    if (isDemoMode) {
-                      disableDemoMode();
-                      toast.info('已退出演示模式');
-                    } else {
-                      enableDemoMode();
-                      toast.success('已启用高保真演示模式');
-                      onOpenChange(false);
-                    }
-                  }}
-                  className="h-6 text-[10px]"
-                >
-                  {isDemoMode ? '已启用演示' : '一键启用演示'}
-                </Button>
-              </div>
-            </div>
           </div>
         )}
       </div>

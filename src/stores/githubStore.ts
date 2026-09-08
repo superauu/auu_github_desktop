@@ -14,13 +14,13 @@ import { githubService } from '@/services/github/GitHubService';
 import { toast } from '@/stores/toastStore';
 
 const GITHUB_TOKEN_KEY = 'auu_github_token';
-const GITHUB_DEMO_KEY = 'auu_github_demo_mode';
+// 旧版本 demo 模式的遗留键，initAuth 时统一清理
+const LEGACY_DEMO_KEY = 'auu_github_demo_mode';
 
 interface GitHubState {
   token: string | null;
   user: GitHubUser | null;
   isAuthenticated: boolean;
-  isDemoMode: boolean;
   repoDetails: GitHubRepoDetails | null;
 
   // Active Bound Repo
@@ -55,8 +55,6 @@ interface GitHubState {
   initAuth: () => Promise<void>;
   login: (token: string) => Promise<void>;
   logout: () => void;
-  enableDemoMode: () => void;
-  disableDemoMode: () => void;
   syncRepo: (owner: string, repo: string) => Promise<void>;
   loadRepoData: (owner: string, repo: string) => Promise<void>;
   selectWorkflow: (workflow: GitHubWorkflow | null) => void;
@@ -85,7 +83,6 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   token: null,
   user: null,
   isAuthenticated: false,
-  isDemoMode: false,
   repoDetails: null,
   currentOwner: null,
   currentRepoName: null,
@@ -112,8 +109,10 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   error: null,
 
   initAuth: async () => {
+    // 清理旧版本 demo 模式的遗留标记
+    localStorage.removeItem(LEGACY_DEMO_KEY);
+
     const savedToken = localStorage.getItem(GITHUB_TOKEN_KEY);
-    const savedDemo = localStorage.getItem(GITHUB_DEMO_KEY);
 
     if (savedToken) {
       try {
@@ -123,19 +122,11 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
           token: savedToken,
           user,
           isAuthenticated: true,
-          isDemoMode: false,
         });
-        return;
       } catch (err: any) {
         console.warn('保存的 GitHub Token 已失效:', err);
         localStorage.removeItem(GITHUB_TOKEN_KEY);
       }
-    }
-
-    // Default to demo mode for initial experience
-    const useDemo = savedDemo !== 'false';
-    if (useDemo) {
-      get().enableDemoMode();
     }
   },
 
@@ -144,13 +135,11 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
     try {
       const user = await githubService.verifyToken(token);
       localStorage.setItem(GITHUB_TOKEN_KEY, token);
-      localStorage.setItem(GITHUB_DEMO_KEY, 'false');
       githubService.setToken(token);
       set({
         token,
         user,
         isAuthenticated: true,
-        isDemoMode: false,
         isLoading: false,
       });
       get().refreshActions();
@@ -168,7 +157,6 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
       token: null,
       user: null,
       isAuthenticated: false,
-      isDemoMode: false,
       workflows: [],
       workflowRuns: [],
       selectedWorkflow: null,
@@ -177,38 +165,6 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
       pullRequests: [],
       selectedPR: null,
     });
-  },
-
-  enableDemoMode: () => {
-    localStorage.setItem(GITHUB_DEMO_KEY, 'true');
-    const workflows = githubService.getDemoWorkflows();
-    const runs = githubService.getDemoWorkflowRuns();
-    const prs = githubService.getDemoPullRequests();
-    const selectedRun = runs[0] || null;
-    const selectedRunJobs = selectedRun ? githubService.getDemoJobs(selectedRun.id) : [];
-
-    set({
-      isDemoMode: true,
-      workflows,
-      selectedWorkflow: null,
-      workflowRuns: runs,
-      selectedRun,
-      selectedRunJobs,
-      pullRequests: prs,
-      selectedPR: prs[0] || null,
-      error: null,
-    });
-  },
-
-  disableDemoMode: () => {
-    localStorage.setItem(GITHUB_DEMO_KEY, 'false');
-    set({
-      isDemoMode: false,
-    });
-    const { currentOwner, currentRepoName } = get();
-    if (currentOwner && currentRepoName) {
-      get().loadRepoData(currentOwner, currentRepoName);
-    }
   },
 
   syncRepo: async (owner: string, repo: string) => {
@@ -241,10 +197,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
         pullRequests: prs,
         selectedPR: prs[0] || null,
         isLoading: false,
-        isDemoMode: false,
       });
-      // 同步持久化，避免重启后 initAuth 依据陈旧的 demo 标记恢复到演示模式
-      localStorage.setItem(GITHUB_DEMO_KEY, 'false');
     } catch (err: any) {
       console.warn('加载真实 GitHub 数据失败，已准备回退:', err);
       set({ error: err.message, isLoading: false });
@@ -253,14 +206,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
 
   selectWorkflow: async (workflow: GitHubWorkflow | null) => {
     set({ selectedWorkflow: workflow });
-    const { isDemoMode, currentOwner, currentRepoName } = get();
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      const runs = githubService.getDemoWorkflowRuns(workflow?.id);
-      const selectedRun = runs[0] || null;
-      const selectedRunJobs = selectedRun ? githubService.getDemoJobs(selectedRun.id) : [];
-      set({ workflowRuns: runs, selectedRun, selectedRunJobs });
-      return;
-    }
+    const { currentOwner, currentRepoName } = get();
+    if (!currentOwner || !currentRepoName) return;
 
     try {
       const runs = await githubService.getWorkflowRuns(currentOwner, currentRepoName, workflow?.id);
@@ -282,12 +229,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
       return;
     }
 
-    const { isDemoMode, currentOwner, currentRepoName } = get();
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      const jobs = githubService.getDemoJobs(run.id);
-      set({ selectedRunJobs: jobs });
-      return;
-    }
+    const { currentOwner, currentRepoName } = get();
+    if (!currentOwner || !currentRepoName) return;
 
     try {
       const jobs = await githubService.getRunJobs(currentOwner, currentRepoName, run.id);
@@ -298,18 +241,12 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   fetchCommitChecks: async (sha: string) => {
-    const { commitChecks, isDemoMode, currentOwner, currentRepoName } = get();
+    const { commitChecks, currentOwner, currentRepoName } = get();
     if (commitChecks[sha]) {
       return commitChecks[sha];
     }
 
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      const demoChecks = githubService.getDemoCommitChecks(sha);
-      set((state) => ({
-        commitChecks: { ...state.commitChecks, [sha]: demoChecks },
-      }));
-      return demoChecks;
-    }
+    if (!currentOwner || !currentRepoName) return [];
 
     try {
       const checks = await githubService.getCommitChecks(currentOwner, currentRepoName, sha);
@@ -323,25 +260,16 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   refreshActions: async () => {
-    const { currentOwner, currentRepoName, isDemoMode, isAuthenticated } = get();
-    if (currentOwner && currentRepoName && !isDemoMode) {
+    const { currentOwner, currentRepoName } = get();
+    if (currentOwner && currentRepoName) {
       await get().loadRepoData(currentOwner, currentRepoName);
-    } else if (!isAuthenticated) {
-      // 仅未登录时进入演示模式；已登录但尚未打开仓库时保持真实模式，
-      // 等待打开仓库后由 syncRepo 拉取真实数据（否则会把刚认证的用户静默滑回 demo）
-      get().enableDemoMode();
     }
   },
 
   // Deep Actions Controls
   openJobLogs: async (jobId: number, jobName?: string) => {
-    const { isDemoMode, currentOwner, currentRepoName } = get();
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      const demoLogs = githubService.getDemoJobLogs(jobId);
-      if (jobName) demoLogs.jobName = jobName;
-      set({ activeJobLogs: demoLogs, isLogsModalOpen: true });
-      return;
-    }
+    const { currentOwner, currentRepoName } = get();
+    if (!currentOwner || !currentRepoName) return;
 
     set({
       isLogsModalOpen: true,
@@ -372,12 +300,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   openWorkflowYaml: async (workflow: GitHubWorkflow) => {
-    const { isDemoMode, currentOwner, currentRepoName } = get();
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      const yaml = githubService.getDemoWorkflowYaml(workflow.id);
-      set({ activeWorkflowYaml: yaml, isYamlModalOpen: true });
-      return;
-    }
+    const { currentOwner, currentRepoName } = get();
 
     set({
       isYamlModalOpen: true,
@@ -386,6 +309,16 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
         content: '# 正在从 GitHub 仓库获取工作流配置文件...',
       },
     });
+
+    if (!currentOwner || !currentRepoName) {
+      set({
+        activeWorkflowYaml: {
+          path: workflow.path,
+          content: `# 未绑定 GitHub 仓库，无法读取工作流配置\n# 路径: ${workflow.path}`,
+        },
+      });
+      return;
+    }
 
     try {
       const yaml = await githubService.getWorkflowYaml(currentOwner, currentRepoName, workflow.path);
@@ -413,42 +346,10 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   dispatchWorkflow: async (ref: string, inputs?: Record<string, string>) => {
-    const { dispatchTargetWorkflow, isDemoMode, currentOwner, currentRepoName, workflowRuns } = get();
+    const { dispatchTargetWorkflow, currentOwner, currentRepoName } = get();
     if (!dispatchTargetWorkflow) return;
-
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      const newRun: GitHubWorkflowRun = {
-        id: Date.now(),
-        name: dispatchTargetWorkflow.name,
-        head_branch: ref,
-        head_sha: '4abef50',
-        event: 'workflow_dispatch',
-        status: 'in_progress',
-        conclusion: null,
-        html_url: '#',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        run_number: workflowRuns.length + 50,
-        run_attempt: 1,
-        duration_ms: 15000,
-        actor: {
-          login: 'superauu',
-          avatar_url: 'https://avatars.githubusercontent.com/u/9919?v=4',
-        },
-        head_commit: {
-          id: '4abef50',
-          message: `手动调度运行: ${dispatchTargetWorkflow.name}`,
-          author: { name: 'superauu', email: 'yibo.li@gmail.com' },
-        },
-      };
-
-      set({
-        workflowRuns: [newRun, ...workflowRuns],
-        selectedRun: newRun,
-        selectedRunJobs: githubService.getDemoJobs(newRun.id),
-        isDispatchModalOpen: false,
-      });
-      toast.success('工作流调度成功', `${dispatchTargetWorkflow.name} 已触发运行`);
+    if (!currentOwner || !currentRepoName) {
+      toast.warning('未绑定 GitHub 仓库', '请先打开一个 GitHub 远程仓库');
       return;
     }
 
@@ -468,11 +369,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   rerunWorkflowRun: async (runId: number, failedOnly = false) => {
-    const { isDemoMode, currentOwner, currentRepoName } = get();
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      toast.info(failedOnly ? '正在重跑失败的 Jobs (演示)...' : '正在重新运行整个工作流 (演示)...');
-      return;
-    }
+    const { currentOwner, currentRepoName } = get();
+    if (!currentOwner || !currentRepoName) return;
 
     try {
       await githubService.rerunWorkflow(currentOwner, currentRepoName, runId, failedOnly);
@@ -484,11 +382,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   cancelWorkflowRun: async (runId: number) => {
-    const { isDemoMode, currentOwner, currentRepoName } = get();
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      toast.warning('工作流已取消 (演示)');
-      return;
-    }
+    const { currentOwner, currentRepoName } = get();
+    if (!currentOwner || !currentRepoName) return;
 
     try {
       await githubService.cancelWorkflowRun(currentOwner, currentRepoName, runId);
@@ -501,12 +396,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
 
   // Pull Requests Controls
   loadPullRequests: async () => {
-    const { isDemoMode, currentOwner, currentRepoName } = get();
-    if (isDemoMode || !currentOwner || !currentRepoName) {
-      const prs = githubService.getDemoPullRequests();
-      set({ pullRequests: prs, selectedPR: prs[0] || null });
-      return;
-    }
+    const { currentOwner, currentRepoName } = get();
+    if (!currentOwner || !currentRepoName) return;
 
     try {
       const prs = await githubService.getPullRequests(currentOwner, currentRepoName);

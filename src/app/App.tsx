@@ -13,7 +13,7 @@ export const App: React.FC = () => {
     // Initialize theme system
     initTheme();
 
-    // Initialize GitHub auth / demo state
+    // Initialize GitHub auth state
     initAuth();
 
     // Restore previously opened repo

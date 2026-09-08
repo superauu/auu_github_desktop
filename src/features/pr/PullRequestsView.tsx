@@ -36,7 +36,6 @@ export const PullRequestsView: React.FC = () => {
     loadPullRequests,
     currentOwner,
     currentRepoName,
-    isDemoMode,
   } = useGitHubStore();
 
   const { fetchAndCheckoutPR } = useRepoStore();
@@ -70,7 +69,7 @@ export const PullRequestsView: React.FC = () => {
   useEffect(() => {
     if (!activePR) return;
 
-    if (!isDemoMode && currentOwner && currentRepoName) {
+    if (currentOwner && currentRepoName) {
       // Fetch real PR reviews
       githubService.getPullRequestReviews(currentOwner, currentRepoName, activePR.number).then((reviews) => {
         if (reviews.some((r) => r.state === 'CHANGES_REQUESTED')) {
@@ -96,11 +95,11 @@ export const PullRequestsView: React.FC = () => {
         setRealChecks(null);
       });
     } else {
-      // Fallback for Demo mode
-      setRealReviewStatus(activePR.review_status || 'APPROVED');
-      setRealChecks(activePR.checks_summary || { total: 4, success: 4, failure: 0 });
+      // 未绑定 GitHub 仓库时无从获取真实数据
+      setRealReviewStatus('PENDING');
+      setRealChecks(null);
     }
-  }, [activePR, isDemoMode, currentOwner, currentRepoName]);
+  }, [activePR, currentOwner, currentRepoName]);
 
   const handleCheckoutPR = async () => {
     if (!activePR) return;
