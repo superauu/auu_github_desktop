@@ -23,6 +23,7 @@ import {
   FileText,
   CheckSquare,
   Square,
+  AlertTriangle,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -250,6 +251,8 @@ export const RightPane: React.FC = () => {
         return <FilePlus className="h-3.5 w-3.5 text-emerald-400 shrink-0" />;
       case 'deleted':
         return <FileX className="h-3.5 w-3.5 text-rose-400 shrink-0" />;
+      case 'conflicted':
+        return <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0 animate-pulse" />;
       default:
         return <FileCode className="h-3.5 w-3.5 text-sky-400 shrink-0" />;
     }

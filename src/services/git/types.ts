@@ -138,6 +138,21 @@ export interface IGitService {
   openTerminal(repoPath: string): Promise<void>;
   fetchAndCheckoutPR(repoPath: string, prNumber: number, customBranchName?: string): Promise<string>;
   diagnoseRepository(repoPath: string): Promise<RepoHealthDiagnosis>;
+  // Conflict & In-Progress Operation Management
+  getRepoOperationState(repoPath: string): Promise<RepoOperationState>;
+  resolveConflictWithOurs(repoPath: string, filePath: string): Promise<void>;
+  resolveConflictWithTheirs(repoPath: string, filePath: string): Promise<void>;
+  resetConflictMarkers(repoPath: string, filePath: string): Promise<void>;
+  readWorkingFile(repoPath: string, filePath: string): Promise<string>;
+  writeWorkingFile(repoPath: string, filePath: string, content: string): Promise<void>;
+}
+
+export interface RepoOperationState {
+  type: 'none' | 'merge' | 'rebase' | 'cherry-pick';
+  inConflict: boolean;
+  conflictedFiles: string[];
+  isAllResolved: boolean;
+  branchName?: string;
 }
 
 export interface HealthIssue {

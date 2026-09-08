@@ -9,6 +9,7 @@ import {
   RepositoryInfo,
   RepoHealthDiagnosis,
   HealthIssue,
+  RepoOperationState,
 } from './types';
 import { executeGit } from './GitExecutor';
 import {
@@ -609,6 +610,140 @@ export class GitService implements IGitService {
       issues,
       summary,
     };
+  }
+
+  async getRepoOperationState(repoPath: string): Promise<RepoOperationState> {
+    try {
+      const [statusTextRes, statusPorcelainRes] = await Promise.all([
+        executeGit(['status'], repoPath).catch(() => ({ stdout: '', stderr: '', exitCode: 0 })),
+        executeGit(['status', '--porcelain'], repoPath).catch(() => ({ stdout: '', stderr: '', exitCode: 0 })),
+      ]);
+
+      const statusText = statusTextRes.stdout;
+      const conflictLines = statusPorcelainRes.stdout
+        .split(/\r?\n/)
+        .filter((l) => /^(UU|AA|DD|DU|UD|AU|UA)/.test(l.trim()));
+
+      const conflictedFiles = conflictLines.map((l) => l.slice(3).trim()).filter(Boolean);
+
+      const isRebasing =
+        statusText.includes('rebase in progress') ||
+        statusText.includes('You are currently rebasing');
+      const isMerging =
+        statusText.includes('You have unmerged paths') ||
+        statusText.includes('All conflicts fixed but you are still merging') ||
+        statusText.includes('fix conflicts and run "git commit"') ||
+        statusText.includes('merging');
+      const isCherryPicking =
+        statusText.includes('You are currently cherry-picking');
+
+      let type: 'none' | 'merge' | 'rebase' | 'cherry-pick' = 'none';
+      if (isRebasing) type = 'rebase';
+      else if (isMerging) type = 'merge';
+      else if (isCherryPicking) type = 'cherry-pick';
+      else if (conflictedFiles.length > 0) type = 'merge';
+
+      const inConflict = conflictedFiles.length > 0 || isRebasing || isMerging;
+      const isAllResolved = (isRebasing || isMerging) && conflictedFiles.length === 0;
+
+      return {
+        type,
+        inConflict,
+        conflictedFiles,
+        isAllResolved,
+      };
+    } catch {
+      return {
+        type: 'none',
+        inConflict: false,
+        conflictedFiles: [],
+        isAllResolved: false,
+      };
+    }
+  }
+
+  async resolveConflictWithOurs(repoPath: string, filePath: string): Promise<void> {
+    await executeGit(['checkout', '--ours', '--', filePath], repoPath);
+    await executeGit(['add', '--', filePath], repoPath);
+  }
+
+  async resolveConflictWithTheirs(repoPath: string, filePath: string): Promise<void> {
+    await executeGit(['checkout', '--theirs', '--', filePath], repoPath);
+    await executeGit(['add', '--', filePath], repoPath);
+  }
+
+  async resetConflictMarkers(repoPath: string, filePath: string): Promise<void> {
+    try {
+      await executeGit(['checkout', '--merge', '--', filePath], repoPath);
+    } catch {
+      await executeGit(['restore', '--staged', '--', filePath], repoPath);
+      await executeGit(['checkout', '--merge', '--', filePath], repoPath);
+    }
+  }
+
+  async readWorkingFile(repoPath: string, filePath: string): Promise<string> {
+    const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
+    // 1. Try local dev server endpoint
+    try {
+      const res = await fetch('/api/fs/read-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: fullPath }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.content ?? '';
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Fallback: Pure git hash-object + cat-file
+    try {
+      const hashRes = await executeGit(['hash-object', filePath], repoPath);
+      const hash = hashRes.stdout.trim();
+      if (hash) {
+        const catRes = await executeGit(['cat-file', '-p', hash], repoPath);
+        return catRes.stdout;
+      }
+    } catch (err: any) {
+      console.warn('读取工作区文件失败:', err);
+    }
+    return '';
+  }
+
+  async writeWorkingFile(repoPath: string, filePath: string, content: string): Promise<void> {
+    const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
+    // 1. Try local dev server endpoint
+    try {
+      const res = await fetch('/api/fs/write-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: fullPath, content }),
+      });
+      if (res.ok) {
+        return;
+      }
+    } catch {
+      // ignore, fallback
+    }
+
+    // 2. Tauri / Fallback: Write via Tauri shell if available
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+    if (isTauri) {
+      try {
+        const { Command } = await import('@tauri-apps/plugin-shell');
+        const base64Content = btoa(unescape(encodeURIComponent(content)));
+        const psScript = `[System.IO.File]::WriteAllBytes('${fullPath.replace(/'/g, "''")}', [System.Convert]::FromBase64String('${base64Content}'))`;
+        const cmd = Command.create('powershell', ['-NoProfile', '-Command', psScript]);
+        await cmd.execute();
+        return;
+      } catch (err: any) {
+        console.warn('Tauri PowerShell 写入文件失败:', err);
+      }
+    }
+
+    throw new Error(`无法写入文件 ${filePath}`);
   }
 }
 

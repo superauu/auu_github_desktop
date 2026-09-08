@@ -8,6 +8,7 @@ import {
   GitTag,
   RepositoryInfo,
   RepoHealthDiagnosis,
+  RepoOperationState,
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
@@ -102,6 +103,16 @@ interface RepoState {
   openTabs: RepositoryInfo[];
   closeTab: (path: string) => void;
   switchTab: (path: string) => void;
+
+  // Conflict & In-Progress Operation Management
+  operationState: RepoOperationState;
+  resolveFileOurs: (filePath: string) => Promise<void>;
+  resolveFileTheirs: (filePath: string) => Promise<void>;
+  resetFileConflictMarkers: (filePath: string) => Promise<void>;
+  readWorkingFile: (filePath: string) => Promise<string>;
+  saveAndStageConflictFile: (filePath: string, content: string) => Promise<void>;
+  abortCurrentOperation: () => Promise<void>;
+  completeCurrentOperation: (commitMessage?: string) => Promise<void>;
 }
 
 const RECENT_REPOS_KEY = 'auu_git_recent_repos';
@@ -153,6 +164,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
     openTabs: initialTabs,
     selectedBranch: null,
     scrollToCommitHash: null,
+    operationState: {
+      type: 'none',
+      inConflict: false,
+      conflictedFiles: [],
+      isAllResolved: false,
+    },
 
     setCurrentRepo: (repo) => {
       set((state) => {
@@ -316,12 +333,13 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
       set({ isLoading: true, errorMessage: null });
       try {
-        const [status, commits, branches, tags, stashes] = await Promise.all([
+        const [status, commits, branches, tags, stashes, operationState] = await Promise.all([
           gitService.getStatus(currentRepo.path),
           gitService.getCommits(currentRepo.path, 50),
           gitService.getBranches(currentRepo.path),
           gitService.getTags(currentRepo.path),
           gitService.getStashes(currentRepo.path),
+          gitService.getRepoOperationState(currentRepo.path),
         ]);
 
         // Compute authoritative active branch
@@ -377,6 +395,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
             branches,
             tags,
             stashes,
+            operationState,
             isLoading: false,
           };
         });
@@ -885,6 +904,96 @@ export const useRepoStore = create<RepoState>((set, get) => {
         throw new Error('未打开任何 Git 仓库');
       }
       return await gitService.diagnoseRepository(currentRepo.path);
+    },
+
+    resolveFileOurs: async (filePath: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.resolveConflictWithOurs(currentRepo.path, filePath);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    resolveFileTheirs: async (filePath: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.resolveConflictWithTheirs(currentRepo.path, filePath);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    resetFileConflictMarkers: async (filePath: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.resetConflictMarkers(currentRepo.path, filePath);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    readWorkingFile: async (filePath: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return '';
+      return await gitService.readWorkingFile(currentRepo.path, filePath);
+    },
+
+    saveAndStageConflictFile: async (filePath: string, content: string) => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.writeWorkingFile(currentRepo.path, filePath, content);
+        await gitService.stageFile(currentRepo.path, filePath);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    abortCurrentOperation: async () => {
+      const { currentRepo, operationState } = get();
+      if (!currentRepo) return;
+      try {
+        if (operationState.type === 'rebase') {
+          await gitService.rebaseAbort(currentRepo.path);
+        } else {
+          await gitService.abortMerge(currentRepo.path);
+        }
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    completeCurrentOperation: async (commitMessage?: string) => {
+      const { currentRepo, operationState } = get();
+      if (!currentRepo) return;
+      try {
+        if (operationState.type === 'rebase') {
+          await gitService.rebaseContinue(currentRepo.path);
+        } else {
+          await gitService.commit(
+            currentRepo.path,
+            commitMessage?.trim() || 'Merge branch with resolved conflicts'
+          );
+        }
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
     },
   };
 });

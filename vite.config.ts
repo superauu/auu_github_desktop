@@ -253,6 +253,66 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         }
       });
 
+      // 4.1 Read File Content Endpoint
+      server.middlewares.use('/api/fs/read-file', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+          return;
+        }
+        let body = '';
+        req.on('data', (c) => { body += c; });
+        req.on('end', () => {
+          try {
+            const { path: filePath } = JSON.parse(body || '{}');
+            if (!filePath || !fs.existsSync(filePath)) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: '文件未找到' }));
+              return;
+            }
+            const content = fs.readFileSync(filePath, 'utf-8');
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ content }));
+          } catch (e: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+      });
+
+      // 4.2 Write File Content Endpoint
+      server.middlewares.use('/api/fs/write-file', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+          return;
+        }
+        let body = '';
+        req.on('data', (c) => { body += c; });
+        req.on('end', () => {
+          try {
+            const { path: filePath, content } = JSON.parse(body || '{}');
+            if (!filePath) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: '文件路径不能为空' }));
+              return;
+            }
+            fs.writeFileSync(filePath, content ?? '', 'utf-8');
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          } catch (e: any) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+      });
+
       // 5. GitHub OAuth Device Code Proxy Endpoint
       server.middlewares.use('/api/github/device-code', async (req, res) => {
         if (req.method !== 'POST') {

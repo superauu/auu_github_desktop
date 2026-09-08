@@ -1,0 +1,92 @@
+name: Build Windows App (.exe)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # 允许在 GitHub Actions 控制台手动点击“Run workflow”一键编译
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+
+    permissions:
+      contents: write # 允许在发布 Tag 时自动创建 GitHub Release
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Generate App Icons
+        run: npx tauri icon public/logo.svg
+
+      - name: Build Tauri Desktop App
+        run: npm run tauri build
+
+      - name: Collect Built EXE Files
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path output_exe
+          
+          # 1. 收集 NSIS / MSI 安装包产物
+          if (Test-Path "src-tauri/target/release/bundle") {
+            Write-Host "Found bundle directory, copying installers..."
+            Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -Include *.exe, *.msi | ForEach-Object {
+              Write-Host "Copying installer: $($_.Name)"
+              Copy-Item $_.FullName -Destination output_exe/ -Force
+            }
+          }
+
+          # 2. 收集主可执行文件 (便携绿色版 .exe)
+          Get-ChildItem -Path "src-tauri/target/release" -Depth 0 -Filter *.exe | Where-Object { 
+            $_.Name -notmatch "build_script" 
+          } | ForEach-Object {
+            Write-Host "Copying standalone binary: $($_.Name)"
+            Copy-Item $_.FullName -Destination output_exe/ -Force
+          }
+
+          Write-Host "`n=== Prepared Artifacts ==="
+          Get-ChildItem -Path output_exe | Format-Table Name, Length, LastWriteTime
+
+      - name: Upload EXE Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auu-Git-Windows-x64
+          path: output_exe/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub Release (On Tag Push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: output_exe/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
