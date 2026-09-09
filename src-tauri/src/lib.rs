@@ -236,11 +236,6 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
     })
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
         // ===== GitHub Token 系统凭据管理器（Windows Credential Manager） =====
 // 优先走 keyring；无对应条目时返回 Ok(None)，不视为错误
 fn github_token_entry() -> Result<keyring::Entry, String> {
@@ -273,7 +268,12 @@ fn delete_github_token() -> Result<(), String> {
     }
 }
 
-.invoke_handler(tauri::generate_handler![
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
             store_github_token,
             get_github_token,
             delete_github_token,
