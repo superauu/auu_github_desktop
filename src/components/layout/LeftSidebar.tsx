@@ -30,13 +30,14 @@ import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore } from '@/stores/layoutStore';
-import { GitBranch, GitTag } from '@/services/git/types';
+import { GitBranch, GitStash, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
+import { StashPreviewModal } from '@/features/git/StashPreviewModal';
 import { MergeBranchModal } from '@/features/git/MergeBranchModal';
 import { RebaseBranchModal } from '@/features/git/RebaseBranchModal';
 import { HealthDiagnosisModal } from '@/features/git/HealthDiagnosisModal';
@@ -102,6 +103,7 @@ export const LeftSidebar: React.FC = () => {
 
   // Stash dialog state
   const [newStashOpen, setNewStashOpen] = useState(false);
+  const [previewStash, setPreviewStash] = useState<GitStash | null>(null);
   const [stashMessageInput, setStashMessageInput] = useState('');
 
   // Dialog states
@@ -456,6 +458,12 @@ export const LeftSidebar: React.FC = () => {
     e.stopPropagation();
 
     const items: ContextMenuItem[] = [
+      {
+        id: 'view-stash-patch',
+        label: t('sidebar.viewStashPatch'),
+        icon: <FileCode2 className="h-3.5 w-3.5" />,
+        onClick: () => setPreviewStash(stash),
+      },
       {
         id: 'apply-stash',
         label: t('sidebar.ctx.applyStash'),
@@ -1380,6 +1388,7 @@ export const LeftSidebar: React.FC = () => {
                       <div
                         key={stash.index}
                         onContextMenu={(e) => handleStashContextMenu(e, stash)}
+                        onClick={() => setPreviewStash(stash)}
                         className="flex items-center justify-between px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 cursor-pointer transition-colors group"
                         title={t('sidebar.rightClickMore')}
                       >
@@ -1437,6 +1446,7 @@ export const LeftSidebar: React.FC = () => {
       )}
 
       {/* Modal Windows */}
+      <StashPreviewModal stash={previewStash} onClose={() => setPreviewStash(null)} />
       <CreateBranchModal
         open={createBranchModalOpen}
         onOpenChange={setCreateBranchModalOpen}

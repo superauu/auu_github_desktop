@@ -1028,4 +1028,5 @@ export const zh = {
   'history.loadMore': '加载更多提交',
   'history.allLoaded': '已加载全部提交',
 
+  'sidebar.viewStashPatch': '查看补丁',
 } as const;

@@ -207,6 +207,19 @@ export class GitService implements IGitService {
     await executeGit(['stash', 'drop', `stash@{${index}}`], repoPath);
   }
 
+  async getStashPatch(repoPath: string, index: number): Promise<ParsedDiffLine[]> {
+    try {
+      const res = await executeGit(
+        ['stash', 'show', '-p', '--include-untracked', `stash@{${index}}`],
+        repoPath
+      );
+      return parseDiffOutput(res.stdout);
+    } catch (err) {
+      console.warn('Stash patch warning:', err);
+      return [];
+    }
+  }
+
   async revertCommit(repoPath: string, hash: string): Promise<void> {
     await executeGit(['revert', '--no-edit', hash], repoPath);
   }

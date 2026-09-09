@@ -118,6 +118,7 @@ export interface IGitService {
   getCommits(repoPath: string, limit?: number): Promise<GitCommit[]>;
   getCommitsForBranch(repoPath: string, branchName: string, limit?: number): Promise<GitCommit[]>;
   getStashes(repoPath: string): Promise<GitStash[]>;
+  getStashPatch(repoPath: string, index: number): Promise<ParsedDiffLine[]>;
   stageFile(repoPath: string, filePath: string): Promise<void>;
   unstageFile(repoPath: string, filePath: string): Promise<void>;
   stageHunk(repoPath: string, filePath: string, hunk: ParsedDiffLine[], isUntracked?: boolean): Promise<void>;

@@ -1012,6 +1012,7 @@ export const en = {
   'history.loadMore': 'Load more commits',
   'history.allLoaded': 'All commits loaded',
 
+  'sidebar.viewStashPatch': 'View patch',
 } as const;
 
 export type TranslationKey = keyof typeof en;
