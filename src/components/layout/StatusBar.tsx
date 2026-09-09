@@ -31,7 +31,7 @@ export const StatusBar: React.FC = () => {
 
             <div className="h-3 w-[1px] bg-border" />
 
-            <div className="flex items-center gap-1 text-indigo-400">
+            <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
               <GitBranchIcon className="h-3 w-3" />
               <span>{currentBranchName}</span>
             </div>

@@ -304,7 +304,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="h-6 w-6 text-muted-foreground hover:text-foreground"
                   onClick={cycleTheme}
                 >
-                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-indigo-400" />}
+                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">{t('header.toggleThemeTooltip')}</TooltipContent>

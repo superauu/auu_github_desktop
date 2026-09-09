@@ -790,7 +790,7 @@ export const LeftSidebar: React.FC = () => {
             </div>
             <button
               onClick={() => setHealthModalOpen(true)}
-              className="text-[10px] text-sky-600 dark:text-cyan-400 hover:text-sky-700 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
+              className="text-[10px] text-sky-800 dark:text-cyan-400 hover:text-sky-900 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
               title={t('sidebar.healthDiagnose')}
             >
               <Sparkles className="h-2.5 w-2.5" />

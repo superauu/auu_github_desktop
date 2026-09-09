@@ -324,7 +324,7 @@ export const RightPane: React.FC = () => {
     >
       {/* GitKraken-style Top Banner: 30 file changes in working directory [View Changes] */}
       {totalChanges > 0 && activeTab === 'history' && (
-        <div className="h-8 px-3 bg-sky-500/15 border-b border-sky-500/30 flex items-center justify-between shrink-0 text-sky-300">
+        <div className="h-8 px-3 bg-sky-500/15 border-b border-sky-500/30 flex items-center justify-between shrink-0 text-sky-700 dark:text-sky-300">
           <span className="font-semibold text-[11px] truncate">
             {totalChanges} {t('rightPane.bannerFilesChanged')}
           </span>
@@ -917,7 +917,7 @@ export const RightPane: React.FC = () => {
                   size="xs"
                   onClick={handleAiGenerateCommit}
                   disabled={isAiGenerating}
-                  className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15 shrink-0"
+                  className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-700 dark:text-sky-300 hover:bg-sky-500/15 shrink-0"
                   title={t('rightPane.aiGenHint')}
                 >
                   <Sparkles className="h-2.5 w-2.5 text-sky-400" />

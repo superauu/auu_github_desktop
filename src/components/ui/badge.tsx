@@ -15,9 +15,9 @@ function Badge({
     secondary: "border-transparent bg-secondary text-secondary-foreground",
     destructive: "border-transparent bg-destructive/15 text-destructive border border-destructive/20",
     outline: "text-foreground border border-border",
-    success: "border-transparent bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
-    warning: "border-transparent bg-amber-500/15 text-amber-400 border border-amber-500/20",
-    info: "border-transparent bg-cyan-500/15 text-cyan-400 border border-cyan-500/20",
+    success: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20",
+    warning: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20",
+    info: "border-transparent bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-500/20",
   };
 
   return (
