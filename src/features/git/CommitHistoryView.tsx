@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   GitCommit as GitCommitIcon,
   Tag as TagIcon,
-  Inbox,
   Search,
   Check,
   Monitor,
@@ -21,6 +20,7 @@ import { GitGraphRenderer } from '@/features/graph/GitGraphRenderer';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
@@ -235,10 +235,7 @@ export const CommitHistoryView: React.FC = () => {
             ))}
           </div>
         ) : filteredCommits.length === 0 && !hasWip ? (
-          <div className="py-24 text-center space-y-2 text-muted-foreground">
-            <Inbox className="h-8 w-8 mx-auto text-muted-foreground/30" />
-            <div className="text-xs">{t('history.noMatch')}</div>
-          </div>
+          <EmptyState variant="search" title={t('history.noMatch')} />
         ) : (
           <div className="flex relative">
             {/* SVG Graph Column (Spanning entire rows, perfectly aligned to w-16 column at left: 12px(px-3) + 192px(w-48) = 204px) */}

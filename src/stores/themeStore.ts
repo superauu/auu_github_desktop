@@ -18,7 +18,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   setTheme: (theme: ThemeMode) => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
     const resolvedTheme = resolveEffectiveTheme(theme);
-    applyThemeClass(resolvedTheme);
+    applyThemeClass(resolvedTheme, true);
     set({ theme, resolvedTheme });
   },
 
@@ -54,12 +54,26 @@ function resolveEffectiveTheme(mode: ThemeMode): 'dark' | 'light' {
   return mode;
 }
 
-function applyThemeClass(theme: 'dark' | 'light') {
+function applyThemeClass(theme: 'dark' | 'light', animate: boolean = false) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  if (theme === 'dark') {
-    root.classList.add('dark');
+  const apply = () => {
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  };
+
+  // 用户手动切换主题时用 View Transitions 做全屏交叉淡入；
+  // 系统跟随/reduced-motion/不支持的环境直接落类，无动画
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  if (animate && !reduceMotion && typeof document !== 'undefined' && 'startViewTransition' in document) {
+    (document as Document & { startViewTransition: (cb: () => void) => void }).startViewTransition(apply);
   } else {
-    root.classList.remove('dark');
+    apply();
   }
 }

@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -264,9 +265,7 @@ export const PullRequestsView: React.FC = () => {
         >
           <ScrollArea className="flex-1 p-2">
             {filteredPRs.length === 0 ? (
-              <div className="py-20 text-center text-xs text-muted-foreground">
-                {t('pr.noMatch')}
-              </div>
+              <EmptyState variant="search" title={t('pr.noMatch')} />
             ) : (
               <div className="space-y-1.5">
                 {filteredPRs.map((pr) => {

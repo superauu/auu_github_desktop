@@ -25,6 +25,7 @@ import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { ParsedDiffLine, groupDiffIntoHunks } from '@/services/git/PorcelainParser';
@@ -450,13 +451,12 @@ export const WorkingChangesView: React.FC = () => {
 
         <ScrollArea className="flex-1 p-2">
           {totalChanges === 0 ? (
-            <div className="py-24 px-4 text-center space-y-2 text-muted-foreground">
-              <Check className="h-8 w-8 mx-auto text-emerald-400/60" />
-              <div className="text-xs font-medium text-foreground">{t('changes.empty')}</div>
-              <div className="text-[11px] leading-relaxed">
-                {t('changes.emptyDesc')}
-              </div>
-            </div>
+            <EmptyState
+              variant="check"
+              title={t('changes.empty')}
+              desc={t('changes.emptyDesc')}
+              className="py-24"
+            />
           ) : (
             <div className="space-y-3">
               {/* Staged Section */}
