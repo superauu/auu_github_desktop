@@ -101,7 +101,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <FileCode2 className="h-3.5 w-3.5 text-primary" />
                 <span>{t('sidebar.changes')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 1</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 1</span>
               </Command.Item>
 
               <Command.Item
@@ -113,7 +113,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Clock className="h-3.5 w-3.5 text-indigo-400" />
                 <span>{t('sidebar.history')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 2</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 2</span>
               </Command.Item>
 
               <Command.Item
@@ -125,7 +125,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <GitPullRequest className="h-3.5 w-3.5 text-sky-400" />
                 <span>{t('palette.prCenter')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 3</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 3</span>
               </Command.Item>
 
               <Command.Item
@@ -137,7 +137,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Workflow className="h-3.5 w-3.5 text-emerald-400" />
                 <span>{t('palette.actionsDash')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Tab 4</span>
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 4</span>
               </Command.Item>
             </Command.Group>
 

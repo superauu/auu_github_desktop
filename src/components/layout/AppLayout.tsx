@@ -10,6 +10,7 @@ import { RepositoryDialog } from '@/features/repository/RepositoryDialog';
 import { GitHubAuthDialog } from '@/components/github/GitHubAuthDialog';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { ShortcutCheatSheet } from './ShortcutCheatSheet';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -21,6 +22,7 @@ export const AppLayout: React.FC = () => {
   const [repoDialogOpen, setRepoDialogOpen] = useState(false);
   const [repoDialogMode, setRepoDialogMode] = useState<'open' | 'clone' | 'init'>('open');
   const [githubAuthOpen, setGithubAuthOpen] = useState(false);
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
 
   const {
     leftSidebarWidth,
@@ -29,21 +31,78 @@ export const AppLayout: React.FC = () => {
     setRightPaneWidth,
     toggleEmbeddedTerminal,
   } = useLayoutStore();
-  const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote } = useRepoStore();
+  const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote, pull, push, setActiveTab } = useRepoStore();
   const { compactMode, autoFetchInterval } = useSettingsStore();
   const { t } = useI18n();
 
-  // Global Shortcut: Ctrl+` toggles embedded terminal
+  const isTypingTarget = (target: EventTarget | null): boolean => {
+    const el = target as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  };
+
+  // Global Shortcuts（速查浮层：按 ?）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+` 切换内嵌终端（输入框内也允许）
       if ((e.ctrlKey || e.metaKey) && (e.key === '`' || e.code === 'Backquote')) {
         e.preventDefault();
         toggleEmbeddedTerminal();
+        return;
+      }
+
+      if (isTypingTarget(e.target)) return;
+
+      // Ctrl+K 命令面板
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setCommandPaletteOpen((v) => !v);
+        return;
+      }
+
+      // Ctrl+, 打开设置
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        setSettingsOpen(true);
+        return;
+      }
+
+      // ? 快捷键速查
+      if (e.key === '?') {
+        e.preventDefault();
+        setCheatSheetOpen(true);
+        return;
+      }
+
+      // Git 操作
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        fetchRemote().catch(() => {});
+        return;
+      }
+      if (mod && !e.shiftKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        pull().catch(() => {});
+        return;
+      }
+      if (mod && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        push().catch(() => {});
+        return;
+      }
+
+      // Alt+1~4 切换视图
+      if (e.altKey && ['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        const views = ['changes', 'history', 'pullRequests', 'actions'] as const;
+        setActiveTab(views[Number(e.key) - 1]);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleEmbeddedTerminal]);
+  }, [toggleEmbeddedTerminal, fetchRemote, pull, push, setActiveTab]);
 
   // Apply compact mode on mount
   useEffect(() => {
@@ -152,6 +211,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Global Floating Toast Notifications */}
       <ToastContainer />
+
+      {/* Keyboard Shortcut Cheat Sheet (?) */}
+      <ShortcutCheatSheet open={cheatSheetOpen} onOpenChange={setCheatSheetOpen} />
     </div>
   );
 };

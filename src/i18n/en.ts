@@ -1040,6 +1040,15 @@ export const en = {
   'pr.aiGroupAdded': '## Added files',
   'pr.aiGroupModified': '## Modified files',
   'pr.aiGroupDeleted': '## Deleted files',
+  'settings.shortcuts.switchViews': 'Switch Changes / History / Pull Requests / Actions views',
+  'settings.shortcuts.filterFocus': 'Focus the history filter box',
+  'settings.shortcuts.openSettings': 'Open settings',
+  'settings.shortcuts.cheatSheet': 'Open this shortcut cheat sheet',
+  'cheatsheet.title': 'Keyboard Shortcuts',
+  'cheatsheet.hint': 'Press ? anytime to reopen',
+  'cheatsheet.group.global': 'General',
+  'cheatsheet.group.git': 'Git operations',
+  'cheatsheet.group.view': 'Views',
 } as const;
 
 export type TranslationKey = keyof typeof en;

@@ -1056,4 +1056,13 @@ export const zh = {
   'pr.aiGroupAdded': '## 新增文件',
   'pr.aiGroupModified': '## 修改文件',
   'pr.aiGroupDeleted': '## 删除文件',
+  'settings.shortcuts.switchViews': '切换工作区 / 历史 / 拉取请求 / Actions 视图',
+  'settings.shortcuts.filterFocus': '聚焦提交历史筛选框',
+  'settings.shortcuts.openSettings': '打开设置',
+  'settings.shortcuts.cheatSheet': '打开快捷键速查',
+  'cheatsheet.title': '快捷键速查',
+  'cheatsheet.hint': '随时按 ? 重新打开',
+  'cheatsheet.group.global': '全局',
+  'cheatsheet.group.git': 'Git 操作',
+  'cheatsheet.group.view': '视图',
 } as const;
