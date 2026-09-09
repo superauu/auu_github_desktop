@@ -1055,6 +1055,10 @@ export const en = {
   'update.restartHint': 'Restart AuuGit to apply',
   'update.upToDate': 'You are on the latest version',
   'update.checkFailed': 'Update check failed',
+  'header.refresh': 'Refresh',
+  'header.refreshed': 'Repository state refreshed',
+  'header.refreshFailed': 'Refresh failed',
+  'header.refreshTooltip': 'Refresh repository state — picks up external changes (terminal, editor, etc.)'
 } as const;
 
 export type TranslationKey = keyof typeof en;

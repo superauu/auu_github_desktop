@@ -1071,4 +1071,8 @@ export const zh = {
   'update.restartHint': '重启 AuuGit 后生效',
   'update.upToDate': '当前已是最新版本',
   'update.checkFailed': '检查更新失败',
+  'header.refresh': '刷新',
+  'header.refreshed': '仓库状态已刷新',
+  'header.refreshFailed': '刷新失败',
+  'header.refreshTooltip': '刷新仓库状态，检测终端/编辑器等外部变更'
 } as const;

@@ -32,7 +32,7 @@ export const AppLayout: React.FC = () => {
     setRightPaneWidth,
     toggleEmbeddedTerminal,
   } = useLayoutStore();
-  const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote, pull, push, setActiveTab } = useRepoStore();
+  const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote, pull, push, setActiveTab, checkExternalChanges } = useRepoStore();
   const { compactMode, autoFetchInterval } = useSettingsStore();
   const { t } = useI18n();
 
@@ -121,6 +121,19 @@ export const AppLayout: React.FC = () => {
     }
   }, [compactMode]);
 
+  // 外部变更轮询：每 10 秒 + 窗口聚焦时比对 status 指纹，发现变化自动全量刷新
+  useEffect(() => {
+    if (!currentRepo) return;
+    const tick = () => {
+      if (document.visibilityState === 'visible') checkExternalChanges();
+    };
+    const timer = setInterval(tick, 10000);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', tick);
+    };
+  }, [currentRepo, checkExternalChanges]);
   // Background Auto Fetch timer
   useEffect(() => {
     if (!currentRepo || autoFetchInterval === 'never') return;

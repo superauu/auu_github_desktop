@@ -66,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
     closeTab,
     switchTab,
     fetchRemote,
+    refreshAll,
     pull,
     push,
     undoLastCommit,
@@ -141,6 +142,21 @@ export const Header: React.FC<HeaderProps> = ({
       toast.success(t('header.pushed'));
     } catch (err: any) {
       toast.error(t('header.pushFailed'), err.message);
+    }
+  };
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refreshAll();
+      toast.success(t('header.refreshed'));
+    } catch (err: any) {
+      toast.error(t('header.refreshFailed'), err?.message);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -750,6 +766,21 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Refresh（检测外部变更） */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[44px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group disabled:opacity-50"
+                  >
+                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.refresh')}</span>
+                    <RefreshCw className={cn('h-3.5 w-3.5 mt-0.5', isRefreshing && 'animate-spin')} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t('header.refreshTooltip')}</TooltipContent>
+              </Tooltip>
 
               {/* Branch */}
               <Tooltip>

@@ -34,6 +34,7 @@ interface RepoState {
   commits: GitCommit[];
   commitsLimit: number;
   commitsLoadedAll: boolean;
+  statusFingerprint: string | null;
   branches: GitBranch[];
   tags: GitTag[];
   stashes: GitStash[];
@@ -66,6 +67,7 @@ interface RepoState {
 
   // Async Git Operations
   refreshAll: () => Promise<void>;
+  checkExternalChanges: () => Promise<void>;
   loadMoreCommits: () => Promise<void>;
   fetchRemote: () => Promise<void>;
   pull: (rebase?: boolean) => Promise<void>;
@@ -163,6 +165,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     commits: [],
     commitsLimit: 100,
     commitsLoadedAll: false,
+    statusFingerprint: null as string | null,
     branches: [],
     tags: [],
     stashes: [],
@@ -337,6 +340,21 @@ export const useRepoStore = create<RepoState>((set, get) => {
         return { recentRepos: updated };
       }),
 
+    checkExternalChanges: async () => {
+      const { currentRepo, statusFingerprint } = get();
+      if (!currentRepo) return;
+      try {
+        const status = await gitService.getStatus(currentRepo.path);
+        const fp = fingerprintStatus(status);
+        if (fp !== statusFingerprint) {
+          // 外部改动（终端操作/编辑器保存/切分支等）→ 全量刷新
+          await get().refreshAll();
+        }
+      } catch {
+        // 仓库暂时不可用（如被外部进程锁定）时静默
+      }
+    },
+
     loadMoreCommits: async () => {
       const { currentRepo } = get();
       if (!currentRepo) return;
@@ -409,6 +427,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
             openTabs: updatedTabs,
             recentRepos: updatedRecent,
             status,
+            statusFingerprint: fingerprintStatus(status),
             commits,
             commitsLoadedAll: commits.length < commitsLimit,
             branches,
@@ -1102,3 +1121,13 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
   };
 });
+
+// 工作区状态指纹：分支/ahead/behind + 全部文件路径与状态码（排序后序列化），用于检测外部变更
+function fingerprintStatus(status: GitStatusResult): string {
+  const files = [
+    ...status.staged.map((f) => `S:${f.status}:${f.oldPath || ''}:${f.path}`),
+    ...status.unstaged.map((f) => `W:${f.status}:${f.oldPath || ''}:${f.path}`),
+    ...status.untracked.map((f) => `U:${f.path}`),
+  ].sort();
+  return JSON.stringify([status.currentBranch, status.trackingBranch || '', status.ahead, status.behind, files]);
+}
