@@ -38,6 +38,7 @@ export const CommitHistoryView: React.FC = () => {
     branches,
     selectedBranch,
     scrollToCommitHash,
+    isLoading,
     commitsLoadedAll,
     loadMoreCommits,
     revertCommit,
@@ -223,7 +224,17 @@ export const CommitHistoryView: React.FC = () => {
 
       {/* Commit List Table with SVG Graph */}
       <ScrollArea className="flex-1">
-        {filteredCommits.length === 0 && !hasWip ? (
+        {isLoading && commits.length === 0 ? (
+          <div className="py-6 px-3 space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-[30px] rounded-md skeleton"
+                style={{ opacity: 1 - i * 0.1 }}
+              />
+            ))}
+          </div>
+        ) : filteredCommits.length === 0 && !hasWip ? (
           <div className="py-24 text-center space-y-2 text-muted-foreground">
             <Inbox className="h-8 w-8 mx-auto text-muted-foreground/30" />
             <div className="text-xs">{t('history.noMatch')}</div>

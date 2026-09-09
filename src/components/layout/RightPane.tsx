@@ -534,9 +534,14 @@ export const RightPane: React.FC = () => {
               {/* Commit Changed Files List */}
               <div className="rounded-xl border border-border/70 bg-card/90 dark:bg-[#141417]/90 p-1.5 max-h-52 overflow-y-auto space-y-0.5 cyber-card">
                 {isLoadingCommitFiles ? (
-                  <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground text-[11px]">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
-                    <span>{t('rightPane.loadingChanges')}</span>
+                  <div className="py-2 px-1 space-y-2">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="h-4 rounded-md skeleton"
+                        style={{ width: `${88 - i * 11}%`, opacity: 1 - i * 0.12 }}
+                      />
+                    ))}
                   </div>
                 ) : sortedCommitFiles.length === 0 ? (
                   <div className="py-6 text-center text-muted-foreground text-[11px]">
@@ -676,9 +681,14 @@ export const RightPane: React.FC = () => {
                 </div>
 
                 {isLoadingDiff ? (
-                  <div className="p-6 flex items-center justify-center gap-2 text-muted-foreground text-[11px]">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
-                    <span>{t('rightPane.loadingDiff')}</span>
+                  <div className="p-2 space-y-1.5">
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className="h-3 rounded skeleton"
+                        style={{ width: `${92 - (i % 3) * 16}%`, opacity: 1 - (i % 4) * 0.15 }}
+                      />
+                    ))}
                   </div>
                 ) : previewDiffLines.length === 0 ? (
                   <div className="p-4 text-center text-muted-foreground text-[10px]">
