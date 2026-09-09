@@ -53,7 +53,13 @@ export const CenterStage: React.FC<CenterStageProps> = ({
     <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden relative bg-background">
       {/* Upper Main Git Graph / View Area */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        {renderActiveView()}
+        {/* key 触发重挂载：切视图时轻微上浮淡入（200ms ease-out），reduced-motion 下自动禁用 */}
+        <div
+          key={activeTab}
+          className="flex-1 flex flex-col overflow-hidden min-h-0 animate-in fade-in duration-200 slide-in-from-bottom-2 ease-out"
+        >
+          {renderActiveView()}
+        </div>
       </div>
 
       {/* Embedded Terminal Bottom Drawer (GitKraken style) */}
