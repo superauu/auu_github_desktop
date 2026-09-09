@@ -252,10 +252,10 @@ export const Header: React.FC<HeaderProps> = ({
                     title={repo.path}
                   >
                     <FolderGit2 className={cn("h-3 w-3 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-                    <span className="truncate max-w-[130px] text-[11px]">{repo.name}</span>
+                    <span className="truncate max-w-[130px] text-[12px]">{repo.name}</span>
                     {repo.currentBranch && (
                       <span className={cn(
-                        "text-[9px] font-mono px-1 py-0.2 rounded hidden sm:inline-block truncate max-w-[70px]",
+                        "text-[10px] font-mono px-1 py-0.2 rounded hidden sm:inline-block truncate max-w-[70px]",
                         isActive ? "bg-primary/10 text-primary font-medium" : "bg-muted text-muted-foreground"
                       )}>
                         {repo.currentBranch}
@@ -322,7 +322,7 @@ export const Header: React.FC<HeaderProps> = ({
                   ) : (
                     <Github className="h-3 w-3 text-foreground" />
                   )}
-                  <span className="font-medium text-[10px] max-w-[60px] truncate hidden xl:inline-block">
+                  <span className="font-medium text-[11px] max-w-[60px] truncate hidden xl:inline-block">
                     {isAuthenticated ? user?.login : t('header.login')}
                   </span>
                 </button>
@@ -380,7 +380,7 @@ export const Header: React.FC<HeaderProps> = ({
                   }}
                   className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
-                  <span className="text-[11px] text-muted-foreground font-mono">{t('header.repository')}</span>
+                  <span className="text-[12px] text-muted-foreground font-mono">{t('header.repository')}</span>
                   <span className="font-semibold text-foreground text-xs truncate max-w-[110px]">
                     {currentRepo ? currentRepo.name : t('common.notOpen')}
                   </span>
@@ -393,12 +393,12 @@ export const Header: React.FC<HeaderProps> = ({
                     className="absolute left-0 top-full mt-1 w-64 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
                     onMouseLeave={() => setShowRepoMenu(false)}
                   >
-                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                       {t('header.repoMenu.current')}
                     </div>
                     <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-accent/40 rounded-lg flex items-center justify-between">
                       <span className="truncate">{currentRepo?.name || t('common.none')}</span>
-                      {currentRepo && <Badge variant="success" className="h-4 text-[9px]">{t('common.loaded')}</Badge>}
+                      {currentRepo && <Badge variant="success" className="h-4 text-[10px]">{t('common.loaded')}</Badge>}
                     </div>
 
                     <div className="my-1.5 border-t border-border/60" />
@@ -416,7 +416,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                     {recentRepos.length > 0 && (
                       <>
-                        <div className="px-2 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <div className="px-2 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                           {t('header.repoMenu.recent')}
                         </div>
                         <div className="max-h-36 overflow-y-auto space-y-0.5">
@@ -431,7 +431,7 @@ export const Header: React.FC<HeaderProps> = ({
                               className="w-full text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between"
                             >
                               <span className="truncate max-w-[170px]">{repo.name}</span>
-                              <span className="text-[10px] text-muted-foreground font-mono">{repo.currentBranch}</span>
+                              <span className="text-[11px] text-muted-foreground font-mono">{repo.currentBranch}</span>
                             </button>
                           ))}
                         </div>
@@ -453,8 +453,8 @@ export const Header: React.FC<HeaderProps> = ({
                   }}
                   className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
-                  <span className="text-[11px] text-muted-foreground font-mono">{t('header.branch')}</span>
-                  <Badge variant="outline" className="h-4.5 px-1.5 text-[10px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
+                  <span className="text-[12px] text-muted-foreground font-mono">{t('header.branch')}</span>
+                  <Badge variant="outline" className="h-4.5 px-1.5 text-[11px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
                     <GitBranchIcon className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
                     <span className="max-w-[140px] truncate">{currentBranchName}</span>
                   </Badge>
@@ -488,9 +488,9 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
 
                     {/* Local Branches List */}
-                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                    <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                       <span>{t('header.localBranches')}</span>
-                      <span className="font-mono text-[9px]">{branches.filter((b) => !b.isRemote).length}</span>
+                      <span className="font-mono text-[10px]">{branches.filter((b) => !b.isRemote).length}</span>
                     </div>
 
                     <div className="max-h-52 overflow-y-auto space-y-0.5 px-0.5">
@@ -528,7 +528,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 <span className="truncate">{branch.name}</span>
                               </div>
                               {isCurrentBranch && (
-                                <span className="text-[9px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
+                                <span className="text-[10px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
                                   HEAD
                                 </span>
                               )}
@@ -572,7 +572,7 @@ export const Header: React.FC<HeaderProps> = ({
                     disabled={isUndoing || !canUndo}
                     className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.undo')}</span>
+                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.undo')}</span>
                     <RotateCcw className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -594,7 +594,7 @@ export const Header: React.FC<HeaderProps> = ({
                         : "text-muted-foreground/40 cursor-not-allowed"
                     )}
                   >
-                    <span className={cn("text-[10px] leading-tight hidden xl:block", canRedo && "group-hover:underline")}>{t('header.redo')}</span>
+                    <span className={cn("text-[11px] leading-tight hidden xl:block", canRedo && "group-hover:underline")}>{t('header.redo')}</span>
                     <RotateCw className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -613,7 +613,7 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={handlePull}
                       className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[46px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors relative group"
                     >
-                      <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.pull')}</span>
+                      <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.pull')}</span>
                       <div className="flex items-center justify-center mt-0.5 gap-0.5">
                         <ArrowDownToLine className="h-3.5 w-3.5" />
                         <span
@@ -697,7 +697,7 @@ export const Header: React.FC<HeaderProps> = ({
                           : "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10"
                       )}
                     >
-                      <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.push')}</span>
+                      <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.push')}</span>
                       <div className="flex items-center justify-center mt-0.5 gap-0.5">
                         <ArrowUpToLine className="h-3.5 w-3.5" />
                         <span
@@ -758,7 +758,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={() => setCreateBranchModalOpen(true)}
                     className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[44px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.branchAction')}</span>
+                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.branchAction')}</span>
                     <GitBranchIcon className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -773,7 +773,7 @@ export const Header: React.FC<HeaderProps> = ({
                     disabled={isStashing || !hasChanges}
                     className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.stash')}</span>
+                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.stash')}</span>
                     <Archive className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -790,7 +790,7 @@ export const Header: React.FC<HeaderProps> = ({
                     disabled={stashes.length === 0}
                     className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.pop')}</span>
+                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.pop')}</span>
                     <Inbox className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -809,7 +809,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={handleOpenTerminal}
                     className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[46px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                   >
-                    <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.terminal')}</span>
+                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.terminal')}</span>
                     <Terminal className="h-3.5 w-3.5 mt-0.5" />
                   </button>
                 </TooltipTrigger>
@@ -827,7 +827,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={() => setActiveTab('actions')}
                   className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                 >
-                  <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.actions')}</span>
+                  <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.actions')}</span>
                   <Workflow className="h-3.5 w-3.5 mt-0.5 text-emerald-500 dark:text-emerald-400" />
                 </button>
               </TooltipTrigger>
@@ -841,7 +841,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={onOpenCommandPalette}
                   className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
                 >
-                  <span className="text-[10px] leading-tight group-hover:underline hidden xl:block">{t('header.search')}</span>
+                  <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.search')}</span>
                   <Search className="h-3.5 w-3.5 mt-0.5" />
                 </button>
               </TooltipTrigger>

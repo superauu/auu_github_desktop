@@ -109,11 +109,11 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
             <div>
               <div className="font-semibold text-sm text-foreground flex items-center gap-2">
                 <span>{t('drag.title')}</span>
-                <Badge variant="outline" className="text-[10px] font-normal py-0 h-4 border-primary/30 text-primary">
+                <Badge variant="outline" className="text-[11px] font-normal py-0 h-4 border-primary/30 text-primary">
                   Drag & Drop
                 </Badge>
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
+              <div className="text-[12px] text-muted-foreground mt-0.5">
                 {t('drag.pickOp')}
               </div>
             </div>
@@ -140,7 +140,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
               )}
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] text-muted-foreground">{t('drag.source')}</div>
+              <div className="text-[11px] text-muted-foreground">{t('drag.source')}</div>
               <div className="text-xs font-mono font-semibold text-foreground truncate max-w-[170px]" title={sourceBranch.name}>
                 {sourceBranch.name}
               </div>
@@ -153,7 +153,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
 
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
             <div className="min-w-0">
-              <div className="text-[10px] text-muted-foreground">{t('drag.target')}</div>
+              <div className="text-[11px] text-muted-foreground">{t('drag.target')}</div>
               <div className="text-xs font-mono font-semibold text-foreground truncate max-w-[170px]" title={targetBranch.name}>
                 {targetBranch.name}
               </div>
@@ -188,12 +188,12 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
                 <span className="text-xs font-semibold text-foreground">
                   {t('drag.merge')}
                 </span>
-                <span className="text-[10px] font-mono text-muted-foreground">{t('drag.recommended')}</span>
+                <span className="text-[11px] font-mono text-muted-foreground">{t('drag.recommended')}</span>
               </div>
-              <div className="text-[11px] text-muted-foreground leading-relaxed">
+              <div className="text-[12px] text-muted-foreground leading-relaxed">
                 {t('drag.mergeDescPrefix')} <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> {t('drag.mergeDescMid')} <span className="font-mono text-foreground font-medium">{targetBranch.name}</span>
               </div>
-              <div className="text-[10px] text-primary/80 font-mono pt-1">
+              <div className="text-[11px] text-primary/80 font-mono pt-1">
                 $ git checkout {targetBranch.name} && git merge {sourceBranch.name}
               </div>
             </div>
@@ -218,10 +218,10 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
                   {t('drag.rebaseTarget')}
                 </span>
               </div>
-              <div className="text-[11px] text-muted-foreground leading-relaxed">
+              <div className="text-[12px] text-muted-foreground leading-relaxed">
                 <span className="font-mono text-foreground font-medium">{targetBranch.name}</span> {t('drag.rebaseDescSuffix')} <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span>
               </div>
-              <div className="text-[10px] text-amber-500/90 font-mono pt-1">
+              <div className="text-[11px] text-amber-500/90 font-mono pt-1">
                 $ git checkout {targetBranch.name} && git rebase {sourceBranch.name}
               </div>
             </div>
@@ -246,10 +246,10 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
                   {t('drag.rebaseSource')}
                 </span>
               </div>
-              <div className="text-[11px] text-muted-foreground leading-relaxed">
+              <div className="text-[12px] text-muted-foreground leading-relaxed">
                 <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> {t('drag.rebaseDescSuffix')} <span className="font-mono text-foreground font-medium">{targetBranch.name}</span>
               </div>
-              <div className="text-[10px] text-amber-500/90 font-mono pt-1">
+              <div className="text-[11px] text-amber-500/90 font-mono pt-1">
                 $ git checkout {sourceBranch.name} && git rebase {targetBranch.name}
               </div>
             </div>

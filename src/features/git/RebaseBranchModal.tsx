@@ -115,7 +115,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground">{t('rebase.title')}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 {t('rebase.desc')}
               </div>
             </div>
@@ -133,7 +133,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
         {/* Warning Alert */}
         <div className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
-          <div className="text-[11px] leading-relaxed opacity-90">
+          <div className="text-[12px] leading-relaxed opacity-90">
             {t('rebase.warn')}
           </div>
         </div>
@@ -177,14 +177,14 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
             {/* Branch Flow Visualizer */}
             <div className="p-3 rounded-lg border border-border bg-accent/20 flex items-center justify-between text-xs font-mono">
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-muted-foreground">{t('rebase.currentLabel')}</span>
+                <span className="text-[11px] text-muted-foreground">{t('rebase.currentLabel')}</span>
                 <Badge variant="outline" className="h-5 px-2 text-xs font-semibold">
                   {currentBranch}
                 </Badge>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="flex flex-col gap-1 items-end">
-                <span className="text-[10px] text-muted-foreground">{t('rebase.ontoLabel')}</span>
+                <span className="text-[11px] text-muted-foreground">{t('rebase.ontoLabel')}</span>
                 <Badge variant="warning" className="h-5 px-2 text-xs font-semibold">
                   {selectedBranch || t('merge.none')}
                 </Badge>
@@ -193,7 +193,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
 
             {/* Select Upstream Branch */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-foreground block">
+              <label className="text-[12px] font-medium text-foreground block">
                 {t('rebase.pickUpstream')}
               </label>
               <select

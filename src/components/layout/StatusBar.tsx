@@ -19,7 +19,7 @@ export const StatusBar: React.FC = () => {
     '';
 
   return (
-    <footer className="h-6 border-t border-border bg-card/60 backdrop-blur-md px-3 flex items-center justify-between text-[11px] text-muted-foreground select-none shrink-0 z-20">
+    <footer className="h-6 border-t border-border bg-card/60 backdrop-blur-md px-3 flex items-center justify-between text-[12px] text-muted-foreground select-none shrink-0 z-20">
       {/* Left side info */}
       <div className="flex items-center gap-3">
         {currentRepo ? (
@@ -39,7 +39,7 @@ export const StatusBar: React.FC = () => {
             {status && (
               <>
                 <div className="h-3 w-[1px] bg-border" />
-                <div className="flex items-center gap-2 font-mono text-[10px]">
+                <div className="flex items-center gap-2 font-mono text-[11px]">
                   <span className="text-emerald-400">↑ {status.ahead}</span>
                   <span className="text-cyan-400">↓ {status.behind}</span>
                 </div>
@@ -53,14 +53,14 @@ export const StatusBar: React.FC = () => {
 
       {/* Right side status */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1 text-[10px]">
+        <div className="flex items-center gap-1 text-[11px]">
           <CheckCircle2 className="h-3 w-3 text-emerald-400" />
           <span>{t('status.gitReady')}</span>
         </div>
 
         <div className="h-3 w-[1px] bg-border" />
 
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 font-mono">
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground/80 font-mono">
           <Terminal className="h-3 w-3" />
           <span>UTF-8</span>
         </div>

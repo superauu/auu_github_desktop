@@ -188,8 +188,8 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       <div className="h-8 px-3 bg-slate-100/90 dark:bg-[#131316] border-b border-border/60 flex items-center justify-between text-xs shrink-0 select-none">
         <div className="flex items-center gap-2 text-foreground/90 font-mono font-medium">
           <TerminalIcon className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-          <span className="text-[11px] tracking-wide text-foreground">{t('terminal.title')}</span>
-          <span className="text-[10px] text-muted-foreground/60 truncate max-w-[260px] font-sans">
+          <span className="text-[12px] tracking-wide text-foreground">{t('terminal.title')}</span>
+          <span className="text-[11px] text-muted-foreground/60 truncate max-w-[260px] font-sans">
             {repoPath}
           </span>
         </div>
@@ -231,7 +231,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       <div
         ref={scrollRef}
         onClick={() => inputRef.current?.focus()}
-        className="flex-1 p-3 font-mono text-[11px] overflow-y-auto space-y-2 cursor-text"
+        className="flex-1 p-3 font-mono text-[12px] overflow-y-auto space-y-2 cursor-text"
       >
         {history.map((item) => (
           <div key={item.id} className="space-y-1">
@@ -241,7 +241,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
             </div>
             <pre
               className={cn(
-                "whitespace-pre-wrap pl-4 font-mono text-[11px] leading-relaxed",
+                "whitespace-pre-wrap pl-4 font-mono text-[12px] leading-relaxed",
                 item.isError ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-foreground/80"
               )}
             >
@@ -251,7 +251,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
         ))}
 
         {isExecuting && (
-          <div className="flex items-center gap-2 text-primary animate-pulse text-[11px] pl-4">
+          <div className="flex items-center gap-2 text-primary animate-pulse text-[12px] pl-4">
             <span>{t('terminal.running')}</span>
           </div>
         )}
@@ -268,7 +268,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
             onKeyDown={handleKeyDown}
             disabled={isExecuting}
             placeholder={t('terminal.placeholder')}
-            className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-foreground font-mono text-[11px] p-0 placeholder:text-muted-foreground/50 focus:ring-0"
+            className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-foreground font-mono text-[12px] p-0 placeholder:text-muted-foreground/50 focus:ring-0"
             autoFocus
           />
         </form>

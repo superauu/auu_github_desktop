@@ -112,11 +112,11 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
             <div>
               <div className="font-semibold text-sm text-foreground flex items-center gap-2">
                 <span>{t('diag.title')}</span>
-                <Badge variant="outline" className="text-[10px] font-normal py-0 h-4 border-primary/30 text-primary">
+                <Badge variant="outline" className="text-[11px] font-normal py-0 h-4 border-primary/30 text-primary">
                   {t('diag.realtime')}
                 </Badge>
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5 font-mono truncate max-w-md">
+              <div className="text-[12px] text-muted-foreground mt-0.5 font-mono truncate max-w-md">
                 {currentRepo ? currentRepo.name : t('diag.noRepo')}
               </div>
             </div>
@@ -157,11 +157,11 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-foreground">{t('diag.overall')}</span>
-                      <Badge className={`text-[10px] font-medium ${getStatusColor(report.status)}`}>
+                      <Badge className={`text-[11px] font-medium ${getStatusColor(report.status)}`}>
                         {report.status === 'healthy' ? t('diag.healthy') : report.status === 'warning' ? t('diag.warning') : t('diag.danger')}
                       </Badge>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                    <div className="text-[12px] text-muted-foreground mt-1 leading-relaxed">
                       {report.summary}
                     </div>
                   </div>
@@ -172,13 +172,13 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
                     {report.score}
                     <span className="text-xs font-normal text-muted-foreground">/100</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-medium">{t('diag.score')}</div>
+                  <div className="text-[11px] text-muted-foreground font-medium">{t('diag.score')}</div>
                 </div>
               </div>
 
               {/* Issues / Health Items List */}
               <div className="space-y-2">
-                <div className="text-[11px] font-medium text-muted-foreground px-1">
+                <div className="text-[12px] font-medium text-muted-foreground px-1">
                   {t('diag.items')} ({report.issues.length})
                 </div>
                 <div className="space-y-2">
@@ -194,15 +194,15 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
                             <span className="text-xs font-semibold text-foreground truncate">
                               {issue.title}
                             </span>
-                            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
+                            <span className="text-[11px] uppercase font-mono px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
                               {issue.type}
                             </span>
                           </div>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                          <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
                             {issue.description}
                           </p>
                           {issue.actionHint && (
-                            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-primary bg-primary/5 border border-primary/15 rounded-lg px-2.5 py-1.5">
+                            <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-primary bg-primary/5 border border-primary/15 rounded-lg px-2.5 py-1.5">
                               <Wrench className="h-3 w-3 shrink-0" />
                               <span className="leading-tight">{issue.actionHint}</span>
                             </div>

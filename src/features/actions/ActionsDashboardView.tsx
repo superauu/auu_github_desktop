@@ -82,12 +82,12 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           <Workflow className="h-4 w-4 text-primary" />
           <span className="font-semibold text-foreground">{t('actions.title')}</span>
           {currentOwner && currentRepoName && (
-            <Badge variant="outline" className="h-4 text-[9px] font-mono border-primary/40 text-primary">
+            <Badge variant="outline" className="h-4 text-[10px] font-mono border-primary/40 text-primary">
               {currentOwner}/{currentRepoName}
             </Badge>
           )}
           {isAuthenticated && user && (
-            <Badge variant="success" className="h-4 text-[9px] gap-1 font-normal">
+            <Badge variant="success" className="h-4 text-[10px] gap-1 font-normal">
               <ShieldCheck className="h-2.5 w-2.5 text-emerald-400" />
               <span>{t('actions.connectedAs')} @{user.login}</span>
             </Badge>
@@ -100,7 +100,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
               variant="outline"
               size="xs"
               onClick={onOpenAuthDialog}
-              className="h-6 text-[10px] gap-1"
+              className="h-6 text-[11px] gap-1"
             >
               <span>{t('actions.connectReal')}</span>
             </Button>
@@ -109,7 +109,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             variant="ghost"
             size="xs"
             onClick={() => refreshActions()}
-            className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+            className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
           >
             <RotateCw className="h-3 w-3" />
             <span>{t('actions.refresh')}</span>
@@ -124,7 +124,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           style={{ width: actionsWorkflowsWidth }}
           className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
         >
-          <div className="h-8 px-3 border-b border-border flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-accent/10 shrink-0">
+          <div className="h-8 px-3 border-b border-border flex items-center justify-between text-[12px] font-semibold text-muted-foreground uppercase tracking-wider bg-accent/10 shrink-0">
             <span>{t('actions.workflows')} ({workflows.length})</span>
           </div>
 
@@ -140,7 +140,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                 )}
               >
                 <span>{t('actions.allWorkflows')}</span>
-                <Badge variant="secondary" className="h-4 text-[9px]">
+                <Badge variant="secondary" className="h-4 text-[10px]">
                   {workflowRuns.length}
                 </Badge>
               </button>
@@ -218,7 +218,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                       variant="destructive"
                       size="xs"
                       onClick={() => cancelWorkflowRun(selectedRun.id)}
-                      className="h-5 px-2 text-[10px] gap-1"
+                      className="h-5 px-2 text-[11px] gap-1"
                     >
                       <Ban className="h-2.5 w-2.5" />
                       <span>{t('actions.cancelRun')}</span>
@@ -230,7 +230,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                           variant="outline"
                           size="xs"
                           onClick={() => rerunWorkflowRun(selectedRun.id, true)}
-                          className="h-5 px-2 text-[10px] gap-1 text-amber-400 hover:text-amber-300"
+                          className="h-5 px-2 text-[11px] gap-1 text-amber-400 hover:text-amber-300"
                         >
                           <RotateCcw className="h-2.5 w-2.5" />
                           <span>{t('actions.rerunFailed')}</span>
@@ -240,7 +240,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         variant="outline"
                         size="xs"
                         onClick={() => rerunWorkflowRun(selectedRun.id, false)}
-                        className="h-5 px-2 text-[10px] gap-1"
+                        className="h-5 px-2 text-[11px] gap-1"
                       >
                         <RotateCcw className="h-2.5 w-2.5" />
                         <span>{t('actions.rerunAll')}</span>
@@ -274,20 +274,20 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                             <span className="font-medium text-foreground group-hover:text-primary transition-colors">
                               {run.name}
                             </span>
-                            <span className="text-[10px] text-muted-foreground font-mono">
+                            <span className="text-[11px] text-muted-foreground font-mono">
                               #{run.run_number}
                             </span>
-                            <Badge variant="outline" className="h-3.5 text-[9px] font-mono px-1">
+                            <Badge variant="outline" className="h-3.5 text-[10px] font-mono px-1">
                               {run.event}
                             </Badge>
                           </div>
-                          <div className="text-[11px] text-muted-foreground truncate">
+                          <div className="text-[12px] text-muted-foreground truncate">
                             {run.head_commit?.message || t('actions.autoTriggered')}
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground font-mono">
+                      <div className="flex items-center gap-3 shrink-0 text-[12px] text-muted-foreground font-mono">
                         <div className="flex items-center gap-1">
                           <GitBranch className="h-3 w-3 text-indigo-400" />
                           <span>{run.head_branch}</span>
@@ -324,7 +324,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                 <div className="flex items-center gap-2">
                   <Badge
                     variant={selectedRun.conclusion === 'success' ? 'success' : selectedRun.status === 'in_progress' ? 'warning' : 'destructive'}
-                    className="h-4 text-[9px]"
+                    className="h-4 text-[10px]"
                   >
                     {selectedRun.status === 'in_progress'
                       ? t('actions.building')
@@ -354,13 +354,13 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                             {getStatusIcon(job.conclusion, job.status)}
                             <span className="truncate">{job.name}</span>
                           </div>
-                          <Badge variant="outline" className="h-3.5 text-[9px] font-mono px-1 shrink-0">
+                          <Badge variant="outline" className="h-3.5 text-[10px] font-mono px-1 shrink-0">
                             {job.status}
                           </Badge>
                         </div>
 
                         {/* Step lines */}
-                        <div className="rounded border border-border/50 bg-background/50 divide-y divide-border/40 text-[11px] font-mono max-h-24 overflow-y-auto">
+                        <div className="rounded border border-border/50 bg-background/50 divide-y divide-border/40 text-[12px] font-mono max-h-24 overflow-y-auto">
                           {job.steps.map((step) => (
                             <div
                               key={step.number}
@@ -374,9 +374,9 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                                 ) : (
                                   <Clock className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                                 )}
-                                <span className="truncate text-[10px]">{step.name}</span>
+                                <span className="truncate text-[11px]">{step.name}</span>
                               </div>
-                              <span className="text-[9px] opacity-60 shrink-0">#{step.number}</span>
+                              <span className="text-[10px] opacity-60 shrink-0">#{step.number}</span>
                             </div>
                           ))}
                         </div>
@@ -388,7 +388,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                           variant="ghost"
                           size="xs"
                           onClick={() => openJobLogs(job.id, job.name)}
-                          className="h-6 px-2 text-[10px] gap-1 font-mono hover:text-emerald-400"
+                          className="h-6 px-2 text-[11px] gap-1 font-mono hover:text-emerald-400"
                         >
                           <Terminal className="h-3 w-3" />
                           <span>{t('actions.viewLogs')}</span>

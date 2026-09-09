@@ -58,7 +58,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
             </div>
             <div className="min-w-0">
               <div className="font-semibold text-xs text-foreground truncate">{stash.message}</div>
-              <div className="text-[10px] text-muted-foreground font-mono">
+              <div className="text-[11px] text-muted-foreground font-mono">
                 {stash.branch} · {stash.date}
               </div>
             </div>
@@ -74,7 +74,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
         </div>
 
         {/* Patch Body */}
-        <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text p-2">
+        <div className="flex-1 overflow-auto font-mono text-[12px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text p-2">
           {isLoading ? (
             <div className="py-20 flex items-center justify-center gap-2 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
@@ -89,7 +89,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
               line.type === 'header' ? (
                 <div
                   key={idx}
-                  className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px] mt-1 first:mt-0"
+                  className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[11px] mt-1 first:mt-0"
                 >
                   {line.content}
                 </div>
@@ -105,10 +105,10 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
                       : 'border-transparent text-foreground/85'
                   )}
                 >
-                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20">
+                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20">
                     {line.oldNo ?? ''}
                   </div>
-                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
+                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
                     {line.newNo ?? ''}
                   </div>
                   <div className="px-3 whitespace-pre font-mono flex-1 overflow-x-auto">

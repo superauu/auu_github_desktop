@@ -67,7 +67,7 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
             {toast.title}
           </div>
           {toast.description && (
-            <div className="text-[11px] text-muted-foreground leading-relaxed break-words">
+            <div className="text-[12px] text-muted-foreground leading-relaxed break-words">
               {toast.description}
             </div>
           )}

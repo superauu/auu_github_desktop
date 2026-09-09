@@ -39,7 +39,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
           <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
             {t('welcome.tagline')}
           </p>
-          <div className="hidden sm:flex items-center justify-center gap-2 text-[10px] font-mono text-muted-foreground/70 tracking-wider">
+          <div className="hidden sm:flex items-center justify-center gap-2 text-[11px] font-mono text-muted-foreground/70 tracking-wider">
             <Terminal className="h-3 w-3 text-primary/70" />
             <span>&gt; git init --neon</span>
             <span className="inline-block h-3 w-[6px] bg-primary/80 neon-breathe" aria-hidden />
@@ -59,7 +59,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
               <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors">
                 {t('welcome.openRepo')}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
+              <div className="text-[12px] text-muted-foreground mt-0.5">
                 {t('welcome.openRepoDesc')}
               </div>
             </div>
@@ -77,7 +77,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
               <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors">
                 {t('welcome.cloneRepo')}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
+              <div className="text-[12px] text-muted-foreground mt-0.5">
                 {t('welcome.cloneRepoDesc')}
               </div>
             </div>
@@ -95,7 +95,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
               <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors">
                 {t('welcome.initRepo')}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
+              <div className="text-[12px] text-muted-foreground mt-0.5">
                 {t('welcome.initRepoDesc')}
               </div>
             </div>
@@ -126,13 +126,13 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                       <div className="font-medium text-xs text-foreground group-hover:text-primary transition-colors truncate">
                         {repo.name}
                       </div>
-                      <div className="text-[11px] text-muted-foreground truncate font-mono">
+                      <div className="text-[12px] text-muted-foreground truncate font-mono">
                         {repo.path}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded-full bg-accent/60 font-mono">
+                    <span className="text-[11px] text-muted-foreground px-2 py-0.5 rounded-full bg-accent/60 font-mono">
                       {repo.currentBranch}
                     </span>
                     <ArrowRight className="h-3.5 w-3.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />

@@ -219,7 +219,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </div>
           </div>
 
-          <div className="p-2 text-[10px] text-muted-foreground/80 font-mono">
+          <div className="p-2 text-[11px] text-muted-foreground/80 font-mono">
             v0.1.0 (Tauri 2 Preview)
           </div>
         </div>
@@ -269,7 +269,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         )}
                       >
                         <div className="font-semibold text-xs text-foreground">{item.name}</div>
-                        <div className="text-[10px] text-muted-foreground mt-1">{item.desc}</div>
+                        <div className="text-[11px] text-muted-foreground mt-1">{item.desc}</div>
                         {theme === item.id && (
                           <Check className="h-3.5 w-3.5 text-primary absolute top-2.5 right-2.5" />
                         )}
@@ -285,7 +285,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         <Languages className="h-3.5 w-3.5 text-primary" />
                         <span>{t('settings.appearance.languageLabel')}</span>
                       </div>
-                      <div className="text-[11px] text-muted-foreground">{t('settings.appearance.languageDesc')}</div>
+                      <div className="text-[12px] text-muted-foreground">{t('settings.appearance.languageDesc')}</div>
                     </div>
                     <select
                       value={lang}
@@ -302,7 +302,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   <div className="flex items-center justify-between py-2">
                     <div>
                       <div className="font-medium text-foreground">{t('settings.appearance.compact')}</div>
-                      <div className="text-[11px] text-muted-foreground">{t('settings.appearance.compactDesc')}</div>
+                      <div className="text-[12px] text-muted-foreground">{t('settings.appearance.compactDesc')}</div>
                     </div>
                     <input
                       type="checkbox"
@@ -323,7 +323,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         <LayoutGrid className="h-3.5 w-3.5 text-primary" />
                         <span>{t('settings.appearance.panelLayout')}</span>
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-[12px] text-muted-foreground">
                         {t('settings.appearance.panelLayoutDesc')}
                       </div>
                     </div>
@@ -369,7 +369,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       <span>{t('common.detect')}</span>
                     </Button>
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-1.5">
+                  <div className="flex items-center gap-2 text-[12px] text-muted-foreground mt-1.5">
                     <span>{t('settings.git.versionLabel')}</span>
                     <span className="font-mono font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                       {gitVersion}
@@ -395,7 +395,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <option value="10m" className="bg-popover text-foreground">{t("settings.git.autoFetch.every10")}</option>
                     <option value="30m" className="bg-popover text-foreground">{t("settings.git.autoFetch.every30")}</option>
                   </select>
-                  <div className="text-[10px] text-muted-foreground mt-1">
+                  <div className="text-[11px] text-muted-foreground mt-1">
                     {t('settings.git.autoFetchDesc')}
                   </div>
                 </div>
@@ -425,7 +425,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         <Cpu className="h-3.5 w-3.5 text-primary" />
                         <span>{t('settings.ai.builtin.name')}</span>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground">
                         {t('settings.ai.builtin.desc')}
                       </div>
                       {aiConfig.provider === 'builtin' && (
@@ -446,7 +446,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         <Sparkles className="h-3.5 w-3.5 text-sky-400" />
                         <span>{t('settings.ai.api.name')}</span>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground">
                         {t('settings.ai.api.desc')}
                       </div>
                       {aiConfig.provider === 'openai-compatible' && (
@@ -459,7 +459,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 {aiConfig.provider === 'openai-compatible' && (
                   <div className="p-3.5 rounded-xl border border-border/80 bg-accent/20 space-y-3 animate-in fade-in">
                     <div>
-                      <label className="text-[11px] font-medium text-foreground block mb-1">
+                      <label className="text-[12px] font-medium text-foreground block mb-1">
                         {t('settings.ai.endpoint')}
                       </label>
                       <Input
@@ -472,7 +472,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[11px] font-medium text-foreground block mb-1">
+                        <label className="text-[12px] font-medium text-foreground block mb-1">
                           {t('settings.ai.model')}
                         </label>
                         <Input
@@ -484,7 +484,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-[11px] font-medium text-foreground block mb-1">
+                        <label className="text-[12px] font-medium text-foreground block mb-1">
                           API Key
                         </label>
                         <Input
@@ -533,7 +533,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             <span>{t('common.connected')}</span>
                           </Badge>
                         </div>
-                        <div className="text-[11px] text-muted-foreground font-mono">@{user.login}</div>
+                        <div className="text-[12px] text-muted-foreground font-mono">@{user.login}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -571,7 +571,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       </div>
                       <div>
                         <div className="font-semibold text-xs text-foreground">{t('settings.github.notConnected')}</div>
-                        <div className="text-[11px] text-muted-foreground">{t('settings.github.notConnectedDesc')}</div>
+                        <div className="text-[12px] text-muted-foreground">{t('settings.github.notConnectedDesc')}</div>
                       </div>
                     </div>
                     <Button
@@ -588,7 +588,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   </div>
                 )}
 
-                <div className="text-[11px] text-muted-foreground leading-relaxed">
+                <div className="text-[12px] text-muted-foreground leading-relaxed">
                   {t('settings.github.patHintPrefix')} <code className="bg-accent px-1 rounded font-mono">repo</code>、
                   <code className="bg-accent px-1 rounded font-mono">workflow</code> {t('settings.github.patHintSuffix')}
                 </div>
@@ -602,7 +602,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   {shortcuts.map((item) => (
                     <div key={item.key} className="p-2.5 flex items-center justify-between text-xs hover:bg-accent/30 transition-colors">
                       <span className="text-foreground/90">{item.desc}</span>
-                      <kbd className="inline-flex h-5 items-center rounded border border-border bg-muted/60 px-1.5 font-mono text-[10px] text-muted-foreground">
+                      <kbd className="inline-flex h-5 items-center rounded border border-border bg-muted/60 px-1.5 font-mono text-[11px] text-muted-foreground">
                         {item.key}
                       </kbd>
                     </div>

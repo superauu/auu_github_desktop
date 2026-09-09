@@ -90,7 +90,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground">{t('merge.title')}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 {t('merge.desc')}
               </div>
             </div>
@@ -108,7 +108,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
         {error && (
           <div className="p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs flex items-start gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
-            <div className="text-[11px] break-all leading-relaxed">{error}</div>
+            <div className="text-[12px] break-all leading-relaxed">{error}</div>
           </div>
         )}
 
@@ -116,14 +116,14 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
           {/* Branch Flow Visualizer */}
           <div className="p-3 rounded-lg border border-border bg-accent/20 flex items-center justify-between text-xs font-mono">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-muted-foreground">{t('merge.sourceLabel')}</span>
+              <span className="text-[11px] text-muted-foreground">{t('merge.sourceLabel')}</span>
               <Badge variant="outline" className="h-5 px-2 text-xs">
                 {selectedBranch || t('merge.none')}
               </Badge>
             </div>
             <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex flex-col gap-1 items-end">
-              <span className="text-[10px] text-muted-foreground">{t('merge.targetLabel')}</span>
+              <span className="text-[11px] text-muted-foreground">{t('merge.targetLabel')}</span>
               <Badge variant="success" className="h-5 px-2 text-xs font-semibold">
                 {currentBranch}
               </Badge>
@@ -132,7 +132,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
 
           {/* Select Source Branch */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-foreground block">
+            <label className="text-[12px] font-medium text-foreground block">
               {t('merge.pickSource')}
             </label>
             <select
@@ -166,7 +166,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
 
             {noFastForward && (
               <div className="space-y-1">
-                <label className="text-[10px] text-muted-foreground block">
+                <label className="text-[11px] text-muted-foreground block">
                   {t('merge.customMsg')}
                 </label>
                 <input

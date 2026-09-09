@@ -114,7 +114,7 @@ export const JobLogsViewerModal: React.FC = () => {
             <span className="text-xs font-semibold font-mono text-foreground">
               {activeJobLogs.jobName}
             </span>
-            <Badge variant="outline" className="h-4 text-[10px] font-mono">
+            <Badge variant="outline" className="h-4 text-[11px] font-mono">
               {filteredLines.length} {t('logs.lines')}
             </Badge>
           </div>
@@ -127,7 +127,7 @@ export const JobLogsViewerModal: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('logs.searchPlaceholder')}
-                className="h-7 pl-7 text-[11px] font-mono bg-background/50 border-border/60"
+                className="h-7 pl-7 text-[12px] font-mono bg-background/50 border-border/60"
               />
             </div>
 
@@ -136,7 +136,7 @@ export const JobLogsViewerModal: React.FC = () => {
               variant={autoScroll ? 'secondary' : 'ghost'}
               size="xs"
               onClick={() => setAutoScroll(!autoScroll)}
-              className="h-7 px-2 text-[10px] gap-1 font-mono"
+              className="h-7 px-2 text-[11px] gap-1 font-mono"
               title={t('logs.scrollToBottom')}
             >
               <ArrowDownToLine className="h-3 w-3" />
@@ -148,7 +148,7 @@ export const JobLogsViewerModal: React.FC = () => {
               variant="outline"
               size="xs"
               onClick={handleCopyLogs}
-              className="h-7 px-2 text-[10px] gap-1 font-mono"
+              className="h-7 px-2 text-[11px] gap-1 font-mono"
               title={t('logs.copyAll')}
             >
               {isCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
@@ -180,7 +180,7 @@ export const JobLogsViewerModal: React.FC = () => {
         {/* Terminal Content Screen */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed bg-background dark:bg-[#08080a] text-foreground dark:text-muted-foreground select-text"
+          className="flex-1 overflow-auto p-4 font-mono text-[12px] leading-relaxed bg-background dark:bg-[#08080a] text-foreground dark:text-muted-foreground select-text"
         >
           {filteredLines.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground/50">
@@ -203,7 +203,7 @@ export const JobLogsViewerModal: React.FC = () => {
                     isGroupHeader && "text-indigo-300 font-semibold bg-indigo-950/20 my-1 py-1"
                   )}
                 >
-                  <span className="w-10 text-muted-foreground/30 text-right pr-3 select-none shrink-0 text-[10px]">
+                  <span className="w-10 text-muted-foreground/30 text-right pr-3 select-none shrink-0 text-[11px]">
                     {idx + 1}
                   </span>
                   <div className="flex-1">

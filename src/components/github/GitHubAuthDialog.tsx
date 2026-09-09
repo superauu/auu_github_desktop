@@ -201,11 +201,11 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
             <div>
               <div className="font-semibold text-sm text-foreground flex items-center gap-2">
                 <span>{t('auth.title')}</span>
-                <Badge variant="outline" className="text-[10px] font-normal py-0 h-4 border-primary/30 text-primary">
+                <Badge variant="outline" className="text-[11px] font-normal py-0 h-4 border-primary/30 text-primary">
                   OAuth 2.0
                 </Badge>
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
+              <div className="text-[12px] text-muted-foreground mt-0.5">
                 {currentOwner && currentRepoName
                   ? `${t('auth.boundRepo')}: ${currentOwner}/${currentRepoName}`
                   : t('auth.boundNone')}
@@ -235,14 +235,14 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 <div>
                   <div className="font-semibold text-sm text-foreground flex items-center gap-2">
                     <span>{user.name || user.login}</span>
-                    <Badge variant="success" className="h-4 text-[9px] px-1.5 gap-0.5">
+                    <Badge variant="success" className="h-4 text-[10px] px-1.5 gap-0.5">
                       <CheckCircle2 className="h-2.5 w-2.5" />
                       <span>{t('common.connected')}</span>
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground font-mono">@{user.login}</div>
                   {user.bio && (
-                    <div className="text-[11px] text-muted-foreground line-clamp-1 mt-1">
+                    <div className="text-[12px] text-muted-foreground line-clamp-1 mt-1">
                       {user.bio}
                     </div>
                   )}
@@ -268,7 +268,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                     await refreshActions();
                     toast.success(t('auth.refreshToast'));
                   }}
-                  className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                  className="h-7 text-[12px] gap-1 text-muted-foreground hover:text-foreground"
                 >
                   <RefreshCw className="h-3 w-3" />
                   <span>{t('auth.refresh')}</span>
@@ -347,7 +347,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-border/50 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                      <div className="pt-2 border-t border-border/50 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                         <span className="px-2 py-0.5 rounded bg-background/60 border border-border">{t('auth.badge.repo')}</span>
                         <span className="px-2 py-0.5 rounded bg-background/60 border border-border">{t('auth.badge.actions')}</span>
                         <span className="px-2 py-0.5 rounded bg-background/60 border border-border">{t('auth.badge.deviceFlow')}</span>
@@ -383,7 +383,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                           <span>{t('auth.codeReady')}</span>
                         </span>
                         {pollInfo && (
-                          <span className="text-[10px] font-mono text-muted-foreground">
+                          <span className="text-[11px] font-mono text-muted-foreground">
                             {t('auth.remaining')}: {formatRemainingTime(pollInfo.remainingSeconds)}
                           </span>
                         )}
@@ -418,7 +418,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                         </Button>
                       </div>
 
-                      <div className="text-[11px] text-muted-foreground leading-relaxed flex items-center justify-between">
+                      <div className="text-[12px] text-muted-foreground leading-relaxed flex items-center justify-between">
                         <span>{t('auth.autoCopied')}</span>
                         <button
                           type="button"
@@ -443,7 +443,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                         variant="ghost"
                         size="xs"
                         onClick={handleCancelOAuth}
-                        className="h-6 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        className="h-6 text-[12px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
                       >
                         {t('auth.cancelOauth')}
                       </Button>
@@ -471,7 +471,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                     <button
                       type="button"
                       onClick={handleOpenTokenGenerator}
-                      className="text-[11px] text-primary hover:underline flex items-center gap-0.5"
+                      className="text-[12px] text-primary hover:underline flex items-center gap-0.5"
                     >
                       <span>{t('auth.openGeneratePage')}</span>
                       <ExternalLink className="h-2.5 w-2.5" />
@@ -486,7 +486,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                     className="font-mono text-xs h-9"
                     autoFocus
                   />
-                  <div className="text-[10px] text-muted-foreground leading-normal">
+                  <div className="text-[11px] text-muted-foreground leading-normal">
                     {t('auth.patScopesPrefix')} <code className="bg-accent px-1 rounded font-mono">repo</code>,{' '}
                     <code className="bg-accent px-1 rounded font-mono">workflow</code>,{' '}
                     <code className="bg-accent px-1 rounded font-mono">read:user</code> {t('auth.scopesDot')}

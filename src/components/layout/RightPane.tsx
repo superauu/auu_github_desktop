@@ -310,7 +310,7 @@ export const RightPane: React.FC = () => {
           <Layers className="h-6 w-6 stroke-[1.5]" />
         </div>
         <h3 className="font-semibold text-xs text-foreground/80 mb-1">{t('welcome.rightPane.title')}</h3>
-        <p className="text-[11px] text-muted-foreground/70 max-w-[210px] leading-relaxed">
+        <p className="text-[12px] text-muted-foreground/70 max-w-[210px] leading-relaxed">
           {t('welcome.rightPane.desc')}
         </p>
       </aside>
@@ -325,14 +325,14 @@ export const RightPane: React.FC = () => {
       {/* GitKraken-style Top Banner: 30 file changes in working directory [View Changes] */}
       {totalChanges > 0 && activeTab === 'history' && (
         <div className="h-8 px-3 bg-sky-500/15 border-b border-sky-500/30 flex items-center justify-between shrink-0 text-sky-700 dark:text-sky-300">
-          <span className="font-semibold text-[11px] truncate">
+          <span className="font-semibold text-[12px] truncate">
             {totalChanges} {t('rightPane.bannerFilesChanged')}
           </span>
           <Button
             variant="default"
             size="xs"
             onClick={() => setActiveTab('changes')}
-            className="h-5 px-2 text-[10px] bg-sky-500 hover:bg-sky-400 text-black font-semibold shrink-0"
+            className="h-5 px-2 text-[11px] bg-sky-500 hover:bg-sky-400 text-black font-semibold shrink-0"
           >
             {t('rightPane.viewChanges')}
           </Button>
@@ -362,8 +362,8 @@ export const RightPane: React.FC = () => {
           <div className="mb-3 p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs flex items-start gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
             <div className="min-w-0">
-              <div className="font-semibold text-[11px]">{t('rightPane.operationFailed')}</div>
-              <div className="text-[10px] break-all opacity-90">{errorMessage}</div>
+              <div className="font-semibold text-[12px]">{t('rightPane.operationFailed')}</div>
+              <div className="text-[11px] break-all opacity-90">{errorMessage}</div>
             </div>
           </div>
         )}
@@ -373,7 +373,7 @@ export const RightPane: React.FC = () => {
           <div className="space-y-3.5">
             {/* Commit Header & AI Recompose Button */}
             <div className="flex flex-wrap items-center justify-between gap-y-1 pb-0.5">
-              <div className="flex items-center gap-1.5 font-mono text-[11px]">
+              <div className="flex items-center gap-1.5 font-mono text-[12px]">
                 <span className="text-muted-foreground/80">{t('rightPane.commitHashLabel')}</span>
                 <button
                   onClick={() => copyHash(selectedCommit.hash)}
@@ -396,7 +396,7 @@ export const RightPane: React.FC = () => {
                   setActiveTab('changes');
                   toast.info(t('rightPane.extractedToChanges'));
                 }}
-                className="cyber-btn-ai text-white font-medium text-[10px] px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+                className="cyber-btn-ai text-white font-medium text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
                 title={t('rightPane.aiReorganize')}
               >
                 <Sparkles className="h-3 w-3 text-white animate-pulse" />
@@ -411,7 +411,7 @@ export const RightPane: React.FC = () => {
                 {selectedCommit.subject}
               </p>
               {selectedCommit.body && (
-                <p className="text-[11px] text-foreground/80 dark:text-muted-foreground whitespace-pre-wrap font-mono bg-muted/60 dark:bg-black/40 p-2.5 rounded-lg border border-border/40">
+                <p className="text-[12px] text-foreground/80 dark:text-muted-foreground whitespace-pre-wrap font-mono bg-muted/60 dark:bg-black/40 p-2.5 rounded-lg border border-border/40">
                   {selectedCommit.body}
                 </p>
               )}
@@ -423,15 +423,15 @@ export const RightPane: React.FC = () => {
                 <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800/90 text-sky-700 dark:text-sky-400 font-bold flex items-center justify-center text-xs shrink-0 border border-sky-500/30 shadow-xs uppercase">
                   {selectedCommit.author.name.slice(0, 2)}
                 </div>
-                <div className="min-w-0 space-y-0.5 text-[11px]">
+                <div className="min-w-0 space-y-0.5 text-[12px]">
                   <div className="font-semibold text-foreground truncate">{selectedCommit.author.name}</div>
-                  <div className="text-muted-foreground text-[10px]">
+                  <div className="text-muted-foreground text-[11px]">
                     {t('rightPane.authored')} {selectedCommit.author.relativeDate}
                   </div>
                 </div>
               </div>
               {selectedCommit.parents.length > 0 && (
-                <div className="text-[10px] text-muted-foreground/80 font-mono shrink-0">
+                <div className="text-[11px] text-muted-foreground/80 font-mono shrink-0">
                   {t('rightPane.parentLabel')} <span className="text-sky-400/90 hover:underline cursor-pointer">{selectedCommit.parents[0].slice(0, 7)}</span>
                 </div>
               )}
@@ -441,7 +441,7 @@ export const RightPane: React.FC = () => {
             <div className="space-y-2 pt-1 border-t border-border/60">
               <div className="flex items-center justify-between">
                 {/* Stats badge (e.g. + 1 added) */}
-                <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                <div className="flex items-center gap-1.5 text-[12px] font-mono">
                   {commitStats.total === 0 ? (
                     <span className="text-muted-foreground">{t('rightPane.zeroFiles')}</span>
                   ) : (
@@ -482,7 +482,7 @@ export const RightPane: React.FC = () => {
                     <button
                       onClick={() => setFileViewMode('path')}
                       className={cn(
-                        "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                        "px-1.5 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-0.5",
                         fileViewMode === 'path'
                           ? "bg-background text-foreground shadow-xs"
                           : "text-muted-foreground hover:text-foreground"
@@ -494,7 +494,7 @@ export const RightPane: React.FC = () => {
                     <button
                       onClick={() => setFileViewMode('tree')}
                       className={cn(
-                        "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                        "px-1.5 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-0.5",
                         fileViewMode === 'tree'
                           ? "bg-background text-foreground shadow-xs"
                           : "text-muted-foreground hover:text-foreground"
@@ -508,7 +508,7 @@ export const RightPane: React.FC = () => {
               </div>
 
               {/* Sub-bar: View all files & Collapse all */}
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground px-0.5">
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
                 <label
                   onClick={() => setCommitViewAll(!commitViewAll)}
                   className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors select-none"
@@ -544,7 +544,7 @@ export const RightPane: React.FC = () => {
                     ))}
                   </div>
                 ) : sortedCommitFiles.length === 0 ? (
-                  <div className="py-6 text-center text-muted-foreground text-[11px]">
+                  <div className="py-6 text-center text-muted-foreground text-[12px]">
                     {t('rightPane.noFileChanges')}
                   </div>
                 ) : fileViewMode === 'path' ? (
@@ -556,7 +556,7 @@ export const RightPane: React.FC = () => {
                         key={`${file.path}-${idx}`}
                         onClick={() => handleInspectCommitFile(file)}
                         className={cn(
-                          "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[11px] group transition-colors",
+                          "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[12px] group transition-colors",
                           isSelected
                             ? "bg-sky-500/15 border border-sky-500/40 text-foreground font-medium shadow-[inset_0_0_12px_rgba(56,189,248,0.06)]"
                             : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
@@ -567,7 +567,7 @@ export const RightPane: React.FC = () => {
                           {getFileStatusIcon(file.status)}
                           <span className="font-mono truncate">{file.path}</span>
                         </div>
-                        <span className="text-[9px] uppercase font-mono opacity-70 shrink-0">
+                        <span className="text-[10px] uppercase font-mono opacity-70 shrink-0">
                           {file.status}
                         </span>
                       </div>
@@ -582,7 +582,7 @@ export const RightPane: React.FC = () => {
                         <div key={folder} className="space-y-0.5">
                           <div
                             onClick={() => toggleTreeFolder(folder)}
-                            className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent/40 cursor-pointer text-[11px] font-medium text-foreground"
+                            className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent/40 cursor-pointer text-[12px] font-medium text-foreground"
                           >
                             <div className="flex items-center gap-1.5">
                               {isOpen ? (
@@ -592,7 +592,7 @@ export const RightPane: React.FC = () => {
                               )}
                               <span>{folder}</span>
                             </div>
-                            <span className="text-[9px] text-muted-foreground font-mono">
+                            <span className="text-[10px] text-muted-foreground font-mono">
                               {files.length}
                             </span>
                           </div>
@@ -605,7 +605,7 @@ export const RightPane: React.FC = () => {
                                     key={`${file.path}-${idx}`}
                                     onClick={() => handleInspectCommitFile(file)}
                                     className={cn(
-                                      "px-2 py-0.5 rounded cursor-pointer flex items-center justify-between text-[11px] group transition-colors",
+                                      "px-2 py-0.5 rounded cursor-pointer flex items-center justify-between text-[12px] group transition-colors",
                                       isSelected
                                         ? "bg-sky-500/15 border border-sky-500/40 text-foreground font-medium shadow-[inset_0_0_12px_rgba(56,189,248,0.06)]"
                                         : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
@@ -633,7 +633,7 @@ export const RightPane: React.FC = () => {
                           key={`${file.path}-${idx}`}
                           onClick={() => handleInspectCommitFile(file)}
                           className={cn(
-                            "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[11px] transition-colors",
+                            "px-2 py-1 rounded cursor-pointer flex items-center justify-between text-[12px] transition-colors",
                             isSelected
                               ? "bg-sky-500/15 border border-sky-500/40 text-foreground font-medium shadow-[inset_0_0_12px_rgba(56,189,248,0.06)]"
                               : "hover:bg-accent/40 text-muted-foreground hover:text-foreground"
@@ -657,7 +657,7 @@ export const RightPane: React.FC = () => {
                 <div className="p-2 bg-slate-100 dark:bg-slate-900/90 border-b border-border/80 flex items-center justify-between">
                   <div className="flex items-center gap-1.5 min-w-0 pr-1">
                     <FileText className="h-3 w-3 text-sky-600 dark:text-cyan-400 shrink-0" />
-                    <span className="font-mono font-semibold text-[11px] text-sky-800 dark:text-cyan-300 truncate">
+                    <span className="font-mono font-semibold text-[12px] text-sky-800 dark:text-cyan-300 truncate">
                       {previewCommitFile.path}
                     </span>
                   </div>
@@ -666,7 +666,7 @@ export const RightPane: React.FC = () => {
                       onClick={() =>
                         setPreviewDiffMode(previewDiffMode === 'unified' ? 'split' : 'unified')
                       }
-                      className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-secondary/80 text-muted-foreground hover:text-foreground transition-colors"
+                      className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-secondary/80 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {previewDiffMode === 'unified' ? t('diff.unified') : t('diff.split')}
                     </button>
@@ -691,11 +691,11 @@ export const RightPane: React.FC = () => {
                     ))}
                   </div>
                 ) : previewDiffLines.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground text-[10px]">
+                  <div className="p-4 text-center text-muted-foreground text-[11px]">
                     {t('rightPane.noTextDiff')}
                   </div>
                 ) : (
-                  <div className="p-2 max-h-56 overflow-auto font-mono text-[10px] leading-tight space-y-0.5 bg-card dark:bg-black/60">
+                  <div className="p-2 max-h-56 overflow-auto font-mono text-[11px] leading-tight space-y-0.5 bg-card dark:bg-black/60">
                     {previewDiffLines.slice(0, 100).map((line, idx) => (
                       <div
                         key={idx}
@@ -717,7 +717,7 @@ export const RightPane: React.FC = () => {
                       </div>
                     ))}
                     {previewDiffLines.length > 100 && (
-                      <div className="pt-2 text-center text-muted-foreground text-[9px]">
+                      <div className="pt-2 text-center text-muted-foreground text-[10px]">
                         {t('rightPane.diffTruncated')}
                       </div>
                     )}
@@ -729,18 +729,18 @@ export const RightPane: React.FC = () => {
             {/* GitHub Checks Status */}
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <span className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                   {t('rightPane.githubChecks')}
                 </span>
-                <Badge variant="success" className="h-4 text-[9px] gap-1 font-mono">
+                <Badge variant="success" className="h-4 text-[10px] gap-1 font-mono">
                   <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
                   <span>{checks.length} / {checks.length} {t('rightPane.checksPass')}</span>
                 </Badge>
               </div>
 
-              <div className="rounded-xl border border-border/80 divide-y divide-border/60 bg-card/90 dark:bg-[#141417]/90 text-[11px] overflow-hidden cyber-card">
+              <div className="rounded-xl border border-border/80 divide-y divide-border/60 bg-card/90 dark:bg-[#141417]/90 text-[12px] overflow-hidden cyber-card">
                 {checks.length === 0 ? (
-                  <div className="p-3 text-center text-[10px] text-muted-foreground">
+                  <div className="p-3 text-center text-[11px] text-muted-foreground">
                     {t('rightPane.noChecks')}
                   </div>
                 ) : (
@@ -753,7 +753,7 @@ export const RightPane: React.FC = () => {
                         <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
                         <span className="truncate max-w-[150px]">{c.name}</span>
                       </div>
-                      <span className="text-[9px] font-mono text-emerald-400 uppercase">
+                      <span className="text-[10px] font-mono text-emerald-400 uppercase">
                         {c.conclusion}
                       </span>
                     </div>
@@ -769,12 +769,12 @@ export const RightPane: React.FC = () => {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-y-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-foreground">
+                  <span className="text-[12px] font-semibold text-foreground">
                     {totalChanges} {t('rightPane.filesChanged')}
                   </span>
                   <Badge
                     variant={stagedCount > 0 ? "success" : "warning"}
-                    className="h-4 text-[9px] font-mono"
+                    className="h-4 text-[10px] font-mono"
                   >
                     {stagedCount} {t('rightPane.staged')}
                   </Badge>
@@ -785,7 +785,7 @@ export const RightPane: React.FC = () => {
                   <button
                     onClick={() => setFileViewMode('path')}
                     className={cn(
-                      "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                      "px-1.5 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-0.5",
                       fileViewMode === 'path'
                         ? "bg-background text-foreground shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
@@ -797,7 +797,7 @@ export const RightPane: React.FC = () => {
                   <button
                     onClick={() => setFileViewMode('tree')}
                     className={cn(
-                      "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all flex items-center gap-0.5",
+                      "px-1.5 py-0.5 rounded text-[11px] font-medium transition-all flex items-center gap-0.5",
                       fileViewMode === 'tree'
                         ? "bg-background text-foreground shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
@@ -812,7 +812,7 @@ export const RightPane: React.FC = () => {
               {/* File items container */}
               <div className="rounded-xl border border-border/70 bg-card/60 p-1.5 max-h-48 overflow-y-auto space-y-0.5">
                 {allChangesFiles.length === 0 ? (
-                  <div className="py-6 text-center text-muted-foreground text-[11px]">
+                  <div className="py-6 text-center text-muted-foreground text-[12px]">
                     {t('rightPane.noPendingChanges')}
                   </div>
                 ) : fileViewMode === 'path' ? (
@@ -824,14 +824,14 @@ export const RightPane: React.FC = () => {
                         setSelectedFile(file);
                         setActiveTab('changes');
                       }}
-                      className="px-2 py-1 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[11px] group transition-colors"
+                      className="px-2 py-1 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[12px] group transition-colors"
                       title={file.path}
                     >
                       <div className="flex items-center gap-1.5 truncate min-w-0 pr-1">
                         {getFileStatusIcon(file.status)}
                         <span className="font-mono truncate">{file.path}</span>
                       </div>
-                      <span className="text-[9px] uppercase font-mono opacity-60">
+                      <span className="text-[10px] uppercase font-mono opacity-60">
                         {file.status}
                       </span>
                     </div>
@@ -845,7 +845,7 @@ export const RightPane: React.FC = () => {
                         <div key={folder} className="space-y-0.5">
                           <div
                             onClick={() => toggleTreeFolder(folder)}
-                            className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent/40 cursor-pointer text-[11px] font-medium text-foreground"
+                            className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent/40 cursor-pointer text-[12px] font-medium text-foreground"
                           >
                             <div className="flex items-center gap-1.5">
                               {isOpen ? (
@@ -855,7 +855,7 @@ export const RightPane: React.FC = () => {
                               )}
                               <span>{folder}</span>
                             </div>
-                            <span className="text-[9px] text-muted-foreground font-mono">
+                            <span className="text-[10px] text-muted-foreground font-mono">
                               {files.length}
                             </span>
                           </div>
@@ -868,7 +868,7 @@ export const RightPane: React.FC = () => {
                                     setSelectedFile(file);
                                     setActiveTab('changes');
                                   }}
-                                  className="px-2 py-0.5 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[11px] group"
+                                  className="px-2 py-0.5 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[12px] group"
                                 >
                                   <div className="flex items-center gap-1.5 truncate">
                                     {getFileStatusIcon(file.status)}
@@ -891,7 +891,7 @@ export const RightPane: React.FC = () => {
                           setSelectedFile(file);
                           setActiveTab('changes');
                         }}
-                        className="px-2 py-1 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[11px]"
+                        className="px-2 py-1 rounded hover:bg-accent/50 cursor-pointer flex items-center justify-between text-[12px]"
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           {getFileStatusIcon(file.status)}
@@ -907,7 +907,7 @@ export const RightPane: React.FC = () => {
             {/* Commit Message Box & AI Generator */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2 min-w-0">
-                <label className="text-[11px] font-medium text-foreground truncate min-w-0">
+                <label className="text-[12px] font-medium text-foreground truncate min-w-0">
                   {t('rightPane.commitMessage')}
                 </label>
 
@@ -917,7 +917,7 @@ export const RightPane: React.FC = () => {
                   size="xs"
                   onClick={handleAiGenerateCommit}
                   disabled={isAiGenerating}
-                  className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-700 dark:text-sky-300 hover:bg-sky-500/15 shrink-0"
+                  className="h-5 px-1.5 text-[11px] gap-1 border-sky-500/40 text-sky-700 dark:text-sky-300 hover:bg-sky-500/15 shrink-0"
                   title={t('rightPane.aiGenHint')}
                 >
                   <Sparkles className="h-2.5 w-2.5 text-sky-400" />

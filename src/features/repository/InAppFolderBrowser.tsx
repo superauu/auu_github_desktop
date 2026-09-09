@@ -78,7 +78,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
             </Button>
           )}
 
-          <span className="font-mono text-[11px] text-foreground truncate select-text">
+          <span className="font-mono text-[12px] text-foreground truncate select-text">
             {currentPath || t('browser.myComputer')}
           </span>
         </div>
@@ -87,7 +87,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
           <Button
             size="xs"
             variant="default"
-            className="shrink-0 h-6 px-2 text-[11px] gap-1"
+            className="shrink-0 h-6 px-2 text-[12px] gap-1"
             onClick={() => onSelectPath(currentPath)}
           >
             <Check className="h-3 w-3" />
@@ -101,7 +101,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
         {isLoading ? (
           <div className="py-8 flex flex-col items-center justify-center text-muted-foreground gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <span className="text-[11px]">{t('browser.scanning')}</span>
+            <span className="text-[12px]">{t('browser.scanning')}</span>
           </div>
         ) : error ? (
           <div className="py-6 px-4 text-center text-rose-400 text-xs">
@@ -134,11 +134,11 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
                 ) : (
                   <Folder className="h-3.5 w-3.5 text-amber-400/80 shrink-0" />
                 )}
-                <span className="font-medium text-foreground text-[11px] truncate group-hover:text-primary transition-colors">
+                <span className="font-medium text-foreground text-[12px] truncate group-hover:text-primary transition-colors">
                   {dir.name}
                 </span>
                 {dir.hasGit && (
-                  <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                  <span className="text-[10px] px-1 py-0.2 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
                     {t('browser.gitRepo')}
                   </span>
                 )}
@@ -148,7 +148,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
                 <Button
                   size="xs"
                   variant="ghost"
-                  className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                  className="h-5 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectPath(dir.path);

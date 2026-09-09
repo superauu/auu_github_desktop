@@ -113,7 +113,7 @@ export const RemotesManager: React.FC = () => {
             variant="ghost"
             size="xs"
             onClick={() => setAdding(!adding)}
-            className="h-6 px-1.5 text-[10px] gap-0.5 text-muted-foreground hover:text-foreground"
+            className="h-6 px-1.5 text-[11px] gap-0.5 text-muted-foreground hover:text-foreground"
           >
             <Plus className="h-3 w-3" />
             <span>{t('settings.remotes.add')}</span>
@@ -128,25 +128,25 @@ export const RemotesManager: React.FC = () => {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder={t('settings.remotes.namePlaceholder')}
-            className="h-7 text-[11px] font-mono"
+            className="h-7 text-[12px] font-mono"
             autoFocus
           />
           <Input
             value={newUrl}
             onChange={(e) => setNewUrl(e.target.value)}
             placeholder={t('settings.remotes.urlPlaceholder')}
-            className="h-7 text-[11px] font-mono"
+            className="h-7 text-[12px] font-mono"
           />
           <div className="flex items-center justify-end gap-1.5">
             <Button
               variant="ghost"
               size="xs"
               onClick={() => setAdding(false)}
-              className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
+              className="h-6 text-[12px] text-muted-foreground hover:text-foreground"
             >
               {t('common.cancel')}
             </Button>
-            <Button variant="outline" size="xs" onClick={handleAdd} className="h-6 text-[11px] gap-1">
+            <Button variant="outline" size="xs" onClick={handleAdd} className="h-6 text-[12px] gap-1">
               <Check className="h-3 w-3" />
               <span>{t('settings.remotes.add')}</span>
             </Button>
@@ -156,7 +156,7 @@ export const RemotesManager: React.FC = () => {
 
       {/* Remote list */}
       {remotes.length === 0 && !isLoading ? (
-        <div className="text-[11px] text-muted-foreground/60 italic">
+        <div className="text-[12px] text-muted-foreground/60 italic">
           {t('settings.remotes.empty')}
         </div>
       ) : (
@@ -164,14 +164,14 @@ export const RemotesManager: React.FC = () => {
           {remotes.map((r) => (
             <div
               key={r.name}
-              className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border border-border/60 bg-card/50 text-[11px] group"
+              className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border border-border/60 bg-card/50 text-[12px] group"
             >
               {editingName === r.name ? (
                 <>
                   <Input
                     value={editingUrl}
                     onChange={(e) => setEditingUrl(e.target.value)}
-                    className="h-6 flex-1 text-[11px] font-mono"
+                    className="h-6 flex-1 text-[12px] font-mono"
                     autoFocus
                   />
                   <Button
@@ -197,7 +197,7 @@ export const RemotesManager: React.FC = () => {
                 <>
                   <div className="min-w-0 flex-1">
                     <span className="font-mono font-semibold text-foreground">{r.name}</span>
-                    <div className="font-mono text-[10px] text-muted-foreground truncate" title={r.fetchUrl}>
+                    <div className="font-mono text-[11px] text-muted-foreground truncate" title={r.fetchUrl}>
                       {r.fetchUrl || r.pushUrl}
                     </div>
                   </div>
@@ -209,7 +209,7 @@ export const RemotesManager: React.FC = () => {
                         setEditingName(r.name);
                         setEditingUrl(r.fetchUrl || r.pushUrl);
                       }}
-                      className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                      className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
                       title={t('settings.remotes.edit')}
                     >
                       {t('settings.remotes.edit')}

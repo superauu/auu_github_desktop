@@ -63,7 +63,7 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground">{t('cheatsheet.title')}</div>
-              <div className="text-[10px] text-muted-foreground">{t('cheatsheet.hint')}</div>
+              <div className="text-[11px] text-muted-foreground">{t('cheatsheet.hint')}</div>
             </div>
           </div>
           <Button
@@ -80,7 +80,7 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
         <div className="flex-1 overflow-auto p-4 space-y-4">
           {groups.map((group) => (
             <div key={group.titleKey} className="space-y-1.5">
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 {t(group.titleKey)}
               </div>
               <div className="rounded-lg border border-border/60 overflow-hidden divide-y divide-border/50">
@@ -90,7 +90,7 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
                     className="flex items-center justify-between px-3 py-1.5 bg-card/60 hover:bg-accent/40 transition-colors text-xs"
                   >
                     <span className="text-foreground/85">{t(row.descKey)}</span>
-                    <kbd className="px-1.5 py-0.5 rounded-md border border-border/70 bg-muted/50 font-mono text-[10px] text-muted-foreground shrink-0">
+                    <kbd className="px-1.5 py-0.5 rounded-md border border-border/70 bg-muted/50 font-mono text-[11px] text-muted-foreground shrink-0">
                       {row.combo}
                     </kbd>
                   </div>

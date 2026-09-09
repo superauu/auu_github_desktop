@@ -80,7 +80,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               className="h-12 w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
               autoFocus
             />
-            <kbd className="pointer-events-none inline-flex h-5 select-none items-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[10px] text-muted-foreground">
+            <kbd className="pointer-events-none inline-flex h-5 select-none items-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[11px] text-muted-foreground">
               ESC
             </kbd>
           </div>
@@ -91,7 +91,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             </Command.Empty>
 
             {/* View Navigation */}
-            <Command.Group heading={t('palette.group.nav')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <Command.Group heading={t('palette.group.nav')} className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               <Command.Item
                 onSelect={() => {
                   setActiveTab('changes');
@@ -101,7 +101,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <FileCode2 className="h-3.5 w-3.5 text-primary" />
                 <span>{t('sidebar.changes')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 1</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 1</span>
               </Command.Item>
 
               <Command.Item
@@ -113,7 +113,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Clock className="h-3.5 w-3.5 text-indigo-400" />
                 <span>{t('sidebar.history')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 2</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 2</span>
               </Command.Item>
 
               <Command.Item
@@ -125,7 +125,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <GitPullRequest className="h-3.5 w-3.5 text-sky-400" />
                 <span>{t('palette.prCenter')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 3</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 3</span>
               </Command.Item>
 
               <Command.Item
@@ -137,12 +137,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Workflow className="h-3.5 w-3.5 text-emerald-400" />
                 <span>{t('palette.actionsDash')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Alt 4</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 4</span>
               </Command.Item>
             </Command.Group>
 
             {/* Git Core Actions */}
-            <Command.Group heading={t('palette.group.git')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+            <Command.Group heading={t('palette.group.git')} className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
                 onSelect={async () => {
                   onOpenChange(false);
@@ -158,7 +158,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <RefreshCw className="h-3.5 w-3.5 text-indigo-400" />
                 <span>{t('palette.gitFetch')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+Shift+F</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Ctrl+Shift+F</span>
               </Command.Item>
 
               <Command.Item
@@ -176,7 +176,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <ArrowDown className="h-3.5 w-3.5 text-cyan-400" />
                 <span>{t('palette.gitPull')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+L</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Ctrl+L</span>
               </Command.Item>
 
               <Command.Item
@@ -194,7 +194,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
                 <span>{t('palette.gitPush')}</span>
-                <span className="ml-auto text-[10px] font-mono text-muted-foreground">Ctrl+P</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Ctrl+P</span>
               </Command.Item>
 
               <Command.Item
@@ -211,7 +211,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Quick Switch Branches */}
             {branches.length > 0 && (
-              <Command.Group heading={t('palette.group.branches')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+              <Command.Group heading={t('palette.group.branches')} className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
                 {branches.map((b) => (
                   <Command.Item
                     key={b.name}
@@ -230,7 +230,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     <GitBranch className="h-3.5 w-3.5 text-indigo-400" />
                     <span>{b.name}</span>
                     {b.isCurrent && (
-                      <span className="ml-auto text-[9px] px-1 rounded bg-indigo-500/20 text-indigo-300">
+                      <span className="ml-auto text-[10px] px-1 rounded bg-indigo-500/20 text-indigo-300">
                         {t('header.currentHead')}
                       </span>
                     )}
@@ -241,7 +241,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Quick Tags */}
             {tags.length > 0 && (
-              <Command.Group heading={t('palette.group.tags')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+              <Command.Group heading={t('palette.group.tags')} className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
                 {tags.map((t) => (
                   <Command.Item
                     key={t.name}
@@ -253,7 +253,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   >
                     <Tag className="h-3.5 w-3.5 text-amber-400" />
                     <span className="font-mono">{t.name}</span>
-                    <span className="ml-auto text-[10px] font-mono text-muted-foreground">
+                    <span className="ml-auto text-[11px] font-mono text-muted-foreground">
                       {t.commitHash.slice(0, 7)}
                     </span>
                   </Command.Item>
@@ -262,7 +262,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             )}
 
             {/* Themes & Preferences */}
-            <Command.Group heading={t('palette.group.settings')} className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+            <Command.Group heading={t('palette.group.settings')} className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mt-2">
               <Command.Item
                 onSelect={() => {
                   setTheme('dark');

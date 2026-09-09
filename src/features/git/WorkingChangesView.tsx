@@ -191,23 +191,23 @@ export const WorkingChangesView: React.FC = () => {
   const getStatusBadge = (statusType: string) => {
     switch (statusType) {
       case 'modified':
-        return <span className="text-[10px] font-mono font-bold text-amber-400">M</span>;
+        return <span className="text-[11px] font-mono font-bold text-amber-400">M</span>;
       case 'added':
-        return <span className="text-[10px] font-mono font-bold text-emerald-400">A</span>;
+        return <span className="text-[11px] font-mono font-bold text-emerald-400">A</span>;
       case 'deleted':
-        return <span className="text-[10px] font-mono font-bold text-red-400">D</span>;
+        return <span className="text-[11px] font-mono font-bold text-red-400">D</span>;
       case 'renamed':
-        return <span className="text-[10px] font-mono font-bold text-blue-400">R</span>;
+        return <span className="text-[11px] font-mono font-bold text-blue-400">R</span>;
       case 'untracked':
-        return <span className="text-[10px] font-mono font-bold text-teal-400">U</span>;
+        return <span className="text-[11px] font-mono font-bold text-teal-400">U</span>;
       case 'conflicted':
         return (
-          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse" title={t('changes.conflictBadge')}>
+          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse" title={t('changes.conflictBadge')}>
             {t('changes.conflict')}
           </span>
         );
       default:
-        return <span className="text-[10px] font-mono font-bold text-blue-400">?</span>;
+        return <span className="text-[11px] font-mono font-bold text-blue-400">?</span>;
     }
   };
 
@@ -416,7 +416,7 @@ export const WorkingChangesView: React.FC = () => {
                     toast.error(t('changes.stashFailed'), err.message);
                   }
                 }}
-                className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-cyan-400 gap-1"
+                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-cyan-400 gap-1"
                 title={t('changes.quickStashTitle')}
               >
                 <Archive className="h-3 w-3" />
@@ -430,7 +430,7 @@ export const WorkingChangesView: React.FC = () => {
                 onClick={() => {
                   runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                 }}
-                className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 {t('changes.stageAll')}
               </Button>
@@ -441,7 +441,7 @@ export const WorkingChangesView: React.FC = () => {
                 onClick={() => {
                   runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                 }}
-                className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
               >
                 {t('changes.unstageAllSection')}
               </Button>
@@ -462,13 +462,13 @@ export const WorkingChangesView: React.FC = () => {
               {/* Staged Section */}
               {stagedFiles.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>{t('changes.section.staged')} ({stagedFiles.length})</span>
                     <button
                       onClick={() => {
                         runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                       }}
-                      className="text-[9px] text-muted-foreground hover:text-foreground"
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
                     >
                       {t('changes.unstageAll')}
                     </button>
@@ -501,7 +501,7 @@ export const WorkingChangesView: React.FC = () => {
                             <CheckSquare className="h-3.5 w-3.5" />
                           </button>
                           {getStatusBadge(file.status)}
-                          <span className="truncate text-[11px] font-mono">{file.path}</span>
+                          <span className="truncate text-[12px] font-mono">{file.path}</span>
                         </div>
                         <Button
                           variant="ghost"
@@ -528,13 +528,13 @@ export const WorkingChangesView: React.FC = () => {
               {/* Unstaged Section */}
               {unstagedFiles.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>{t('changes.section.unstaged')} ({unstagedFiles.length})</span>
                     <button
                       onClick={() => {
                         runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                       }}
-                      className="text-[9px] text-muted-foreground hover:text-foreground"
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
                     >
                       {t('changes.stageAllSection')}
                     </button>
@@ -567,7 +567,7 @@ export const WorkingChangesView: React.FC = () => {
                             <Square className="h-3.5 w-3.5" />
                           </button>
                           {getStatusBadge(file.status)}
-                          <span className="truncate text-[11px] font-mono">{file.path}</span>
+                          <span className="truncate text-[12px] font-mono">{file.path}</span>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
                           {file.status === 'conflicted' ? (
@@ -695,7 +695,7 @@ export const WorkingChangesView: React.FC = () => {
               {/* Untracked Section */}
               {untrackedFiles.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>{t('changes.untracked')} ({untrackedFiles.length})</span>
                   </div>
                   <div className="space-y-0.5">
@@ -726,7 +726,7 @@ export const WorkingChangesView: React.FC = () => {
                             <Square className="h-3.5 w-3.5" />
                           </button>
                           {getStatusBadge(file.status)}
-                          <span className="truncate text-[11px] font-mono">{file.path}</span>
+                          <span className="truncate text-[12px] font-mono">{file.path}</span>
                         </div>
                         <Button
                           variant="ghost"
@@ -780,11 +780,11 @@ export const WorkingChangesView: React.FC = () => {
                 >
                   {copiedPath ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
                 </button>
-                <Badge variant="outline" className="h-4 px-1.5 text-[9px] uppercase font-mono">
+                <Badge variant="outline" className="h-4 px-1.5 text-[10px] uppercase font-mono">
                   {activeFile.status} {activeFile.staged ? t('changes.stagedSuffix') : ''}
                 </Badge>
                 {(addCount > 0 || delCount > 0) && (
-                  <div className="flex items-center gap-1 text-[10px] font-mono">
+                  <div className="flex items-center gap-1 text-[11px] font-mono">
                     <span className="text-emerald-400 font-semibold">+{addCount}</span>
                     <span className="text-rose-400 font-semibold">-{delCount}</span>
                   </div>
@@ -800,7 +800,7 @@ export const WorkingChangesView: React.FC = () => {
                 <button
                   onClick={() => setContentMode('diff')}
                   className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1",
+                    "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'diff'
                       ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -812,7 +812,7 @@ export const WorkingChangesView: React.FC = () => {
                 <button
                   onClick={() => setContentMode('blame')}
                   className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1",
+                    "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'blame'
                       ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -824,7 +824,7 @@ export const WorkingChangesView: React.FC = () => {
                 <button
                   onClick={() => setContentMode('history')}
                   className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1",
+                    "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'history'
                       ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -841,7 +841,7 @@ export const WorkingChangesView: React.FC = () => {
                   <button
                     onClick={() => setShowResolver(true)}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1",
+                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
                       showResolver
                         ? "bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/40"
                         : "text-muted-foreground hover:text-foreground"
@@ -853,7 +853,7 @@ export const WorkingChangesView: React.FC = () => {
                   <button
                     onClick={() => setShowResolver(false)}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
                       !showResolver
                         ? "bg-accent text-accent-foreground font-semibold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
@@ -870,7 +870,7 @@ export const WorkingChangesView: React.FC = () => {
                   <button
                     onClick={() => setDiffMode('unified')}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
                       diffMode === 'unified'
                         ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -881,7 +881,7 @@ export const WorkingChangesView: React.FC = () => {
                   <button
                     onClick={() => setDiffMode('split')}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
                       diffMode === 'split'
                         ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -896,7 +896,7 @@ export const WorkingChangesView: React.FC = () => {
               <Button
                 variant="outline"
                 size="xs"
-                className="h-6 text-[10px] gap-1"
+                className="h-6 text-[11px] gap-1"
                 onClick={() => {
                   if (activeFile.staged) {
                     runGitAction(
@@ -929,7 +929,7 @@ export const WorkingChangesView: React.FC = () => {
           />
         ) : contentMode === 'blame' ? (
           /* Blame View */
-          <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
+          <div className="flex-1 overflow-auto font-mono text-[12px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
             {loadingFileData ? (
               <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground select-none">
                 <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
@@ -952,7 +952,7 @@ export const WorkingChangesView: React.FC = () => {
                   <button
                     onClick={() => jumpToCommit(bl.hash)}
                     className={cn(
-                      'w-24 shrink-0 truncate px-1.5 font-mono text-[10px] hover:underline cursor-pointer text-left',
+                      'w-24 shrink-0 truncate px-1.5 font-mono text-[11px] hover:underline cursor-pointer text-left',
                       blameTint(bl.hash)
                     )}
                     title={`${bl.shortHash} ${bl.summary}`}
@@ -962,7 +962,7 @@ export const WorkingChangesView: React.FC = () => {
                   <div className="w-24 shrink-0 truncate px-1.5 text-muted-foreground">
                     {bl.author}
                   </div>
-                  <div className="w-20 shrink-0 px-1 text-muted-foreground/70 font-mono text-[10px]">
+                  <div className="w-20 shrink-0 px-1 text-muted-foreground/70 font-mono text-[11px]">
                     {blameDate(bl.authorDateIso)}
                   </div>
                   <div className="px-2 whitespace-pre font-mono flex-1 overflow-x-auto">
@@ -990,7 +990,7 @@ export const WorkingChangesView: React.FC = () => {
                 <div
                   key={c.hash}
                   onClick={() => jumpToCommit(c.hash)}
-                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/[0.03] cursor-pointer transition-colors text-[11px]"
+                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/[0.03] cursor-pointer transition-colors text-[12px]"
                 >
                   <span className="font-mono text-cyan-600 dark:text-cyan-400 shrink-0">
                     {c.shortHash}
@@ -1001,7 +1001,7 @@ export const WorkingChangesView: React.FC = () => {
                   <span className="text-muted-foreground shrink-0 max-w-[100px] truncate">
                     {c.author.name}
                   </span>
-                  <span className="text-muted-foreground/70 font-mono text-[10px] shrink-0 w-20 text-right">
+                  <span className="text-muted-foreground/70 font-mono text-[11px] shrink-0 w-20 text-right">
                     {c.author.relativeDate}
                   </span>
                 </div>
@@ -1010,7 +1010,7 @@ export const WorkingChangesView: React.FC = () => {
           </div>
         ) : (
           /* Diff Content View */
-          <div className="flex-1 overflow-auto font-mono text-[11px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
+          <div className="flex-1 overflow-auto font-mono text-[12px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
             {fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
@@ -1026,7 +1026,7 @@ export const WorkingChangesView: React.FC = () => {
                     return (
                       <div
                         key={idx}
-                        className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px] w-full flex items-center justify-between gap-2"
+                        className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[11px] w-full flex items-center justify-between gap-2"
                       >
                         <span className="truncate">{row.headerContent}</span>
                         {renderHunkActions(row.hunkIdx ?? -1)}
@@ -1055,7 +1055,7 @@ export const WorkingChangesView: React.FC = () => {
                             : "border-transparent bg-muted/15 opacity-40 select-none"
                         )}
                       >
-                        <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
+                        <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
                           {row.left?.lineNo ?? ''}
                         </div>
                         <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
@@ -1074,7 +1074,7 @@ export const WorkingChangesView: React.FC = () => {
                             : "border-transparent bg-muted/15 opacity-40 select-none"
                         )}
                       >
-                        <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
+                        <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
                           {row.right?.lineNo ?? ''}
                         </div>
                         <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
@@ -1092,7 +1092,7 @@ export const WorkingChangesView: React.FC = () => {
                   return (
                     <div
                       key={idx}
-                      className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[10px] flex items-center justify-between gap-2"
+                      className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[11px] flex items-center justify-between gap-2"
                     >
                       <span className="truncate">{line.content}</span>
                       {renderHunkActions(headerHunkIdx.get(idx) ?? -1)}
@@ -1116,10 +1116,10 @@ export const WorkingChangesView: React.FC = () => {
                     )}
                   >
                     {/* Line Numbers */}
-                    <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] bg-muted/40 dark:bg-background/20">
+                    <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20">
                       {line.oldNo ?? ''}
                     </div>
-                    <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[10px] border-r border-border/60 dark:border-border/20 bg-muted/40 dark:bg-background/20">
+                    <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] border-r border-border/60 dark:border-border/20 bg-muted/40 dark:bg-background/20">
                       {line.newNo ?? ''}
                     </div>
                     {/* Content */}

@@ -112,7 +112,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground">{t('create.title')}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 {t('create.descPrefix').replace('{repo}', currentRepo?.name || '')}
               </div>
             </div>
@@ -136,7 +136,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* Branch Name */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-foreground block">
+            <label className="text-[12px] font-medium text-foreground block">
               {t('create.nameLabel')}
             </label>
             <Input
@@ -150,10 +150,10 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
 
           {/* Base Selection */}
           <div className="space-y-2">
-            <label className="text-[11px] font-medium text-foreground block">
+            <label className="text-[12px] font-medium text-foreground block">
               {t('create.baseLabel')}
             </label>
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-muted/40 rounded-lg border border-border/50 text-[11px]">
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-muted/40 rounded-lg border border-border/50 text-[12px]">
               <button
                 type="button"
                 onClick={() => setBaseType('current')}
@@ -190,7 +190,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
             </div>
 
             {baseType === 'current' && (
-              <div className="text-[10px] text-muted-foreground px-1">
+              <div className="text-[11px] text-muted-foreground px-1">
                 {t('create.fromCurrentPrefix')} <span className="font-mono text-foreground font-semibold">{currentBranch}</span> {t('create.fromCurrentSuffix')}
               </div>
             )}

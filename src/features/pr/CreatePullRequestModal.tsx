@@ -172,7 +172,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             </div>
             <div>
               <div className="font-semibold text-xs text-foreground">{t('pr.createTitle')}</div>
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 {currentOwner}/{currentRepoName || t('pr.noRepoBound')}
               </div>
             </div>
@@ -191,7 +191,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
           {/* Branch flow: head → base */}
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1 block">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 {t('pr.sourceBranch')}
               </span>
               <select
@@ -208,7 +208,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             </label>
 
             <label className="space-y-1 block">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 {t('pr.targetBranch')}
               </span>
               <select
@@ -232,7 +232,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
 
           {/* Title */}
           <label className="space-y-1 block">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               {t('pr.titleLabel')}
             </span>
             <Input
@@ -246,7 +246,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
           {/* Description */}
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 {t('pr.descLabel')}
               </span>
               <Button
@@ -254,7 +254,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
                 size="xs"
                 onClick={handleGenerateDesc}
                 disabled={isGeneratingDesc || !headBranch || !baseBranch || headBranch === baseBranch}
-                className="h-5 px-1.5 text-[10px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
+                className="h-5 px-1.5 text-[11px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
                 title={t('pr.aiGenerateTitle')}
               >
                 <Sparkles className="h-2.5 w-2.5" />
@@ -271,7 +271,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
           </div>
 
           {error && (
-            <div className="px-2.5 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-500 dark:text-rose-300 text-[11px]">
+            <div className="px-2.5 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-500 dark:text-rose-300 text-[12px]">
               {error}
             </div>
           )}

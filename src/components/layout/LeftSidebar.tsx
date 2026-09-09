@@ -634,11 +634,11 @@ export const LeftSidebar: React.FC = () => {
             <span>{t('sidebar.changes')}</span>
           </div>
           {changesCount > 0 ? (
-            <Badge variant="warning" className="h-4 px-1.5 text-[10px] font-mono">
+            <Badge variant="warning" className="h-4 px-1.5 text-[11px] font-mono">
               {changesCount}
             </Badge>
           ) : (
-            <span className="text-[10px] text-muted-foreground opacity-60">{t('sidebar.clean')}</span>
+            <span className="text-[11px] text-muted-foreground opacity-60">{t('sidebar.clean')}</span>
           )}
         </button>
 
@@ -680,7 +680,7 @@ export const LeftSidebar: React.FC = () => {
             />
             <span>{t('sidebar.pullRequests')}</span>
           </div>
-          <Badge variant="outline" className="h-3.5 px-1 text-[9px] font-mono">
+          <Badge variant="outline" className="h-3.5 px-1 text-[10px] font-mono">
             {pullRequests.length}
           </Badge>
         </button>
@@ -703,7 +703,7 @@ export const LeftSidebar: React.FC = () => {
             />
             <span>{t('sidebar.actions')}</span>
           </div>
-          <Badge variant="success" className="h-3.5 px-1 text-[9px] font-mono">
+          <Badge variant="success" className="h-3.5 px-1 text-[10px] font-mono">
             CI
           </Badge>
         </button>
@@ -715,7 +715,7 @@ export const LeftSidebar: React.FC = () => {
           <button
             onClick={() => setSidebarMode('list')}
             className={cn(
-              "flex-1 py-1 rounded-md text-[11px] font-medium flex items-center justify-center gap-1 transition-all",
+              "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-all",
               sidebarMode === 'list'
                 ? "bg-background text-foreground shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -727,7 +727,7 @@ export const LeftSidebar: React.FC = () => {
           <button
             onClick={() => setSidebarMode('agents')}
             className={cn(
-              "flex-1 py-1 rounded-md text-[11px] font-medium flex items-center justify-center gap-1 transition-all",
+              "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-all",
               sidebarMode === 'agents'
                 ? "bg-background text-foreground shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -747,12 +747,12 @@ export const LeftSidebar: React.FC = () => {
               <Bot className="h-4 w-4" />
               <span>{t('sidebar.gitAiAgent')}</span>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
+            <p className="text-[12px] text-muted-foreground leading-relaxed">
               {t('sidebar.aiAssistant')}
             </p>
           </div>
           <div className="space-y-1 text-xs">
-            <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider px-1">
+            <div className="text-[11px] uppercase font-semibold text-muted-foreground tracking-wider px-1">
               {t('sidebar.quickActions')}
             </div>
             <button
@@ -763,7 +763,7 @@ export const LeftSidebar: React.FC = () => {
               className="w-full text-left p-2 rounded-lg bg-card/60 hover:bg-accent/60 border border-border/60 transition-colors space-y-0.5"
             >
               <div className="font-medium text-foreground">{t('sidebar.aiCommitTitle')}</div>
-              <div className="text-[10px] text-muted-foreground">{t('sidebar.aiCommitDesc')}</div>
+              <div className="text-[11px] text-muted-foreground">{t('sidebar.aiCommitDesc')}</div>
             </button>
             <button
               onClick={() => {
@@ -772,7 +772,7 @@ export const LeftSidebar: React.FC = () => {
               className="w-full text-left p-2 rounded-lg bg-card/60 hover:bg-accent/60 border border-border/60 transition-colors space-y-0.5"
             >
               <div className="font-medium text-foreground">{t('sidebar.healthDiagnose')}</div>
-              <div className="text-[10px] text-muted-foreground">{t('sidebar.healthDiagnoseDesc')}</div>
+              <div className="text-[11px] text-muted-foreground">{t('sidebar.healthDiagnoseDesc')}</div>
             </button>
           </div>
         </div>
@@ -780,17 +780,17 @@ export const LeftSidebar: React.FC = () => {
         /* List Mode: Filter Input + Tree Navigator */
         <>
           {/* GitKraken-style Commit View Count Indicator */}
-          <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#101013] border-b border-border/50 flex items-center justify-between text-[11px]">
+          <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#101013] border-b border-border/50 flex items-center justify-between text-[12px]">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <span className="text-foreground/90 font-medium">{t('sidebar.viewing')}</span>
-              <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-mono border-primary/40 text-primary">
+              <Badge variant="outline" className="h-4 px-1.5 text-[11px] font-mono border-primary/40 text-primary">
                 {commits.length || 50}
               </Badge>
-              <span className="text-[10px] opacity-70">{t('sidebar.commits')}</span>
+              <span className="text-[11px] opacity-70">{t('sidebar.commits')}</span>
             </div>
             <button
               onClick={() => setHealthModalOpen(true)}
-              className="text-[10px] text-sky-800 dark:text-cyan-400 hover:text-sky-900 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
+              className="text-[11px] text-sky-800 dark:text-cyan-400 hover:text-sky-900 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
               title={t('sidebar.healthDiagnose')}
             >
               <Sparkles className="h-2.5 w-2.5" />
@@ -807,7 +807,7 @@ export const LeftSidebar: React.FC = () => {
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 placeholder={t('sidebar.filterPlaceholder')}
-                className="h-7 pl-6 pr-6 text-[11px] bg-secondary/30 border-border/50 focus-visible:ring-1"
+                className="h-7 pl-6 pr-6 text-[12px] bg-secondary/30 border-border/50 focus-visible:ring-1"
               />
               {searchFilter && (
                 <button
@@ -827,7 +827,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('localBranches')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.localBranches ? (
@@ -898,7 +898,7 @@ export const LeftSidebar: React.FC = () => {
                               )}
                               <span>{folderName}</span>
                             </div>
-                            <Badge variant="outline" className="h-3.5 px-1 text-[9px] font-mono opacity-70">
+                            <Badge variant="outline" className="h-3.5 px-1 text-[10px] font-mono opacity-70">
                               {folderBranches.length}
                             </Badge>
                           </div>
@@ -946,7 +946,7 @@ export const LeftSidebar: React.FC = () => {
                                       <span className="truncate">{leafName}</span>
                                     </div>
                                     {branch.isCurrent ? (
-                                      <span className="text-[9px] uppercase px-1 rounded bg-primary/25 text-primary font-bold font-mono">
+                                      <span className="text-[10px] uppercase px-1 rounded bg-primary/25 text-primary font-bold font-mono">
                                         HEAD
                                       </span>
                                     ) : (
@@ -1019,7 +1019,7 @@ export const LeftSidebar: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {branch.isCurrent ? (
-                              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-bold font-mono">
+                              <span className="text-[10px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-bold font-mono">
                                 HEAD
                               </span>
                             ) : (
@@ -1059,7 +1059,7 @@ export const LeftSidebar: React.FC = () => {
                     })}
 
                     {localGrouped.totalCount === 0 && (
-                      <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                      <div className="px-2 py-1 text-[12px] text-muted-foreground/60 italic">
                         {searchFilter ? t('sidebar.noMatchBranches') : t('sidebar.noLocalBranches')}
                       </div>
                     )}
@@ -1071,7 +1071,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('remoteBranches')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.remoteBranches ? (
@@ -1144,7 +1144,7 @@ export const LeftSidebar: React.FC = () => {
                       );
                     })}
                     {remoteBranches.length === 0 && (
-                      <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                      <div className="px-2 py-1 text-[12px] text-muted-foreground/60 italic">
                         {t('sidebar.ctx.noRemoteTracking')}
                       </div>
                     )}
@@ -1156,7 +1156,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('pullRequests')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.pullRequests ? (
@@ -1182,7 +1182,7 @@ export const LeftSidebar: React.FC = () => {
                 {expandedSections.pullRequests && (
                   <div className="mt-0.5 space-y-0.5 pl-1">
                     {pullRequests.length === 0 ? (
-                      <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                      <div className="px-2 py-1 text-[12px] text-muted-foreground/60 italic">
                         {t('sidebar.noOpenPrs')}
                       </div>
                     ) : (
@@ -1209,7 +1209,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('tags')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.tags ? (
@@ -1257,7 +1257,7 @@ export const LeftSidebar: React.FC = () => {
 
                 {newTagOpen && (
                   <form onSubmit={handleCreateTag} className="p-2 bg-accent/50 border border-border/70 rounded-lg my-1 space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="font-medium text-foreground">{t('sidebar.newTagTitle')}</span>
                       <button type="button" onClick={() => setNewTagOpen(false)}>
                         <X className="h-3 w-3" />
@@ -1267,16 +1267,16 @@ export const LeftSidebar: React.FC = () => {
                       value={tagNameInput}
                       onChange={(e) => setTagNameInput(e.target.value)}
                       placeholder={t('sidebar.tagNamePlaceholder')}
-                      className="h-6 text-[11px] font-mono"
+                      className="h-6 text-[12px] font-mono"
                       autoFocus
                     />
                     <Input
                       value={tagMessageInput}
                       onChange={(e) => setTagMessageInput(e.target.value)}
                       placeholder={t('sidebar.tagAnnotationPlaceholder')}
-                      className="h-6 text-[11px]"
+                      className="h-6 text-[12px]"
                     />
-                    <Button type="submit" size="xs" className="w-full h-5 text-[10px]">
+                    <Button type="submit" size="xs" className="w-full h-5 text-[11px]">
                       {t('sidebar.createTag')}
                     </Button>
                   </form>
@@ -1293,10 +1293,10 @@ export const LeftSidebar: React.FC = () => {
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           <TagIcon className="h-3 w-3 text-amber-500/70 shrink-0" />
-                          <span className="truncate font-mono text-[11px] text-foreground/90">{tag.name}</span>
+                          <span className="truncate font-mono text-[12px] text-foreground/90">{tag.name}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[9px] font-mono text-muted-foreground/60 group-hover:text-muted-foreground">
+                          <span className="text-[10px] font-mono text-muted-foreground/60 group-hover:text-muted-foreground">
                             {tag.commitHash.slice(0, 7)}
                           </span>
                           <Button
@@ -1312,7 +1312,7 @@ export const LeftSidebar: React.FC = () => {
                       </div>
                     ))}
                     {filteredTags.length === 0 && (
-                      <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                      <div className="px-2 py-1 text-[12px] text-muted-foreground/60 italic">
                         {t('sidebar.noTags')}
                       </div>
                     )}
@@ -1324,7 +1324,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('stashes')}
-                  className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.stashes ? (
@@ -1363,7 +1363,7 @@ export const LeftSidebar: React.FC = () => {
                     }}
                     className="p-2 bg-accent/50 border border-border/70 rounded-lg my-1 space-y-1.5"
                   >
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="font-medium text-foreground">{t('sidebar.stashWorkingChanges')}</span>
                       <button type="button" onClick={() => setNewStashOpen(false)}>
                         <X className="h-3 w-3" />
@@ -1373,10 +1373,10 @@ export const LeftSidebar: React.FC = () => {
                       value={stashMessageInput}
                       onChange={(e) => setStashMessageInput(e.target.value)}
                       placeholder={t('sidebar.stashNotePlaceholder')}
-                      className="h-6 text-[11px]"
+                      className="h-6 text-[12px]"
                       autoFocus
                     />
-                    <Button type="submit" size="xs" className="w-full h-5 text-[10px]">
+                    <Button type="submit" size="xs" className="w-full h-5 text-[11px]">
                       {t('sidebar.doStash')}
                     </Button>
                   </form>
@@ -1394,13 +1394,13 @@ export const LeftSidebar: React.FC = () => {
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           <Archive className="h-3 w-3 text-cyan-400 shrink-0" />
-                          <span className="truncate text-[11px]">{stash.message}</span>
+                          <span className="truncate text-[12px]">{stash.message}</span>
                         </div>
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 px-1 text-[10px] hover:text-emerald-400"
+                            className="h-4 px-1 text-[11px] hover:text-emerald-400"
                             title={t('sidebar.popHere')}
                             onClick={async () => {
                               try {
@@ -1433,7 +1433,7 @@ export const LeftSidebar: React.FC = () => {
                       </div>
                     ))}
                     {stashes.length === 0 && (
-                      <div className="px-2 py-1 text-[11px] text-muted-foreground/60 italic">
+                      <div className="px-2 py-1 text-[12px] text-muted-foreground/60 italic">
                         {t('sidebar.noStashes')}
                       </div>
                     )}

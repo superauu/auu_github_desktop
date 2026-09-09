@@ -88,7 +88,7 @@ export const ConflictBanner: React.FC = () => {
             </span>
             <Badge
               variant="outline"
-              className={`text-[10px] h-4.5 px-1.5 font-mono ${
+              className={`text-[11px] h-4.5 px-1.5 font-mono ${
                 isAllResolved
                   ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
                   : 'border-amber-500/40 text-amber-400 bg-amber-500/10'
@@ -98,7 +98,7 @@ export const ConflictBanner: React.FC = () => {
             </Badge>
           </div>
 
-          <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+          <div className="text-[12px] text-muted-foreground truncate mt-0.5">
             {isAllResolved ? (
               <span className="text-emerald-400/90 flex items-center gap-1">
                 <Sparkles className="h-3 w-3 inline" />
@@ -122,13 +122,13 @@ export const ConflictBanner: React.FC = () => {
       <div className="flex items-center gap-2 shrink-0">
         {showAbortConfirm ? (
           <div className="flex items-center gap-1.5 bg-background/80 border border-rose-500/40 rounded-lg p-1 animate-in zoom-in-95">
-            <span className="text-[10px] text-rose-400 px-1 font-medium">{t('banner.confirmAbort')}</span>
+            <span className="text-[11px] text-rose-400 px-1 font-medium">{t('banner.confirmAbort')}</span>
             <Button
               variant="destructive"
               size="xs"
               onClick={handleAbort}
               disabled={isSubmitting}
-              className="h-6 text-[10px] px-2"
+              className="h-6 text-[11px] px-2"
             >
               {t('banner.confirm')}
             </Button>
@@ -136,7 +136,7 @@ export const ConflictBanner: React.FC = () => {
               variant="ghost"
               size="xs"
               onClick={() => setShowAbortConfirm(false)}
-              className="h-6 text-[10px] px-1.5 text-muted-foreground"
+              className="h-6 text-[11px] px-1.5 text-muted-foreground"
             >
               {t('banner.cancel')}
             </Button>

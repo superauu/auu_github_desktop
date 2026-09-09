@@ -72,7 +72,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <Illustration variant={variant} />
       </div>
       <div className="text-xs font-medium text-foreground/85">{title}</div>
-      {desc && <div className="text-[11px] text-muted-foreground leading-relaxed max-w-[260px] mx-auto">{desc}</div>}
+      {desc && <div className="text-[12px] text-muted-foreground leading-relaxed max-w-[260px] mx-auto">{desc}</div>}
     </div>
   );
 };

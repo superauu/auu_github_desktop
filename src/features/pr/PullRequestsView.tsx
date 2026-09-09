@@ -176,7 +176,7 @@ export const PullRequestsView: React.FC = () => {
         <div className="flex items-center gap-2">
           <GitPullRequest className="h-4 w-4 text-primary" />
           <span className="font-semibold text-foreground">{t('pr.title')}</span>
-          <Badge variant="outline" className="h-4 text-[10px] font-mono">
+          <Badge variant="outline" className="h-4 text-[11px] font-mono">
             {filteredPRs.length} {t('pr.count')}
           </Badge>
         </div>
@@ -188,7 +188,7 @@ export const PullRequestsView: React.FC = () => {
             size="xs"
             onClick={() => setCreatePROpen(true)}
             disabled={!currentOwner || !currentRepoName}
-            className="h-7 text-[11px] gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10"
+            className="h-7 text-[12px] gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10"
             title={currentOwner ? t('pr.createTitle') : t('pr.needLogin')}
           >
             <Plus className="h-3 w-3" />
@@ -200,7 +200,7 @@ export const PullRequestsView: React.FC = () => {
             <button
               onClick={() => setPRFilterState('open')}
               className={cn(
-                "px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors",
+                "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
                 prFilterState === 'open'
                   ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -211,7 +211,7 @@ export const PullRequestsView: React.FC = () => {
             <button
               onClick={() => setPRFilterState('closed')}
               className={cn(
-                "px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors",
+                "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
                 prFilterState === 'closed'
                   ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -222,7 +222,7 @@ export const PullRequestsView: React.FC = () => {
             <button
               onClick={() => setPRFilterState('all')}
               className={cn(
-                "px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors",
+                "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
                 prFilterState === 'all'
                   ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
@@ -239,7 +239,7 @@ export const PullRequestsView: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('pr.searchPlaceholder')}
-              className="h-7 pl-7 text-[11px]"
+              className="h-7 pl-7 text-[12px]"
             />
           </div>
 
@@ -300,13 +300,13 @@ export const PullRequestsView: React.FC = () => {
                             {pr.title}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                        <span className="text-[11px] font-mono text-muted-foreground shrink-0">
                           #{pr.number}
                         </span>
                       </div>
 
                       {/* Branch flows & Labels */}
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
                         <div className="flex items-center gap-1 truncate max-w-[170px]">
                           <span className="truncate text-indigo-300/90">{pr.head.ref}</span>
                           <span>→</span>
@@ -324,7 +324,7 @@ export const PullRequestsView: React.FC = () => {
                         <Badge
                           variant={isOpen ? 'success' : isMerged ? 'secondary' : 'outline'}
                           className={cn(
-                            "h-3.5 text-[9px] px-1",
+                            "h-3.5 text-[10px] px-1",
                             isMerged && "bg-violet-500/15 text-violet-300 border-violet-500/30"
                           )}
                         >
@@ -335,7 +335,7 @@ export const PullRequestsView: React.FC = () => {
                           <Badge
                             key={label.name}
                             variant="outline"
-                            className="h-3.5 text-[9px] px-1 font-normal opacity-80"
+                            className="h-3.5 text-[10px] px-1 font-normal opacity-80"
                           >
                             {label.name}
                           </Badge>
@@ -380,12 +380,12 @@ export const PullRequestsView: React.FC = () => {
 
                   {/* Flow branch indicator */}
                   <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-                    <Badge variant="outline" className="h-4 text-[10px] gap-1">
+                    <Badge variant="outline" className="h-4 text-[11px] gap-1">
                       <GitBranch className="h-2.5 w-2.5 text-indigo-400" />
                       <span>{activePR.head.ref}</span>
                     </Badge>
                     <span>{t('pr.mergeInto')}</span>
-                    <Badge variant="outline" className="h-4 text-[10px]">
+                    <Badge variant="outline" className="h-4 text-[11px]">
                       {activePR.base.ref}
                     </Badge>
 
@@ -425,7 +425,7 @@ export const PullRequestsView: React.FC = () => {
                       <select
                         value={mergeMethod}
                         onChange={(e) => setMergeMethod(e.target.value as 'merge' | 'squash' | 'rebase')}
-                        className="h-7 rounded-md border border-border/70 bg-background/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="h-7 rounded-md border border-border/70 bg-background/80 px-1.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         title={t('pr.mergeMethod')}
                       >
                         <option value="merge">{t('pr.mergeMethod.merge')}</option>
@@ -467,7 +467,7 @@ export const PullRequestsView: React.FC = () => {
                   {/* Status & Review Summary Row */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1">
-                      <div className="text-[10px] text-muted-foreground uppercase font-semibold">
+                      <div className="text-[11px] text-muted-foreground uppercase font-semibold">
                         {t('pr.reviewStatus')}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs font-medium">
@@ -496,7 +496,7 @@ export const PullRequestsView: React.FC = () => {
                     </div>
 
                     <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1">
-                      <div className="text-[10px] text-muted-foreground uppercase font-semibold">
+                      <div className="text-[11px] text-muted-foreground uppercase font-semibold">
                         {t('pr.checks')}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs font-medium font-mono">
@@ -518,7 +518,7 @@ export const PullRequestsView: React.FC = () => {
                     </div>
 
                     <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1 font-mono">
-                      <div className="text-[10px] text-muted-foreground uppercase font-semibold">
+                      <div className="text-[11px] text-muted-foreground uppercase font-semibold">
                         {t('pr.diffStats')}
                       </div>
                       <div className="flex items-center gap-2 text-xs">

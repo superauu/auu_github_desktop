@@ -82,7 +82,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground flex items-center justify-between">
               <span>{t('dispatch.inputs')}</span>
-              <Badge variant="outline" className="h-4 text-[9px]">workflow_dispatch</Badge>
+              <Badge variant="outline" className="h-4 text-[10px]">workflow_dispatch</Badge>
             </label>
             <Input
               value={paramInput}
@@ -93,7 +93,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
           </div>
 
           {/* Workflow File Footnote */}
-          <div className="p-2.5 rounded-lg bg-accent/20 border border-border/40 text-[11px] text-muted-foreground flex items-start gap-2 font-mono">
+          <div className="p-2.5 rounded-lg bg-accent/20 border border-border/40 text-[12px] text-muted-foreground flex items-start gap-2 font-mono">
             <Terminal className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
             <div className="leading-relaxed">
               {t('dispatch.config')}: <span className="text-foreground">{dispatchTargetWorkflow.path}</span>

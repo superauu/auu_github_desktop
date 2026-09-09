@@ -128,7 +128,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                 <span className="truncate">{item.label}</span>
               </div>
               {item.shortcut && (
-                <span className="text-[10px] text-muted-foreground font-mono opacity-70 ml-2">
+                <span className="text-[11px] text-muted-foreground font-mono opacity-70 ml-2">
                   {item.shortcut}
                 </span>
               )}

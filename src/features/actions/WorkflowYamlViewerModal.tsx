@@ -42,7 +42,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
               variant="outline"
               size="xs"
               onClick={handleCopy}
-              className="h-7 px-2 text-[10px] gap-1 font-mono"
+              className="h-7 px-2 text-[11px] gap-1 font-mono"
             >
               {isCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
               <span>{isCopied ? t('logs.copied') : t('yaml.copy')}</span>
@@ -59,7 +59,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
         </div>
 
         {/* YAML Code Area */}
-        <div className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-foreground/90 dark:text-indigo-100/90 select-text bg-background dark:bg-[#0c0c0e]">
+        <div className="flex-1 overflow-auto p-4 font-mono text-[12px] leading-relaxed text-foreground/90 dark:text-indigo-100/90 select-text bg-background dark:bg-[#0c0c0e]">
           <pre className="whitespace-pre">{activeWorkflowYaml.content}</pre>
         </div>
       </div>
