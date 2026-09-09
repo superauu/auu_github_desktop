@@ -427,6 +427,46 @@ export class GitService implements IGitService {
     await executeGit(['branch', flag, name], repoPath);
   }
 
+  /** 分支差异：base...head 的文件清单与截断后的 patch 文本（供 PR 描述生成用） */
+  async getBranchDiff(
+    repoPath: string,
+    base: string,
+    head: string,
+    maxPatchChars: number = 4000
+  ): Promise<{ files: GitFileChange[]; patchText: string }> {
+    const range = `${base}...${head}`;
+
+    let files: GitFileChange[] = [];
+    try {
+      const res = await executeGit(['diff', '--name-status', range], repoPath);
+      files = res.stdout
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line) => {
+          const parts = line.split(/\t+/);
+          const statusCode = parts[0]?.charAt(0) || 'M';
+          const filePath = unquoteGitPath(parts[1] || parts[0]?.slice(1).trim() || '');
+          let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
+          if (statusCode === 'A') status = 'added';
+          else if (statusCode === 'D') status = 'deleted';
+          else if (statusCode === 'R') status = 'renamed';
+          return { path: filePath, status, staged: false };
+        });
+    } catch {
+      files = [];
+    }
+
+    let patchText = '';
+    try {
+      const res = await executeGit(['diff', '--no-color', range], repoPath);
+      patchText = res.stdout.slice(0, maxPatchChars);
+    } catch {
+      patchText = '';
+    }
+
+    return { files, patchText };
+  }
+
   async getFileDiff(
     repoPath: string,
     filePath: string,

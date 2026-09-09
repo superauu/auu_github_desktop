@@ -1029,6 +1029,17 @@ export const en = {
   'settings.remotes.save': 'Save URL',
   'settings.remotes.remove': 'Remove remote',
   'settings.remotes.empty': 'No remotes configured yet.',
+  'pr.aiGenerate': 'AI Generate',
+  'pr.aiGenerating': 'Generating...',
+  'pr.aiGenerateTitle': 'Generate the PR description from branch diff (local template when no API key)',
+  'pr.aiGenerateFailed': 'Failed to generate the description',
+  'pr.aiFallbackUsed': 'No AI API key configured — used the local template',
+  'pr.aiNoDiff': 'No differences between the branches to describe',
+  'pr.aiLocalSummary': 'Changes on this branch relative to the base:',
+  'pr.aiFilesCount': 'files',
+  'pr.aiGroupAdded': '## Added files',
+  'pr.aiGroupModified': '## Modified files',
+  'pr.aiGroupDeleted': '## Deleted files',
 } as const;
 
 export type TranslationKey = keyof typeof en;

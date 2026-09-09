@@ -43,6 +43,130 @@ export class AiCommitService {
   }
 
   /**
+   * 生成分支间对比的 PR 描述（Markdown 正文）：
+   * 配置了 API Key 时走大模型，否则降级为本地文件清单模板。
+   */
+  async generatePRDescription(options: {
+    repoPath: string;
+    base: string;
+    head: string;
+    aiConfig: AiApiConfig;
+  }): Promise<string> {
+    const { repoPath, base, head, aiConfig } = options;
+    const { files, patchText } = await gitService.getBranchDiff(repoPath, base, head);
+    if (files.length === 0) {
+      throw new Error(tNow('pr.aiNoDiff'));
+    }
+
+    if (aiConfig.apiKey && aiConfig.apiKey.trim()) {
+      try {
+        const body = await this.callPrLlm(files, patchText, aiConfig);
+        if (body && body.trim()) return body.trim();
+      } catch (err: any) {
+        console.warn('AI PR 描述生成失败，降级本地模板:', err?.message || err);
+      }
+    }
+    return this.localPRBody(files, base, head);
+  }
+
+  private async callPrLlm(
+    files: GitFileChange[],
+    patchText: string,
+    aiConfig: AiApiConfig
+  ): Promise<string> {
+    // 去除末尾斜杠后统一拼接，避免 endpoint 已含 /chat/completions 时重复
+    const trimmed = aiConfig.endpoint || 'https://api.deepseek.com/v1';
+    const baseEndpoint = trimmed.split('/').filter(Boolean).join('/');
+    const url = baseEndpoint + '/chat/completions';
+
+    const fileListText = files
+      .map((f) => `- [${f.status}] ${f.path}`)
+      .slice(0, 20)
+      .join('\n');
+
+    const systemPrompt = [
+      '你是一个资深的软件工程师与技术文档作者。',
+      '请根据分支差异的文件列表与代码 Diff 片段，为 Pull Request 撰写高质量的 Markdown 描述。',
+      '要求：',
+      '1. 以一句概括本次变更目的的话开头；',
+      '2. 使用"## 主要变更"小节，用无序列表列出 2~5 条核心改动点；',
+      '3. 如有风险或需要注意的事项，追加"## 注意事项"小节；',
+      '4. 与代码同语言（提交信息为中文则输出中文，为英文则输出英文）；',
+      '5. 直接输出 Markdown 正文，不要包含问候语或代码块包裹符号。',
+    ].join('\n');
+
+    const userPrompt = [
+      `变更文件列表 (${files.length} 个文件):`,
+      fileListText,
+      '代码变更摘录:',
+      patchText || '(无代码增量摘录)',
+    ].join('\n\n');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${aiConfig.apiKey.trim()}`,
+        },
+        body: JSON.stringify({
+          model: aiConfig.model || 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.3,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', errorBody.slice(0, 150)));
+      }
+
+      const data = await response.json();
+      let content = data.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error(tNow('err.aiEmptyResponse'));
+      }
+
+      // 剥离可能包裹的 ``` 或 ```markdown（用字符串切割避免正则歧义）
+      const fence = String.fromCharCode(96).repeat(3);
+      if (content.includes(fence)) {
+        content = content.split(fence).join('');
+      }
+      content = content.trim();
+      return content;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /** 本地模板兜底：无 API Key 时生成结构化文件清单 */
+  private localPRBody(files: GitFileChange[], base: string, head: string): string {
+    const group = (label: string, list: GitFileChange[]) =>
+      list.length > 0
+        ? `${label}\n${list.map((f) => `- ${f.path}`).join('\n')}\n`
+        : '';
+
+    const added = files.filter((f) => f.status === 'added');
+    const deleted = files.filter((f) => f.status === 'deleted');
+    const modified = files.filter((f) => f.status === 'modified' || f.status === 'renamed');
+
+    const summary = `${tNow('pr.aiLocalSummary')} **${base}...${head}** (${files.length} ${tNow('pr.aiFilesCount')}):\n\n`;
+    return (
+      summary +
+      group(tNow('pr.aiGroupAdded'), added) +
+      group(tNow('pr.aiGroupModified'), modified) +
+      group(tNow('pr.aiGroupDeleted'), deleted)
+    ).trim();
+  }
+
+  /**
    * 收集文件的真实 diff 文本切片
    */
   private async collectDiffSnippets(
