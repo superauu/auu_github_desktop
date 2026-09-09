@@ -1049,6 +1049,12 @@ export const en = {
   'cheatsheet.group.global': 'General',
   'cheatsheet.group.git': 'Git operations',
   'cheatsheet.group.view': 'Views',
+  'update.available': 'Update v{v} available',
+  'update.downloading': 'Downloading and installing in the background...',
+  'update.installed': 'Update ready',
+  'update.restartHint': 'Restart AuuGit to apply',
+  'update.upToDate': 'You are on the latest version',
+  'update.checkFailed': 'Update check failed',
 } as const;
 
 export type TranslationKey = keyof typeof en;

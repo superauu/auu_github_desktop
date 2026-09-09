@@ -1065,4 +1065,10 @@ export const zh = {
   'cheatsheet.group.global': '全局',
   'cheatsheet.group.git': 'Git 操作',
   'cheatsheet.group.view': '视图',
+  'update.available': '发现新版本 v{v}',
+  'update.downloading': '正在后台下载安装...',
+  'update.installed': '更新已就绪',
+  'update.restartHint': '重启 AuuGit 后生效',
+  'update.upToDate': '当前已是最新版本',
+  'update.checkFailed': '检查更新失败',
 } as const;

@@ -42,6 +42,9 @@ jobs:
 
       - name: Build Tauri Desktop App
         run: npm run tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Collect Built EXE Files
         shell: powershell
@@ -67,6 +70,32 @@ jobs:
 
           Write-Host "`n=== Prepared Artifacts ==="
           Get-ChildItem -Path output_exe | Format-Table Name, Length, LastWriteTime
+
+      - name: Generate Updater latest.json
+        shell: powershell
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $sigFile = Get-ChildItem "src-tauri/target/release/bundle" -Recurse -Filter "*-setup.exe.sig" | Select-Object -First 1
+          if (-not $sigFile) {
+            Write-Host "No updater signature found, skipping latest.json"
+            exit 0
+          }
+          $signature = (Get-Content $sigFile.FullName -Raw).Trim()
+          $exeName = $sigFile.Name.Replace(".sig", "")
+          $latest = [ordered]@{
+            version = $version
+            notes = "AuuGit v$version"
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $signature
+                url = "https://github.com/superauu/auu_github_desktop/releases/download/v$version/$exeName"
+              }
+            }
+          }
+          $latest | ConvertTo-Json -Depth 5 | Set-Content -Path "output_exe/latest.json" -Encoding UTF8
+          Write-Host "latest.json written:"
+          Get-Content "output_exe/latest.json"
 
       - name: Upload EXE Artifacts
         uses: actions/upload-artifact@v4

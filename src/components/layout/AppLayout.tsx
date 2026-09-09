@@ -15,6 +15,7 @@ import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { checkAndInstallUpdate } from '@/services/updater/UpdateService';
 
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -105,6 +106,13 @@ export const AppLayout: React.FC = () => {
   }, [toggleEmbeddedTerminal, fetchRemote, pull, push, setActiveTab]);
 
   // Apply compact mode on mount
+  // 启动后静默检查应用更新（仅桌面端）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkAndInstallUpdate(true);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, []);
   useEffect(() => {
     if (compactMode) {
       document.documentElement.classList.add('compact-mode');
