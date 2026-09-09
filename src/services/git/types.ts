@@ -131,6 +131,10 @@ export interface IGitService {
   push(repoPath: string, remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }): Promise<void>;
   pull(repoPath: string, rebase?: boolean): Promise<void>;
   fetch(repoPath: string): Promise<void>;
+  listRemotes(repoPath: string): Promise<{ name: string; fetchUrl: string; pushUrl: string }[]>;
+  addRemote(repoPath: string, name: string, url: string): Promise<void>;
+  removeRemote(repoPath: string, name: string): Promise<void>;
+  setRemoteUrl(repoPath: string, name: string, url: string): Promise<void>;
   createBranch(repoPath: string, name: string, startPoint?: string): Promise<void>;
   checkoutBranch(repoPath: string, name: string): Promise<void>;
   deleteBranch(repoPath: string, name: string, force?: boolean): Promise<void>;

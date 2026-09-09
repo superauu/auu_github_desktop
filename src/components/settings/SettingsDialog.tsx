@@ -23,6 +23,7 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { gitService } from '@/services/git/GitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { RemotesManager } from './RemotesManager';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, LogOut, Key } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -398,6 +399,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     {t('settings.git.autoFetchDesc')}
                   </div>
                 </div>
+
+                <RemotesManager />
               </div>
             )}
 

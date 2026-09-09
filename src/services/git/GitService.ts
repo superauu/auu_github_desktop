@@ -551,6 +551,31 @@ export class GitService implements IGitService {
     await executeGit(['push', remote, `--delete`, name], repoPath);
   }
 
+  async listRemotes(repoPath: string): Promise<{ name: string; fetchUrl: string; pushUrl: string }[]> {
+    const res = await executeGit(['remote', '-v'], repoPath);
+    const map = new Map<string, { name: string; fetchUrl: string; pushUrl: string }>();
+    for (const line of res.stdout.split(/\r?\n/)) {
+      const m = line.match(/^(\S+)\t(\S+) \((fetch|push)\)$/);
+      if (!m) continue;
+      const entry = map.get(m[1]) || { name: m[1], fetchUrl: '', pushUrl: '' };
+      if (m[3] === 'fetch') entry.fetchUrl = m[2];
+      else entry.pushUrl = m[2];
+      map.set(m[1], entry);
+    }
+    return [...map.values()];
+  }
+
+  async addRemote(repoPath: string, name: string, url: string): Promise<void> {
+    await executeGit(['remote', 'add', name, url], repoPath);
+  }
+
+  async removeRemote(repoPath: string, name: string): Promise<void> {
+    await executeGit(['remote', 'remove', name], repoPath);
+  }
+
+  async setRemoteUrl(repoPath: string, name: string, url: string): Promise<void> {
+    await executeGit(['remote', 'set-url', name, url], repoPath);
+  }
   async merge(
     repoPath: string,
     branch: string,

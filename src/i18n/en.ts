@@ -1013,6 +1013,22 @@ export const en = {
   'history.allLoaded': 'All commits loaded',
 
   'sidebar.viewStashPatch': 'View patch',
+  'settings.remotes.title': 'Remotes',
+  'settings.remotes.add': 'Add remote',
+  'settings.remotes.namePlaceholder': 'Remote name, e.g. origin / upstream',
+  'settings.remotes.urlPlaceholder': 'Repository URL, e.g. https://github.com/user/repo.git',
+  'settings.remotes.missingFields': 'Fill in both the remote name and URL',
+  'settings.remotes.added': 'Remote added',
+  'settings.remotes.addFailed': 'Failed to add remote',
+  'settings.remotes.removed': 'Remote {name} removed',
+  'settings.remotes.removeFailed': 'Failed to remove remote',
+  'settings.remotes.removeConfirm': 'Remove remote {name}? Local branches and commits are not affected.',
+  'settings.remotes.urlSaved': 'Remote URL updated',
+  'settings.remotes.urlSaveFailed': 'Failed to update remote URL',
+  'settings.remotes.edit': 'Edit URL',
+  'settings.remotes.save': 'Save URL',
+  'settings.remotes.remove': 'Remove remote',
+  'settings.remotes.empty': 'No remotes configured yet.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
