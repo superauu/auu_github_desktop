@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   CheckCircle2,
   GitCommit as GitCommitIcon,
@@ -50,13 +50,12 @@ export const RightPane: React.FC = () => {
     selectedCommit,
     activeTab,
     setActiveTab,
-    commit,
-    stageAll,
-    push,
     errorMessage,
     setError,
     setSelectedFile,
   } = useRepoStore();
+  const set = useRepoStore.setState;
+  const get = useRepoStore.getState;
 
   const { fetchCommitChecks } = useGitHubStore();
   const { aiConfig } = useSettingsStore();
@@ -162,6 +161,8 @@ export const RightPane: React.FC = () => {
       return;
     }
 
+    if (!currentRepo) return;
+
     if (totalChanges === 0 && !isAmend) {
       toast.warning(t('rightPane.nothingToCommit'), t('rightPane.nothingToCommitDesc'));
       return;
@@ -170,12 +171,14 @@ export const RightPane: React.FC = () => {
     setIsSubmitting(true);
     setError(null);
     try {
+      // Use a single refresh at the end instead of multiple refreshAll calls
       if (stagedCount === 0 && !isAmend) {
         toast.info(t('rightPane.autoStaging'));
-        await stageAll();
+        await gitService.stageAll(currentRepo.path);
       }
 
-      await commit(commitMessage.trim(), isAmend);
+      await gitService.commit(currentRepo.path, commitMessage.trim(), isAmend);
+      set({ redoStack: [] });
       const title = isAmend ? t('rightPane.amendSuccess') : t('rightPane.commitSuccess');
       toast.success(title, commitMessage.trim());
       setCommitMessage('');
@@ -184,12 +187,22 @@ export const RightPane: React.FC = () => {
       if (andPush) {
         toast.info(t('rightPane.pushing'));
         try {
-          await push();
+          let pushedSha: string | null = null;
+          try {
+            pushedSha = await gitService.getBranchCommitHash(currentRepo.path, 'HEAD');
+          } catch { pushedSha = null; }
+          await gitService.push(currentRepo.path);
+          if (pushedSha) {
+            useGitHubStore.getState().watchPushChecks(pushedSha);
+          }
           toast.success(t('rightPane.pushSuccess'));
         } catch (pushErr: any) {
           toast.error(t('rightPane.pushFailed'), pushErr.message);
         }
       }
+
+      // Single lightweight refresh after all operations complete
+      await get().refreshStatus();
     } catch (err: any) {
       toast.error(t('rightPane.commitFailed'), err.message);
     } finally {
@@ -197,12 +210,21 @@ export const RightPane: React.FC = () => {
     }
   };
 
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const copyHash = (hash: string) => {
     navigator.clipboard.writeText(hash);
     setCopiedHash(true);
     toast.success(t('rightPane.copyHash'), hash);
-    setTimeout(() => setCopiedHash(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopiedHash(false), 2000);
   };
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   // Group working files into Tree structure (deduplicated by path)
   const allChangesFiles = useMemo(() => {
@@ -734,7 +756,7 @@ export const RightPane: React.FC = () => {
                 </span>
                 <Badge variant="success" className="h-4 text-[10px] gap-1 font-mono">
                   <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
-                  <span>{checks.length} / {checks.length} {t('rightPane.checksPass')}</span>
+                  <span>{checks.filter((c: any) => c.conclusion === 'success' || c.conclusion === 'completed').length} / {checks.length} {t('rightPane.checksPass')}</span>
                 </Badge>
               </div>
 

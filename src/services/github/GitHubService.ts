@@ -61,7 +61,7 @@ export class GitHubService {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows`, {
       headers: this.getHeaders(),
     });
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error(await this.extractGitHubError(res));
     const data = await res.json();
     return data.workflows || [];
   }
@@ -76,7 +76,7 @@ export class GitHubService {
       : `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=20`;
 
     const res = await fetch(url, { headers: this.getHeaders() });
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error(await this.extractGitHubError(res));
     const data = await res.json();
     return data.workflow_runs || [];
   }
@@ -86,7 +86,7 @@ export class GitHubService {
       `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs`,
       { headers: this.getHeaders() }
     );
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error(await this.extractGitHubError(res));
     const data = await res.json();
     return data.jobs || [];
   }
@@ -100,7 +100,7 @@ export class GitHubService {
       `https://api.github.com/repos/${owner}/${repo}/commits/${sha}/check-runs`,
       { headers: this.getHeaders() }
     );
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error(await this.extractGitHubError(res));
     const data = await res.json();
     return data.check_runs || [];
   }
@@ -197,7 +197,14 @@ export class GitHubService {
       throw new Error(tNow('err.ghYaml').replace('{s}', String(res.status)));
     }
     const data = await res.json();
-    const content = data.content ? atob(data.content.replace(/\s/g, '')) : '';
+    let content = '';
+    if (data.content) {
+      // Decode base64 to binary string, then convert to UTF-8
+      const binaryStr = atob(data.content.replace(/\s/g, ''));
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      content = new TextDecoder('utf-8').decode(bytes);
+    }
     return { path, content };
   }
 
@@ -210,7 +217,7 @@ export class GitHubService {
       `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=30`,
       { headers: this.getHeaders() }
     );
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error(await this.extractGitHubError(res));
     return res.json();
   }
 
@@ -223,7 +230,7 @@ export class GitHubService {
       `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/reviews`,
       { headers: this.getHeaders() }
     );
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error(await this.extractGitHubError(res));
     return res.json();
   }
 

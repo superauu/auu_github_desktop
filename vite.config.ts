@@ -267,13 +267,28 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         req.on('end', () => {
           try {
             const { path: filePath } = JSON.parse(body || '{}');
-            if (!filePath || !fs.existsSync(filePath)) {
+            if (!filePath) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: '文件路径不能为空' }));
+              return;
+            }
+            // Restrict file access to project root
+            const projectRoot = path.resolve(__dirname);
+            const resolved = path.resolve(filePath);
+            if (!resolved.startsWith(projectRoot)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Access denied: path outside project root' }));
+              return;
+            }
+            if (!fs.existsSync(resolved)) {
               res.statusCode = 404;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ error: '文件未找到' }));
               return;
             }
-            const content = fs.readFileSync(filePath, 'utf-8');
+            const content = fs.readFileSync(resolved, 'utf-8');
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ content }));
@@ -303,7 +318,16 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
               res.end(JSON.stringify({ error: '文件路径不能为空' }));
               return;
             }
-            fs.writeFileSync(filePath, content ?? '', 'utf-8');
+            // Restrict file access to project root
+            const projectRoot = path.resolve(__dirname);
+            const resolved = path.resolve(filePath);
+            if (!resolved.startsWith(projectRoot)) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Access denied: path outside project root' }));
+              return;
+            }
+            fs.writeFileSync(resolved, content ?? '', 'utf-8');
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true }));

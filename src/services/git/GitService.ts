@@ -156,7 +156,7 @@ export class GitService implements IGitService {
     try {
       const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
       const res = await executeGit(
-        ['log', '--all', branchName, `-n`, String(limit), `--format=${format}`],
+        ['log', branchName, `-n`, String(limit), `--format=${format}`],
         repoPath
       );
       return parseGitLog(res.stdout);
@@ -445,7 +445,10 @@ export class GitService implements IGitService {
         .map((line) => {
           const parts = line.split(/\t+/);
           const statusCode = parts[0]?.charAt(0) || 'M';
-          const filePath = unquoteGitPath(parts[1] || parts[0]?.slice(1).trim() || '');
+          // For renames (R), use the new path (last column) instead of old path
+          const filePath = unquoteGitPath(
+            (statusCode === 'R' ? parts[parts.length - 1] : parts[1]) || parts[0]?.slice(1).trim() || ''
+          );
           let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
           if (statusCode === 'A') status = 'added';
           else if (statusCode === 'D') status = 'deleted';
@@ -504,7 +507,10 @@ export class GitService implements IGitService {
       return lines.map((line) => {
         const parts = line.split(/\t+/);
         const statusCode = parts[0]?.charAt(0) || 'M';
-        const filePath = unquoteGitPath(parts[1] || parts[0]?.slice(1).trim() || '');
+        // For renames (R), use the new path (last column) instead of old path
+        const filePath = unquoteGitPath(
+          (statusCode === 'R' ? parts[parts.length - 1] : parts[1]) || parts[0]?.slice(1).trim() || ''
+        );
         let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
         if (statusCode === 'A') status = 'added';
         else if (statusCode === 'D') status = 'deleted';
@@ -673,7 +679,9 @@ export class GitService implements IGitService {
     try {
       // 优先尝试 Tauri Shell 唤起 Windows PowerShell
       const { Command } = await import('@tauri-apps/plugin-shell');
-      const cmd = Command.create('powershell', ['-NoExit', '-Command', `Set-Location -Path '${repoPath}'`]);
+      // Escape single quotes for PowerShell by doubling them
+      const safePath = repoPath.replace(/'/g, "''");
+      const cmd = Command.create('powershell', ['-NoExit', '-Command', `Set-Location -Path '${safePath}'`]);
       await cmd.spawn();
     } catch {
       // 在纯网页/Dev模式下降级复制路径并提示
@@ -927,6 +935,12 @@ export class GitService implements IGitService {
 
   async readWorkingFile(repoPath: string, filePath: string): Promise<string> {
     const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
+    // Validate path stays within repo
+    const normalized = fullPath.replace(/\/+/g, '/').toLowerCase();
+    const repoNormalized = repoPath.replace(/\\/g, '/').replace(/\/+/g, '/').toLowerCase();
+    if (!normalized.startsWith(repoNormalized + '/') && normalized !== repoNormalized) {
+      throw new Error('Path traversal detected');
+    }
     const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
     // 1. Tauri 桌面原生模式
@@ -971,6 +985,12 @@ export class GitService implements IGitService {
 
   async writeWorkingFile(repoPath: string, filePath: string, content: string): Promise<void> {
     const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
+    // Validate path stays within repo
+    const normalized = fullPath.replace(/\/+/g, '/').toLowerCase();
+    const repoNormalized = repoPath.replace(/\\/g, '/').replace(/\/+/g, '/').toLowerCase();
+    if (!normalized.startsWith(repoNormalized + '/') && normalized !== repoNormalized) {
+      throw new Error('Path traversal detected');
+    }
     const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
     // 1. Tauri 桌面原生模式

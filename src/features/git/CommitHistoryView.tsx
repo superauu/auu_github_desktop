@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   GitCommit as GitCommitIcon,
   Tag as TagIcon,
@@ -100,13 +100,22 @@ export const CommitHistoryView: React.FC = () => {
     ? filteredCommits.findIndex((c) => c.hash === activeCommit?.hash) + 1
     : filteredCommits.findIndex((c) => c.hash === activeCommit?.hash);
 
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleCopyHash = (hash: string, e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(hash);
     setCopiedHash(hash);
     toast.success(t('history.copyHash'), hash);
-    setTimeout(() => setCopiedHash(null), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopiedHash(null), 2000);
   };
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   // 右键菜单动作：统一 toast 反馈，冲突场景由顶部 ConflictBanner 接管
   const runCommitAction = async (action: () => Promise<void>, success: string, failed: string) => {

@@ -67,6 +67,7 @@ interface RepoState {
 
   // Async Git Operations
   refreshAll: () => Promise<void>;
+  refreshStatus: () => Promise<void>;
   checkExternalChanges: () => Promise<void>;
   loadMoreCommits: () => Promise<void>;
   fetchRemote: () => Promise<void>;
@@ -461,6 +462,40 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
+    refreshStatus: async () => {
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+
+      try {
+        const { commitsLimit } = get();
+        const [status, commits] = await Promise.all([
+          gitService.getStatus(currentRepo.path),
+          gitService.getCommits(currentRepo.path, commitsLimit),
+        ]);
+
+        set((state) => {
+          const updatedTabs = state.openTabs.map((t) =>
+            t.path === currentRepo.path ? { ...t, currentBranch: status.currentBranch } : t
+          );
+          return {
+            status,
+            statusFingerprint: fingerprintStatus(status),
+            commits,
+            commitsLoadedAll: commits.length < commitsLimit,
+            openTabs: updatedTabs,
+          };
+        });
+
+        // Refresh current file diff if one is selected
+        const currentSelected = get().selectedFile;
+        if (currentSelected) {
+          get().loadFileDiff(currentSelected);
+        }
+      } catch (err: any) {
+        console.warn('refreshStatus failed:', err);
+      }
+    },
+
     fetchRemote: async () => {
       const { currentRepo } = get();
       if (!currentRepo) return;
@@ -501,7 +536,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         }
 
         await gitService.push(currentRepo.path, remote, branch, options);
-        await get().refreshAll();
+        await get().refreshStatus();
         if (pushedSha) {
           useGitHubStore.getState().watchPushChecks(pushedSha);
         }
@@ -602,7 +637,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.stageAll(currentRepo.path);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;
@@ -614,7 +649,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.unstageAll(currentRepo.path);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;
@@ -626,7 +661,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.discardChanges(currentRepo.path, filePath);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;
@@ -639,7 +674,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       try {
         await gitService.commit(currentRepo.path, message, amend);
         set({ redoStack: [] });
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;

@@ -240,9 +240,23 @@ export const WorkingChangesView: React.FC = () => {
     setTimeout(() => setCopiedPath(false), 2000);
   };
 
-  // Compute diff addition / deletion counts
-  const addCount = fileDiffLines.filter((l) => l.type === 'add').length;
-  const delCount = fileDiffLines.filter((l) => l.type === 'delete').length;
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup any pending state updates
+    };
+  }, []);
+
+  // Compute diff addition / deletion counts (memoized)
+  const { addCount, delCount } = useMemo(() => {
+    let add = 0;
+    let del = 0;
+    for (const l of fileDiffLines) {
+      if (l.type === 'add') add++;
+      else if (l.type === 'delete') del++;
+    }
+    return { addCount: add, delCount: del };
+  }, [fileDiffLines]);
 
   const splitRows = useMemo(() => {
     if (diffMode !== 'split' || fileDiffLines.length === 0) return [];

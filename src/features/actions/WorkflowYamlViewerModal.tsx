@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileCode, X, Copy, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -9,6 +9,13 @@ export const WorkflowYamlViewerModal: React.FC = () => {
   const { isYamlModalOpen, activeWorkflowYaml, closeWorkflowYaml } = useGitHubStore();
   const { t } = useI18n();
   const [isCopied, setIsCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   if (!isYamlModalOpen || !activeWorkflowYaml) return null;
 
@@ -16,7 +23,8 @@ export const WorkflowYamlViewerModal: React.FC = () => {
     navigator.clipboard.writeText(activeWorkflowYaml.content);
     setIsCopied(true);
     toast.success(t('yaml.copied'));
-    setTimeout(() => setIsCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (

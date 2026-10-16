@@ -24,10 +24,14 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   initTheme: () => {
     // 产品进入赛博朋克正式阶段：默认呈现完整霓虹暗色形态
-    const saved = (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'dark';
-    const resolvedTheme = resolveEffectiveTheme(saved);
-    applyThemeClass(resolvedTheme);
-    set({ theme: saved, resolvedTheme });
+    try {
+      const saved = (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'dark';
+      const resolvedTheme = resolveEffectiveTheme(saved);
+      applyThemeClass(resolvedTheme);
+      set({ theme: saved, resolvedTheme });
+    } catch {
+      // localStorage unavailable, use defaults
+    }
 
     // Listen for OS color scheme change
     if (typeof window !== 'undefined' && window.matchMedia) {
@@ -40,6 +44,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         }
       };
       mediaQuery.addEventListener('change', listener);
+      // Cleanup listener on re-init (e.g., StrictMode, HMR)
+      return () => {
+        mediaQuery.removeEventListener('change', listener);
+      };
     }
   },
 }));

@@ -86,13 +86,22 @@ export const JobLogsViewerModal: React.FC = () => {
     }
   }, [filteredLines, autoScroll]);
 
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   if (!isLogsModalOpen || !activeJobLogs) return null;
 
   const handleCopyLogs = () => {
     navigator.clipboard.writeText(activeJobLogs.rawLogs);
     setIsCopied(true);
     toast.success(t('logs.copied'));
-    setTimeout(() => setIsCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (

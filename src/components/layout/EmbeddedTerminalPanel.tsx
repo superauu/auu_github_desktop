@@ -12,6 +12,35 @@ import { useRepoStore } from '@/stores/repoStore';
 import { executeGit } from '@/services/git/GitExecutor';
 import { cn } from '@/utils/cn';
 
+/**
+ * Parse command line arguments respecting single and double quotes.
+ * E.g., 'commit -m "hello world"' → ['commit', '-m', 'hello world']
+ */
+function parseGitArgs(input: string): string[] {
+  const args: string[] = [];
+  let current = '';
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+    } else if (ch === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+    } else if (ch === ' ' && !inSingleQuote && !inDoubleQuote) {
+      if (current) {
+        args.push(current);
+        current = '';
+      }
+    } else {
+      current += ch;
+    }
+  }
+  if (current) args.push(current);
+  return args;
+}
+
 interface EmbeddedTerminalPanelProps {
   open: boolean;
   onClose: () => void;
@@ -67,7 +96,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
 
   if (!open) return null;
 
-  const repoPath = currentRepo?.path || 'E:\\code\\auu_saas';
+  const repoPath = currentRepo?.path || '';
 
   // Handle Resize drag
   const handleMouseDownResize = (e: React.MouseEvent) => {
@@ -114,11 +143,16 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
     try {
       let outputText = '';
       if (rawCmd.startsWith('git ')) {
-        const args = rawCmd.slice(4).trim().split(/\s+/);
-        const res = await executeGit(args, repoPath);
-        outputText = res.stdout || res.stderr || 'Done (Exit Code 0)';
-        if (['commit', 'merge', 'rebase', 'reset', 'checkout', 'branch', 'stash', 'pull', 'tag'].some(c => args[0] === c)) {
-          refreshAll().catch(() => {});
+        // Parse command line respecting quoted arguments
+        const args = parseGitArgs(rawCmd.slice(4).trim());
+        if (!repoPath) {
+          outputText = 'Error: No repository open';
+        } else {
+          const res = await executeGit(args, repoPath);
+          outputText = res.stdout || res.stderr || 'Done (Exit Code 0)';
+          if (['commit', 'merge', 'rebase', 'reset', 'checkout', 'branch', 'stash', 'pull', 'tag'].some(c => args[0] === c)) {
+            refreshAll().catch(() => {});
+          }
         }
       } else {
         outputText = `[Local Terminal]: ${rawCmd}\n(${t('terminal.gitOnlyHint')})`;

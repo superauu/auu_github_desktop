@@ -73,7 +73,11 @@ fn write_file_content(path: String, content: String) -> Result<(), String> {
 
 #[tauri::command]
 fn request_github_device_code(client_id: String, scope: String) -> Result<String, String> {
-    let payload = format!("client_id={}&scope={}", client_id, scope);
+    let payload = format!(
+        "client_id={}&scope={}",
+        urlencode(&client_id),
+        urlencode(&scope)
+    );
     let mut cmd = Command::new("curl.exe");
     cmd.args([
         "-s",
@@ -106,7 +110,8 @@ fn request_github_device_code(client_id: String, scope: String) -> Result<String
 fn poll_github_device_token(client_id: String, device_code: String) -> Result<String, String> {
     let payload = format!(
         "client_id={}&device_code={}&grant_type=urn:ietf:params:oauth:grant-type:device_code",
-        client_id, device_code
+        urlencode(&client_id),
+        urlencode(&device_code)
     );
     let mut cmd = Command::new("curl.exe");
     cmd.args([
@@ -134,6 +139,23 @@ fn poll_github_device_token(client_id: String, device_code: String) -> Result<St
         }
         Err(e) => Err(format!("轮询 GitHub 令牌失败: {}", e)),
     }
+}
+
+/// Simple URL encoder for form payloads (percent-encoding)
+fn urlencode(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                result.push(b as char);
+            }
+            _ => {
+                result.push('%');
+                result.push_str(&format!("{:02X}", b));
+            }
+        }
+    }
+    result
 }
 
 #[derive(Serialize, Deserialize, Debug)]

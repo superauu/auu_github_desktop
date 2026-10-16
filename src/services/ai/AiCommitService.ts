@@ -75,9 +75,8 @@ export class AiCommitService {
     aiConfig: AiApiConfig
   ): Promise<string> {
     // 去除末尾斜杠后统一拼接，避免 endpoint 已含 /chat/completions 时重复
-    const trimmed = aiConfig.endpoint || 'https://api.deepseek.com/v1';
-    const baseEndpoint = trimmed.split('/').filter(Boolean).join('/');
-    const url = baseEndpoint + '/chat/completions';
+    const endpoint = (aiConfig.endpoint || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+    const url = endpoint.endsWith('/chat/completions') ? endpoint : `${endpoint}/chat/completions`;
 
     const fileListText = files
       .map((f) => `- [${f.status}] ${f.path}`)

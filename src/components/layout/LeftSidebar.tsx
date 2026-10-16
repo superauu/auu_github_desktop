@@ -1085,7 +1085,7 @@ export const LeftSidebar: React.FC = () => {
 
                 {expandedSections.remoteBranches && (
                   <div className="mt-0.5 space-y-0.5 pl-1">
-                    {remoteBranches.map((branch) => {
+                    {remoteGrouped.rootBranches.map((branch) => {
                       const localName = branch.name.replace(/^origin\//, '');
                       const isSelected = selectedBranch === branch.name;
 
@@ -1143,9 +1143,78 @@ export const LeftSidebar: React.FC = () => {
                         </div>
                       );
                     })}
-                    {remoteBranches.length === 0 && (
+
+                    {/* Render remote branch folders */}
+                    {Object.entries(remoteGrouped.folders).map(([folderName, folderBranches]) => (
+                      <div key={folderName}>
+                        <div className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                          <Cloud className="h-2.5 w-2.5" />
+                          <span>{folderName}/</span>
+                        </div>
+                        {folderBranches.map((branch) => {
+                          const localName = branch.name.replace(/^origin\//, '');
+                          const isSelected = selectedBranch === branch.name;
+
+                          return (
+                            <div
+                              key={branch.name}
+                              draggable={true}
+                              onDragStart={(e) => handleDragStart(e, branch)}
+                              onDragOver={(e) => handleDragOver(e, branch)}
+                              onDragLeave={(e) => handleDragLeave(e, branch)}
+                              onDrop={(e) => handleDrop(e, branch)}
+                              onDragEnd={handleDragEnd}
+                              onClick={() => {
+                                selectAndLocateBranch(branch.name);
+                                toast.info(`${t('sidebar.ctx.locatedRemoteCommit')}: ${branch.name}`);
+                              }}
+                              onContextMenu={(e) => handleRemoteBranchContextMenu(e, branch)}
+                              className={cn(
+                                "group flex items-center justify-between px-2 py-1 rounded-md text-xs cursor-pointer transition-all",
+                                dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
+                                draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
+                                isSelected
+                                  ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                              )}
+                              title={`${t('sidebar.viewRemoteBranch')}: ${branch.name} (${t('sidebar.viewRemoteHint')})`}
+                            >
+                              <div className="flex items-center gap-1.5 truncate">
+                                {isSelected && <Eye className="h-3 w-3 text-emerald-400 shrink-0" />}
+                                <Cloud className="h-3 w-3 text-muted-foreground/80 shrink-0" />
+                                <span className="truncate">{branch.name}</span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
+                                title={t('sidebar.ctx.checkoutToLocal')}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    await checkoutBranch(localName);
+                                    toast.success(`${t('sidebar.ctx.remoteCheckedOut')}: ${localName}`);
+                                  } catch {
+                                    try {
+                                      await createBranch(localName, branch.name, true);
+                                      toast.success(`${t('sidebar.ctx.remoteCheckedOutTracked')}: ${localName}`);
+                                    } catch (err: any) {
+                                      toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
+                                    }
+                                  }
+                                }}
+                              >
+                                <ArrowDownToLine className="h-2.5 w-2.5" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+
+                    {remoteGrouped.totalCount === 0 && (
                       <div className="px-2 py-1 text-[12px] text-muted-foreground/60 italic">
-                        {t('sidebar.ctx.noRemoteTracking')}
+                        {searchFilter ? t('sidebar.noMatchBranches') : t('sidebar.ctx.noRemoteTracking')}
                       </div>
                     )}
                   </div>

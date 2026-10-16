@@ -210,6 +210,12 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   },
 
   logout: () => {
+    // Clear push watch timer to prevent memory leak and unauthorized API calls
+    if (pushWatchTimer) {
+      clearTimeout(pushWatchTimer);
+      pushWatchTimer = null;
+    }
+    pushWatchedSha = null;
     void clearToken();
     githubService.setToken(null);
     set({
@@ -223,6 +229,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
       selectedRunJobs: [],
       pullRequests: [],
       selectedPR: null,
+      commitChecks: {},
     });
   },
 
