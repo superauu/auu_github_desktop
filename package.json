@@ -1,14 +1,15 @@
 {
   "name": "auugit",
   "private": true,
-  "version": "0.3.6",
+  "version": "0.3.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "node --test tests/review-regressions.test.mjs"
+    "test": "node --test tests/review-regressions.test.mjs tests/release-versions.test.mjs",
+    "check:release": "node scripts/check-release.mjs"
   },
   "dependencies": {
     "@radix-ui/react-context-menu": "^2.2.5",
@@ -19,7 +20,7 @@
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.7",
-    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/api": "~2.12.4",
     "@tauri-apps/plugin-dialog": "^2.2.0",
     "@tauri-apps/plugin-shell": "^2.2.0",
     "@tauri-apps/plugin-updater": "^2.11.0",
@@ -32,7 +33,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.2.7",
+    "@tauri-apps/cli": "~2.12.3",
     "@types/node": "^22.10.10",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",

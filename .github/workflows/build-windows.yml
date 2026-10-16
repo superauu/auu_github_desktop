@@ -37,6 +37,9 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm ci
 
+      - name: Check Release Versions
+        run: npm run check:release
+
       - name: Run Regression Tests
         run: npm test
 
