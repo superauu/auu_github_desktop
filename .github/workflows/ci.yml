@@ -1,8 +1,6 @@
 name: Validate changes
 on:
   pull_request:
-  push:
-    branches: ['**']
 permissions:
   contents: read
 jobs:
