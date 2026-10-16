@@ -27,7 +27,7 @@ export class GitExecutionError extends Error {
   }
 }
 
-export async function executeGit(args: string[], cwd: string): Promise<GitCommandResult> {
+export async function executeGit(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {
   const customPath = useSettingsStore.getState().gitCliPath?.trim() || 'git';
 
   // Check if running inside Tauri 2 desktop window
@@ -42,6 +42,7 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
         args: ['-c', 'core.quotepath=false', ...args],
         cwd,
         gitBinary: customPath,
+        stdin,
       });
 
       const isDiff = args.includes('diff');
@@ -67,11 +68,13 @@ export async function executeGit(args: string[], cwd: string): Promise<GitComman
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-AuuGit-Request': '1',
       },
       body: JSON.stringify({
         args: ['-c', 'core.quotepath=false', ...args],
         cwd,
         gitBinary: customPath,
+        stdin,
       }),
     });
 

@@ -10,15 +10,17 @@ import {
   JobLogsData,
   WorkflowYamlContent,
 } from '@/services/github/types';
-import { githubService } from '@/services/github/GitHubService';
+import { GitHubApiError, githubService } from '@/services/github/GitHubService';
 import { toast } from '@/stores/toastStore';
 import { tNow } from '@/i18n';
 
 const GITHUB_TOKEN_KEY = 'auu_github_token';
+let browserToken: string | null = null;
+let credentialWrites: Promise<void> = Promise.resolve();
 // 旧版本 demo 模式的遗留键，initAuth 时统一清理
 const LEGACY_DEMO_KEY = 'auu_github_demo_mode';
 
-// ===== Token 持久化：桌面端走系统凭据管理器（keyring），浏览器开发模式回退 localStorage =====
+// ===== Token 持久化：桌面端走系统凭据管理器（keyring），浏览器开发模式仅在内存保留凭据 =====
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 async function invokeKeyring<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -28,17 +30,16 @@ async function invokeKeyring<T>(command: string, args?: Record<string, unknown>)
 
 async function persistToken(token: string): Promise<void> {
   if (isTauri()) {
-    try {
+    credentialWrites = credentialWrites.catch(() => {}).then(async () => {
       await invokeKeyring('store_github_token', { token });
-      return;
-    } catch (err) {
-      console.warn('写入系统凭据管理器失败，回退 localStorage:', err);
-    }
-  }
-  localStorage.setItem(GITHUB_TOKEN_KEY, token);
+    });
+    await credentialWrites;
+  } else { browserToken = token; }
+  localStorage.removeItem(GITHUB_TOKEN_KEY);
 }
 
 async function loadToken(): Promise<string | null> {
+  await credentialWrites.catch(() => {});
   if (isTauri()) {
     try {
       const stored = await invokeKeyring<string | null>('get_github_token');
@@ -52,20 +53,21 @@ async function loadToken(): Promise<string | null> {
       }
       return null;
     } catch (err) {
-      console.warn('读取系统凭据管理器失败，回退 localStorage:', err);
+      throw new Error(`无法读取系统凭据: ${String(err)}`);
     }
   }
-  return localStorage.getItem(GITHUB_TOKEN_KEY);
+  const legacy = localStorage.getItem(GITHUB_TOKEN_KEY);
+  localStorage.removeItem(GITHUB_TOKEN_KEY);
+  browserToken = browserToken || legacy;
+  return browserToken;
 }
 
 async function clearToken(): Promise<void> {
+  browserToken = null;
   localStorage.removeItem(GITHUB_TOKEN_KEY);
   if (isTauri()) {
-    try {
-      await invokeKeyring('delete_github_token');
-    } catch (err) {
-      console.warn('清理系统凭据管理器失败:', err);
-    }
+    credentialWrites = credentialWrites.catch(() => {}).then(() => invokeKeyring<void>('delete_github_token'));
+    await credentialWrites;
   }
 }
 
@@ -107,6 +109,7 @@ interface GitHubState {
   initAuth: () => Promise<void>;
   login: (token: string) => Promise<void>;
   logout: () => void;
+  clearRepo: () => void;
   syncRepo: (owner: string, repo: string) => Promise<void>;
   loadRepoData: (owner: string, repo: string) => Promise<void>;
   selectWorkflow: (workflow: GitHubWorkflow | null) => void;
@@ -138,400 +141,236 @@ interface GitHubState {
 let pushWatchTimer: ReturnType<typeof setTimeout> | null = null;
 let pushWatchedSha: string | null = null;
 
-export const useGitHubStore = create<GitHubState>((set, get) => ({
-  token: null,
-  user: null,
-  isAuthenticated: false,
-  repoDetails: null,
-  currentOwner: null,
-  currentRepoName: null,
+const emptyRepo = {
+  currentOwner: null, currentRepoName: null, repoDetails: null,
+  workflows: [], selectedWorkflow: null, workflowRuns: [], selectedRun: null, selectedRunJobs: [],
+  commitChecks: {}, pullRequests: [], selectedPR: null,
+  activeJobLogs: null, activeWorkflowYaml: null, isLogsModalOpen: false, isYamlModalOpen: false,
+  isDispatchModalOpen: false, dispatchTargetWorkflow: null, isLoading: false, error: null,
+};
 
-  workflows: [],
-  selectedWorkflow: null,
-  workflowRuns: [],
-  selectedRun: null,
-  selectedRunJobs: [],
-  commitChecks: {},
-
-  pullRequests: [],
-  selectedPR: null,
-  prFilterState: 'open',
-
-  activeJobLogs: null,
-  activeWorkflowYaml: null,
-  isLogsModalOpen: false,
-  isYamlModalOpen: false,
-  isDispatchModalOpen: false,
-  dispatchTargetWorkflow: null,
-
-  isLoading: false,
-  error: null,
-
-  initAuth: async () => {
-    // 清理旧版本 demo 模式的遗留标记
-    localStorage.removeItem(LEGACY_DEMO_KEY);
-
-    const savedToken = await loadToken();
-
-    if (savedToken) {
-      try {
-        githubService.setToken(savedToken);
-        const user = await githubService.verifyToken(savedToken);
-        set({
-          token: savedToken,
-          user,
-          isAuthenticated: true,
-        });
-      } catch (err: any) {
-        console.warn('保存的 GitHub Token 已失效:', err);
-        await clearToken();
-      }
-    }
-  },
-
-  login: async (token: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      const user = await githubService.verifyToken(token);
-      await persistToken(token);
-      githubService.setToken(token);
-      set({
-        token,
-        user,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-      get().refreshActions();
-      get().loadPullRequests();
-    } catch (err: any) {
-      set({ error: err.message, isLoading: false });
-      throw err;
-    }
-  },
-
-  logout: () => {
-    // Clear push watch timer to prevent memory leak and unauthorized API calls
-    if (pushWatchTimer) {
-      clearTimeout(pushWatchTimer);
-      pushWatchTimer = null;
-    }
-    pushWatchedSha = null;
-    void clearToken();
-    githubService.setToken(null);
-    set({
-      token: null,
-      user: null,
-      isAuthenticated: false,
-      workflows: [],
-      workflowRuns: [],
-      selectedWorkflow: null,
-      selectedRun: null,
-      selectedRunJobs: [],
-      pullRequests: [],
-      selectedPR: null,
-      commitChecks: {},
-    });
-  },
-
-  syncRepo: async (owner: string, repo: string) => {
-    set({ currentOwner: owner, currentRepoName: repo });
-    await get().loadRepoData(owner, repo);
-  },
-
-  loadRepoData: async (owner: string, repo: string) => {
-    set({ isLoading: true, error: null, currentOwner: owner, currentRepoName: repo });
-    try {
-      const [repoDetails, workflows, runs, prs] = await Promise.all([
-        githubService.getRepository(owner, repo).catch(() => null),
-        githubService.getWorkflows(owner, repo).catch(() => []),
-        githubService.getWorkflowRuns(owner, repo).catch(() => []),
-        githubService.getPullRequests(owner, repo).catch(() => []),
-      ]);
-
-      const selectedRun = runs[0] || null;
-      let selectedRunJobs: GitHubJob[] = [];
-      if (selectedRun) {
-        selectedRunJobs = await githubService.getRunJobs(owner, repo, selectedRun.id).catch(() => []);
-      }
-
-      set({
-        repoDetails,
-        workflows,
-        workflowRuns: runs,
-        selectedRun,
-        selectedRunJobs,
-        pullRequests: prs,
-        selectedPR: prs[0] || null,
-        isLoading: false,
-      });
-    } catch (err: any) {
-      console.warn('加载真实 GitHub 数据失败，已准备回退:', err);
-      set({ error: err.message, isLoading: false });
-    }
-  },
-
-  selectWorkflow: async (workflow: GitHubWorkflow | null) => {
-    set({ selectedWorkflow: workflow });
-    const { currentOwner, currentRepoName } = get();
-    if (!currentOwner || !currentRepoName) return;
-
-    try {
-      const runs = await githubService.getWorkflowRuns(currentOwner, currentRepoName, workflow?.id);
-      const selectedRun = runs[0] || null;
-      let selectedRunJobs: GitHubJob[] = [];
-      if (selectedRun) {
-        selectedRunJobs = await githubService.getRunJobs(currentOwner, currentRepoName, selectedRun.id);
-      }
-      set({ workflowRuns: runs, selectedRun, selectedRunJobs });
-    } catch (err: any) {
-      console.warn('获取工作流运行记录失败:', err);
-    }
-  },
-
-  selectRun: async (run: GitHubWorkflowRun | null) => {
-    set({ selectedRun: run });
-    if (!run) {
-      set({ selectedRunJobs: [] });
-      return;
-    }
-
-    const { currentOwner, currentRepoName } = get();
-    if (!currentOwner || !currentRepoName) return;
-
-    try {
-      const jobs = await githubService.getRunJobs(currentOwner, currentRepoName, run.id);
-      set({ selectedRunJobs: jobs });
-    } catch (err: any) {
-      console.warn('获取 Job 状态失败:', err);
-    }
-  },
-
-  fetchCommitChecks: async (sha: string) => {
-    const { commitChecks, currentOwner, currentRepoName } = get();
-    if (commitChecks[sha]) {
-      return commitChecks[sha];
-    }
-
-    if (!currentOwner || !currentRepoName) return [];
-
-    try {
-      const checks = await githubService.getCommitChecks(currentOwner, currentRepoName, sha);
-      set((state) => ({
-        commitChecks: { ...state.commitChecks, [sha]: checks },
-      }));
-      return checks;
-    } catch {
-      return [];
-    }
-  },
-
-  refreshActions: async () => {
-    const { currentOwner, currentRepoName } = get();
-    if (currentOwner && currentRepoName) {
-      await get().loadRepoData(currentOwner, currentRepoName);
-    }
-  },
-
-  // Deep Actions Controls
-  openJobLogs: async (jobId: number, jobName?: string) => {
-    const { currentOwner, currentRepoName } = get();
-    if (!currentOwner || !currentRepoName) return;
-
-    set({
-      isLogsModalOpen: true,
-      activeJobLogs: {
-        jobId,
-        jobName: jobName || `Job #${jobId}`,
-        rawLogs: '正在从 GitHub API 实时拉取 Job 构建日志...',
-      },
-    });
-
-    try {
-      const logs = await githubService.getJobLogs(currentOwner, currentRepoName, jobId);
-      if (jobName) logs.jobName = jobName;
-      set({ activeJobLogs: logs });
-    } catch (err: any) {
-      set({
-        activeJobLogs: {
-          jobId,
-          jobName: jobName || `Job #${jobId}`,
-          rawLogs: `无法加载构建日志 (HTTP 错误或日志已过期归档):\n${err.message}`,
-        },
-      });
-    }
-  },
-
-  closeJobLogs: () => {
-    set({ isLogsModalOpen: false, activeJobLogs: null });
-  },
-
-  openWorkflowYaml: async (workflow: GitHubWorkflow) => {
-    const { currentOwner, currentRepoName } = get();
-
-    set({
-      isYamlModalOpen: true,
-      activeWorkflowYaml: {
-        path: workflow.path,
-        content: '# 正在从 GitHub 仓库获取工作流配置文件...',
-      },
-    });
-
-    if (!currentOwner || !currentRepoName) {
-      set({
-        activeWorkflowYaml: {
-          path: workflow.path,
-          content: `# 未绑定 GitHub 仓库，无法读取工作流配置\n# 路径: ${workflow.path}`,
-        },
-      });
-      return;
-    }
-
-    try {
-      const yaml = await githubService.getWorkflowYaml(currentOwner, currentRepoName, workflow.path);
-      set({ activeWorkflowYaml: yaml });
-    } catch (err: any) {
-      set({
-        activeWorkflowYaml: {
-          path: workflow.path,
-          content: `# 读取工作流配置文件失败: ${err.message}\n# 路径: ${workflow.path}`,
-        },
-      });
-    }
-  },
-
-  closeWorkflowYaml: () => {
-    set({ isYamlModalOpen: false, activeWorkflowYaml: null });
-  },
-
-  openDispatchModal: (workflow: GitHubWorkflow) => {
-    set({ isDispatchModalOpen: true, dispatchTargetWorkflow: workflow });
-  },
-
-  closeDispatchModal: () => {
-    set({ isDispatchModalOpen: false, dispatchTargetWorkflow: null });
-  },
-
-  dispatchWorkflow: async (ref: string, inputs?: Record<string, string>) => {
-    const { dispatchTargetWorkflow, currentOwner, currentRepoName } = get();
-    if (!dispatchTargetWorkflow) return;
-    if (!currentOwner || !currentRepoName) {
-      toast.warning('未绑定 GitHub 仓库', '请先打开一个 GitHub 远程仓库');
-      return;
-    }
-
-    try {
-      await githubService.dispatchWorkflow(currentOwner, currentRepoName, dispatchTargetWorkflow.id, {
-        ref,
-        inputs,
-      });
-      toast.success('调度请求已提交至 GitHub', `${dispatchTargetWorkflow.name} 正在排队执行`);
-      set({ isDispatchModalOpen: false });
-      setTimeout(() => {
-        get().refreshActions();
-      }, 1500);
-    } catch (err: any) {
-      toast.error('触发工作流失败', err.message);
-    }
-  },
-
-  rerunWorkflowRun: async (runId: number, failedOnly = false) => {
-    const { currentOwner, currentRepoName } = get();
-    if (!currentOwner || !currentRepoName) return;
-
-    try {
-      await githubService.rerunWorkflow(currentOwner, currentRepoName, runId, failedOnly);
-      toast.success('重跑请求已成功发送至 GitHub');
-      get().refreshActions();
-    } catch (err: any) {
-      toast.error('重新运行失败', err.message);
-    }
-  },
-
-  cancelWorkflowRun: async (runId: number) => {
-    const { currentOwner, currentRepoName } = get();
-    if (!currentOwner || !currentRepoName) return;
-
-    try {
-      await githubService.cancelWorkflowRun(currentOwner, currentRepoName, runId);
-      toast.info('已向 GitHub 发送取消请求');
-      get().refreshActions();
-    } catch (err: any) {
-      toast.error('取消工作流失败', err.message);
-    }
-  },
-
-  // Pull Requests Controls
-  loadPullRequests: async () => {
-    const { currentOwner, currentRepoName } = get();
-    if (!currentOwner || !currentRepoName) return;
-
-    try {
-      const prs = await githubService.getPullRequests(currentOwner, currentRepoName);
-      set({ pullRequests: prs, selectedPR: prs[0] || null });
-    } catch (err: any) {
-      console.warn('加载 PR 失败:', err);
-    }
-  },
-
-  selectPR: (pr: GitHubPullRequest | null) => {
-    set({ selectedPR: pr });
-  },
-
-  setPRFilterState: (filter: 'open' | 'closed' | 'all') => {
-    set({ prFilterState: filter });
-  },
-
-  watchPushChecks: (sha: string) => {
-    const { currentOwner, currentRepoName } = get();
-    if (!currentOwner || !currentRepoName || !sha) return;
-    if (pushWatchedSha === sha && pushWatchTimer) return;
-
-    // 新推送替换旧监听
+export const useGitHubStore = create<GitHubState>((set, get) => {
+  let generation = 0;
+  let authGeneration = 0;
+  const requests = new Map<string, number>();
+  const ticket = (channel: string) => {
+    const epoch = generation;
+    const id = (requests.get(channel) || 0) + 1;
+    requests.set(channel, id);
+    return () => generation === epoch && requests.get(channel) === id;
+  };
+  const stopWatch = () => {
     if (pushWatchTimer) clearTimeout(pushWatchTimer);
-
-    const POLL_INTERVAL = 15_000;
-    const MAX_POLLS = 20; // 约 5 分钟
-    let polls = 0;
-
-    pushWatchedSha = sha;
-    toast.info(tNow('ci.watching'), `${currentOwner}/${currentRepoName} @ ${sha.slice(0, 7)}`);
-
-    const poll = async () => {
-      polls++;
-      let runs: GitHubCheckRun[] = [];
+    pushWatchTimer = null; pushWatchedSha = null;
+  };
+  return {
+    ...emptyRepo, token: null, user: null, isAuthenticated: false, prFilterState: 'open',
+    clearRepo: () => {
+      generation++; requests.clear(); stopWatch();
+      set({ ...emptyRepo });
+    },
+    initAuth: async () => {
+      const attempt = ++authGeneration;
+      localStorage.removeItem(LEGACY_DEMO_KEY);
       try {
-        runs = await githubService.getCommitChecks(currentOwner!, currentRepoName!, sha);
-      } catch {
-        runs = [];
-      }
-
-      if (runs.length === 0) {
-        if (polls >= MAX_POLLS) return; // 仓库没有配置 CI，静默放弃
-        pushWatchTimer = setTimeout(poll, POLL_INTERVAL);
-        return;
-      }
-
-      const pending = runs.filter((r) => r.status !== 'completed').length;
-      if (pending > 0) {
-        if (polls >= MAX_POLLS) {
-          toast.info(tNow('ci.stillRunning'), tNow('ci.watchingDesc'));
-          return;
+        const token = await loadToken();
+        if (!token || attempt !== authGeneration) return;
+        const user = await githubService.verifyToken(token);
+        if (attempt !== authGeneration) return;
+        githubService.setToken(token);
+        set({ token, user, isAuthenticated: true });
+        await get().refreshActions();
+      } catch (error) {
+        if (attempt !== authGeneration) return;
+        if (error instanceof GitHubApiError && error.status === 401) {
+          await clearToken(); githubService.setToken(null);
         }
-        pushWatchTimer = setTimeout(poll, POLL_INTERVAL);
-        return;
+        // Network, rate-limit and server errors must not delete saved credentials.
+        set({ error: String(error) });
       }
-
-      const failures = runs.filter((r) => r.conclusion === 'failure').length;
-      if (failures > 0) {
-        toast.error(
-          tNow('ci.failed'),
-          `${runs.length - failures}/${runs.length} ${tNow('ci.passedCount')}`
-        );
-      } else {
-        toast.success(tNow('ci.passed'), `${runs.length} ${tNow('ci.passedCount')}`);
+    },
+    login: async (token: string) => {
+      const attempt = ++authGeneration;
+      set({ isLoading: true, error: null });
+      try {
+        const user = await githubService.verifyToken(token);
+        if (attempt !== authGeneration) return;
+        await persistToken(token);
+        if (attempt !== authGeneration) return;
+        githubService.setToken(token);
+        set({ token, user, isAuthenticated: true, isLoading: false });
+        await get().refreshActions();
+      } catch (error: any) {
+        if (attempt === authGeneration) set({ error: error.message, isLoading: false });
+        throw error;
       }
-    };
-
-    pushWatchTimer = setTimeout(poll, POLL_INTERVAL);
-  },
-}));
+    },
+    logout: () => {
+      authGeneration++; get().clearRepo();
+      void clearToken().catch((error) => toast.error('无法清理凭据', String(error)));
+      githubService.setToken(null);
+      set({ token: null, user: null, isAuthenticated: false });
+    },
+    syncRepo: async (owner, repo) => {
+      if (get().currentOwner === owner && get().currentRepoName === repo) return;
+      get().clearRepo();
+      set({ currentOwner: owner, currentRepoName: repo });
+      await get().loadRepoData(owner, repo);
+    },
+    loadRepoData: async (owner, repo) => {
+      if (get().currentOwner !== owner || get().currentRepoName !== repo) {
+        get().clearRepo(); set({ currentOwner: owner, currentRepoName: repo });
+      }
+      const valid = ticket('repo');
+      const prsValid = ticket('prs');
+      ticket('runs'); ticket('jobs');
+      set({ isLoading: true, error: null });
+      try {
+        const [repoDetails, workflows, runs, prs] = await Promise.all([
+          githubService.getRepository(owner, repo), githubService.getWorkflows(owner, repo),
+          githubService.getWorkflowRuns(owner, repo, get().selectedWorkflow?.id), githubService.getPullRequests(owner, repo, get().prFilterState),
+        ]);
+        if (!valid()) return;
+        const selectedRun = runs.find((run) => run.id === get().selectedRun?.id) || runs[0] || null;
+        const jobs = selectedRun ? await githubService.getRunJobs(owner, repo, selectedRun.id) : [];
+        if (!valid()) return;
+        set({ repoDetails, workflows, workflowRuns: runs, selectedRun, selectedRunJobs: jobs,
+          ...(prsValid() ? { pullRequests: prs, selectedPR: prs.find((pr) => pr.id === get().selectedPR?.id) || prs[0] || null } : {}), isLoading: false });
+      } catch (error: any) { if (valid()) set({ error: error.message, isLoading: false }); }
+    },
+    refreshActions: async () => {
+      const { currentOwner, currentRepoName } = get();
+      if (currentOwner && currentRepoName) await get().loadRepoData(currentOwner, currentRepoName);
+    },
+    selectWorkflow: async (workflow) => {
+      const valid = ticket('runs'); ticket('jobs'); ticket('repo');
+      set({ isLoading: false, selectedWorkflow: workflow, workflowRuns: [], selectedRun: null, selectedRunJobs: [] });
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!owner || !repo) return;
+      try {
+        const runs = await githubService.getWorkflowRuns(owner, repo, workflow?.id);
+        if (!valid()) return;
+        set({ workflowRuns: runs });
+        await get().selectRun(runs[0] || null);
+      } catch (error: any) { if (valid()) set({ error: error.message }); }
+    },
+    selectRun: async (run) => {
+      const valid = ticket('jobs'); ticket('repo');
+      set({ isLoading: false, selectedRun: run, selectedRunJobs: [] });
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!run || !owner || !repo) return;
+      try {
+        const jobs = await githubService.getRunJobs(owner, repo, run.id);
+        if (valid()) set({ selectedRunJobs: jobs });
+      } catch (error: any) { if (valid()) set({ error: error.message }); }
+    },
+    fetchCommitChecks: async (sha) => {
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!owner || !repo) return [];
+      const cached = get().commitChecks[sha];
+      if (cached?.length && cached.every((check) => check.status === 'completed')) return cached;
+      const valid = ticket(`checks:${sha}`);
+      try {
+        const checks = await githubService.getCommitChecks(owner, repo, sha);
+        if (!valid()) return [];
+        set((state) => ({ commitChecks: { ...state.commitChecks, [sha]: checks } }));
+        return checks;
+      } catch { return []; }
+    },
+    openJobLogs: async (jobId, jobName) => {
+      const valid = ticket('logs');
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!owner || !repo) return;
+      set({ isLogsModalOpen: true, activeJobLogs: { jobId, jobName: jobName || `Job #${jobId}`, rawLogs: 'Loading…' } });
+      try {
+        const logs = await githubService.getJobLogs(owner, repo, jobId);
+        if (valid()) set({ activeJobLogs: { ...logs, jobName: jobName || logs.jobName } });
+      } catch (error: any) {
+        if (valid()) set({ activeJobLogs: { jobId, jobName: jobName || `Job #${jobId}`, rawLogs: error.message } });
+      }
+    },
+    closeJobLogs: () => { ticket('logs'); set({ isLogsModalOpen: false, activeJobLogs: null }); },
+    openWorkflowYaml: async (workflow) => {
+      const valid = ticket('yaml');
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!owner || !repo) return;
+      set({ isYamlModalOpen: true, activeWorkflowYaml: { path: workflow.path, content: 'Loading…' } });
+      try {
+        const yaml = await githubService.getWorkflowYaml(owner, repo, workflow.path);
+        if (valid()) set({ activeWorkflowYaml: yaml });
+      } catch (error: any) { if (valid()) set({ activeWorkflowYaml: { path: workflow.path, content: error.message } }); }
+    },
+    closeWorkflowYaml: () => { ticket('yaml'); set({ isYamlModalOpen: false, activeWorkflowYaml: null }); },
+    openDispatchModal: (workflow) => set({ isDispatchModalOpen: true, dispatchTargetWorkflow: workflow }),
+    closeDispatchModal: () => set({ isDispatchModalOpen: false, dispatchTargetWorkflow: null }),
+    dispatchWorkflow: async (ref, inputs) => {
+      const { currentOwner: owner, currentRepoName: repo, dispatchTargetWorkflow: workflow } = get();
+      if (!owner || !repo || !workflow) return;
+      const valid = ticket('dispatch');
+      try {
+        await githubService.dispatchWorkflow(owner, repo, workflow.id, { ref, inputs });
+        if (!valid()) return;
+        toast.success('调度请求已提交至 GitHub'); get().closeDispatchModal();
+        await get().refreshActions();
+      } catch (error: any) { if (valid()) toast.error('触发工作流失败', error.message); }
+    },
+    rerunWorkflowRun: async (runId, failedOnly = false) => {
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!owner || !repo) return;
+      const valid = ticket('rerun');
+      try {
+        await githubService.rerunWorkflow(owner, repo, runId, failedOnly);
+        if (valid()) { toast.success('重跑请求已发送'); await get().refreshActions(); }
+      } catch (error: any) { if (valid()) toast.error('重新运行失败', error.message); }
+    },
+    cancelWorkflowRun: async (runId) => {
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!owner || !repo) return;
+      const valid = ticket('cancel');
+      try {
+        await githubService.cancelWorkflowRun(owner, repo, runId);
+        if (valid()) { toast.info('取消请求已发送'); await get().refreshActions(); }
+      } catch (error: any) { if (valid()) toast.error('取消工作流失败', error.message); }
+    },
+    loadPullRequests: async () => {
+      const valid = ticket('prs');
+      const { currentOwner: owner, currentRepoName: repo, prFilterState } = get();
+      if (!owner || !repo) return;
+      try {
+        const prs = await githubService.getPullRequests(owner, repo, prFilterState);
+        if (valid()) set({ pullRequests: prs, selectedPR: prs.find((pr) => pr.id === get().selectedPR?.id) || prs[0] || null });
+      } catch (error: any) { if (valid()) set({ error: error.message }); }
+    },
+    selectPR: (pr) => set({ selectedPR: pr }),
+    setPRFilterState: (filter) => {
+      ticket('repo'); set({ isLoading: false, prFilterState: filter, pullRequests: [], selectedPR: null });
+      void get().loadPullRequests();
+    },
+    watchPushChecks: (sha) => {
+      const { currentOwner: owner, currentRepoName: repo } = get();
+      if (!owner || !repo || !sha || (pushWatchedSha === sha && pushWatchTimer)) return;
+      stopWatch(); pushWatchedSha = sha;
+      const epoch = generation;
+      let polls = 0;
+      const valid = () => epoch === generation && pushWatchedSha === sha;
+      const poll = async () => {
+        if (!valid()) return;
+        polls++;
+        try {
+          const checks = await githubService.getCommitChecks(owner, repo, sha);
+          if (!valid()) return;
+          if (checks.length && checks.every((check) => check.status === 'completed')) {
+            const passed = checks.filter((check) => check.conclusion === 'success').length;
+            if (passed === checks.length) toast.success(tNow('ci.passed'), `${passed}/${checks.length}`);
+            else toast.warning('CI 未全部通过', checks.map((check) => `${check.name}: ${check.conclusion}`).join(', '));
+            stopWatch(); return;
+          }
+        } catch { /* retry transient failures without reporting a successful run */ }
+        if (polls < 20) pushWatchTimer = setTimeout(poll, 15_000);
+        else { toast.info(tNow('ci.stillRunning')); stopWatch(); }
+      };
+      toast.info(tNow('ci.watching'), `${owner}/${repo} @ ${sha.slice(0, 7)}`);
+      pushWatchTimer = setTimeout(poll, 15_000);
+    },
+  };
+});

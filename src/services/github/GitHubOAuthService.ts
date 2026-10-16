@@ -47,6 +47,7 @@ export class GitHubOAuthService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-AuuGit-Request': '1',
       },
       body: JSON.stringify({
         client_id: GitHubOAuthService.CLIENT_ID,
@@ -122,6 +123,7 @@ export class GitHubOAuthService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+        'X-AuuGit-Request': '1',
           },
           body: JSON.stringify({
             client_id: GitHubOAuthService.CLIENT_ID,

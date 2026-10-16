@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React from 'react';
 import { Keyboard, X } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -47,9 +48,8 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
   ];
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={t('settings.tab.shortcuts')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-lg max-h-[80vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col animate-in zoom-in-95"
@@ -100,6 +100,6 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
           ))}
         </div>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

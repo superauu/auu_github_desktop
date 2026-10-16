@@ -12,6 +12,7 @@ import {
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
+import { hasConflictMarkers } from '@/services/git/ConflictParser';
 import { useGitHubStore } from '@/stores/githubStore';
 
 export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests';
@@ -34,7 +35,6 @@ interface RepoState {
   commits: GitCommit[];
   commitsLimit: number;
   commitsLoadedAll: boolean;
-  statusFingerprint: string | null;
   branches: GitBranch[];
   tags: GitTag[];
   stashes: GitStash[];
@@ -121,7 +121,7 @@ interface RepoState {
   resolveFileTheirs: (filePath: string) => Promise<void>;
   resetFileConflictMarkers: (filePath: string) => Promise<void>;
   readWorkingFile: (filePath: string) => Promise<string>;
-  saveAndStageConflictFile: (filePath: string, content: string) => Promise<void>;
+  saveAndStageConflictFile: (filePath: string, content: string, expectedContent?: string) => Promise<void>;
   abortCurrentOperation: () => Promise<void>;
   completeCurrentOperation: (commitMessage?: string) => Promise<void>;
 }
@@ -130,6 +130,19 @@ const RECENT_REPOS_KEY = 'auu_git_recent_repos';
 const OPEN_TABS_KEY = 'auu_git_open_tabs';
 
 export const useRepoStore = create<RepoState>((set, get) => {
+  let repoEpoch = 0;
+  let refreshId = 0;
+  let diffId = 0;
+  let checkingExternal = false;
+  const publish = set;
+  const scopedSet = (): typeof set => {
+    const epoch = repoEpoch;
+    const path = get().currentRepo?.path;
+    return ((partial: any, replace?: any) => {
+      if (repoEpoch === epoch && get().currentRepo?.path === path) publish(partial, replace);
+    }) as typeof set;
+  };
+  const isCurrent = (path: string, epoch: number) => get().currentRepo?.path === path && repoEpoch === epoch;
   // Load initial recent repos
   let initialRecent: RepositoryInfo[] = [];
   try {
@@ -166,7 +179,6 @@ export const useRepoStore = create<RepoState>((set, get) => {
     commits: [],
     commitsLimit: 100,
     commitsLoadedAll: false,
-    statusFingerprint: null as string | null,
     branches: [],
     tags: [],
     stashes: [],
@@ -186,6 +198,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     setCurrentRepo: (repo) => {
+      repoEpoch++; refreshId++; diffId++;
+      useGitHubStore.getState().clearRepo();
       set((state) => {
         let newTabs = state.openTabs;
         if (repo && !newTabs.some((t) => t.path === repo.path)) {
@@ -196,6 +210,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
         } catch {}
         return {
           currentRepo: repo,
+          status: null, commits: [], branches: [], tags: [], stashes: [],
+          errorMessage: null, isLoading: false,
+          selectedBranch: null, scrollToCommitHash: null, commitsLimit: 100, commitsLoadedAll: false,
+          operationState: { type: 'none' as const, inConflict: false, conflictedFiles: [], isAllResolved: false },
           selectedFile: null,
           selectedCommit: null,
           fileDiffLines: [],
@@ -207,28 +225,18 @@ export const useRepoStore = create<RepoState>((set, get) => {
         try {
           localStorage.setItem('auu_git_last_active_repo', JSON.stringify(repo));
         } catch {}
-        get().refreshAll();
+        void get().refreshAll().catch(() => {});
       } else {
         localStorage.removeItem('auu_git_last_active_repo');
       }
     },
 
     closeTab: (path: string) => {
-      set((state) => {
-        const remaining = state.openTabs.filter((t) => t.path !== path);
-        try {
-          localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(remaining));
-        } catch {}
-        let nextCurrent = state.currentRepo;
-        if (state.currentRepo?.path === path) {
-          nextCurrent = remaining.length > 0 ? remaining[0] : null;
-        }
-        return { openTabs: remaining, currentRepo: nextCurrent };
-      });
-      const current = get().currentRepo;
-      if (current) {
-        get().refreshAll();
-      }
+      const remaining = get().openTabs.filter((tab) => tab.path !== path);
+      try { localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(remaining)); } catch {}
+      const wasActive = get().currentRepo?.path === path;
+      set({ openTabs: remaining });
+      if (wasActive) get().setCurrentRepo(remaining[0] || null);
     },
 
     switchTab: (path: string) => {
@@ -237,21 +245,23 @@ export const useRepoStore = create<RepoState>((set, get) => {
         get().setCurrentRepo(tab);
       }
     },
-    setActiveTab: (activeTab) => set({ activeTab }),
+    setActiveTab: (activeTab) => { diffId++; set({ activeTab }); },
     setStatus: (status) => set({ status }),
     setSelectedFile: (selectedFile) => {
-      set({ selectedFile });
+      diffId++;
+      set({ selectedFile, fileDiffLines: [] });
       if (selectedFile) {
         get().loadFileDiff(selectedFile);
       } else {
         set({ fileDiffLines: [] });
       }
     },
-    setSelectedCommit: (selectedCommit) => set({ selectedCommit }),
+    setSelectedCommit: (selectedCommit) => { diffId++; set({ selectedCommit }); },
     setSelectedBranch: (selectedBranch) => set({ selectedBranch }),
     setScrollToCommitHash: (scrollToCommitHash) => set({ scrollToCommitHash }),
 
     selectAndLocateBranch: async (branchName: string) => {
+      const set = scopedSet();
       const { currentRepo, commits, branches } = get();
       if (!currentRepo) return;
 
@@ -342,21 +352,17 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }),
 
     checkExternalChanges: async () => {
-      const { currentRepo, statusFingerprint } = get();
-      if (!currentRepo) return;
+      if (!get().currentRepo || checkingExternal) return;
+      checkingExternal = true;
       try {
-        const status = await gitService.getStatus(currentRepo.path);
-        const fp = fingerprintStatus(status);
-        if (fp !== statusFingerprint) {
-          // 外部改动（终端操作/编辑器保存/切分支等）→ 全量刷新
-          await get().refreshAll();
-        }
-      } catch {
-        // 仓库暂时不可用（如被外部进程锁定）时静默
-      }
+        // Status codes alone cannot detect edits to an already-dirty file or new local commits.
+        // Refresh local data; syncRepo avoids repeated GitHub requests for unchanged bindings.
+        await get().refreshAll().catch(() => {});
+      } finally { checkingExternal = false; }
     },
 
     loadMoreCommits: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       set((state) => ({ commitsLimit: state.commitsLimit + 100 }));
@@ -364,8 +370,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     refreshAll: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
+      const epoch = repoEpoch;
+      const request = ++refreshId;
+      const valid = () => isCurrent(currentRepo.path, epoch) && request === refreshId;
 
       set({ isLoading: true, errorMessage: null });
       try {
@@ -390,22 +400,11 @@ export const useRepoStore = create<RepoState>((set, get) => {
           currentBranch: detectedBranch || currentRepo.currentBranch || 'main',
         };
 
-        // Auto-detect GitHub remote & sync with GitHub Store
-        if (!activeRepo.remoteUrl || !activeRepo.gitHubOwner) {
-          try {
-            const detected = await gitService.openRepository(activeRepo.path);
-            if (detected.remoteUrl) {
-              activeRepo = {
-                ...activeRepo,
-                remoteUrl: detected.remoteUrl,
-                isGitHubRepo: detected.isGitHubRepo,
-                gitHubOwner: detected.gitHubOwner,
-                gitHubRepo: detected.gitHubRepo,
-                currentBranch: detected.currentBranch || activeRepo.currentBranch,
-              };
-            }
-          } catch {}
-        }
+        // Re-read origin even when cached, so remote edits/removals cannot retain an old binding.
+        const detected = await gitService.openRepository(activeRepo.path);
+        if (!valid()) return;
+        activeRepo = { ...activeRepo, remoteUrl: detected.remoteUrl,
+          isGitHubRepo: detected.isGitHubRepo, gitHubOwner: detected.gitHubOwner, gitHubRepo: detected.gitHubRepo };
 
         // Persist updated repo to localStorage
         try {
@@ -428,7 +427,6 @@ export const useRepoStore = create<RepoState>((set, get) => {
             openTabs: updatedTabs,
             recentRepos: updatedRecent,
             status,
-            statusFingerprint: fingerprintStatus(status),
             commits,
             commitsLoadedAll: commits.length < commitsLimit,
             branches,
@@ -439,15 +437,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
           };
         });
 
-        // If no file is selected, select the first available changed file
         const allChanges = [...status.staged, ...status.unstaged, ...status.untracked];
-        const currentSelected = get().selectedFile;
-        if (!currentSelected && allChanges.length > 0) {
-          get().setSelectedFile(allChanges[0]);
-        } else if (currentSelected) {
-          // Refresh current file diff
-          get().loadFileDiff(currentSelected);
-        }
+        const selected = get().selectedFile;
+        const next = allChanges.find((file) => file.path === selected?.path && file.staged === selected.staged) || allChanges[0] || null;
+        get().setSelectedFile(next);
 
         // If no commit selected, select the first commit
         if (!get().selectedCommit && commits.length > 0) {
@@ -455,16 +448,21 @@ export const useRepoStore = create<RepoState>((set, get) => {
         }
 
         if (activeRepo.gitHubOwner && activeRepo.gitHubRepo) {
-          useGitHubStore.getState().syncRepo(activeRepo.gitHubOwner, activeRepo.gitHubRepo);
-        }
+          void useGitHubStore.getState().syncRepo(activeRepo.gitHubOwner, activeRepo.gitHubRepo);
+        } else { useGitHubStore.getState().clearRepo(); }
       } catch (err: any) {
-        set({ errorMessage: err.message, isLoading: false });
+        if (valid()) set({ errorMessage: err.message, isLoading: false });
+        throw err;
       }
     },
 
     refreshStatus: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
+      const epoch = repoEpoch;
+      const request = ++refreshId;
+      const valid = () => isCurrent(currentRepo.path, epoch) && request === refreshId;
 
       try {
         const { commitsLimit } = get();
@@ -473,30 +471,32 @@ export const useRepoStore = create<RepoState>((set, get) => {
           gitService.getCommits(currentRepo.path, commitsLimit),
         ]);
 
+        if (!valid()) return;
         set((state) => {
           const updatedTabs = state.openTabs.map((t) =>
             t.path === currentRepo.path ? { ...t, currentBranch: status.currentBranch } : t
           );
           return {
+            isLoading: false,
+            currentRepo: { ...currentRepo, currentBranch: status.currentBranch },
             status,
-            statusFingerprint: fingerprintStatus(status),
             commits,
             commitsLoadedAll: commits.length < commitsLimit,
             openTabs: updatedTabs,
           };
         });
 
-        // Refresh current file diff if one is selected
-        const currentSelected = get().selectedFile;
-        if (currentSelected) {
-          get().loadFileDiff(currentSelected);
-        }
+        const changes = [...status.staged, ...status.unstaged, ...status.untracked];
+        const selected = get().selectedFile;
+        get().setSelectedFile(changes.find((file) => file.path === selected?.path && file.staged === selected.staged)
+          || changes.find((file) => file.path === selected?.path) || changes[0] || null);
       } catch (err: any) {
         console.warn('refreshStatus failed:', err);
       }
     },
 
     fetchRemote: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       set({ isLoading: true, errorMessage: null });
@@ -510,6 +510,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     pull: async (rebase?: boolean) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       set({ isLoading: true, errorMessage: null });
@@ -523,8 +524,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     push: async (remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
+      const epoch = repoEpoch;
       set({ isLoading: true, errorMessage: null });
       try {
         // 记录推送前本地 HEAD，成功后交给 GitHub 监听 CI 结果
@@ -536,7 +539,9 @@ export const useRepoStore = create<RepoState>((set, get) => {
         }
 
         await gitService.push(currentRepo.path, remote, branch, options);
+        if (!isCurrent(currentRepo.path, epoch)) return;
         await get().refreshStatus();
+        set({ isLoading: false });
         if (pushedSha) {
           useGitHubStore.getState().watchPushChecks(pushedSha);
         }
@@ -547,8 +552,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     loadFileDiff: async (file: GitFileChange, commitHash?: string) => {
+      const set = scopedSet();
       const { currentRepo, selectedCommit, activeTab } = get();
       if (!currentRepo) return;
+      const epoch = repoEpoch;
+      const request = ++diffId;
+      const valid = () => isCurrent(currentRepo.path, epoch) && request === diffId;
 
       try {
         const targetCommit =
@@ -565,14 +574,15 @@ export const useRepoStore = create<RepoState>((set, get) => {
             file.status === 'untracked'
           );
         }
-        set({ fileDiffLines: diffLines });
+        if (valid()) set({ fileDiffLines: diffLines });
       } catch (err: any) {
         console.warn('获取 Diff 失败:', err);
-        set({ fileDiffLines: [] });
+        if (valid()) set({ fileDiffLines: [] });
       }
     },
 
     stageFile: async (filePath: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -585,6 +595,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     unstageFile: async (filePath: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -597,6 +608,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     stageHunk: async (filePath, hunk, isUntracked = false) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -609,6 +621,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     unstageHunk: async (filePath, hunk) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -621,6 +634,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     discardHunk: async (filePath, hunk) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -633,6 +647,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     stageAll: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -645,6 +660,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     unstageAll: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -657,6 +673,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     discardChanges: async (filePath: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -669,6 +686,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     commit: async (message: string, amend?: boolean) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -682,6 +700,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     createBranch: async (name: string, startPoint?: string, checkout?: boolean) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -698,6 +717,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     deleteBranch: async (name: string, force?: boolean) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -710,10 +730,13 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     checkoutBranch: async (name: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
+      const epoch = repoEpoch;
       try {
         await gitService.checkoutBranch(currentRepo.path, name);
+        if (!isCurrent(currentRepo.path, epoch)) return;
         const updatedRepo = { ...currentRepo, currentBranch: name };
         try {
           localStorage.setItem('auu_git_last_active_repo', JSON.stringify(updatedRepo));
@@ -752,6 +775,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     createTag: async (name: string, commitHash?: string, message?: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -764,6 +788,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     deleteTag: async (name: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -776,6 +801,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     pushTag: async (name: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -788,6 +814,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     pushAllTags: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -800,6 +827,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     deleteRemoteTag: async (name: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -812,6 +840,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     mergeBranch: async (branch: string, options?: { noFf?: boolean; message?: string }) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return '';
       try {
@@ -826,6 +855,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     abortMerge: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -838,6 +868,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     rebaseBranch: async (upstream: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return '';
       try {
@@ -852,6 +883,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     rebaseContinue: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -864,6 +896,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     rebaseAbort: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -876,6 +909,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     stashPush: async (message?: string, includeUntracked: boolean = true) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -888,6 +922,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     stashPop: async (index: number = 0) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -900,6 +935,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     stashApply: async (index: number = 0) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -912,6 +948,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     stashDrop: async (index: number = 0) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -924,6 +961,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     revertCommit: async (hash: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -936,6 +974,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     softResetCommit: async (hash: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -948,6 +987,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     cherryPickCommit: async (hash: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -960,6 +1000,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     hardResetCommit: async (hash: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -973,6 +1014,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     undoLastCommit: async () => {
+      const set = scopedSet();
       const { currentRepo, commits } = get();
       if (!currentRepo) return;
       try {
@@ -1008,6 +1050,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     redoLastCommit: async () => {
+      const set = scopedSet();
       const { currentRepo, redoStack } = get();
       if (!currentRepo || redoStack.length === 0) return;
 
@@ -1017,7 +1060,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
 
       try {
-        await gitService.redoCommit(currentRepo.path, item.commitHash);
+        await gitService.redoCommit(currentRepo.path, item.commitHash, item.branch);
         set((state) => ({
           redoStack: state.redoStack.slice(1),
         }));
@@ -1029,6 +1072,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     openTerminal: async () => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -1040,6 +1084,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     fetchAndCheckoutPR: async (prNumber: number, customBranchName?: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) throw new Error('未打开任何 Git 仓库');
       set({ isLoading: true, errorMessage: null });
@@ -1062,6 +1107,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     resolveFileOurs: async (filePath: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -1074,6 +1120,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     resolveFileTheirs: async (filePath: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -1086,6 +1133,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     resetFileConflictMarkers: async (filePath: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
@@ -1103,11 +1151,13 @@ export const useRepoStore = create<RepoState>((set, get) => {
       return await gitService.readWorkingFile(currentRepo.path, filePath);
     },
 
-    saveAndStageConflictFile: async (filePath: string, content: string) => {
+    saveAndStageConflictFile: async (filePath: string, content: string, expectedContent?: string) => {
+      const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
-        await gitService.writeWorkingFile(currentRepo.path, filePath, content);
+        if (hasConflictMarkers(content)) throw new Error('Resolve all conflict markers before staging');
+        await gitService.writeWorkingFile(currentRepo.path, filePath, content, expectedContent);
         await gitService.stageFile(currentRepo.path, filePath);
         await get().refreshAll();
       } catch (err: any) {
@@ -1117,6 +1167,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     abortCurrentOperation: async () => {
+      const set = scopedSet();
       const { currentRepo, operationState } = get();
       if (!currentRepo) return;
       try {
@@ -1135,6 +1186,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
 
     completeCurrentOperation: async (commitMessage?: string) => {
+      const set = scopedSet();
       const { currentRepo, operationState } = get();
       if (!currentRepo) return;
       try {
@@ -1156,13 +1208,3 @@ export const useRepoStore = create<RepoState>((set, get) => {
     },
   };
 });
-
-// 工作区状态指纹：分支/ahead/behind + 全部文件路径与状态码（排序后序列化），用于检测外部变更
-function fingerprintStatus(status: GitStatusResult): string {
-  const files = [
-    ...status.staged.map((f) => `S:${f.status}:${f.oldPath || ''}:${f.path}`),
-    ...status.unstaged.map((f) => `W:${f.status}:${f.oldPath || ''}:${f.path}`),
-    ...status.untracked.map((f) => `U:${f.path}`),
-  ].sort();
-  return JSON.stringify([status.currentBranch, status.trackingBranch || '', status.ahead, status.behind, files]);
-}

@@ -19,7 +19,6 @@ import { useRepoStore } from '@/stores/repoStore';
 import { GitGraphRenderer } from '@/features/graph/GitGraphRenderer';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { toast } from '@/stores/toastStore';
@@ -68,6 +67,15 @@ export const CommitHistoryView: React.FC = () => {
     (status?.untracked.length || 0);
 
   const hasWip = totalChanges > 0;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ top: 0, height: 800 });
+  useEffect(() => {
+    const element = viewportRef.current;
+    if (!element) return;
+    const update = () => setViewport({ top: element.scrollTop, height: element.clientHeight });
+    const observer = new ResizeObserver(update); observer.observe(element); update();
+    return () => observer.disconnect();
+  }, []);
 
   // Auto-scroll to selected commit or target branch commit
   useEffect(() => {
@@ -75,6 +83,10 @@ export const CommitHistoryView: React.FC = () => {
     if (!hashToScroll) return;
 
     const timer = setTimeout(() => {
+      const index = filteredCommits.findIndex((commit) => commit.hash === hashToScroll);
+      if (index >= 0 && viewportRef.current) {
+        viewportRef.current.scrollTo({ top: Math.max(0, (index + (hasWip ? 1 : 0)) * 42 - viewportRef.current.clientHeight / 2), behavior: 'smooth' });
+      }
       const el = document.getElementById(`commit-row-${hashToScroll}`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -95,6 +107,8 @@ export const CommitHistoryView: React.FC = () => {
     );
   });
 
+  const firstVisible = Math.min(filteredCommits.length, Math.max(0, Math.floor(viewport.top / 42) - (hasWip ? 1 : 0) - 8));
+  const lastVisible = Math.min(filteredCommits.length, Math.ceil((viewport.top + viewport.height) / 42) + 8);
   const activeCommit = selectedCommit || filteredCommits[0];
   const selectedIndex = hasWip
     ? filteredCommits.findIndex((c) => c.hash === activeCommit?.hash) + 1
@@ -232,7 +246,7 @@ export const CommitHistoryView: React.FC = () => {
       </div>
 
       {/* Commit List Table with SVG Graph */}
-      <ScrollArea className="flex-1">
+      <div ref={viewportRef} className="flex-1 min-h-0 overflow-auto" onScroll={(event) => setViewport({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight })}>
         {isLoading && commits.length === 0 ? (
           <div className="py-6 px-3 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -254,11 +268,13 @@ export const CommitHistoryView: React.FC = () => {
                 selectedIndex={selectedIndex}
                 rowHeight={42}
                 hasWipNode={hasWip}
+                visibleStart={firstVisible}
+                visibleEnd={lastVisible}
               />
             </div>
 
             {/* Rows list */}
-            <div className="flex-1 divide-y divide-border/30 min-w-0">
+            <div className="flex-1 min-w-0">
               {/* GitKraken-style Row 0: // WIP (Work in Progress) */}
               {hasWip && (
                 <div
@@ -302,7 +318,8 @@ export const CommitHistoryView: React.FC = () => {
               )}
 
               {/* Commit Details Rows */}
-              {filteredCommits.map((commit) => {
+              <div aria-hidden style={{ height: firstVisible * 42 }} />
+              {filteredCommits.slice(firstVisible, lastVisible).map((commit) => {
                 const isSelected = activeCommit?.hash === commit.hash;
                 const isCopied = copiedHash === commit.hash;
 
@@ -418,6 +435,7 @@ export const CommitHistoryView: React.FC = () => {
                 );
               })}
 
+              <div aria-hidden style={{ height: (filteredCommits.length - lastVisible) * 42 }} />
               {/* Progressive history loading footer */}
               {filteredCommits.length > 0 && (
                 <div className="py-3 flex justify-center">
@@ -438,7 +456,7 @@ export const CommitHistoryView: React.FC = () => {
             </div>
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Commit Context Menu (right click on any commit row) */}
       <ContextMenu

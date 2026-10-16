@@ -46,6 +46,7 @@ export const AppLayout: React.FC = () => {
   // Global Shortcuts（速查浮层：按 ?）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
       // Ctrl+` 切换内嵌终端（输入框内也允许）
       if ((e.ctrlKey || e.metaKey) && (e.key === '`' || e.code === 'Backquote')) {
         e.preventDefault();

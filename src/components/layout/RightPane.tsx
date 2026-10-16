@@ -64,6 +64,7 @@ export const RightPane: React.FC = () => {
   const [isAmend, setIsAmend] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { t } = useI18n();
+  useEffect(() => { setCommitMessage(''); setIsAmend(false); }, [currentRepo?.path]);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [checks, setChecks] = useState<GitHubCheckRun[]>([]);
   const [copiedHash, setCopiedHash] = useState(false);
@@ -82,37 +83,35 @@ export const RightPane: React.FC = () => {
   const [isLoadingDiff, setIsLoadingDiff] = useState(false);
   const [previewDiffMode, setPreviewDiffMode] = useState<'unified' | 'split'>('unified');
 
+  const previewRequest = useRef(0);
   useEffect(() => {
-    if (activeTab === 'history' && selectedCommit) {
-      fetchCommitChecks(selectedCommit.hash).then((res) => {
-        setChecks(res);
-      });
-      if (currentRepo) {
-        setIsLoadingCommitFiles(true);
-        gitService
-          .getCommitFiles(currentRepo.path, selectedCommit.hash)
-          .then((res) => setCommitFiles(res))
-          .catch(() => setCommitFiles([]))
-          .finally(() => setIsLoadingCommitFiles(false));
-      }
-    } else {
-      setCommitFiles([]);
-      setPreviewCommitFile(null);
+    let cancelled = false;
+    previewRequest.current++;
+    setCommitFiles([]); setChecks([]); setPreviewCommitFile(null); setPreviewDiffLines([]);
+    if (activeTab === 'history' && selectedCommit && currentRepo) {
+      setIsLoadingCommitFiles(true);
+      void fetchCommitChecks(selectedCommit.hash).then((checks) => { if (!cancelled) setChecks(checks); });
+      void gitService.getCommitFiles(currentRepo.path, selectedCommit.hash)
+        .then((files) => { if (!cancelled) setCommitFiles(files); })
+        .catch(() => { if (!cancelled) setCommitFiles([]); })
+        .finally(() => { if (!cancelled) setIsLoadingCommitFiles(false); });
     }
-  }, [activeTab, selectedCommit, currentRepo, fetchCommitChecks]);
+    return () => { cancelled = true; previewRequest.current++; };
+  }, [activeTab, selectedCommit?.hash, currentRepo?.path, fetchCommitChecks]);
 
   const handleInspectCommitFile = async (file: GitFileChange) => {
     if (!currentRepo || !selectedCommit) return;
+    const request = ++previewRequest.current;
     setPreviewCommitFile(file);
     setIsLoadingDiff(true);
     try {
       const diffs = await gitService.getCommitFileDiff(currentRepo.path, selectedCommit.hash, file.path);
-      setPreviewDiffLines(diffs);
+      if (request === previewRequest.current) setPreviewDiffLines(diffs);
     } catch (err: any) {
       toast.error(t('changes.viewDiff'), err?.message);
-      setPreviewDiffLines([]);
+      if (request === previewRequest.current) setPreviewDiffLines([]);
     } finally {
-      setIsLoadingDiff(false);
+      if (request === previewRequest.current) setIsLoadingDiff(false);
     }
   };
 
@@ -141,8 +140,9 @@ export const RightPane: React.FC = () => {
         aiConfig,
       });
 
+      if (useRepoStore.getState().currentRepo?.path !== currentRepo.path) return;
       setCommitMessage(generated);
-      const isLlm = Boolean(aiConfig.apiKey && aiConfig.apiKey.trim());
+      const isLlm = aiConfig.provider === 'openai-compatible' && Boolean(aiConfig.apiKey.trim());
       toast.success(
         isLlm ? t('rightPane.aiSuccessLlm') : t('rightPane.aiSuccessBuiltin'),
         generated.split('\n')[0]

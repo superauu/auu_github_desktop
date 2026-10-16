@@ -1,3 +1,4 @@
+import { requestAiCompletion } from './AiTransport';
 import { tNow } from '@/i18n';
 import { gitService } from '@/services/git/GitService';
 import type { GitFileChange } from '@/services/git/types';
@@ -27,7 +28,7 @@ export class AiCommitService {
     const diffSnippets = await this.collectDiffSnippets(repoPath, files.slice(0, 8));
 
     // 2. 尝试调用外部大模型
-    if (aiConfig.apiKey && aiConfig.apiKey.trim()) {
+    if (aiConfig.provider === 'openai-compatible' && aiConfig.apiKey.trim()) {
       try {
         const llmMessage = await this.callLlmApi(files, diffSnippets, aiConfig);
         if (llmMessage && llmMessage.trim()) {
@@ -58,7 +59,7 @@ export class AiCommitService {
       throw new Error(tNow('pr.aiNoDiff'));
     }
 
-    if (aiConfig.apiKey && aiConfig.apiKey.trim()) {
+    if (aiConfig.provider === 'openai-compatible' && aiConfig.apiKey.trim()) {
       try {
         const body = await this.callPrLlm(files, patchText, aiConfig);
         if (body && body.trim()) return body.trim();
@@ -105,7 +106,7 @@ export class AiCommitService {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const response = await fetch(url, {
+      const response = await requestAiCompletion(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -262,7 +263,7 @@ export class AiCommitService {
     const timeoutId = setTimeout(() => controller.abort(), 12000); // 12秒超时
 
     try {
-      const response = await fetch(url, {
+      const response = await requestAiCompletion(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

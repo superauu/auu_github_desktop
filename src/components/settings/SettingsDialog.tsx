@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useEffect } from 'react';
 import {
   Settings,
@@ -23,6 +24,7 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { gitService } from '@/services/git/GitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { requestAiCompletion } from '@/services/ai/AiTransport';
 import { RemotesManager } from './RemotesManager';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, LogOut, Key } from 'lucide-react';
@@ -52,6 +54,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     autoFetchInterval,
     setAutoFetchInterval,
     aiConfig,
+    credentialError,
     setAiConfig,
   } = useSettingsStore();
 
@@ -81,6 +84,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const { t, lang } = useI18n();
   const setLang = useSettingsStore((st) => st.setLanguage);
 
+  useEffect(() => {
+    if (credentialError) toast.error(t('settings.ai.testFailed'), credentialError);
+  }, [credentialError, t]);
+
   // Test custom AI connection
   const handleTestAiConnection = async () => {
     if (aiConfig.provider === 'builtin') {
@@ -95,8 +102,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
     setIsTestingAi(true);
     try {
-      const endpoint = aiConfig.endpoint.replace(/\/+$/, '') + '/chat/completions';
-      const res = await fetch(endpoint, {
+      const base = aiConfig.endpoint.replace(/\/+$/, '');
+      const endpoint = base.endsWith('/chat/completions') ? base : base + '/chat/completions';
+      const res = await requestAiCompletion(endpoint, {
+        signal: AbortSignal.timeout(15_000),
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,9 +144,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   ];
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={t('settings.title')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-2xl h-[500px] rounded-xl border border-border bg-card shadow-2xl flex overflow-hidden animate-in zoom-in-95"
@@ -613,6 +621,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

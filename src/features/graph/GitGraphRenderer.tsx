@@ -5,6 +5,8 @@ interface GitGraphRendererProps {
   commits: GitCommit[];
   selectedIndex: number;
   rowHeight?: number;
+  visibleStart?: number;
+  visibleEnd?: number;
   hasWipNode?: boolean;
   isWipSelected?: boolean;
 }
@@ -38,6 +40,8 @@ interface GraphPath {
   d: string;
   color: string;
   isDashed?: boolean;
+  fromRow?: number;
+  toRow?: number;
 }
 
 export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
@@ -45,6 +49,8 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
   selectedIndex,
   rowHeight = ROW_HEIGHT,
   hasWipNode = false,
+  visibleStart = 0,
+  visibleEnd = commits.length,
   isWipSelected = false,
 }) => {
   const { nodes, paths, maxLane } = useMemo(() => {
@@ -141,7 +147,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
     // Connect WIP node to HEAD node
     if (hasWipNode && calculatedNodes.length > 1) {
       const wipNode = calculatedNodes[0];
-      const headNode = calculatedNodes[1];
+      const headNode = calculatedNodes.find((node) => node.commit?.refs?.some((ref) => ref === 'HEAD' || ref.startsWith('HEAD -> '))) || calculatedNodes[1];
       calculatedPaths.push({
         id: 'wip-to-head',
         d: `M ${wipNode.x} ${wipNode.y} L ${headNode.x} ${headNode.y}`,
@@ -150,13 +156,14 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       });
     }
 
+    const nodesByHash = new Map(calculatedNodes.filter((node) => node.commit).map((node) => [node.commit!.hash, node]));
     // Generate paths between commits and parents
     for (let i = 0; i < commits.length; i++) {
       const node = calculatedNodes[i + rowOffset];
       const parents = commits[i].parents || [];
 
       for (const parentHash of parents) {
-        const parentNode = calculatedNodes.find((n) => n.commit?.hash === parentHash);
+        const parentNode = nodesByHash.get(parentHash);
         if (parentNode) {
           const x1 = node.x;
           const y1 = node.y;
@@ -175,6 +182,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
             id: `${commits[i].hash}-${parentHash}`,
             d,
             color: node.color,
+            fromRow: node.index, toRow: parentNode.index,
           });
         }
       }
@@ -206,7 +214,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
 
       {/* Bezier branch connection lines */}
       <g strokeWidth="2" fill="none" strokeLinecap="round">
-        {paths.map((path) => (
+        {paths.filter((path) => path.fromRow === undefined || (Math.min(path.fromRow, path.toRow!) <= visibleEnd + 1 && Math.max(path.fromRow, path.toRow!) >= visibleStart)).map((path) => (
           <path
             key={path.id}
             d={path.d}
@@ -218,7 +226,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       </g>
 
       {/* Node circles */}
-      {nodes.map((node) => {
+      {nodes.filter((node) => node.index >= visibleStart && node.index <= visibleEnd + 1).map((node) => {
         if (node.isWip) {
           return (
             <g key="wip-node">

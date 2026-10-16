@@ -3,6 +3,8 @@
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
  */
 export const zh = {
+  'banner.abortCherryPick': '中止 Cherry-pick',
+  'banner.continueCherryPick': '继续 Cherry-pick',
   // ============ 通用 ============
   'common.loaded': '已加载',
   'common.never': '从不',

@@ -65,8 +65,8 @@ export class GitService implements IGitService {
 
     if (remoteUrl) {
       // Support https://github.com/owner/repo(.git) and git@github.com:owner/repo(.git)
-      const httpsMatch = remoteUrl.match(/github\.com\/([^/]+)\/([^/.]+)(?:\.git)?$/i);
-      const sshMatch = remoteUrl.match(/github\.com:([^/]+)\/([^/.]+)(?:\.git)?$/i);
+      const httpsMatch = remoteUrl.match(/^(?:https?:\/\/|ssh:\/\/(?:[^@/]+@)?)github\.com\/([^/]+)\/(.+?)(?:\.git)?\/?$/i);
+      const sshMatch = remoteUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/i);
       const match = httpsMatch || sshMatch;
       if (match) {
         isGitHubRepo = true;
@@ -105,7 +105,7 @@ export class GitService implements IGitService {
   }
 
   async getStatus(repoPath: string): Promise<GitStatusResult> {
-    const res = await executeGit(['status', '--porcelain=v2', '--branch'], repoPath);
+    const res = await executeGit(['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'], repoPath);
     return parsePorcelainV2(res.stdout);
   }
 
@@ -142,7 +142,7 @@ export class GitService implements IGitService {
     try {
       const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
       const res = await executeGit(
-        ['log', '--all', `-n`, String(limit), `--format=${format}`],
+        ['log', '--all', '--topo-order', `-n`, String(limit), `--format=${format}`],
         repoPath
       );
       return parseGitLog(res.stdout);
@@ -272,8 +272,7 @@ export class GitService implements IGitService {
 
   /**
    * 块级（hunk 级）暂存/取消暂存/放弃。
-   * executeGit 不支持 stdin，将重建的 patch 写入 .git 内临时文件再 git apply，
-   * 桌面端（Tauri write_file_content）与浏览器开发模式（/api/fs/write-file）通用。
+   * 通过 stdin 传递完整补丁，兼容 worktree，避免临时文件覆盖及并发冲突。
    */
   private async applyHunkPatch(
     repoPath: string,
@@ -283,9 +282,7 @@ export class GitService implements IGitService {
     if (!patch.trim()) {
       throw new Error('Empty hunk patch');
     }
-    const patchPath = '.git/auu_hunk_stage.patch';
-    await this.writeWorkingFile(repoPath, patchPath, patch);
-    await executeGit(['apply', '--whitespace=nowarn', ...extraArgs, patchPath], repoPath);
+    await executeGit(['apply', '--whitespace=nowarn', ...extraArgs, '-'], repoPath, patch);
   }
 
   async stageHunk(
@@ -384,42 +381,20 @@ export class GitService implements IGitService {
   }
 
   async checkoutBranch(repoPath: string, name: string): Promise<void> {
-    const target = await this.resolveCheckoutTarget(repoPath, name);
-    await executeGit(['checkout', target], repoPath);
-  }
-
-  /**
-   * 将分支引用名解析为可安全检出的目标，避免检出远程跟踪分支时进入 detached HEAD：
-   * - `remotes/origin/foo` 先归一化为 `origin/foo`
-   * - 存在同名本地分支 → 直接检出
-   * - 不存在本地分支但存在远程跟踪分支 `origin/foo` → 检出短名 `foo`，
-   *   触发 git DWIM 自动创建跟踪本地分支
-   * - 标签等其他引用保持原样（detached 行为由调用方提示）
-   */
-  private async resolveCheckoutTarget(repoPath: string, name: string): Promise<string> {
     const target = name.trim().replace(/^remotes\//, '');
-    if (!target) return name;
-
-    try {
-      await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${target}`], repoPath);
-      return target;
-    } catch {
-      // 本地分支不存在，继续判断是否为远程跟踪分支
+    if (!target || target.startsWith('-')) throw new Error('Invalid branch name');
+    const local = await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${target}`], repoPath)
+      .then(() => true, () => false);
+    const remote = !local && await executeGit(['show-ref', '--verify', '--quiet', `refs/remotes/${target}`], repoPath)
+      .then(() => true, () => false);
+    if (remote) {
+      const shortName = target.slice(target.indexOf('/') + 1);
+      const exists = await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${shortName}`], repoPath)
+        .then(() => true, () => false);
+      await executeGit(exists ? ['switch', shortName] : ['switch', '--track', '-c', shortName, target], repoPath);
+    } else {
+      await executeGit(['checkout', target], repoPath);
     }
-
-    const slashIdx = target.indexOf('/');
-    if (slashIdx > 0) {
-      const shortName = target.slice(slashIdx + 1);
-      if (shortName && !shortName.includes('/')) {
-        try {
-          await executeGit(['show-ref', '--verify', '--quiet', `refs/remotes/${target}`], repoPath);
-          return shortName;
-        } catch {
-          // 不是远程跟踪分支（可能是标签），保持原名
-        }
-      }
-    }
-    return target;
   }
 
   async deleteBranch(repoPath: string, name: string, force?: boolean): Promise<void> {
@@ -500,7 +475,7 @@ export class GitService implements IGitService {
   async getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]> {
     try {
       const res = await executeGit(
-        ['diff-tree', '--no-commit-id', '--name-status', '-r', commitHash],
+        ['show', '--format=', '--name-status', '--first-parent', '--diff-merges=first-parent', commitHash, '--'],
         repoPath
       );
       const lines = res.stdout.split(/\r?\n/).filter(Boolean);
@@ -529,7 +504,7 @@ export class GitService implements IGitService {
 
   async getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]> {
     try {
-      const res = await executeGit(['show', '--no-color', `${commitHash}`, '--', filePath], repoPath);
+      const res = await executeGit(['show', '--format=', '--no-color', '--first-parent', '--diff-merges=first-parent', commitHash, '--', filePath], repoPath);
       return parseDiffOutput(res.stdout);
     } catch (err) {
       console.warn('Get commit file diff warning:', err);
@@ -670,9 +645,15 @@ export class GitService implements IGitService {
     await executeGit(['reset', '--soft', 'HEAD~1'], repoPath);
   }
 
-  async redoCommit(repoPath: string, commitHash: string): Promise<void> {
-    // 将 HEAD 和工作区恢复到指定的提交哈希（Redo）
-    await executeGit(['reset', '--hard', commitHash], repoPath);
+  async redoCommit(repoPath: string, commitHash: string, expectedBranch?: string): Promise<void> {
+    // Compare-and-swap the original branch ref, preserving both index and worktree.
+    // Unlike reset, this cannot move a different branch if an external checkout races with Redo.
+    const ref = (await executeGit(['symbolic-ref', '--quiet', 'HEAD'], repoPath)).stdout.trim();
+    if (expectedBranch && ref !== `refs/heads/${expectedBranch}`) throw new Error('Branch changed since Undo');
+    const current = await this.getBranchCommitHash(repoPath, ref);
+    const parent = await this.getBranchCommitHash(repoPath, `${commitHash}^`);
+    if (!current || current !== parent) throw new Error('HEAD changed since Undo; Redo is no longer safe');
+    await executeGit(['update-ref', '-m', 'AuuGit Redo', ref, commitHash, current], repoPath);
   }
 
   async openTerminal(repoPath: string): Promise<void> {
@@ -695,30 +676,18 @@ export class GitService implements IGitService {
     customBranchName?: string
   ): Promise<string> {
     const targetBranch = customBranchName || `pr-${prNumber}`;
-    try {
-      // 1. Fetch the pull request head commit from remote origin
-      await executeGit(
-        ['fetch', 'origin', `pull/${prNumber}/head:${targetBranch}`, '--force'],
-        repoPath
-      );
-    } catch (fetchErr: any) {
-      // Try fallback to refs/pull/
-      try {
-        await executeGit(
-          ['fetch', 'origin', `refs/pull/${prNumber}/head:${targetBranch}`, '--force'],
-          repoPath
-        );
-      } catch {
-      throw new Error(
-        tNow('err.prFetchFailed')
-          .replace('{n}', String(prNumber))
-          .replace('{m}', fetchErr?.message || '')
-      );
-      }
+    if (!Number.isInteger(prNumber) || prNumber <= 0) throw new Error('Invalid pull request number');
+    await executeGit(['check-ref-format', '--branch', targetBranch], repoPath);
+    await executeGit(['fetch', 'origin', `refs/pull/${prNumber}/head`], repoPath);
+    const exists = await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${targetBranch}`], repoPath)
+      .then(() => true, () => false);
+    if (exists) {
+      await executeGit(['switch', targetBranch], repoPath);
+      // Never force-update a PR branch that may contain the user's unpushed commits.
+      await executeGit(['merge', '--ff-only', '--no-edit', 'FETCH_HEAD'], repoPath);
+    } else {
+      await executeGit(['switch', '-c', targetBranch, 'FETCH_HEAD'], repoPath);
     }
-
-    // 2. Checkout to the local branch
-    await executeGit(['checkout', targetBranch], repoPath);
     return targetBranch;
   }
 
@@ -865,53 +834,30 @@ export class GitService implements IGitService {
   }
 
   async getRepoOperationState(repoPath: string): Promise<RepoOperationState> {
-    try {
-      const [statusTextRes, statusPorcelainRes] = await Promise.all([
-        executeGit(['status'], repoPath).catch(() => ({ stdout: '', stderr: '', exitCode: 0 })),
-        executeGit(['status', '--porcelain'], repoPath).catch(() => ({ stdout: '', stderr: '', exitCode: 0 })),
-      ]);
-
-      const statusText = statusTextRes.stdout;
-      const conflictLines = statusPorcelainRes.stdout
-        .split(/\r?\n/)
-        .filter((l) => /^(UU|AA|DD|DU|UD|AU|UA)/.test(l.trim()));
-
-      const conflictedFiles = conflictLines.map((l) => l.slice(3).trim()).filter(Boolean);
-
-      const isRebasing =
-        statusText.includes('rebase in progress') ||
-        statusText.includes('You are currently rebasing');
-      const isCherryPicking =
-        statusText.includes('You are currently cherry-picking');
-      const isMerging =
-        statusText.includes('You have unmerged paths') ||
-        statusText.includes('All conflicts fixed but you are still merging');
-
-      // 顺序很重要：cherry-pick/rebase 冲突时 status 同样包含 unmerged paths，
-      // 必须先匹配更具体的操作类型，否则会被误判为 merge
-      let type: 'none' | 'merge' | 'rebase' | 'cherry-pick' = 'none';
-      if (isRebasing) type = 'rebase';
-      else if (isCherryPicking) type = 'cherry-pick';
-      else if (isMerging) type = 'merge';
-      else if (conflictedFiles.length > 0) type = 'merge';
-
-      const inConflict = conflictedFiles.length > 0 || isRebasing || isMerging;
-      const isAllResolved = (isRebasing || isMerging) && conflictedFiles.length === 0;
-
-      return {
-        type,
-        inConflict,
-        conflictedFiles,
-        isAllResolved,
-      };
-    } catch {
-      return {
-        type: 'none',
-        inConflict: false,
-        conflictedFiles: [],
-        isAllResolved: false,
-      };
-    }
+    const status = await this.getStatus(repoPath);
+    const conflictedFiles = status.unstaged.filter((file) => file.status === 'conflicted').map((file) => file.path);
+    // Git's path resolver supports linked worktrees and does not depend on localized status prose.
+    const exists = async (name: string) => {
+      const { stdout } = await executeGit(['rev-parse', '--path-format=absolute', '--git-path', name], repoPath);
+      const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+      if (isTauri) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return invoke<boolean>('path_exists', { path: stdout.trim() });
+      }
+      const res = await fetch('/api/fs/exists', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
+        body: JSON.stringify({ path: stdout.trim(), cwd: repoPath }),
+      });
+      if (!res.ok) throw new Error('Unable to read repository operation state');
+      return (await res.json()).exists as boolean;
+    };
+    const [rebasing, cherryPicking, merging] = await Promise.all([
+      Promise.all([exists('rebase-merge'), exists('rebase-apply')]).then((states) => states.some(Boolean)),
+      exists('CHERRY_PICK_HEAD'), exists('MERGE_HEAD'),
+    ]);
+    const type = rebasing ? 'rebase' : cherryPicking ? 'cherry-pick' : merging ? 'merge' : 'none';
+    return { type, conflictedFiles, inConflict: conflictedFiles.length > 0,
+      isAllResolved: type !== 'none' && conflictedFiles.length === 0 };
   }
 
   async resolveConflictWithOurs(repoPath: string, filePath: string): Promise<void> {
@@ -933,94 +879,41 @@ export class GitService implements IGitService {
     }
   }
 
-  async readWorkingFile(repoPath: string, filePath: string): Promise<string> {
-    const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
-    // Validate path stays within repo
-    const normalized = fullPath.replace(/\/+/g, '/').toLowerCase();
-    const repoNormalized = repoPath.replace(/\\/g, '/').replace(/\/+/g, '/').toLowerCase();
-    if (!normalized.startsWith(repoNormalized + '/') && normalized !== repoNormalized) {
-      throw new Error('Path traversal detected');
+  private validateFilePath(filePath: string): void {
+    if (!filePath || /^(?:[/\\]|[a-z]:)/i.test(filePath) || filePath.split(/[/\\]/).some((part) => part === '..' || part === '.git')) {
+      throw new Error('Invalid repository file path');
     }
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-
-    // 1. Tauri 桌面原生模式
-    if (isTauri) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        return await invoke<string>('read_file_content', { path: fullPath });
-      } catch (err: any) {
-        console.warn('Tauri 读取文件降级:', err);
-      }
-    }
-
-    // 2. 本地开发服务器 (Dev 模式)
-    try {
-      const res = await fetch('/api/fs/read-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: fullPath }),
-      });
-      const text = await res.text();
-      if (!text.trim().startsWith('<')) {
-        const data = JSON.parse(text);
-        if (data.content !== undefined) return data.content;
-      }
-    } catch {
-      // ignore
-    }
-
-    // 3. Fallback: Git hash-object + cat-file
-    try {
-      const hashRes = await executeGit(['hash-object', filePath], repoPath);
-      const hash = hashRes.stdout.trim();
-      if (hash) {
-        const catRes = await executeGit(['cat-file', '-p', hash], repoPath);
-        return catRes.stdout;
-      }
-    } catch (err: any) {
-      console.warn('读取工作区文件失败:', err);
-    }
-    return '';
   }
 
-  async writeWorkingFile(repoPath: string, filePath: string, content: string): Promise<void> {
-    const fullPath = repoPath.replace(/\\/g, '/') + '/' + filePath.replace(/^\.?\//, '');
-    // Validate path stays within repo
-    const normalized = fullPath.replace(/\/+/g, '/').toLowerCase();
-    const repoNormalized = repoPath.replace(/\\/g, '/').replace(/\/+/g, '/').toLowerCase();
-    if (!normalized.startsWith(repoNormalized + '/') && normalized !== repoNormalized) {
-      throw new Error('Path traversal detected');
+  async readWorkingFile(repoPath: string, filePath: string): Promise<string> {
+    this.validateFilePath(filePath);
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke<string>('read_file_content', { repoPath, filePath });
     }
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+    const res = await fetch('/api/fs/read-file', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
+      body: JSON.stringify({ repoPath, filePath }),
+    });
+    if (!res.ok) throw new Error(`Unable to read ${filePath} (HTTP ${res.status})`);
+    const data = await res.json();
+    if (typeof data.content !== 'string') throw new Error(`Invalid file response: ${filePath}`);
+    return data.content;
+  }
 
-    // 1. Tauri 桌面原生模式
-    if (isTauri) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('write_file_content', { path: fullPath, content });
-        return;
-      } catch (err: any) {
-        console.warn('Tauri 写入文件降级:', err);
-      }
+  async writeWorkingFile(repoPath: string, filePath: string, content: string, expectedContent?: string): Promise<void> {
+    this.validateFilePath(filePath);
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('write_file_content', { repoPath, filePath, content, expectedContent });
+      return;
     }
-
-    // 2. 本地开发服务器 (Dev 模式)
-    try {
-      const res = await fetch('/api/fs/write-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: fullPath, content }),
-      });
-      if (res.ok) {
-        return;
-      }
-    } catch {
-      // ignore, fallback
-    }
-
-    throw new Error(tNow('err.writeFailed').replace('{p}', filePath));
+    const res = await fetch('/api/fs/write-file', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
+      body: JSON.stringify({ repoPath, filePath, content, expectedContent }),
+    });
+    if (!res.ok) throw new Error(`Unable to write ${filePath}: ${await res.text()}`);
   }
 }
 
 export const gitService = new GitService();
-

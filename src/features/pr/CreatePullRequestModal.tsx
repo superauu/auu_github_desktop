@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useEffect } from 'react';
 import { GitPullRequest, X, Loader2, Check, Sparkles } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -156,9 +157,8 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isSubmitting} label={t('pr.createTitle')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -303,6 +303,6 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

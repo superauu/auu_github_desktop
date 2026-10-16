@@ -13,6 +13,10 @@ import {
   WorkflowYamlContent,
 } from './types';
 
+export class GitHubApiError extends Error {
+  constructor(public status: number, message: string) { super(message); this.name = 'GitHubApiError'; }
+}
+
 export class GitHubService {
   private token: string | null = null;
 
@@ -41,12 +45,27 @@ export class GitHubService {
 
     if (!res.ok) {
       if (res.status === 401) {
-        throw new Error(tNow('err.ghBadCredentials'));
+        throw new GitHubApiError(401, tNow('err.ghBadCredentials'));
       }
       throw new Error(tNow('err.ghAuthFailed').replace('{s}', String(res.status)));
     }
 
     return res.json();
+  }
+
+  private async pages<T>(url: string, key?: string): Promise<T[]> {
+    const result: T[] = [];
+    const visited = new Set<string>();
+    while (url && !visited.has(url)) {
+      if (new URL(url).origin !== 'https://api.github.com') throw new Error('Invalid pagination URL');
+      visited.add(url);
+      const res = await fetch(url, { headers: this.getHeaders(), signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new GitHubApiError(res.status, await this.extractGitHubError(res));
+      const data = await res.json();
+      result.push(...(key ? data[key] || [] : data));
+      url = res.headers.get('link')?.match(/<([^>]+)>;\s*rel="next"/)?.[1] || '';
+    }
+    return result;
   }
 
   async getRepository(owner: string, repo: string): Promise<GitHubRepoDetails> {
@@ -58,12 +77,7 @@ export class GitHubService {
   }
 
   async getWorkflows(owner: string, repo: string): Promise<GitHubWorkflow[]> {
-    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows`, {
-      headers: this.getHeaders(),
-    });
-    if (!res.ok) throw new Error(await this.extractGitHubError(res));
-    const data = await res.json();
-    return data.workflows || [];
+    return this.pages(`https://api.github.com/repos/${owner}/${repo}/actions/workflows?per_page=100`, 'workflows');
   }
 
   async getWorkflowRuns(
@@ -82,13 +96,7 @@ export class GitHubService {
   }
 
   async getRunJobs(owner: string, repo: string, runId: number): Promise<GitHubJob[]> {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs`,
-      { headers: this.getHeaders() }
-    );
-    if (!res.ok) throw new Error(await this.extractGitHubError(res));
-    const data = await res.json();
-    return data.jobs || [];
+    return this.pages(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100`, 'jobs');
   }
 
   async getCommitChecks(
@@ -96,13 +104,7 @@ export class GitHubService {
     repo: string,
     sha: string
   ): Promise<GitHubCheckRun[]> {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/commits/${sha}/check-runs`,
-      { headers: this.getHeaders() }
-    );
-    if (!res.ok) throw new Error(await this.extractGitHubError(res));
-    const data = await res.json();
-    return data.check_runs || [];
+    return this.pages(`https://api.github.com/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`, 'check_runs');
   }
 
   async dispatchWorkflow(
@@ -115,7 +117,7 @@ export class GitHubService {
       `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ref: params.ref,
           inputs: params.inputs || {},
@@ -169,6 +171,11 @@ export class GitHubService {
     repo: string,
     jobId: number
   ): Promise<JobLogsData> {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const rawLogs = await invoke<string>('get_github_job_logs', { owner, repo, jobId, token: this.token });
+      return { jobId, jobName: `Job #${jobId}`, rawLogs };
+    }
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/actions/jobs/${jobId}/logs`,
       { headers: this.getHeaders() }
@@ -213,12 +220,9 @@ export class GitHubService {
     repo: string,
     state: 'open' | 'closed' | 'all' = 'all'
   ): Promise<GitHubPullRequest[]> {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=30`,
-      { headers: this.getHeaders() }
+    return this.pages<GitHubPullRequest>(
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=100`
     );
-    if (!res.ok) throw new Error(await this.extractGitHubError(res));
-    return res.json();
   }
 
   async getPullRequestReviews(
@@ -226,12 +230,7 @@ export class GitHubService {
     repo: string,
     pullNumber: number
   ): Promise<GitHubReview[]> {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/reviews`,
-      { headers: this.getHeaders() }
-    );
-    if (!res.ok) throw new Error(await this.extractGitHubError(res));
-    return res.json();
+    return this.pages<GitHubReview>(`https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/reviews?per_page=100`);
   }
 
   /** 从错误响应中提取 GitHub 返回的 message 字段，便于 toast 展示 */

@@ -53,7 +53,8 @@ export function unquoteGitPath(path: string): string {
  * Parses output from `git status --porcelain=v2 --branch`
  */
 export function parsePorcelainV2(output: string): GitStatusResult {
-  const lines = output.split(/\r?\n/);
+  const nulDelimited = output.includes('\0');
+  const lines = nulDelimited ? output.split('\0') : output.split(/\r?\n/);
 
   let currentBranch = 'main';
   let trackingBranch: string | undefined = undefined;
@@ -64,7 +65,8 @@ export function parsePorcelainV2(output: string): GitStatusResult {
   const unstaged: GitFileChange[] = [];
   const untracked: GitFileChange[] = [];
 
-  for (const line of lines) {
+  for (let recordIndex = 0; recordIndex < lines.length; recordIndex++) {
+    const line = lines[recordIndex];
     if (!line.trim()) continue;
 
     // Header branch lines
@@ -84,7 +86,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
     }
     // Untracked files: `? <path>`
     else if (line.startsWith('? ')) {
-      const filePath = unquoteGitPath(line.substring(2).trim());
+      const filePath = nulDelimited ? line.substring(2) : unquoteGitPath(line.substring(2));
       untracked.push({
         path: filePath,
         status: 'untracked',
@@ -96,7 +98,8 @@ export function parsePorcelainV2(output: string): GitStatusResult {
       const parts = line.split(' ');
       if (parts.length >= 9) {
         const xy = parts[1];
-        const filePath = unquoteGitPath(parts.slice(8).join(' '));
+        const rawPath = parts.slice(8).join(' ');
+        const filePath = nulDelimited ? rawPath : unquoteGitPath(rawPath);
         const stagedCode = xy[0];
         const unstagedCode = xy[1];
 
@@ -124,8 +127,9 @@ export function parsePorcelainV2(output: string): GitStatusResult {
       const parts = line.split('\t');
       const headerParts = parts[0].split(' ');
       const xy = headerParts[1];
-      const filePath = unquoteGitPath(headerParts[headerParts.length - 1]);
-      const origPath = unquoteGitPath(parts[1] || '');
+      const rawPath = (nulDelimited ? line : parts[0]).split(' ').slice(9).join(' ');
+      const filePath = nulDelimited ? rawPath : unquoteGitPath(rawPath);
+      const origPath = nulDelimited ? (lines[++recordIndex] || '') : unquoteGitPath(parts[1] || '');
 
       const stagedCode = xy[0];
       const unstagedCode = xy[1];
@@ -134,7 +138,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
         staged.push({
           path: filePath,
           oldPath: origPath,
-          status: 'renamed',
+          status: mapStatusCode(stagedCode),
           staged: true,
         });
       }
@@ -142,7 +146,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
         unstaged.push({
           path: filePath,
           oldPath: origPath,
-          status: 'renamed',
+          status: mapStatusCode(unstagedCode),
           staged: false,
         });
       }
@@ -150,7 +154,8 @@ export function parsePorcelainV2(output: string): GitStatusResult {
     // Unmerged / conflict files: `u <XY> ... <path>`
     else if (line.startsWith('u ')) {
       const parts = line.split(' ');
-      const filePath = unquoteGitPath(parts.slice(10).join(' '));
+      const rawPath = parts.slice(10).join(' ');
+      const filePath = nulDelimited ? rawPath : unquoteGitPath(rawPath);
       unstaged.push({
         path: filePath,
         status: 'conflicted',
@@ -261,7 +266,7 @@ export function parseGitBranches(output: string): GitBranch[] {
     if (!line.trim()) continue;
 
     const isCurrent = line.startsWith('* ');
-    const cleanLine = line.replace(/^[\*\s]+/, '').trim();
+    const cleanLine = line.replace(/^[*+\s]+/, '').trim();
     const parts = cleanLine.split(/\s+/);
     if (parts.length === 0) continue;
 
@@ -337,6 +342,7 @@ export interface ParsedDiffLine {
   oldNo: number | null;
   newNo: number | null;
   content: string;
+  patchHeader?: string[];
 }
 
 /**
@@ -370,26 +376,20 @@ export function buildHunkPatch(
 ): string {
   if (hunk.length === 0 || hunk[0].type !== 'header') return '';
 
-  const headerMatch = hunk[0].content.match(
-    /@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/
-  );
-  // count 缺省时代表 1 行；0 行表示该侧为空（新建/删除）
-  const oldCount = headerMatch ? (headerMatch[2] !== undefined ? parseInt(headerMatch[2], 10) : 1) : 1;
-  const newCount = headerMatch ? (headerMatch[4] !== undefined ? parseInt(headerMatch[4], 10) : 1) : 1;
-  const oldSideEmpty = oldCount === 0;
-  const newSideEmpty = newCount === 0;
-
   const body = hunk.map((l) => l.content).join('\n');
   const safePath = filePath.replace(/\\/g, '/');
-
-  const lines: string[] = [`diff --git a/${safePath} b/${safePath}`];
+  const quote = (prefix: string) => JSON.stringify(prefix + safePath);
+  const originalHeader = hunk[0].patchHeader?.filter((line) => !line.startsWith('index '));
+  if (originalHeader?.length) return [...originalHeader, body, ''].join('\n');
+  const lines: string[] = [`diff --git ${quote('a/')} ${quote('b/')}`];
   if (isUntracked && mode === 'stage') {
     lines.push('new file mode 100644');
     lines.push('--- /dev/null');
-    lines.push(`+++ b/${safePath}`);
+    lines.push(`+++ ${quote('b/')}`);
   } else {
-    lines.push(oldSideEmpty ? '--- /dev/null' : `--- a/${safePath}`);
-    lines.push(newSideEmpty ? '+++ /dev/null' : `+++ b/${safePath}`);
+    // A zero-line side can be an existing empty file, not necessarily a new/deleted file.
+    lines.push(`--- ${quote('a/')}`);
+    lines.push(`+++ ${quote('b/')}`);
   }
   lines.push(body);
 
@@ -407,14 +407,13 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
 
   let oldLine = 0;
   let newLine = 0;
+  let inHunk = false;
+  let patchHeader: string[] = [];
 
   for (const line of lines) {
-    if (
-      line.startsWith('diff --git') ||
-      line.startsWith('index ') ||
-      line.startsWith('--- ') ||
-      line.startsWith('+++ ')
-    ) {
+    if (line.startsWith('diff --git')) {
+      patchHeader = [line];
+      inHunk = false;
       continue;
     }
 
@@ -430,9 +429,21 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
         oldNo: null,
         newNo: null,
         content: line,
+        patchHeader: [...patchHeader],
       });
+      inHunk = true;
       continue;
     }
+
+    if (!inHunk) {
+      patchHeader.push(line);
+      continue;
+    }
+    if (line.startsWith('\\ No newline')) {
+      result.push({ type: 'context', oldNo: null, newNo: null, content: line });
+      continue;
+    }
+    if (line === '') continue;
 
     if (line.startsWith('+')) {
       result.push({
@@ -448,7 +459,7 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
         newNo: null,
         content: line,
       });
-    } else {
+    } else if (line.startsWith(' ')) {
       result.push({
         type: 'context',
         oldNo: oldLine++,

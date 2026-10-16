@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import { Archive, X, Loader2 } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -42,9 +43,8 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
   if (!stash) return null;
 
   return (
-    <div
+    <ModalSurface onDismiss={onClose} dismissible={!false} label={'Stash preview'}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={onClose}
     >
       <div
         className="w-full max-w-3xl max-h-[80vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col animate-in zoom-in-95"
@@ -120,6 +120,6 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
           )}
         </div>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

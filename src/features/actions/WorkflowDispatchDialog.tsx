@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState } from 'react';
 import { Play, X, GitBranch, Sparkles, Terminal } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -31,9 +32,8 @@ export const WorkflowDispatchDialog: React.FC = () => {
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={closeDispatchModal} dismissible={!isSubmitting} label={'Run workflow'}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150 select-none"
-      onClick={closeDispatchModal}
     >
       <div
         className="w-full max-w-md bg-card border border-border/90 rounded-xl shadow-2xl p-5 space-y-4"
@@ -123,6 +123,6 @@ export const WorkflowDispatchDialog: React.FC = () => {
           </div>
         </form>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

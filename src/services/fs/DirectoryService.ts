@@ -38,7 +38,7 @@ export async function pickFolderNative(): Promise<string | null> {
   }
 
   try {
-    const res = await fetch('/api/dialog/pick-folder', { method: 'POST' });
+    const res = await fetch('/api/dialog/pick-folder', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' } });
     if (!res.ok) throw new Error(tNow('err.dirPickerFailed'));
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
@@ -97,7 +97,7 @@ export async function listDirectories(path?: string): Promise<ListDirsResult> {
   }
 
   const url = path ? `/api/fs/list-dirs?path=${encodeURIComponent(path)}` : '/api/fs/list-dirs';
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: { 'X-AuuGit-Request': '1' } });
   if (!res.ok) {
     throw new Error(tNow('err.dirListFailed'));
   }

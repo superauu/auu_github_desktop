@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf, Component};
+use std::time::{Duration, Instant};
 
 /// 去除 Windows canonicalize 返回的 \\?\ 前缀（含 UNC 形式）。
 /// 前端会把路径中的反斜杠统一成正斜杠，而 "//?/E:/" 形式 Win32 不识别，
@@ -24,138 +27,164 @@ pub struct GitCommandResult {
     pub stderr: String,
 }
 
-#[tauri::command]
-fn execute_git(
-    args: Vec<String>,
-    cwd: String,
-    git_binary: Option<String>,
-) -> Result<GitCommandResult, String> {
-    let binary = git_binary
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "git".to_string());
-
-    let mut cmd = Command::new(&binary);
-    cmd.args(&args);
-    cmd.current_dir(&cwd);
-
+fn stop_process(child: &mut std::process::Child) {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        let _ = Command::new("taskkill.exe").args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .creation_flags(0x08000000).stdout(Stdio::null()).stderr(Stdio::null()).status();
     }
-
-    match cmd.output() {
-        Ok(output) => {
-            let exit_code = output.status.code().unwrap_or(-1);
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            Ok(GitCommandResult {
-                exit_code,
-                stdout,
-                stderr,
-            })
-        }
-        Err(e) => Err(format!("无法启动 Git 命令 ({}): {}", binary, e)),
-    }
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
-#[tauri::command]
-fn read_file_content(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| format!("读取文件失败 ({}): {}", path, e))
+fn collect_output<R: Read + Send + 'static>(reader: R) -> std::sync::mpsc::Receiver<Result<Vec<u8>, String>> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let result = reader.take(32 * 1024 * 1024 + 1).read_to_end(&mut bytes)
+            .map_err(|e| e.to_string()).and_then(|_| {
+                if bytes.len() > 32 * 1024 * 1024 { Err("Git output too large".into()) } else { Ok(bytes) }
+            });
+        let _ = sender.send(result);
+    });
+    receiver
 }
 
-#[tauri::command]
-fn write_file_content(path: String, content: String) -> Result<(), String> {
-    fs::write(&path, content).map_err(|e| format!("写入文件失败 ({}): {}", path, e))
-}
-
-#[tauri::command]
-fn request_github_device_code(client_id: String, scope: String) -> Result<String, String> {
-    let payload = format!(
-        "client_id={}&scope={}",
-        urlencode(&client_id),
-        urlencode(&scope)
-    );
-    let mut cmd = Command::new("curl.exe");
-    cmd.args([
-        "-s",
-        "-X",
-        "POST",
-        "https://github.com/login/device/code",
-        "-H",
-        "Accept: application/json",
-        "-d",
-        &payload,
-    ]);
-
+fn run_git(args: Vec<String>, cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
+    let binary = git_binary.filter(|value| !value.trim().is_empty()).unwrap_or_else(|| "git".into());
+    let name = Path::new(&binary).file_name().and_then(|name| name.to_str()).unwrap_or("").to_lowercase();
+    if name != "git" && name != "git.exe" { return Err("Expected a Git executable".into()); }
+    let mut command = Command::new(&binary);
+    command.args(args).current_dir(cwd).env("GIT_TERMINAL_PROMPT", "0").env("GCM_INTERACTIVE", "Never")
+        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    match cmd.output() {
-        Ok(output) => {
-            let res = String::from_utf8_lossy(&output.stdout).to_string();
-            Ok(res)
+    { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
+    let mut child = command.spawn().map_err(|e| format!("Unable to start Git: {}", e))?;
+    let stdout = collect_output(child.stdout.take().ok_or("Missing stdout")?);
+    let stderr = collect_output(child.stderr.take().ok_or("Missing stderr")?);
+    let mut input = child.stdin.take().ok_or("Missing stdin")?;
+    let writer = std::thread::spawn(move || {
+        if let Some(content) = stdin { input.write_all(content.as_bytes()).map_err(|e| e.to_string())?; }
+        Ok::<(), String>(())
+    });
+    let deadline = Instant::now() + Duration::from_secs(15 * 60);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(25)),
+            Ok(None) => { stop_process(&mut child); return Err("Git command timed out".into()); }
+            Err(error) => { stop_process(&mut child); return Err(error.to_string()); }
         }
-        Err(e) => Err(format!("请求 GitHub 设备码失败: {}", e)),
-    }
+    };
+    let stdout = stdout.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())??;
+    let stderr = stderr.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())??;
+    if status.success() { writer.join().map_err(|_| "Git input writer failed")??; }
+    Ok(GitCommandResult { exit_code: status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&stdout).into_owned(), stderr: String::from_utf8_lossy(&stderr).into_owned() })
 }
 
 #[tauri::command]
-fn poll_github_device_token(client_id: String, device_code: String) -> Result<String, String> {
-    let payload = format!(
-        "client_id={}&device_code={}&grant_type=urn:ietf:params:oauth:grant-type:device_code",
-        urlencode(&client_id),
-        urlencode(&device_code)
-    );
-    let mut cmd = Command::new("curl.exe");
-    cmd.args([
-        "-s",
-        "-X",
-        "POST",
-        "https://github.com/login/oauth/access_token",
-        "-H",
-        "Accept: application/json",
-        "-d",
-        &payload,
-    ]);
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    match cmd.output() {
-        Ok(output) => {
-            let res = String::from_utf8_lossy(&output.stdout).to_string();
-            Ok(res)
-        }
-        Err(e) => Err(format!("轮询 GitHub 令牌失败: {}", e)),
-    }
+async fn execute_git(args: Vec<String>, cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
+    tauri::async_runtime::spawn_blocking(move || run_git(args, cwd, git_binary, stdin)).await.map_err(|e| e.to_string())?
 }
 
-/// Simple URL encoder for form payloads (percent-encoding)
-fn urlencode(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                result.push(b as char);
-            }
-            _ => {
-                result.push('%');
-                result.push_str(&format!("{:02X}", b));
-            }
-        }
+fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
+    let relative = Path::new(&file_path);
+    if file_path.is_empty() || relative.components().any(|part| match part {
+        Component::ParentDir | Component::RootDir | Component::Prefix(_) => true,
+        Component::Normal(name) => name.to_string_lossy().eq_ignore_ascii_case(".git"),
+        _ => false,
+    }) { return Err("Invalid repository file path".into()); }
+    let root = fs::canonicalize(repo_path).map_err(|e| e.to_string())?;
+    let candidate = root.join(relative);
+    let resolved = if candidate.exists() { fs::canonicalize(&candidate).map_err(|e| e.to_string())? } else {
+        let parent = fs::canonicalize(candidate.parent().ok_or("Missing parent directory")?).map_err(|e| e.to_string())?;
+        parent.join(candidate.file_name().ok_or("Missing file name")?)
+    };
+    if !resolved.starts_with(&root) { return Err("Path outside repository".into()); }
+    Ok(resolved)
+}
+
+#[tauri::command(async)]
+fn read_file_content(repo_path: String, file_path: String) -> Result<String, String> {
+    fs::read_to_string(repo_file(repo_path, file_path)?).map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+fn write_file_content(repo_path: String, file_path: String, content: String, expected_content: Option<String>) -> Result<(), String> {
+    let path = repo_file(repo_path, file_path)?;
+    if let Some(expected) = expected_content {
+        let actual = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        if actual != expected { return Err("File changed on disk; reload before saving".into()); }
     }
-    result
+    fs::write(path, content).map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+fn path_exists(path: String) -> bool { Path::new(&path).exists() }
+
+fn http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder().timeout(Duration::from_secs(20)).connect_timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none()).user_agent("AuuGit").build().map_err(|e| e.to_string())
+}
+async fn response_text(mut response: reqwest::Response) -> Result<String, String> {
+    let status = response.status();
+    if response.content_length().unwrap_or(0) > 32 * 1024 * 1024 { return Err("Response too large".into()); }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        if bytes.len() + chunk.len() > 32 * 1024 * 1024 { return Err("Response too large".into()); }
+        bytes.extend_from_slice(&chunk);
+    }
+    let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+    if !status.is_success() { return Err(format!("HTTP {}: {}", status, text.chars().take(300).collect::<String>())); }
+    Ok(text)
+}
+
+#[tauri::command]
+async fn request_github_device_code(client_id: String, scope: String) -> Result<String, String> {
+    let response = http_client()?.post("https://github.com/login/device/code").header("Accept", "application/json")
+        .form(&[("client_id", client_id), ("scope", scope)]).send().await.map_err(|e| e.to_string())?;
+    response_text(response).await
+}
+
+#[tauri::command]
+async fn poll_github_device_token(client_id: String, device_code: String) -> Result<String, String> {
+    let response = http_client()?.post("https://github.com/login/oauth/access_token").header("Accept", "application/json")
+        .form(&[("client_id", client_id), ("device_code", device_code), ("grant_type", "urn:ietf:params:oauth:grant-type:device_code".into())])
+        .send().await.map_err(|e| e.to_string())?;
+    response_text(response).await
+}
+
+#[tauri::command]
+async fn request_ai_completion(url: String, authorization: String, body: String) -> Result<String, String> {
+    let parsed = reqwest::Url::parse(&url).map_err(|e| e.to_string())?;
+    let local = matches!(parsed.host_str(), Some("localhost" | "127.0.0.1" | "[::1]" | "::1"));
+    if (parsed.scheme() != "https" && !(parsed.scheme() == "http" && local)) || !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("AI endpoint must use HTTPS or local HTTP".into());
+    }
+    let payload: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    let response = http_client()?.post(parsed).header("Authorization", authorization).json(&payload).send().await.map_err(|e| e.to_string())?;
+    response_text(response).await
+}
+
+#[tauri::command]
+async fn get_github_job_logs(owner: String, repo: String, job_id: u64, token: Option<String>) -> Result<String, String> {
+    if !owner.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') || !repo.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)) {
+        return Err("Invalid repository name".into());
+    }
+    let client = http_client()?;
+    let mut request = client.get(format!("https://api.github.com/repos/{}/{}/actions/jobs/{}/logs", owner, repo, job_id));
+    if let Some(token) = token { request = request.bearer_auth(token); }
+    let response = request.send().await.map_err(|e| e.to_string())?;
+    if response.status().is_redirection() {
+        let location = response.headers().get(reqwest::header::LOCATION).ok_or("Missing logs location")?.to_str().map_err(|e| e.to_string())?;
+        let url = reqwest::Url::parse(location).map_err(|e| e.to_string())?;
+        if url.scheme() != "https" { return Err("Invalid logs location".into()); }
+        // Signed download URLs do not receive the GitHub bearer credential.
+        return response_text(client.get(url).send().await.map_err(|e| e.to_string())?).await;
+    }
+    response_text(response).await
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -185,7 +214,7 @@ pub struct ListDirsResult {
     pub directories: Vec<DirectoryEntry>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn validate_directory(path: String) -> Result<DirectoryValidationResult, String> {
     let p = std::path::Path::new(&path);
     if !p.exists() {
@@ -215,7 +244,7 @@ fn validate_directory(path: String) -> Result<DirectoryValidationResult, String>
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
     let target = match path {
         Some(ref p) if !p.trim().is_empty() => std::path::PathBuf::from(p),
@@ -251,7 +280,7 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
     directories.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     Ok(ListDirsResult {
-        current_path: canonical.to_string_lossy().to_string(),
+        current_path: normalize_display_path(&canonical),
         parent_path,
         has_git,
         directories,
@@ -264,13 +293,13 @@ fn github_token_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new("auugit", "github_token").map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn store_github_token(token: String) -> Result<(), String> {
     let entry = github_token_entry()?;
     entry.set_password(&token).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_github_token() -> Result<Option<String>, String> {
     let entry = github_token_entry()?;
     match entry.get_password() {
@@ -280,7 +309,7 @@ fn get_github_token() -> Result<Option<String>, String> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn delete_github_token() -> Result<(), String> {
     let entry = github_token_entry()?;
     match entry.delete_credential() {
@@ -288,6 +317,19 @@ fn delete_github_token() -> Result<(), String> {
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }
+}
+
+#[tauri::command(async)]
+fn store_ai_key(key: String) -> Result<(), String> {
+    let entry = keyring::Entry::new("auugit", "ai_api_key").map_err(|e| e.to_string())?;
+    if key.is_empty() {
+        match entry.delete_credential() { Ok(()) | Err(keyring::Error::NoEntry) => Ok(()), Err(e) => Err(e.to_string()) }
+    } else { entry.set_password(&key).map_err(|e| e.to_string()) }
+}
+#[tauri::command(async)]
+fn get_ai_key() -> Result<Option<String>, String> {
+    let entry = keyring::Entry::new("auugit", "ai_api_key").map_err(|e| e.to_string())?;
+    match entry.get_password() { Ok(key) => Ok(Some(key)), Err(keyring::Error::NoEntry) => Ok(None), Err(e) => Err(e.to_string()) }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -301,6 +343,11 @@ pub fn run() {
             get_github_token,
             delete_github_token,
             execute_git,
+            path_exists,
+            request_ai_completion,
+            get_github_job_logs,
+            store_ai_key,
+            get_ai_key,
             read_file_content,
             write_file_content,
             request_github_device_code,

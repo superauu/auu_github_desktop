@@ -42,6 +42,7 @@ export const PullRequestsView: React.FC = () => {
     loadPullRequests,
     currentOwner,
     currentRepoName,
+    error,
   } = useGitHubStore();
 
   const { fetchAndCheckoutPR } = useRepoStore();
@@ -76,41 +77,27 @@ export const PullRequestsView: React.FC = () => {
 
   const activePR = selectedPR || filteredPRs[0] || null;
 
-  // Dynamically load real review and check runs for activePR
   useEffect(() => {
-    if (!activePR) return;
-
-    if (currentOwner && currentRepoName) {
-      // Fetch real PR reviews
-      githubService.getPullRequestReviews(currentOwner, currentRepoName, activePR.number).then((reviews) => {
-        if (reviews.some((r) => r.state === 'CHANGES_REQUESTED')) {
-          setRealReviewStatus('CHANGES_REQUESTED');
-        } else if (reviews.some((r) => r.state === 'APPROVED')) {
-          setRealReviewStatus('APPROVED');
-        } else if (reviews.some((r) => r.state === 'COMMENTED')) {
-          setRealReviewStatus('COMMENTED');
-        } else {
-          setRealReviewStatus('PENDING');
+    let cancelled = false;
+    setRealReviewStatus('PENDING'); setRealChecks(null);
+    if (activePR && currentOwner && currentRepoName) {
+      void githubService.getPullRequestReviews(currentOwner, currentRepoName, activePR.number).then((reviews) => {
+        if (cancelled) return;
+        const latest = new Map<string, string>();
+        for (const review of [...reviews].sort((a, b) => a.id - b.id)) {
+          if (review.state !== 'COMMENTED' && review.state !== 'PENDING') latest.set(review.user.login, review.state);
         }
-      }).catch(() => {
-        setRealReviewStatus('PENDING');
-      });
-
-      // Fetch real PR commit checks
-      githubService.getCommitChecks(currentOwner, currentRepoName, activePR.head.sha).then((checkRuns) => {
-        const total = checkRuns.length;
-        const success = checkRuns.filter((c) => c.conclusion === 'success').length;
-        const failure = checkRuns.filter((c) => c.conclusion === 'failure').length;
-        setRealChecks({ total, success, failure });
-      }).catch(() => {
-        setRealChecks(null);
-      });
-    } else {
-      // 未绑定 GitHub 仓库时无从获取真实数据
-      setRealReviewStatus('PENDING');
-      setRealChecks(null);
+        const states = [...latest.values()];
+        setRealReviewStatus(states.includes('CHANGES_REQUESTED') ? 'CHANGES_REQUESTED' : states.includes('APPROVED') ? 'APPROVED' : 'PENDING');
+      }).catch(() => { if (!cancelled) setRealReviewStatus('PENDING'); });
+      void githubService.getCommitChecks(currentOwner, currentRepoName, activePR.head.sha).then((checks) => {
+        if (cancelled) return;
+        setRealChecks({ total: checks.length, success: checks.filter((check) => check.conclusion === 'success').length,
+          failure: checks.filter((check) => check.status === 'completed' && check.conclusion !== 'success' && check.conclusion !== 'neutral').length });
+      }).catch(() => { if (!cancelled) setRealChecks(null); });
     }
-  }, [activePR, currentOwner, currentRepoName]);
+    return () => { cancelled = true; };
+  }, [activePR?.number, activePR?.head.sha, currentOwner, currentRepoName]);
 
   const handleCheckoutPR = async () => {
     if (!activePR) return;
@@ -255,6 +242,8 @@ export const PullRequestsView: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {error && <div role="alert" className="px-4 py-2 text-xs text-destructive border-b border-border">{error}</div>}
 
       {/* Main Split: Left PR List + Right PR Review Details */}
       <div className="flex-1 flex overflow-hidden">

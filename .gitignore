@@ -30,3 +30,6 @@ output_exe/
 # Python skill bytecode
 __pycache__/
 *.pyc
+
+# Isolated regression-test repositories and bundles
+.test-tmp-*

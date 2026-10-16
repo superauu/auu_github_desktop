@@ -1,446 +1,169 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import fs from 'fs';
-import { spawn } from 'child_process';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
-function gitApiPlugin(): Plugin {
+const MAX_BODY = 8 * 1024 * 1024;
+const json = (res: ServerResponse, status: number, data: unknown) => {
+  if (res.writableEnded || res.destroyed) return;
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify(data));
+};
+async function body(req: IncomingMessage): Promise<Record<string, any>> {
+  let size = 0;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > MAX_BODY) throw new Error('Request too large');
+    chunks.push(Buffer.from(chunk));
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+}
+async function repoFile(repoPath: string, filePath: string): Promise<string> {
+  if (typeof repoPath !== 'string' || typeof filePath !== 'string' || !filePath ||
+      path.isAbsolute(filePath) || filePath.split(/[/\\]/).some((part) => part === '..' || part === '.git')) {
+    throw new Error('Invalid repository file path');
+  }
+  const root = await fs.realpath(repoPath);
+  const candidate = path.resolve(root, filePath);
+  const parent = await fs.realpath(path.dirname(candidate));
+  let resolved = path.join(parent, path.basename(candidate));
+  try { resolved = await fs.realpath(candidate); } catch (error: any) { if (error.code !== 'ENOENT') throw error; }
+  const relative = path.relative(root, resolved);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw new Error('Path outside repository');
+  return resolved;
+}
+export function gitApiPlugin(): Plugin {
   return {
     name: 'git-api-plugin',
     configureServer(server) {
-      // 1. Git Command Execution Endpoint
-      server.middlewares.use('/api/git', (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-          return;
+      server.middlewares.use('/api', async (req, res) => {
+        // A custom header prevents simple cross-site requests. Reject preflights and foreign origins.
+        const host = req.headers.host || '';
+        const origin = req.headers.origin;
+        if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host) ||
+            (origin && origin !== `http://${host}`) || req.headers['x-auugit-request'] !== '1' ||
+            (req.method !== 'GET' && req.headers['content-type']?.split(';')[0] !== 'application/json')) {
+          json(res, 403, { error: 'Forbidden API request' }); return;
         }
-
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk;
-        });
-
-        req.on('end', () => {
-          try {
-            const { args, cwd, gitBinary } = JSON.parse(body || '{}');
-            if (!Array.isArray(args)) {
-              res.statusCode = 400;
-              res.end(JSON.stringify({ error: 'Invalid args: must be array' }));
-              return;
-            }
-
-            const workingDir = cwd || process.cwd();
-            const gitCmd = (gitBinary && typeof gitBinary === 'string' && gitBinary.trim()) ? gitBinary.trim() : 'git';
-            // 关闭 quotepath，避免中文等非 ASCII 路径被转义（与桌面端 executeGit 保持一致）
-            const finalArgs = ['-c', 'core.quotepath=false', ...args];
-            const child = spawn(gitCmd, finalArgs, {
-              cwd: workingDir,
-              windowsHide: true,
-            });
-
-            let stdout = '';
-            let stderr = '';
-
-            child.stdout.on('data', (data) => {
-              stdout += data.toString('utf-8');
-            });
-
-            child.stderr.on('data', (data) => {
-              stderr += data.toString('utf-8');
-            });
-
-            child.on('error', (err) => {
-              res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: err.message, exitCode: -1, stdout: '', stderr: err.message }));
-            });
-
-            child.on('close', (code) => {
-              res.statusCode = 200;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({
-                exitCode: code ?? 0,
-                stdout,
-                stderr,
-              }));
-            });
-          } catch (e: any) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: e.message }));
-          }
-        });
-      });
-
-      // 2. Native Folder Dialog Endpoint (Windows PowerShell FolderBrowserDialog)
-      server.middlewares.use('/api/dialog/pick-folder', (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-          return;
-        }
-
-        if (process.platform === 'win32') {
-          const psScript = `
-Add-Type -AssemblyName System.Windows.Forms
-$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$dialog.Description = '请选择 Git 仓库目录'
-$dialog.ShowNewFolderButton = $true
-if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-    [Console]::WriteLine($dialog.SelectedPath)
-}
-`.trim();
-
-          const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-Command', psScript]);
-          let stdout = '';
-          child.stdout.on('data', (d) => {
-            stdout += d.toString('utf-8');
-          });
-
-          child.on('close', () => {
-            const selectedPath = stdout.trim();
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ path: selectedPath || null }));
-          });
-
-          child.on('error', (err) => {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message, path: null }));
-          });
-        } else {
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ path: null }));
-        }
-      });
-
-      // 3. Path Validation Endpoint (Checks directory existence & .git repository)
-      server.middlewares.use('/api/fs/validate-path', (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-          return;
-        }
-
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk;
-        });
-
-        req.on('end', () => {
-          try {
-            const { path: checkPath } = JSON.parse(body || '{}');
-            if (!checkPath) {
-              res.statusCode = 400;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'Path is required' }));
-              return;
-            }
-
-            const normalized = path.resolve(checkPath.trim());
-            const exists = fs.existsSync(normalized);
-            if (!exists) {
-              res.statusCode = 200;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ exists: false, isDirectory: false, isGitRepo: false }));
-              return;
-            }
-
-            const stat = fs.statSync(normalized);
-            const isDirectory = stat.isDirectory();
-            if (!isDirectory) {
-              res.statusCode = 200;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ exists: true, isDirectory: false, isGitRepo: false }));
-              return;
-            }
-
-            const gitDir = path.join(normalized, '.git');
-            const isGitRepo = fs.existsSync(gitDir);
-
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({
-              exists: true,
-              isDirectory: true,
-              isGitRepo,
-              name: path.basename(normalized),
-              fullPath: normalized,
-            }));
-          } catch (err: any) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-          }
-        });
-      });
-
-      // 4. In-App Directory Listing Endpoint (for browsing drives & folders)
-      server.middlewares.use('/api/fs/list-dirs', (req, res) => {
+        const url = new URL(req.url || '/', 'http://localhost');
         try {
-          const url = new URL(req.url || '', 'http://localhost');
-          const reqPath = url.searchParams.get('path');
-
-          if (!reqPath) {
-            // Windows drive letters
-            const drives: { name: string; path: string; hasGit: boolean }[] = [];
-            ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'Z'].forEach((letter) => {
-              const drivePath = `${letter}:\\`;
-              if (fs.existsSync(drivePath)) {
-                let hasGit = false;
-                try {
-                  hasGit = fs.existsSync(path.join(drivePath, '.git'));
-                } catch {}
-                drives.push({
-                  name: `${letter}: 盘`,
-                  path: drivePath,
-                  hasGit,
-                });
+          if (url.pathname === '/fs/list-dirs' && req.method === 'GET') {
+            const requested = url.searchParams.get('path');
+            if (!requested && process.platform === 'win32') {
+              const directories = (await Promise.all('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(async (letter) => {
+                const drive = `${letter}:/`;
+                try { await fs.access(drive); return { name: `${letter}:`, path: drive, hasGit: false }; } catch { return null; }
+              }))).filter(Boolean);
+              json(res, 200, { currentPath: '', parentPath: null, hasGit: false, directories }); return;
+            }
+            const root = await fs.realpath(requested || process.cwd());
+            const entries = await fs.readdir(root, { withFileTypes: true });
+            const hasGit = async (folder: string) => fs.access(path.join(folder, '.git')).then(() => true, () => false);
+            const directories = await Promise.all(entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map(async (entry) => {
+              const full = path.join(root, entry.name);
+              return { name: entry.name, path: full, hasGit: await hasGit(full) };
+            }));
+            directories.sort((a, b) => Number(b.hasGit) - Number(a.hasGit) || a.name.localeCompare(b.name));
+            json(res, 200, { currentPath: root, parentPath: path.dirname(root) === root ? null : path.dirname(root), hasGit: await hasGit(root), directories }); return;
+          }
+          if (req.method !== 'POST') { json(res, 405, { error: 'Method not allowed' }); return; }
+          const data = await body(req);
+          if (url.pathname === '/git') {
+            const { args, cwd = process.cwd(), gitBinary = 'git', stdin } = data;
+            if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string') ||
+                typeof gitBinary !== 'string' || !/^git(?:\.exe)?$/i.test(path.basename(gitBinary)) ||
+                (stdin !== undefined && typeof stdin !== 'string')) throw new Error('Invalid Git command');
+            const child = spawn(gitBinary, ['-c', 'core.quotepath=false', ...args], {
+              cwd, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' },
+            });
+            let stdout = '', stderr = '', size = 0, finished = false;
+            const finish = (status: number, value: unknown) => {
+              if (finished) return;
+              finished = true; clearTimeout(timer); json(res, status, value);
+            };
+            const timer = setTimeout(() => { child.kill(); finish(504, { error: 'Git command timed out' }); }, 15 * 60_000);
+            child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
+            const collect = (stream: 'stdout' | 'stderr', chunk: string) => {
+              size += Buffer.byteLength(chunk);
+              if (size > 32 * 1024 * 1024) { child.kill(); finish(413, { error: 'Git output too large' }); return; }
+              if (stream === 'stdout') stdout += chunk.toString('utf8'); else stderr += chunk.toString('utf8');
+            };
+            child.stdout.on('data', (chunk) => collect('stdout', chunk));
+            child.stderr.on('data', (chunk) => collect('stderr', chunk));
+            child.stdin.on('error', () => {});
+            child.on('error', (error) => finish(500, { exitCode: -1, stdout, stderr: error.message }));
+            child.on('close', (code) => finish(200, { exitCode: code ?? -1, stdout, stderr }));
+            res.on('close', () => { if (!finished) { child.kill(); clearTimeout(timer); } });
+            child.stdin.end(stdin || ''); return;
+          }
+          if (url.pathname === '/fs/read-file' || url.pathname === '/fs/write-file') {
+            const resolved = await repoFile(data.repoPath, data.filePath);
+            if (url.pathname === '/fs/read-file') {
+              const bytes = await fs.readFile(resolved);
+              const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+              json(res, 200, { content });
+            } else {
+              if (typeof data.content !== 'string') throw new Error('Invalid file content');
+              if (data.expectedContent !== undefined && await fs.readFile(resolved, 'utf8') !== data.expectedContent) {
+                json(res, 409, { error: 'File changed on disk; reload before saving' }); return;
               }
-            });
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ currentPath: '', parentPath: null, directories: drives }));
+              await fs.writeFile(resolved, data.content, 'utf8'); json(res, 200, { success: true });
+            }
             return;
           }
-
-          const targetDir = path.resolve(reqPath);
-          if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: '目录不存在' }));
-            return;
+          if (url.pathname === '/fs/exists') {
+            json(res, 200, { exists: await fs.access(path.resolve(data.cwd || process.cwd(), data.path)).then(() => true, () => false) }); return;
           }
-
-          const entries = fs.readdirSync(targetDir, { withFileTypes: true });
-          const directories = entries
-            .filter((e) => e.isDirectory() && !e.name.startsWith('$') && e.name !== 'System Volume Information')
-            .map((e) => {
-              const full = path.join(targetDir, e.name);
-              let hasGit = false;
-              try {
-                hasGit = fs.existsSync(path.join(full, '.git'));
-              } catch {}
-              return {
-                name: e.name,
-                path: full,
-                hasGit,
-              };
-            })
-            .sort((a, b) => {
-              if (a.hasGit && !b.hasGit) return -1;
-              if (!a.hasGit && b.hasGit) return 1;
-              return a.name.localeCompare(b.name);
+          if (url.pathname === '/fs/validate-path') {
+            const normalized = path.resolve(data.path);
+            const stat = await fs.stat(normalized).catch(() => null);
+            json(res, 200, { exists: !!stat, isDirectory: !!stat?.isDirectory(),
+              isGitRepo: !!stat?.isDirectory() && await fs.access(path.join(normalized, '.git')).then(() => true, () => false),
+              fullPath: normalized, name: path.basename(normalized) }); return;
+          }
+          if (url.pathname === '/dialog/pick-folder') {
+            if (process.platform !== 'win32') { json(res, 200, { path: null }); return; }
+            const script = `Add-Type -AssemblyName System.Windows.Forms
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [Console]::WriteLine($d.SelectedPath) }`;
+            const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-Command', script], { windowsHide: true });
+            let output = '', finished = false;
+            const finish = (status: number, value: unknown) => { if (!finished) { finished = true; json(res, status, value); } };
+            child.stdout.on('data', (chunk) => { output += chunk.toString('utf8'); });
+            child.on('error', (error) => finish(500, { error: error.message }));
+            child.on('close', () => finish(200, { path: output.trim() || null })); return;
+          }
+          if (url.pathname === '/github/device-code' || url.pathname === '/github/device-token') {
+            const token = url.pathname.endsWith('device-token');
+            const response = await fetch(token ? 'https://github.com/login/oauth/access_token' : 'https://github.com/login/device/code', {
+              method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+              body: JSON.stringify(token ? { client_id: data.client_id, device_code: data.device_code, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' } : { client_id: data.client_id, scope: data.scope }),
+              signal: AbortSignal.timeout(20_000),
             });
-
-          const parent = path.dirname(targetDir);
-          const parentPath = parent !== targetDir ? parent : null;
-
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({
-            currentPath: targetDir,
-            parentPath,
-            hasGit: fs.existsSync(path.join(targetDir, '.git')),
-            directories,
-          }));
-        } catch (err: any) {
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: err.message }));
-        }
-      });
-
-      // 4.1 Read File Content Endpoint
-      server.middlewares.use('/api/fs/read-file', (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-          return;
-        }
-        let body = '';
-        req.on('data', (c) => { body += c; });
-        req.on('end', () => {
-          try {
-            const { path: filePath } = JSON.parse(body || '{}');
-            if (!filePath) {
-              res.statusCode = 400;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: '文件路径不能为空' }));
-              return;
-            }
-            // Restrict file access to project root
-            const projectRoot = path.resolve(__dirname);
-            const resolved = path.resolve(filePath);
-            if (!resolved.startsWith(projectRoot)) {
-              res.statusCode = 403;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'Access denied: path outside project root' }));
-              return;
-            }
-            if (!fs.existsSync(resolved)) {
-              res.statusCode = 404;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: '文件未找到' }));
-              return;
-            }
-            const content = fs.readFileSync(resolved, 'utf-8');
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ content }));
-          } catch (e: any) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: e.message }));
+            json(res, response.status, await response.json()); return;
           }
-        });
-      });
-
-      // 4.2 Write File Content Endpoint
-      server.middlewares.use('/api/fs/write-file', (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-          return;
-        }
-        let body = '';
-        req.on('data', (c) => { body += c; });
-        req.on('end', () => {
-          try {
-            const { path: filePath, content } = JSON.parse(body || '{}');
-            if (!filePath) {
-              res.statusCode = 400;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: '文件路径不能为空' }));
-              return;
-            }
-            // Restrict file access to project root
-            const projectRoot = path.resolve(__dirname);
-            const resolved = path.resolve(filePath);
-            if (!resolved.startsWith(projectRoot)) {
-              res.statusCode = 403;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'Access denied: path outside project root' }));
-              return;
-            }
-            fs.writeFileSync(resolved, content ?? '', 'utf-8');
-            res.statusCode = 200;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true }));
-          } catch (e: any) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: e.message }));
-          }
-        });
-      });
-
-      // 5. GitHub OAuth Device Code Proxy Endpoint
-      server.middlewares.use('/api/github/device-code', async (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-          return;
-        }
-
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk;
-        });
-
-        req.on('end', async () => {
-          try {
-            const { client_id = '178c6fc778ccc68e1d6a', scope = 'repo,workflow,read:user' } = JSON.parse(body || '{}');
-            const response = await fetch('https://github.com/login/device/code', {
-              method: 'POST',
-              headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ client_id, scope }),
-            });
-
-            const data = await response.json();
-            res.statusCode = response.status;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-          } catch (err: any) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message || '获取设备码失败' }));
-          }
-        });
-      });
-
-      // 6. GitHub OAuth Device Token Polling Proxy Endpoint
-      server.middlewares.use('/api/github/device-token', async (req, res) => {
-        if (req.method !== 'POST') {
-          res.statusCode = 405;
-          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-          return;
-        }
-
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk;
-        });
-
-        req.on('end', async () => {
-          try {
-            const { client_id = '178c6fc778ccc68e1d6a', device_code } = JSON.parse(body || '{}');
-            if (!device_code) {
-              res.statusCode = 400;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'device_code is required' }));
-              return;
-            }
-
-            const response = await fetch('https://github.com/login/oauth/access_token', {
-              method: 'POST',
-              headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                client_id,
-                device_code,
-                grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-              }),
-            });
-
-            const data = await response.json();
-            res.statusCode = response.status;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-          } catch (err: any) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message || '轮询 Token 失败' }));
-          }
-        });
+          json(res, 404, { error: 'Unknown API endpoint' });
+        } catch (error: any) { json(res, 400, { error: error.message }); }
       });
     },
   };
 }
-
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), gitApiPlugin()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
+  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.replace(/\\/g, '/').includes('/node_modules/')) return 'vendor';
+        },
+      },
     },
   },
-  // prevent vite from obscuring rust errors
   clearScreen: false,
-  server: {
-    port: 5173,
-    strictPort: false,
-    host: 'localhost',
-  },
+  server: { port: 5173, strictPort: true, host: 'localhost' },
 });
-

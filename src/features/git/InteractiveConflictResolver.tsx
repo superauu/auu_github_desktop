@@ -44,6 +44,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   onResolved,
 }) => {
   const {
+    currentRepo,
     readWorkingFile,
     saveAndStageConflictFile,
     resetFileConflictMarkers,
@@ -54,6 +55,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState<string>('');
+  const [readError, setReadError] = useState<string | null>(null);
+  const originalContent = useRef<string | undefined>(undefined);
+  const loadId = useRef(0);
   const [initialConflictCount, setInitialConflictCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [activeBlockIndex, setActiveBlockIndex] = useState<number>(0);
@@ -61,22 +65,27 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
   // Load file content
   const loadContent = async () => {
-    setLoading(true);
+    const request = ++loadId.current;
+    const repoPath = currentRepo?.path;
+    setLoading(true); setReadError(null); originalContent.current = undefined;
     try {
       const text = await readWorkingFile(filePath);
+      if (request !== loadId.current || useRepoStore.getState().currentRepo?.path !== repoPath) return;
+      originalContent.current = text;
       setContent(text);
       const parsed = parseConflictBlocks(text);
       setInitialConflictCount(parsed.totalConflicts);
     } catch (err: any) {
-      toast.error(t('resolver.loadFailed'), err.message);
+      if (request === loadId.current) { setReadError(err.message); setContent(''); toast.error(t('resolver.loadFailed'), err.message); }
     } finally {
-      setLoading(false);
+      if (request === loadId.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadContent();
-  }, [filePath]);
+    void loadContent();
+    return () => { loadId.current++; };
+  }, [filePath, currentRepo?.path]);
 
   // Parse conflicts from current edited content
   const parsed = useMemo(() => parseConflictBlocks(content), [content]);
@@ -189,7 +198,8 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   const handleSaveAndStage = async () => {
     setIsSaving(true);
     try {
-      await saveAndStageConflictFile(filePath, content);
+      if (readError || originalContent.current === undefined || hasConflicts) throw new Error('Resolve all conflicts before saving');
+      await saveAndStageConflictFile(filePath, content, originalContent.current);
       toast.success(t('resolver.savedStaged'), filePath);
       onResolved?.();
       onClose?.();
@@ -210,6 +220,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
+
+  if (readError && !loading) {
+    return <div role="alert" className="p-6 text-sm text-destructive">{t('resolver.loadFailed')}: {readError}<Button onClick={() => void loadContent()}>{t('resolver.resetMarkers')}</Button></div>;
+  }
 
   if (loading) {
     return (
@@ -333,7 +347,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
           <Button
             size="xs"
             onClick={handleSaveAndStage}
-            disabled={isSaving}
+            disabled={isSaving || hasConflicts || originalContent.current === undefined}
             className={cn(
               "h-7 text-xs px-3 gap-1.5 shadow-sm transition-all",
               !hasConflicts

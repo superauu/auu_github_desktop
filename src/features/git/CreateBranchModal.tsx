@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState } from 'react';
 import { GitBranch, X, Loader2, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -96,9 +97,8 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isSubmitting} label={t('header.branchAction')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -264,6 +264,6 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

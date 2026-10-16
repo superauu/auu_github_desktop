@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import {
   FolderOpen,
@@ -43,7 +44,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const [repoPath, setRepoPath] = useState('');
   const [cloneUrl, setCloneUrl] = useState('');
   const [cloneTargetPath, setCloneTargetPath] = useState('');
-  const [branchName, setBranchName] = useState('main');
+  const [branchName, setBranchName] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPicking, setIsPicking] = useState(false);
@@ -60,21 +61,17 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
     setMode(initialMode);
   }, [initialMode]);
 
-  // Debounced path validation
+  // In-flight validation must not overwrite a newer path's result.
   useEffect(() => {
-    if (!repoPath.trim()) {
-      setPathValidation(null);
-      return;
-    }
-
+    let cancelled = false;
+    setPathValidation(null);
+    if (!repoPath.trim()) { setIsValidating(false); return; }
+    setIsValidating(true);
     const timer = setTimeout(async () => {
-      setIsValidating(true);
-      const res = await validateDirectoryPath(repoPath.trim());
-      setPathValidation(res);
-      setIsValidating(false);
+      const result = await validateDirectoryPath(repoPath.trim());
+      if (!cancelled) { setPathValidation(result); setIsValidating(false); }
     }, 250);
-
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [repoPath]);
 
   if (!open) return null;
@@ -177,9 +174,8 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isProcessing} label={t(mode === 'clone' ? 'repo.title.clone' : mode === 'init' ? 'repo.title.init' : 'repo.title.open')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none p-4"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-xl rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -572,6 +568,6 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </ModalSurface>
   );
 };

@@ -178,7 +178,7 @@ export function resolveSingleBlock(
   const after = lines.slice(target.endLine);
 
   const replacementLines = replacement.length > 0 ? replacement.split('\n') : [];
-  return [...before, ...replacementLines, ...after].join('\n');
+  return [...before, ...replacementLines, ...after].join(content.includes('\r\n') ? '\r\n' : '\n');
 }
 
 /**

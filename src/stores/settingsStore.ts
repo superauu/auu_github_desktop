@@ -16,6 +16,9 @@ export interface SettingsState {
   aiConfig: AiApiConfig;
   language: Language;
 
+  credentialError: string | null;
+  initSecrets: () => Promise<void>;
+
   // Actions
   setGitCliPath: (path: string) => void;
   setCompactMode: (enabled: boolean) => void;
@@ -26,6 +29,11 @@ export interface SettingsState {
 }
 
 const SETTINGS_KEY = 'auu_git_settings';
+let legacyAiKey = '';
+let keyVersion = 0;
+let keyWrites: Promise<void> = Promise.resolve();
+let secretInit: Promise<void> | null = null;
+const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 const DEFAULT_SETTINGS = {
   gitCliPath: 'git',
@@ -45,12 +53,15 @@ function loadSettings() {
     const saved = localStorage.getItem(SETTINGS_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
+      legacyAiKey = typeof parsed.aiConfig?.apiKey === 'string' ? parsed.aiConfig.apiKey : '';
+      if (parsed.aiConfig) { delete parsed.aiConfig.apiKey; localStorage.setItem(SETTINGS_KEY, JSON.stringify(parsed)); }
       return {
         ...DEFAULT_SETTINGS,
         ...parsed,
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
           ...(parsed.aiConfig || {}),
+          apiKey: legacyAiKey,
         },
       };
     }
@@ -73,7 +84,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
         language: get().language,
         ...partial,
       };
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(current));
+      const { apiKey: _secret, ...publicAiConfig } = current.aiConfig;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, aiConfig: publicAiConfig }));
     } catch {
       // ignore
     }
@@ -81,6 +93,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
 
   return {
     ...initial,
+    credentialError: null,
+    initSecrets: async () => {
+      if (!isDesktop()) return;
+      if (secretInit) return secretInit;
+      const version = keyVersion;
+      secretInit = (async () => {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          if (legacyAiKey && version === keyVersion) {
+            const migrationKey = legacyAiKey;
+            keyWrites = keyWrites.then(() => invoke<void>('store_ai_key', { key: migrationKey }));
+            await keyWrites;
+            legacyAiKey = '';
+          }
+          await keyWrites;
+          const key = await invoke<string | null>('get_ai_key');
+          if (version === keyVersion) set({ aiConfig: { ...get().aiConfig, apiKey: key || '' } });
+        } catch (error) { set({ credentialError: `无法读取或迁移 AI 凭据: ${String(error)}` }); }
+      })();
+      return secretInit;
+    },
 
     setGitCliPath: (gitCliPath: string) => {
       set({ gitCliPath });
@@ -111,11 +144,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
 
     setAiConfig: (config: Partial<AiApiConfig>) => {
       const updatedAi = { ...get().aiConfig, ...config };
+      if (config.apiKey !== undefined) {
+        keyVersion++;
+        legacyAiKey = '';
+        if (isDesktop()) {
+          const key = config.apiKey;
+          keyWrites = keyWrites.catch(() => {}).then(async () => {
+            const { invoke } = await import('@tauri-apps/api/core');
+            await invoke('store_ai_key', { key });
+            set({ credentialError: null });
+          }).catch((error) => { set({ credentialError: `无法安全保存 AI 凭据: ${String(error)}` }); });
+        }
+      }
       set({ aiConfig: updatedAi });
       persist({ aiConfig: updatedAi });
     },
 
     resetSettings: () => {
+      get().setAiConfig({ apiKey: '' });
       set(DEFAULT_SETTINGS);
       localStorage.removeItem(SETTINGS_KEY);
       if (typeof document !== 'undefined') {

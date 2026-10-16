@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import { 
   Activity, 
@@ -95,9 +96,8 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={'Repository health'}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none p-4"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-xl max-h-[85vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-4 animate-in zoom-in-95 overflow-hidden"
@@ -239,6 +239,6 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
           </Button>
         </div>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

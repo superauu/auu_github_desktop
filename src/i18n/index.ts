@@ -5,6 +5,7 @@
  * - translate() 可在组件外使用（toast、service 层）
  * - useI18n() 供 React 组件订阅语言变化
  */
+import { useCallback } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { zh } from './zh';
 import { en } from './en';
@@ -30,8 +31,6 @@ export function tNow(key: string): string {
 /** React 组件用：订阅语言变化 */
 export function useI18n() {
   const lang = useSettingsStore((s) => s.language);
-  return {
-    lang,
-    t: (key: TranslationKey | string) => translate(lang, key),
-  };
+  const t = useCallback((key: TranslationKey | string) => translate(lang, key), [lang]);
+  return { lang, t };
 }

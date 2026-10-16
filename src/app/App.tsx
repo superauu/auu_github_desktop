@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { AppLayout } from '@/components/layout/AppLayout';
 
 export const App: React.FC = () => {
@@ -12,6 +13,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     // Initialize theme system
     initTheme();
+    void useSettingsStore.getState().initSecrets();
 
     // Initialize GitHub auth state
     initAuth();

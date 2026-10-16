@@ -3,6 +3,8 @@
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  'banner.abortCherryPick': 'Abort cherry-pick',
+  'banner.continueCherryPick': 'Continue cherry-pick',
   // ============ Common ============
   'common.loaded': 'Loaded',
   'common.never': 'Never',

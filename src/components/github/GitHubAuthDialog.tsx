@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Github,
@@ -184,9 +185,8 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={'GitHub'}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5 animate-in zoom-in-95"
@@ -511,6 +511,6 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </ModalSurface>
   );
 };

@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useEffect, useRef } from 'react';
 import { FileCode, X, Copy, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -28,9 +29,8 @@ export const WorkflowYamlViewerModal: React.FC = () => {
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={closeWorkflowYaml} dismissible={!false} label={'Workflow configuration'}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150 select-none"
-      onClick={closeWorkflowYaml}
     >
       <div
         className="w-full max-w-2xl h-[70vh] bg-card border border-border/90 rounded-xl shadow-2xl flex flex-col overflow-hidden"
@@ -71,6 +71,6 @@ export const WorkflowYamlViewerModal: React.FC = () => {
           <pre className="whitespace-pre">{activeWorkflowYaml.content}</pre>
         </div>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

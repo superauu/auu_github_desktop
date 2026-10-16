@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import { ModalSurface } from '@/components/ui/ModalSurface';
+import React from 'react';
 import { Command } from 'cmdk';
 import {
   Search,
@@ -49,24 +50,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const { setTheme } = useThemeStore();
   const { t } = useI18n();
 
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === 'p' && e.ctrlKey && e.shiftKey)) {
-        e.preventDefault();
-        onOpenChange(!open);
-      }
-    };
-
-    document.addEventListener('keydown', down);
-    return () => document.removeEventListener('keydown', down);
-  }, [open, onOpenChange]);
-
   if (!open) return null;
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={t('palette.placeholder')}
       className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-background/80 backdrop-blur-md animate-in fade-in-0 duration-150 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-xl rounded-2xl border border-border/80 bg-popover/95 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 backdrop-blur-xl"
@@ -324,6 +312,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           </Command.List>
         </Command>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

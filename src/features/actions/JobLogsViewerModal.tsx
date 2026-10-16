@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Terminal,
@@ -105,9 +106,8 @@ export const JobLogsViewerModal: React.FC = () => {
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={closeJobLogs} dismissible={!false} label={'Job logs'}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150 select-none"
-      onClick={closeJobLogs}
     >
       <div
         className={cn(
@@ -224,6 +224,6 @@ export const JobLogsViewerModal: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

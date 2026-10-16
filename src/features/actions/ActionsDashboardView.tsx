@@ -55,6 +55,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     user,
     currentOwner,
     currentRepoName,
+    error,
   } = useGitHubStore();
   const { t } = useI18n();
 
@@ -116,6 +117,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           </Button>
         </div>
       </div>
+
+      {error && <div role="alert" className="px-4 py-2 text-xs text-destructive border-b border-border">{error}</div>}
 
       {/* Main 2-Column Split: Workflows List (Left) + Runs & Jobs Explorer (Right) */}
       <div className="flex-1 flex overflow-hidden">

@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState } from 'react';
 import { GitPullRequest, X, Loader2, AlertTriangle, Check, ArrowRight, RefreshCw, Ban } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -99,9 +100,8 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isSubmitting} label={'Rebase branch'}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -241,6 +241,6 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
           </form>
         )}
       </div>
-    </div>
+    </ModalSurface>
   );
 };

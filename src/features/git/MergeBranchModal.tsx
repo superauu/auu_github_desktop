@@ -1,3 +1,4 @@
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import { GitMerge, X, Loader2, AlertCircle, Check, ArrowRight } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -74,9 +75,8 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
   };
 
   return (
-    <div
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isSubmitting} label={'Merge branch'}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
-      onClick={() => onOpenChange(false)}
     >
       <div
         className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -207,6 +207,6 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </ModalSurface>
   );
 };

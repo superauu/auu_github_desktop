@@ -31,8 +31,9 @@ export const ConflictBanner: React.FC = () => {
   }
 
   const { type, conflictedFiles, isAllResolved } = operationState;
+  const isCherryPick = type === 'cherry-pick';
   const isRebase = type === 'rebase';
-  const opTitle = isRebase ? t('banner.rebaseTitle') : t('banner.mergeTitle');
+  const opTitle = isCherryPick ? 'Cherry-pick' : isRebase ? t('banner.rebaseTitle') : t('banner.mergeTitle');
 
   const handleAbort = async () => {
     setIsSubmitting(true);
@@ -151,7 +152,7 @@ export const ConflictBanner: React.FC = () => {
             title={isRebase ? t('banner.abortRebaseRestore') : t('banner.abortMergeRestore')}
           >
             <Ban className="h-3.5 w-3.5" />
-            <span>{isRebase ? t('banner.abortRebase') : t('banner.abortMerge')}</span>
+            <span>{isCherryPick ? t('banner.abortCherryPick') : isRebase ? t('banner.abortRebase') : t('banner.abortMerge')}</span>
           </Button>
         )}
 
@@ -174,7 +175,7 @@ export const ConflictBanner: React.FC = () => {
           }
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
-          <span>{isRebase ? t('banner.continueBtn') : t('banner.finishMergeBtn')}</span>
+          <span>{isCherryPick ? t('banner.continueCherryPick') : isRebase ? t('banner.continueBtn') : t('banner.finishMergeBtn')}</span>
           <ArrowRight className="h-3 w-3" />
         </Button>
       </div>
