@@ -1,3 +1,4 @@
+import { confirmAction } from '@/stores/confirmStore';
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, RefreshCw, Check, X } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -67,7 +68,7 @@ export const RemotesManager: React.FC = () => {
   };
 
   const handleRemove = async (name: string) => {
-    if (!confirm(t('settings.remotes.removeConfirm').replace('{name}', name))) return;
+    if (!await confirmAction({ title: t('composer.removeRemote'), description: t('settings.remotes.removeConfirm').replace('{name}', name), detail: name })) return;
     try {
       await gitService.removeRemote(repoPath, name);
       toast.success(t('settings.remotes.removed').replace('{name}', name));

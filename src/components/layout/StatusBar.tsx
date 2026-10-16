@@ -39,9 +39,9 @@ export const StatusBar: React.FC = () => {
             {status && (
               <>
                 <div className="h-3 w-[1px] bg-border" />
-                <div className="flex items-center gap-2 font-mono text-[11px]">
-                  <span className="text-emerald-400">↑ {status.ahead}</span>
-                  <span className="text-cyan-400">↓ {status.behind}</span>
+                <div className="flex items-center gap-2 font-mono text-[12px]">
+                  <span className="text-git-added">↑ {status.ahead}</span>
+                  <span className="text-primary">↓ {status.behind}</span>
                 </div>
               </>
             )}
@@ -53,14 +53,14 @@ export const StatusBar: React.FC = () => {
 
       {/* Right side status */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1 text-[11px]">
-          <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+        <div className="flex items-center gap-1 text-[12px]">
+          <CheckCircle2 className="h-3 w-3 text-git-added" />
           <span>{t('status.gitReady')}</span>
         </div>
 
         <div className="h-3 w-[1px] bg-border" />
 
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground/80 font-mono">
+        <div className="flex items-center gap-1 text-[12px] text-muted-foreground/80 font-mono">
           <Terminal className="h-3 w-3" />
           <span>UTF-8</span>
         </div>

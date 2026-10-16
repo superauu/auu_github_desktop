@@ -1,5 +1,6 @@
+import { confirmAction } from '@/stores/confirmStore';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GitPullRequest, X, Loader2, Check, Sparkles } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -39,6 +40,9 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loadingBase, setLoadingBase] = useState(false);
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+
+  const descriptionRequest = useRef(0);
+  useEffect(() => { descriptionRequest.current++; setIsGeneratingDesc(false); }, [open, currentRepo?.path, headBranch, baseBranch]);
 
   // 每次打开时重置：源分支默认当前分支，标题预填最新提交主题，异步取仓库默认分支作为目标
   useEffect(() => {
@@ -87,22 +91,22 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
 
   const handleGenerateDesc = async () => {
     if (!currentRepo || !headBranch || !baseBranch) return;
+    const request = ++descriptionRequest.current;
     setIsGeneratingDesc(true);
     try {
-      const generated = await aiCommitService.generatePRDescription({
+      const generated = await aiCommitService.generatePRDescriptionResult({
         repoPath: currentRepo.path,
         base: baseBranch,
         head: headBranch,
         aiConfig,
       });
-      setBody(generated);
-      if (!aiConfig.apiKey || !aiConfig.apiKey.trim()) {
-        toast.info(t('pr.aiFallbackUsed'));
-      }
+      if (request !== descriptionRequest.current || useRepoStore.getState().currentRepo?.path !== currentRepo.path) return;
+      if (generated.fallback) toast.warning(t('composer.fallbackTitle'), t('composer.fallbackDesc'));
+      if (await confirmAction({ title: t('composer.preview'), description: generated.source === 'llm' ? `AI · ${generated.model}` : t(generated.fallback ? 'composer.localFallback' : 'composer.localRules'), detail: generated.message, confirmLabel: t('composer.useMessage'), danger: false }) && request === descriptionRequest.current) setBody(generated.message);
     } catch (err: any) {
       toast.error(t('pr.aiGenerateFailed'), err?.message);
     } finally {
-      setIsGeneratingDesc(false);
+      if (request === descriptionRequest.current) setIsGeneratingDesc(false);
     }
   };
 

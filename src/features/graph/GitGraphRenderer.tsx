@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { GitCommit } from '@/services/git/types';
 
 interface GitGraphRendererProps {
+  onWidthChange?: (width: number) => void;
   commits: GitCommit[];
   selectedIndex: number;
   rowHeight?: number;
@@ -16,13 +17,13 @@ const LANE_OFFSET = 32; // Centered in the 64px GRAPH column
 const ROW_HEIGHT = 42; // Matches commit item row height (42px)
 
 const LANE_COLORS = [
-  '#38bdf8', // Sky Blue (Primary)
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#6366f1', // Indigo / Cobalt
-  '#06b6d4', // Cyan
-  '#14b8a6', // Teal
-  '#818cf8', // Slate Blue
+  'hsl(var(--git-renamed))', // Sky Blue (Primary)
+  'hsl(var(--git-added))', // Emerald
+  'hsl(var(--git-tag))', // Amber
+  'hsl(var(--git-branch))', // Indigo / Cobalt
+  'hsl(var(--git-commit))', // Cyan
+  'hsl(var(--git-untracked))', // Teal
+  'hsl(var(--git-branch))', // Slate Blue
 ];
 
 interface GraphNode {
@@ -52,6 +53,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
   visibleStart = 0,
   visibleEnd = commits.length,
   isWipSelected = false,
+  onWidthChange,
 }) => {
   const { nodes, paths, maxLane } = useMemo(() => {
     if (!commits || (commits.length === 0 && !hasWipNode)) {
@@ -78,7 +80,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
         lane: 0,
         x: LANE_OFFSET,
         y: rowHeight / 2,
-        color: '#38bdf8',
+        color: 'hsl(var(--git-renamed))',
       });
     }
 
@@ -151,7 +153,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       calculatedPaths.push({
         id: 'wip-to-head',
         d: `M ${wipNode.x} ${wipNode.y} L ${headNode.x} ${headNode.y}`,
-        color: '#38bdf8',
+        color: 'hsl(var(--git-renamed))',
         isDashed: true,
       });
     }
@@ -195,7 +197,8 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
     };
   }, [commits, rowHeight, hasWipNode]);
 
-  const svgWidth = Math.max((maxLane + 1) * LANE_WIDTH + 24, 42);
+  const svgWidth = Math.max((maxLane + 1) * LANE_WIDTH + 32, 64);
+  useEffect(() => { onWidthChange?.(svgWidth); }, [onWidthChange, svgWidth]);
   const totalHeight = (commits.length + (hasWipNode ? 1 : 0)) * rowHeight;
 
   return (
@@ -207,7 +210,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       <defs>
         {LANE_COLORS.map((color, idx) => (
           <filter key={idx} id={`glow-${idx}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor={color} floodOpacity="0.65" />
+            <feDropShadow dx="0" dy="0" stdDeviation="1.2" floodColor={color} floodOpacity="0.3" />
           </filter>
         ))}
       </defs>
@@ -236,7 +239,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
                   cy={node.y}
                   r="8.5"
                   fill="none"
-                  stroke="#38bdf8"
+                  stroke="hsl(var(--git-renamed))"
                   strokeWidth="1.5"
                   strokeDasharray="2 2"
                 />
@@ -247,12 +250,12 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
                 cy={node.y}
                 r="6"
                 fill="hsl(var(--background))"
-                stroke="#38bdf8"
+                stroke="hsl(var(--git-renamed))"
                 strokeWidth="2"
                 strokeDasharray="2.5 2"
               />
               {/* Inner plus dot */}
-              <circle cx={node.x} cy={node.y} r="2" fill="#38bdf8" />
+              <circle cx={node.x} cy={node.y} r="2" fill="hsl(var(--git-renamed))" />
             </g>
           );
         }

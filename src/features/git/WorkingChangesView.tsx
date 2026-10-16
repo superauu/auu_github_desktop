@@ -1,3 +1,11 @@
+import { DiffFontControl } from '@/components/ui/DiffFontControl';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
+import { confirmAction } from '@/stores/confirmStore';
+import { FilePath } from '@/components/ui/FilePath';
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
+import { moveListFocus } from '@/utils/listKeyboard';
+import { computeSplitRows } from '@/utils/diffRows';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   CheckSquare,
@@ -28,83 +36,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
-import { ParsedDiffLine, groupDiffIntoHunks } from '@/services/git/PorcelainParser';
+import { groupDiffIntoHunks } from '@/services/git/PorcelainParser';
 import { gitService } from '@/services/git/GitService';
-import { GitBlameLine, GitCommit } from '@/services/git/types';
-
-interface SplitRow {
-  isHeader?: boolean;
-  headerContent?: string;
-  hunkIdx?: number;
-  left?: {
-    lineNo?: number | null;
-    content: string;
-    type: 'delete' | 'context';
-  };
-  right?: {
-    lineNo?: number | null;
-    content: string;
-    type: 'add' | 'context';
-  };
-}
-
-function computeSplitRows(diffLines: ParsedDiffLine[]): SplitRow[] {
-  const rows: SplitRow[] = [];
-  let i = 0;
-  let hunkIdx = -1;
-
-  while (i < diffLines.length) {
-    const line = diffLines[i];
-
-    if (line.type === 'header') {
-      hunkIdx++;
-      rows.push({
-        isHeader: true,
-        headerContent: line.content,
-        hunkIdx,
-      });
-      i++;
-      continue;
-    }
-
-    if (line.type === 'context') {
-      rows.push({
-        left: { lineNo: line.oldNo, content: line.content, type: 'context' },
-        right: { lineNo: line.newNo, content: line.content, type: 'context' },
-      });
-      i++;
-      continue;
-    }
-
-    // Accumulate consecutive deletes and adds to align them side-by-side
-    const deletes: ParsedDiffLine[] = [];
-    const adds: ParsedDiffLine[] = [];
-
-    while (i < diffLines.length && (diffLines[i].type === 'delete' || diffLines[i].type === 'add')) {
-      if (diffLines[i].type === 'delete') {
-        deletes.push(diffLines[i]);
-      } else {
-        adds.push(diffLines[i]);
-      }
-      i++;
-    }
-
-    const maxLen = Math.max(deletes.length, adds.length);
-    for (let k = 0; k < maxLen; k++) {
-      const del = deletes[k];
-      const add = adds[k];
-      rows.push({
-        left: del ? { lineNo: del.oldNo, content: del.content, type: 'delete' } : undefined,
-        right: add ? { lineNo: add.newNo, content: add.content, type: 'add' } : undefined,
-      });
-    }
-  }
-
-  return rows;
-}
+import { GitBlameLine, GitCommit, GitFileChange } from '@/services/git/types';
 
 export const WorkingChangesView: React.FC = () => {
-  const { changesFileListWidth, setChangesFileListWidth } = useLayoutStore();
+  const { setChangesFileListWidth } = useLayoutStore();
+  const { panels } = useWorkspaceLayout();
+  const diffFontSize = useSettingsStore(state => state.diffFontSize);
   const {
     status,
     selectedFile,
@@ -191,23 +130,23 @@ export const WorkingChangesView: React.FC = () => {
   const getStatusBadge = (statusType: string) => {
     switch (statusType) {
       case 'modified':
-        return <span className="text-[11px] font-mono font-bold text-amber-400">M</span>;
+        return <span className="text-[12px] font-mono font-bold text-git-modified">M</span>;
       case 'added':
-        return <span className="text-[11px] font-mono font-bold text-emerald-400">A</span>;
+        return <span className="text-[12px] font-mono font-bold text-git-added">A</span>;
       case 'deleted':
-        return <span className="text-[11px] font-mono font-bold text-red-400">D</span>;
+        return <span className="text-[12px] font-mono font-bold text-git-deleted">D</span>;
       case 'renamed':
-        return <span className="text-[11px] font-mono font-bold text-blue-400">R</span>;
+        return <span className="text-[12px] font-mono font-bold text-git-renamed">R</span>;
       case 'untracked':
-        return <span className="text-[11px] font-mono font-bold text-teal-400">U</span>;
+        return <span className="text-[12px] font-mono font-bold text-git-untracked">U</span>;
       case 'conflicted':
         return (
-          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse" title={t('changes.conflictBadge')}>
+          <span className="text-[12px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-git-deleted border border-rose-500/40 " title={t('changes.conflictBadge')}>
             {t('changes.conflict')}
           </span>
         );
       default:
-        return <span className="text-[11px] font-mono font-bold text-blue-400">?</span>;
+        return <span className="text-[12px] font-mono font-bold text-git-renamed">?</span>;
     }
   };
 
@@ -223,14 +162,45 @@ export const WorkingChangesView: React.FC = () => {
     }
   };
 
-  const handleDiscard = (path: string) => {
-    if (!confirm(`${t('changes.discardConfirmPrefix')} "${path}" ${t('changes.discardConfirm')}`)) return;
+  const handleDiscard = async (path: string) => {
+    if (!await confirmAction({ title: t('changes.discardTitle'), description: t('composer.discardWarning'), detail: path })) return;
     runGitAction(
       () => discardChanges(path),
       `${t('changes.discarded')}: ${path}`,
       `${t('changes.discardFailed')}: ${path}`
     );
   };
+
+  const [fileMenu, setFileMenu] = useState<{ file: GitFileChange; x: number; y: number } | null>(null);
+  const toggleFile = async (file: GitFileChange) => {
+    await runGitAction(() => file.staged ? unstageFile(file.path) : stageFile(file.path), t(file.staged ? 'changes.unstagedToast' : 'changes.stagedToast'), t('changes.opFailed'));
+    requestAnimationFrame(() => {
+      const row = Array.from(document.querySelectorAll<HTMLElement>('[data-file-path]')).find(element => element.dataset.filePath === file.path);
+      row?.focus();
+    });
+  };
+  const fileRowProps = (file: GitFileChange): React.HTMLAttributes<HTMLDivElement> & { 'data-list-row': string; 'data-file-path': string } => {
+    const selected = activeFile?.path === file.path && activeFile?.staged === file.staged;
+    return {
+      role: 'listitem', tabIndex: selected ? 0 : -1, 'aria-current': selected ? 'true' : undefined,
+      'aria-label': file.path, 'data-list-row': '', 'data-file-path': file.path,
+      onClick: () => setSelectedFile(file),
+      onFocus: event => { if (event.target === event.currentTarget) setSelectedFile(file); },
+      onContextMenu: event => { event.preventDefault(); setSelectedFile(file); setFileMenu({ file, x: event.clientX, y: event.clientY }); },
+      onKeyDown: event => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter') { event.preventDefault(); setSelectedFile(file); }
+        if (event.key === ' ') { event.preventDefault(); void toggleFile(file); }
+        if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+          event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setFileMenu({ file, x: box.left + 20, y: box.bottom });
+        }
+      },
+    };
+  };
+  const fileMenuItems: ContextMenuItem[] = fileMenu ? [
+    { id: 'stage', label: t(fileMenu.file.staged ? 'changes.unstageTitle' : 'changes.stageTitle'), onClick: () => void toggleFile(fileMenu.file) },
+    ...(!fileMenu.file.staged && fileMenu.file.status !== 'untracked' ? [{ id: 'discard', label: t('changes.discardTitle'), danger: true, onClick: () => void handleDiscard(fileMenu.file.path) }] : []),
+  ] : [];
 
   const copyFilePath = () => {
     if (!activeFile) return;
@@ -281,14 +251,14 @@ export const WorkingChangesView: React.FC = () => {
   // 冲突文件走专用解决器（git apply 对 unmerged 路径无效），不提供块级按钮
   const showHunkActions = !!activeFile && activeFile.status !== 'conflicted' && hunks.length > 0;
 
-  const handleHunkAction = (hunkIdx: number, mode: 'stage' | 'unstage' | 'discard') => {
+  const handleHunkAction = async (hunkIdx: number, mode: 'stage' | 'unstage' | 'discard') => {
     if (!activeFile) return;
     const hunk = hunks[hunkIdx];
     if (!hunk) return;
     const path = activeFile.path;
 
     if (mode === 'discard') {
-      if (!confirm(`${t('changes.discardConfirmPrefix')} "${path}" ${t('changes.discardConfirm')}`)) return;
+      if (!await confirmAction({ title: t('changes.discardHunk'), description: t('composer.discardHunkWarning'), detail: `${path}\n${hunk.map(line => line.content).join('\n')}` })) return;
     }
 
     const action =
@@ -311,7 +281,7 @@ export const WorkingChangesView: React.FC = () => {
     if (!showHunkActions || hunkIdx < 0 || !activeFile) return null;
     const isUntracked = activeFile.status === 'untracked';
     const btnBase =
-      'h-5 w-5 rounded flex items-center justify-center shrink-0 transition-colors';
+      'h-7 w-7 rounded flex items-center justify-center shrink-0 transition-colors';
     return (
       <div className="flex items-center gap-0.5 shrink-0">
         {activeFile.staged && !isUntracked ? (
@@ -326,7 +296,7 @@ export const WorkingChangesView: React.FC = () => {
           <>
             <button
               onClick={() => handleHunkAction(hunkIdx, 'stage')}
-              className={cn(btnBase, 'text-emerald-500/70 hover:text-emerald-400 hover:bg-emerald-500/10')}
+              className={cn(btnBase, 'text-emerald-500/70 hover:text-git-added hover:bg-emerald-500/10')}
               title={t('changes.stageHunk')}
             >
               <Plus className="h-3 w-3" />
@@ -334,7 +304,7 @@ export const WorkingChangesView: React.FC = () => {
             {!isUntracked && (
               <button
                 onClick={() => handleHunkAction(hunkIdx, 'discard')}
-                className={cn(btnBase, 'text-rose-500/70 hover:text-rose-400 hover:bg-rose-500/10')}
+                className={cn(btnBase, 'text-rose-500/70 hover:text-git-deleted hover:bg-rose-500/10')}
                 title={t('changes.discardHunk')}
               >
                 <RotateCcw className="h-3 w-3" />
@@ -388,7 +358,7 @@ export const WorkingChangesView: React.FC = () => {
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Changes File List Sub-panel */}
         <div
-          style={{ width: changesFileListWidth }}
+          style={{ width: panels.files }}
           className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
         >
           <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
@@ -406,7 +376,7 @@ export const WorkingChangesView: React.FC = () => {
                 title={stagedFiles.length === totalChanges ? t("changes.unselectAll") : t("changes.selectAll")}
               >
                 {stagedFiles.length === totalChanges ? (
-                  <CheckSquare className="h-3.5 w-3.5 text-emerald-400" />
+                  <CheckSquare className="h-3.5 w-3.5 text-git-added" />
                 ) : stagedFiles.length > 0 ? (
                   <CheckSquare className="h-3.5 w-3.5 text-primary" />
                 ) : (
@@ -430,7 +400,7 @@ export const WorkingChangesView: React.FC = () => {
                     toast.error(t('changes.stashFailed'), err.message);
                   }
                 }}
-                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-cyan-400 gap-1"
+                className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-primary gap-1"
                 title={t('changes.quickStashTitle')}
               >
                 <Archive className="h-3 w-3" />
@@ -444,7 +414,7 @@ export const WorkingChangesView: React.FC = () => {
                 onClick={() => {
                   runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                 }}
-                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
               >
                 {t('changes.stageAll')}
               </Button>
@@ -455,7 +425,7 @@ export const WorkingChangesView: React.FC = () => {
                 onClick={() => {
                   runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                 }}
-                className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
               >
                 {t('changes.unstageAllSection')}
               </Button>
@@ -472,17 +442,17 @@ export const WorkingChangesView: React.FC = () => {
               className="py-24"
             />
           ) : (
-            <div className="space-y-3">
+            <div role="list" aria-label={t('composer.changedFiles')} onKeyDown={moveListFocus} className="space-y-3">
               {/* Staged Section */}
               {stagedFiles.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>{t('changes.section.staged')} ({stagedFiles.length})</span>
                     <button
                       onClick={() => {
                         runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                       }}
-                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                      className="text-[12px] text-muted-foreground hover:text-foreground"
                     >
                       {t('changes.unstageAll')}
                     </button>
@@ -491,10 +461,10 @@ export const WorkingChangesView: React.FC = () => {
                     {stagedFiles.map((file) => (
                       <div
                         key={file.path}
-                        onClick={() => setSelectedFile(file)}
+                        {...fileRowProps(file)}
                         className={cn(
                           "flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
-                          activeFile?.path === file.path
+                          activeFile?.path === file.path && activeFile?.staged === file.staged
                             ? "bg-accent text-accent-foreground font-medium"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
@@ -509,18 +479,18 @@ export const WorkingChangesView: React.FC = () => {
                                 `${t('changes.unstageFailed')}: ${file.path}`
                               );
                             }}
-                            className="text-emerald-400 hover:text-emerald-300 shrink-0"
+                            className="text-git-added hover:text-git-added shrink-0"
                             title={t('changes.clickToUnstage')}
                           >
                             <CheckSquare className="h-3.5 w-3.5" />
                           </button>
                           {getStatusBadge(file.status)}
-                          <span className="truncate text-[12px] font-mono">{file.path}</span>
+                          <FilePath path={file.path} />
                         </div>
                         <Button
                           variant="ghost"
                           size="xs"
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:text-rose-400 shrink-0"
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted shrink-0"
                           title={t('changes.unstageTitle')}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -542,13 +512,13 @@ export const WorkingChangesView: React.FC = () => {
               {/* Unstaged Section */}
               {unstagedFiles.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>{t('changes.section.unstaged')} ({unstagedFiles.length})</span>
                     <button
                       onClick={() => {
                         runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                       }}
-                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                      className="text-[12px] text-muted-foreground hover:text-foreground"
                     >
                       {t('changes.stageAllSection')}
                     </button>
@@ -557,10 +527,10 @@ export const WorkingChangesView: React.FC = () => {
                     {unstagedFiles.map((file) => (
                       <div
                         key={file.path}
-                        onClick={() => setSelectedFile(file)}
+                        {...fileRowProps(file)}
                         className={cn(
                           "flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
-                          activeFile?.path === file.path
+                          activeFile?.path === file.path && activeFile?.staged === file.staged
                             ? "bg-accent text-accent-foreground font-medium"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
@@ -575,21 +545,21 @@ export const WorkingChangesView: React.FC = () => {
                                 `${t('changes.stageFailed')}: ${file.path}`
                               );
                             }}
-                            className="text-muted-foreground hover:text-emerald-400 shrink-0"
+                            className="text-muted-foreground hover:text-git-added shrink-0"
                             title={t('changes.clickToStage')}
                           >
                             <Square className="h-3.5 w-3.5" />
                           </button>
                           {getStatusBadge(file.status)}
-                          <span className="truncate text-[12px] font-mono">{file.path}</span>
+                          <FilePath path={file.path} />
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
                           {file.status === 'conflicted' ? (
                             <>
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-5 w-5 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                                className="h-7 w-7 p-0 text-git-deleted hover:text-git-deleted hover:bg-rose-500/10"
                                 title={t('changes.openConflictTool')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -602,7 +572,7 @@ export const WorkingChangesView: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-5 w-5 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                className="h-7 w-7 p-0 text-git-added hover:text-git-added hover:bg-emerald-500/10"
                                 title={t('changes.takeOurs')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -619,7 +589,7 @@ export const WorkingChangesView: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-5 w-5 p-0 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
+                                className="h-7 w-7 p-0 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
                                 title={t('changes.takeTheirs')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -636,7 +606,7 @@ export const WorkingChangesView: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                                 title={t('changes.resetMarkers')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -653,7 +623,7 @@ export const WorkingChangesView: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-5 w-5 p-0 hover:text-emerald-400"
+                                className="h-7 w-7 p-0 hover:text-git-added"
                                 title={t('changes.resolvedTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -672,7 +642,7 @@ export const WorkingChangesView: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-5 w-5 p-0 hover:text-rose-400"
+                                className="h-7 w-7 p-0 hover:text-git-deleted"
                                 title={t('changes.discardTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -684,7 +654,7 @@ export const WorkingChangesView: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-5 w-5 p-0 hover:text-emerald-400"
+                                className="h-7 w-7 p-0 hover:text-git-added"
                                 title={t('changes.stageTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -709,17 +679,17 @@ export const WorkingChangesView: React.FC = () => {
               {/* Untracked Section */}
               {untrackedFiles.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>{t('changes.untracked')} ({untrackedFiles.length})</span>
                   </div>
                   <div className="space-y-0.5">
                     {untrackedFiles.map((file) => (
                       <div
                         key={file.path}
-                        onClick={() => setSelectedFile(file)}
+                        {...fileRowProps(file)}
                         className={cn(
                           "flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
-                          activeFile?.path === file.path
+                          activeFile?.path === file.path && activeFile?.staged === file.staged
                             ? "bg-accent text-accent-foreground font-medium"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
@@ -734,18 +704,18 @@ export const WorkingChangesView: React.FC = () => {
                                 `${t('changes.trackedFailed')}: ${file.path}`
                               );
                             }}
-                            className="text-muted-foreground hover:text-emerald-400 shrink-0"
+                            className="text-muted-foreground hover:text-git-added shrink-0"
                             title={t('changes.clickToTrack')}
                           >
                             <Square className="h-3.5 w-3.5" />
                           </button>
                           {getStatusBadge(file.status)}
-                          <span className="truncate text-[12px] font-mono">{file.path}</span>
+                          <FilePath path={file.path} />
                         </div>
                         <Button
                           variant="ghost"
                           size="xs"
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:text-emerald-400 shrink-0"
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-added shrink-0"
                           title={t('changes.trackStageTitle')}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -769,7 +739,7 @@ export const WorkingChangesView: React.FC = () => {
       </div>
 
       <ResizeHandle
-        currentSize={changesFileListWidth}
+        currentSize={panels.files}
         onSizeChange={setChangesFileListWidth}
         minSize={160}
         maxSize={500}
@@ -780,9 +750,9 @@ export const WorkingChangesView: React.FC = () => {
       {/* Diff Viewer Pane */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">
         {/* Diff Toolbar */}
-        <div className="h-9 px-3 border-b border-border flex items-center justify-between text-xs bg-card/40 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-mono text-xs font-semibold text-foreground truncate">
+        <div className="px-3 py-2 border-b border-border flex flex-wrap gap-2 text-xs bg-card/40 shrink-0">
+          <div className="flex items-center gap-2 min-w-0 w-full">
+            <span title={activeFile?.path} className="font-mono text-[13px] font-semibold text-foreground truncate">
               {activeFile?.path || t('rightPane.noFileSelected')}
             </span>
             {activeFile && (
@@ -792,15 +762,15 @@ export const WorkingChangesView: React.FC = () => {
                   className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground shrink-0"
                   title={t('changes.copyPath')}
                 >
-                  {copiedPath ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  {copiedPath ? <Check className="h-3 w-3 text-git-added" /> : <Copy className="h-3 w-3" />}
                 </button>
-                <Badge variant="outline" className="h-4 px-1.5 text-[10px] uppercase font-mono">
-                  {activeFile.status} {activeFile.staged ? t('changes.stagedSuffix') : ''}
+                <Badge variant="outline" className="h-4 px-1.5 text-[12px] uppercase font-mono">
+                  {t(`fileStatus.${activeFile.status}`)} {activeFile.staged ? t('changes.stagedSuffix') : ''}
                 </Badge>
                 {(addCount > 0 || delCount > 0) && (
-                  <div className="flex items-center gap-1 text-[11px] font-mono">
-                    <span className="text-emerald-400 font-semibold">+{addCount}</span>
-                    <span className="text-rose-400 font-semibold">-{delCount}</span>
+                  <div className="flex items-center gap-1 text-[12px] font-mono">
+                    <span className="text-git-added font-semibold">+{addCount}</span>
+                    <span className="text-git-deleted font-semibold">-{delCount}</span>
                   </div>
                 )}
               </>
@@ -812,9 +782,9 @@ export const WorkingChangesView: React.FC = () => {
               {/* Content Mode: Diff / Blame / File History */}
               <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
                 <button
-                  onClick={() => setContentMode('diff')}
+                  aria-pressed={contentMode === 'diff'} onClick={() => setContentMode('diff')}
                   className={cn(
-                    "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
+                    "px-2 py-0.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'diff'
                       ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -824,9 +794,9 @@ export const WorkingChangesView: React.FC = () => {
                   <span>{t('changes.mode.diff')}</span>
                 </button>
                 <button
-                  onClick={() => setContentMode('blame')}
+                  aria-pressed={contentMode === 'blame'} onClick={() => setContentMode('blame')}
                   className={cn(
-                    "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
+                    "px-2 py-0.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'blame'
                       ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -836,9 +806,9 @@ export const WorkingChangesView: React.FC = () => {
                   <span>{t('changes.mode.blame')}</span>
                 </button>
                 <button
-                  onClick={() => setContentMode('history')}
+                  aria-pressed={contentMode === 'history'} onClick={() => setContentMode('history')}
                   className={cn(
-                    "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
+                    "px-2 py-0.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'history'
                       ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
@@ -855,19 +825,19 @@ export const WorkingChangesView: React.FC = () => {
                   <button
                     onClick={() => setShowResolver(true)}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1",
+                      "px-2 py-0.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
                       showResolver
                         ? "bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/40"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    <Split className="h-3 w-3 text-rose-400" />
+                    <Split className="h-3 w-3 text-git-deleted" />
                     <span>{t('changes.resolveConflict')}</span>
                   </button>
                   <button
                     onClick={() => setShowResolver(false)}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
+                      "px-2 py-0.5 rounded text-[12px] font-medium transition-colors",
                       !showResolver
                         ? "bg-accent text-accent-foreground font-semibold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
@@ -882,9 +852,9 @@ export const WorkingChangesView: React.FC = () => {
               {contentMode === 'diff' && (!showResolver || activeFile.status !== 'conflicted') && (
                 <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
                   <button
-                    onClick={() => setDiffMode('unified')}
+                    aria-pressed={diffMode === 'unified'} onClick={() => setDiffMode('unified')}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
+                      "px-2 py-0.5 rounded text-[12px] font-medium transition-colors",
                       diffMode === 'unified'
                         ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -893,9 +863,9 @@ export const WorkingChangesView: React.FC = () => {
                     {t('diff.unified')}
                   </button>
                   <button
-                    onClick={() => setDiffMode('split')}
+                    aria-pressed={diffMode === 'split'} onClick={() => setDiffMode('split')}
                     className={cn(
-                      "px-2 py-0.5 rounded text-[11px] font-medium transition-colors",
+                      "px-2 py-0.5 rounded text-[12px] font-medium transition-colors",
                       diffMode === 'split'
                         ? "bg-accent text-accent-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -906,11 +876,12 @@ export const WorkingChangesView: React.FC = () => {
                 </div>
               )}
 
+              <DiffFontControl />
               {/* Quick Stage/Unstage button */}
               <Button
                 variant="outline"
                 size="xs"
-                className="h-6 text-[11px] gap-1"
+                className="h-6 text-[12px] gap-1"
                 onClick={() => {
                   if (activeFile.staged) {
                     runGitAction(
@@ -943,10 +914,10 @@ export const WorkingChangesView: React.FC = () => {
           />
         ) : contentMode === 'blame' ? (
           /* Blame View */
-          <div className="flex-1 overflow-auto font-mono text-[12px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
+          <div style={{ fontSize: diffFontSize }} className="flex-1 overflow-auto font-mono leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
             {loadingFileData ? (
               <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground select-none">
-                <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 <span className="text-xs">{t('changes.loadingData')}</span>
               </div>
             ) : blameLines.length === 0 ? (
@@ -960,13 +931,13 @@ export const WorkingChangesView: React.FC = () => {
                   key={idx}
                   className="flex items-stretch border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/[0.03] transition-colors"
                 >
-                  <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 bg-muted/40 dark:bg-background/20">
+                  <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 bg-muted/40 dark:bg-background/20">
                     {bl.lineNo}
                   </div>
                   <button
                     onClick={() => jumpToCommit(bl.hash)}
                     className={cn(
-                      'w-24 shrink-0 truncate px-1.5 font-mono text-[11px] hover:underline cursor-pointer text-left',
+                      'w-24 shrink-0 truncate px-1.5 font-mono text-[12px] hover:underline cursor-pointer text-left',
                       blameTint(bl.hash)
                     )}
                     title={`${bl.shortHash} ${bl.summary}`}
@@ -976,7 +947,7 @@ export const WorkingChangesView: React.FC = () => {
                   <div className="w-24 shrink-0 truncate px-1.5 text-muted-foreground">
                     {bl.author}
                   </div>
-                  <div className="w-20 shrink-0 px-1 text-muted-foreground/70 font-mono text-[11px]">
+                  <div className="w-20 shrink-0 px-1 text-muted-foreground/70 font-mono text-[12px]">
                     {blameDate(bl.authorDateIso)}
                   </div>
                   <div className="px-2 whitespace-pre font-mono flex-1 overflow-x-auto">
@@ -991,7 +962,7 @@ export const WorkingChangesView: React.FC = () => {
           <div className="flex-1 overflow-auto bg-card dark:bg-[#0c0c0e] text-foreground select-none">
             {loadingFileData ? (
               <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 <span className="text-xs">{t('changes.loadingData')}</span>
               </div>
             ) : fileCommits.length === 0 ? (
@@ -1015,7 +986,7 @@ export const WorkingChangesView: React.FC = () => {
                   <span className="text-muted-foreground shrink-0 max-w-[100px] truncate">
                     {c.author.name}
                   </span>
-                  <span className="text-muted-foreground/70 font-mono text-[11px] shrink-0 w-20 text-right">
+                  <span className="text-muted-foreground/70 font-mono text-[12px] shrink-0 w-20 text-right">
                     {c.author.relativeDate}
                   </span>
                 </div>
@@ -1024,7 +995,7 @@ export const WorkingChangesView: React.FC = () => {
           </div>
         ) : (
           /* Diff Content View */
-          <div className="flex-1 overflow-auto font-mono text-[12px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
+          <div style={{ fontSize: diffFontSize }} className="flex-1 overflow-auto font-mono leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
             {fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
@@ -1040,7 +1011,7 @@ export const WorkingChangesView: React.FC = () => {
                     return (
                       <div
                         key={idx}
-                        className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[11px] w-full flex items-center justify-between gap-2"
+                        className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] w-full flex items-center justify-between gap-2"
                       >
                         <span className="truncate">{row.headerContent}</span>
                         {renderHunkActions(row.hunkIdx ?? -1)}
@@ -1069,7 +1040,7 @@ export const WorkingChangesView: React.FC = () => {
                             : "border-transparent bg-muted/15 opacity-40 select-none"
                         )}
                       >
-                        <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
+                        <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
                           {row.left?.lineNo ?? ''}
                         </div>
                         <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
@@ -1088,7 +1059,7 @@ export const WorkingChangesView: React.FC = () => {
                             : "border-transparent bg-muted/15 opacity-40 select-none"
                         )}
                       >
-                        <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
+                        <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
                           {row.right?.lineNo ?? ''}
                         </div>
                         <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
@@ -1101,12 +1072,12 @@ export const WorkingChangesView: React.FC = () => {
               </div>
             ) : (
               /* Unified Single Column View */
-              fileDiffLines.map((line, idx) => {
+              <div className="min-w-max">{fileDiffLines.map((line, idx) => {
                 if (line.type === 'header') {
                   return (
                     <div
                       key={idx}
-                      className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[11px] flex items-center justify-between gap-2"
+                      className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2"
                     >
                       <span className="truncate">{line.content}</span>
                       {renderHunkActions(headerHunkIdx.get(idx) ?? -1)}
@@ -1130,24 +1101,25 @@ export const WorkingChangesView: React.FC = () => {
                     )}
                   >
                     {/* Line Numbers */}
-                    <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] bg-muted/40 dark:bg-background/20">
+                    <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20">
                       {line.oldNo ?? ''}
                     </div>
-                    <div className="w-10 px-2 text-right text-muted-foreground/60 dark:text-muted-foreground/30 select-none shrink-0 font-mono text-[11px] border-r border-border/60 dark:border-border/20 bg-muted/40 dark:bg-background/20">
+                    <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] border-r border-border/60 dark:border-border/20 bg-muted/40 dark:bg-background/20">
                       {line.newNo ?? ''}
                     </div>
                     {/* Content */}
-                    <div className="px-3 whitespace-pre font-mono flex-1 overflow-x-auto">
+                    <div className="px-3 whitespace-pre font-mono flex-1">
                       {line.content}
                     </div>
                   </div>
                 );
-              })
+              })}</div>
             )}
           </div>
         )}
       </div>
     </div>
+      <ContextMenu open={!!fileMenu} x={fileMenu?.x || 0} y={fileMenu?.y || 0} items={fileMenuItems} onClose={() => setFileMenu(null)} />
   </div>
 );
 };

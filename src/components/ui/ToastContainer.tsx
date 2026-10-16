@@ -38,6 +38,7 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
 
   return (
     <div
+      role={toast.type === 'error' ? 'alert' : 'status'}
       className={cn(
         "pointer-events-auto p-3 rounded-xl border shadow-xl backdrop-blur-xl flex items-start justify-between gap-3 text-xs animate-in slide-in-from-bottom-3 fade-in duration-200",
         toast.type === 'success' && "bg-card/90 border-emerald-500/30 text-foreground",
@@ -49,16 +50,16 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
       <div className="flex items-start gap-2.5 min-w-0">
         <div className="shrink-0 pt-0.5">
           {toast.type === 'success' && (
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <CheckCircle2 className="h-4 w-4 text-git-added" />
           )}
           {toast.type === 'error' && (
-            <AlertCircle className="h-4 w-4 text-rose-400" />
+            <AlertCircle className="h-4 w-4 text-git-deleted" />
           )}
           {toast.type === 'info' && (
-            <Info className="h-4 w-4 text-indigo-400" />
+            <Info className="h-4 w-4 text-git-branch" />
           )}
           {toast.type === 'warning' && (
-            <AlertCircle className="h-4 w-4 text-amber-400" />
+            <AlertCircle className="h-4 w-4 text-git-tag" />
           )}
         </div>
 
@@ -81,11 +82,12 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
             className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
             title={t('toast.copyErrorDetails')}
           >
-            {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+            {copied ? <Check className="h-3 w-3 text-git-added" /> : <Copy className="h-3 w-3" />}
           </button>
         )}
         <button
           onClick={onClose}
+          aria-label={t('common.close')}
           className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
         >
           <X className="h-3 w-3" />

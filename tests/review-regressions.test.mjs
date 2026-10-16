@@ -35,7 +35,7 @@ function stub(target, replacements) { const originals = Object.fromEntries(Objec
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-'));
   const bundle = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -269,4 +269,73 @@ test('Redo refuses an external checkout even when both branches point at the exp
   await app.gitService.undoLastCommit(repo); git(repo, 'switch', '-c', 'other');
   await assert.rejects(app.gitService.redoCommit(repo, redo, 'main'), /Branch changed/);
   assert.equal(git(repo, 'branch', '--show-current').trim(), 'other');
+});
+
+
+test('message generation uses only the index when a file has staged and unstaged edits', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a.ts'), 'export const initial = 1;\n'); await commit(repo);
+  await fs.writeFile(file(repo, 'a.ts'), 'export const stagedOnly = 2;\n'); git(repo, 'add', 'a.ts');
+  await fs.writeFile(file(repo, 'a.ts'), 'export const unstagedSecret = 3;\n');
+  await fs.writeFile(file(repo, 'untracked.ts'), 'export const unrelated = true;\n');
+  const scope = app.getCommitScope(await app.gitService.getStatus(repo));
+  assert.deepEqual(scope.files.map(f => [f.path, f.staged]), [['a.ts', true]]);
+  assert.equal(scope.stageAll, false); assert.equal(scope.excluded.length, 2);
+  const original = app.gitService.getFileDiff; const seen = [];
+  const restore = stub(app.gitService, { getFileDiff: async (...args) => { seen.push(args); return original.apply(app.gitService, args); } });
+  try {
+    const result = await app.aiCommitService.generateCommitMessageResult({ repoPath: repo, files: scope.files, aiConfig: { provider: 'builtin', apiKey: '', endpoint: '', model: '' } });
+    assert.deepEqual(seen.map(args => [args[1], args[2]]), [['a.ts', true]]);
+    assert.equal(result.source, 'builtin'); assert.equal(result.fallback, false);
+    assert(!result.message.includes('unstagedSecret')); assert(!result.message.includes('unrelated'));
+  } finally { restore(); }
+});
+
+test('commit scope includes all work only for explicit stage-all commits and never for amend', () => {
+  const unstaged = [{ path: 'a', status: 'modified', staged: false }];
+  const untracked = [{ path: 'new', status: 'untracked', staged: false }];
+  const status = { ...clean, unstaged, untracked, isClean: false };
+  const normal = app.getCommitScope(status); assert.equal(normal.stageAll, true); assert.equal(normal.files.length, 2); assert.equal(normal.excluded.length, 0);
+  const amend = app.getCommitScope(status, true); assert.equal(amend.stageAll, false); assert.equal(amend.files.length, 0); assert.equal(amend.excluded.length, 2);
+  assert.deepEqual(app.getCommitScope(null).files, []);
+});
+
+test('generation reports actual model success and local fallback separately', async () => {
+  const restore = stub(app.gitService, { getFileDiff: async () => [] });
+  const saved = globalThis.fetch;
+  const options = { repoPath: 'unused', files: [{ path: 'a.ts', status: 'modified', staged: true }], aiConfig: { provider: 'openai-compatible', endpoint: 'https://model.example.invalid/v1', apiKey: 'TEST', model: 'test-model' } };
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: 'fix: real model result' } }] }), { headers: { 'Content-Type': 'application/json' } });
+    const remote = await app.aiCommitService.generateCommitMessageResult(options);
+    assert.equal(remote.source, 'llm'); assert.equal(remote.model, 'test-model'); assert.equal(remote.fallback, false); assert.equal(remote.message, 'fix: real model result');
+    globalThis.fetch = async () => { throw new Error('Connection unavailable'); };
+    const local = await app.aiCommitService.generateCommitMessageResult(options);
+    assert.equal(local.source, 'builtin'); assert.equal(local.fallback, true); assert(!local.message.includes('real model result'));
+    globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: ' ' } }] }));
+    const empty = await app.aiCommitService.generateCommitMessageResult(options);
+    assert.equal(empty.source, 'builtin'); assert.equal(empty.fallback, true);
+  } finally { globalThis.fetch = saved; restore(); }
+});
+
+test('PR description also reports local fallback after a configured model fails', async () => {
+  const restore = stub(app.gitService, { getBranchDiff: async () => ({ files: [{ path: 'a', status: 'modified', staged: false }], patchText: '+ changed' }) });
+  const saved = globalThis.fetch; globalThis.fetch = async () => { throw new Error('Connection unavailable'); };
+  try {
+    const result = await app.aiCommitService.generatePRDescriptionResult({ repoPath: 'unused', base: 'main', head: 'feature', aiConfig: { provider: 'openai-compatible', endpoint: 'https://model.example.invalid/v1', apiKey: 'TEST', model: 'model' } });
+    assert.equal(result.source, 'builtin'); assert.equal(result.fallback, true); assert(result.message.includes('main...feature'));
+  } finally { globalThis.fetch = saved; restore(); }
+});
+
+
+test('workspace sizing preserves a 640px main view across supported window sizes without mutating preferences', () => {
+  for (const width of [900, 1240, 1280, 1480, 1600, 1920]) {
+    for (const requested of [{ left: 200, right: 320, files: 260 }, { left: 500, right: 650, files: 500 }]) {
+      const original = { ...requested };
+      const visible = { left: width >= 1480, right: width >= 1240, files: true };
+      const fitted = app.fitWorkspacePanels(width, requested, visible);
+      const handles = Object.values(visible).filter(Boolean).length * 6;
+      assert(width - fitted.left - fitted.right - fitted.files - handles >= 640);
+      assert.deepEqual(requested, original);
+      assert(fitted.files >= 160); assert.equal(Boolean(fitted.left), visible.left); assert.equal(Boolean(fitted.right), visible.right);
+    }
+  }
 });

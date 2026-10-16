@@ -1,3 +1,6 @@
+import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
+import { useLayoutStore } from '@/stores/layoutStore';
+import { confirmAction } from '@/stores/confirmStore';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   GitBranch as GitBranchIcon,
@@ -25,11 +28,12 @@ import {
   Copy,
   Eye,
   MoreVertical,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
-import { useLayoutStore } from '@/stores/layoutStore';
 import { GitBranch, GitStash, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +49,7 @@ import { DragDropActionModal } from '@/features/git/DragDropActionModal';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
-export const LeftSidebar: React.FC = () => {
+export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void }> = ({ inDrawer = false, onNavigate }) => {
   const { t } = useI18n();
   const {
     currentRepo,
@@ -75,7 +79,8 @@ export const LeftSidebar: React.FC = () => {
   } = useRepoStore();
 
   const { pullRequests } = useGitHubStore();
-  const { leftSidebarWidth } = useLayoutStore();
+  const { panels } = useWorkspaceLayout();
+  const { navigationPinned, setNavigationPinned } = useLayoutStore();
 
   // Mode: List vs Agents (GitKraken style)
   const [sidebarMode, setSidebarMode] = useState<'list' | 'agents'>('list');
@@ -213,7 +218,7 @@ export const LeftSidebar: React.FC = () => {
       {
         id: 'rebase',
         label: `${t('sidebar.ctx.rebaseCurrentOnto')} ${branch.name}...`,
-        icon: <GitPullRequest className="h-3.5 w-3.5 text-amber-400" />,
+        icon: <GitPullRequest className="h-3.5 w-3.5 text-git-tag" />,
         disabled: isCurrent,
         onClick: () => {
           setRebaseUpstreamBranch(branch.name);
@@ -224,7 +229,7 @@ export const LeftSidebar: React.FC = () => {
       {
         id: 'new-branch',
         label: t('sidebar.ctx.newBranchFromHere'),
-        icon: <Plus className="h-3.5 w-3.5 text-emerald-400" />,
+        icon: <Plus className="h-3.5 w-3.5 text-git-added" />,
         onClick: () => {
           setCreateBranchBase(branch.name);
           setCreateBranchModalOpen(true);
@@ -261,7 +266,7 @@ export const LeftSidebar: React.FC = () => {
         disabled: isCurrent,
         danger: true,
         onClick: async () => {
-          if (confirm(`${t('sidebar.ctx.deleteBranchConfirm')} "${branch.name}"?`)) {
+          if (await confirmAction({ title: t('sidebar.ctx.deleteBranch'), description: t('composer.deleteBranchWarning'), detail: branch.name })) {
             try {
               await deleteBranch(branch.name);
               toast.success(`${t('sidebar.ctx.branchDeleted')}: ${branch.name}`);
@@ -324,7 +329,7 @@ export const LeftSidebar: React.FC = () => {
       {
         id: 'rebase-remote',
         label: t('sidebar.ctx.rebaseCurrentOntoRemote'),
-        icon: <GitPullRequest className="h-3.5 w-3.5 text-amber-400" />,
+        icon: <GitPullRequest className="h-3.5 w-3.5 text-git-tag" />,
         onClick: () => {
           setRebaseUpstreamBranch(branch.name);
           setRebaseModalOpen(true);
@@ -334,7 +339,7 @@ export const LeftSidebar: React.FC = () => {
       {
         id: 'new-branch-remote',
         label: t('sidebar.ctx.newBranchFromHere'),
-        icon: <Plus className="h-3.5 w-3.5 text-emerald-400" />,
+        icon: <Plus className="h-3.5 w-3.5 text-git-added" />,
         onClick: () => {
           setCreateBranchBase(branch.name);
           setCreateBranchModalOpen(true);
@@ -368,7 +373,7 @@ export const LeftSidebar: React.FC = () => {
       {
         id: 'checkout-tag',
         label: `${t('sidebar.ctx.checkoutTag')} (${tag.name})`,
-        icon: <TagIcon className="h-3.5 w-3.5 text-amber-400" />,
+        icon: <TagIcon className="h-3.5 w-3.5 text-git-tag" />,
         onClick: async () => {
           try {
             await checkoutBranch(tag.name);
@@ -381,7 +386,7 @@ export const LeftSidebar: React.FC = () => {
       {
         id: 'new-branch-tag',
         label: t('sidebar.ctx.newBranchFromTag'),
-        icon: <Plus className="h-3.5 w-3.5 text-emerald-400" />,
+        icon: <Plus className="h-3.5 w-3.5 text-git-added" />,
         onClick: () => {
           setCreateBranchBase(tag.name);
           setCreateBranchModalOpen(true);
@@ -416,7 +421,7 @@ export const LeftSidebar: React.FC = () => {
         icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
         danger: true,
         onClick: async () => {
-          if (confirm(`${t('sidebar.ctx.deleteTagConfirm')} "${tag.name}"?`)) {
+          if (await confirmAction({ title: t('sidebar.ctx.deleteLocalTag'), description: t('composer.deleteTagWarning'), detail: tag.name })) {
             try {
               await deleteTag(tag.name);
               toast.success(`${t('sidebar.ctx.tagDeleted')}: ${tag.name}`);
@@ -432,7 +437,7 @@ export const LeftSidebar: React.FC = () => {
         icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
         danger: true,
         onClick: async () => {
-          if (confirm(`${t('sidebar.ctx.deleteRemoteTagConfirm')} "${tag.name}"? ${t('sidebar.ctx.deleteRemoteTagConfirmSuffix')}`)) {
+          if (await confirmAction({ title: t('sidebar.ctx.deleteRemoteTag'), description: t('composer.deleteRemoteTagWarning'), detail: tag.name })) {
             try {
               await deleteRemoteTag(tag.name);
               toast.success(`${t('sidebar.ctx.remoteTagDeleted')}: ${tag.name}`);
@@ -480,7 +485,7 @@ export const LeftSidebar: React.FC = () => {
       {
         id: 'pop-stash',
         label: t('sidebar.ctx.popStash'),
-        icon: <Archive className="h-3.5 w-3.5 text-emerald-400" />,
+        icon: <Archive className="h-3.5 w-3.5 text-git-added" />,
         onClick: async () => {
           try {
             await stashPop(stash.index);
@@ -497,7 +502,7 @@ export const LeftSidebar: React.FC = () => {
         icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
         danger: true,
         onClick: async () => {
-          if (confirm(`${t('sidebar.ctx.dropStashConfirm')} stash@{${stash.index}}?`)) {
+          if (await confirmAction({ title: t('sidebar.ctx.dropStash'), description: t('composer.dropStashWarning'), detail: `stash@{${stash.index}} · ${stash.message}` })) {
             try {
               await stashDrop(stash.index);
               toast.info(t('sidebar.ctx.stashDropped'));
@@ -543,7 +548,7 @@ export const LeftSidebar: React.FC = () => {
     }));
   };
 
-  if (isLeftSidebarCollapsed) return null;
+  if (isLeftSidebarCollapsed && !inDrawer) return null;
 
   const changesCount =
     (status?.staged.length || 0) +
@@ -610,13 +615,31 @@ export const LeftSidebar: React.FC = () => {
 
   return (
     <aside
-      style={{ width: leftSidebarWidth }}
+      style={{ width: inDrawer ? '100%' : panels.left }}
       className="border-r border-border/80 bg-sidebar/95 flex flex-col select-none shrink-0 h-full overflow-hidden text-xs"
     >
+      <div className="h-10 px-3 border-b border-border flex items-center justify-between gap-2 shrink-0">
+        <h2 className="text-[12px] font-semibold text-muted-foreground">{t('composer.navigation')}</h2>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className={cn('h-7 w-7', navigationPinned ? 'text-primary' : 'text-muted-foreground')}
+            aria-label={t(navigationPinned ? 'layout.unpinNavigation' : 'layout.pinNavigation')}
+            title={t(navigationPinned ? 'layout.unpinNavigation' : 'layout.pinNavigation')}
+            aria-pressed={navigationPinned}
+            onClick={() => {
+              const pinned = !navigationPinned;
+              setNavigationPinned(pinned);
+              if (pinned) useRepoStore.setState({ isLeftSidebarCollapsed: false });
+              onNavigate?.();
+            }}>
+            {navigationPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
+          </Button>
+          {inDrawer && <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t('common.close')} onClick={onNavigate}><X className="h-3.5 w-3.5" /></Button>}
+        </div>
+      </div>
       {/* Top Primary Navigation (Changes, History, PRs, Actions) */}
       <div className="p-2 space-y-1 border-b border-border/60">
         <button
-          onClick={() => setActiveTab('changes')}
+          onClick={() => { setActiveTab('changes'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
             activeTab === 'changes'
@@ -634,16 +657,16 @@ export const LeftSidebar: React.FC = () => {
             <span>{t('sidebar.changes')}</span>
           </div>
           {changesCount > 0 ? (
-            <Badge variant="warning" className="h-4 px-1.5 text-[11px] font-mono">
+            <Badge variant="warning" className="h-4 px-1.5 text-[12px] font-mono">
               {changesCount}
             </Badge>
           ) : (
-            <span className="text-[11px] text-muted-foreground opacity-60">{t('sidebar.clean')}</span>
+            <span className="text-[12px] text-muted-foreground opacity-60">{t('sidebar.clean')}</span>
           )}
         </button>
 
         <button
-          onClick={() => setActiveTab('history')}
+          onClick={() => { setActiveTab('history'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
             activeTab === 'history'
@@ -663,7 +686,7 @@ export const LeftSidebar: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('pullRequests')}
+          onClick={() => { setActiveTab('pullRequests'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
             activeTab === 'pullRequests'
@@ -680,13 +703,13 @@ export const LeftSidebar: React.FC = () => {
             />
             <span>{t('sidebar.pullRequests')}</span>
           </div>
-          <Badge variant="outline" className="h-3.5 px-1 text-[10px] font-mono">
+          <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono">
             {pullRequests.length}
           </Badge>
         </button>
 
         <button
-          onClick={() => setActiveTab('actions')}
+          onClick={() => { setActiveTab('actions'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
             activeTab === 'actions'
@@ -698,12 +721,12 @@ export const LeftSidebar: React.FC = () => {
             <Cloud
               className={cn(
                 "h-3.5 w-3.5",
-                activeTab === 'actions' ? "text-emerald-400" : "text-muted-foreground"
+                activeTab === 'actions' ? "text-git-added" : "text-muted-foreground"
               )}
             />
             <span>{t('sidebar.actions')}</span>
           </div>
-          <Badge variant="success" className="h-3.5 px-1 text-[10px] font-mono">
+          <Badge variant="success" className="h-3.5 px-1 text-[12px] font-mono">
             CI
           </Badge>
         </button>
@@ -752,7 +775,7 @@ export const LeftSidebar: React.FC = () => {
             </p>
           </div>
           <div className="space-y-1 text-xs">
-            <div className="text-[11px] uppercase font-semibold text-muted-foreground tracking-wider px-1">
+            <div className="text-[12px] uppercase font-semibold text-muted-foreground tracking-wider px-1">
               {t('sidebar.quickActions')}
             </div>
             <button
@@ -763,7 +786,7 @@ export const LeftSidebar: React.FC = () => {
               className="w-full text-left p-2 rounded-lg bg-card/60 hover:bg-accent/60 border border-border/60 transition-colors space-y-0.5"
             >
               <div className="font-medium text-foreground">{t('sidebar.aiCommitTitle')}</div>
-              <div className="text-[11px] text-muted-foreground">{t('sidebar.aiCommitDesc')}</div>
+              <div className="text-[12px] text-muted-foreground">{t('sidebar.aiCommitDesc')}</div>
             </button>
             <button
               onClick={() => {
@@ -772,7 +795,7 @@ export const LeftSidebar: React.FC = () => {
               className="w-full text-left p-2 rounded-lg bg-card/60 hover:bg-accent/60 border border-border/60 transition-colors space-y-0.5"
             >
               <div className="font-medium text-foreground">{t('sidebar.healthDiagnose')}</div>
-              <div className="text-[11px] text-muted-foreground">{t('sidebar.healthDiagnoseDesc')}</div>
+              <div className="text-[12px] text-muted-foreground">{t('sidebar.healthDiagnoseDesc')}</div>
             </button>
           </div>
         </div>
@@ -783,14 +806,14 @@ export const LeftSidebar: React.FC = () => {
           <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#101013] border-b border-border/50 flex items-center justify-between text-[12px]">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <span className="text-foreground/90 font-medium">{t('sidebar.viewing')}</span>
-              <Badge variant="outline" className="h-4 px-1.5 text-[11px] font-mono border-primary/40 text-primary">
+              <Badge variant="outline" className="h-4 px-1.5 text-[12px] font-mono border-primary/40 text-primary">
                 {commits.length || 50}
               </Badge>
-              <span className="text-[11px] opacity-70">{t('sidebar.commits')}</span>
+              <span className="text-[12px] opacity-70">{t('sidebar.commits')}</span>
             </div>
             <button
               onClick={() => setHealthModalOpen(true)}
-              className="text-[11px] text-sky-800 dark:text-cyan-400 hover:text-sky-900 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
+              className="text-[12px] text-sky-800 dark:text-cyan-400 hover:text-sky-900 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
               title={t('sidebar.healthDiagnose')}
             >
               <Sparkles className="h-2.5 w-2.5" />
@@ -827,7 +850,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('localBranches')}
-                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.localBranches ? (
@@ -892,13 +915,13 @@ export const LeftSidebar: React.FC = () => {
                           >
                             <div className="flex items-center gap-1.5">
                               {isFolderOpen ? (
-                                <FolderOpen className="h-3 w-3 text-amber-400" />
+                                <FolderOpen className="h-3 w-3 text-git-tag" />
                               ) : (
-                                <Folder className="h-3 w-3 text-amber-400" />
+                                <Folder className="h-3 w-3 text-git-tag" />
                               )}
                               <span>{folderName}</span>
                             </div>
-                            <Badge variant="outline" className="h-3.5 px-1 text-[10px] font-mono opacity-70">
+                            <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono opacity-70">
                               {folderBranches.length}
                             </Badge>
                           </div>
@@ -938,15 +961,15 @@ export const LeftSidebar: React.FC = () => {
                                   >
                                     <div className="flex items-center gap-1.5 truncate min-w-0">
                                       {branch.isCurrent ? (
-                                        <Check className="h-3 w-3 text-emerald-400 shrink-0" />
+                                        <Check className="h-3 w-3 text-git-added shrink-0" />
                                       ) : isSelected ? (
-                                        <Eye className="h-3 w-3 text-emerald-400 shrink-0" />
+                                        <Eye className="h-3 w-3 text-git-added shrink-0" />
                                       ) : null}
                                       <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                                       <span className="truncate">{leafName}</span>
                                     </div>
                                     {branch.isCurrent ? (
-                                      <span className="text-[10px] uppercase px-1 rounded bg-primary/25 text-primary font-bold font-mono">
+                                      <span className="text-[12px] uppercase px-1 rounded bg-primary/25 text-primary font-bold font-mono">
                                         HEAD
                                       </span>
                                     ) : (
@@ -962,7 +985,7 @@ export const LeftSidebar: React.FC = () => {
                                             setMergeTargetBranch(branch.name);
                                             setMergeModalOpen(true);
                                           }}
-                                          className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                                          className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                                           title={`${t('sidebar.ctx.mergeIntoCurrent')} ${branch.name}`}
                                         >
                                           <GitMerge className="h-2.5 w-2.5" />
@@ -1010,16 +1033,16 @@ export const LeftSidebar: React.FC = () => {
                         >
                           <div className="flex items-center gap-1.5 truncate min-w-0">
                             {branch.isCurrent ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              <Check className="h-3.5 w-3.5 text-git-added shrink-0" />
                             ) : isSelected ? (
-                              <Eye className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              <Eye className="h-3.5 w-3.5 text-git-added shrink-0" />
                             ) : null}
                             <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                             <span className="truncate">{branch.name}</span>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {branch.isCurrent ? (
-                              <span className="text-[10px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-bold font-mono">
+                              <span className="text-[12px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-bold font-mono">
                                 HEAD
                               </span>
                             ) : (
@@ -1035,7 +1058,7 @@ export const LeftSidebar: React.FC = () => {
                                     setMergeTargetBranch(branch.name);
                                     setMergeModalOpen(true);
                                   }}
-                                  className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                                   title={`${t('sidebar.ctx.mergeIntoCurrent')} ${branch.name}`}
                                 >
                                   <GitMerge className="h-2.5 w-2.5" />
@@ -1046,7 +1069,7 @@ export const LeftSidebar: React.FC = () => {
                                     setRebaseUpstreamBranch(branch.name);
                                     setRebaseModalOpen(true);
                                   }}
-                                  className="p-1 hover:text-amber-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="p-1 hover:text-amber-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                                   title={`${t('sidebar.ctx.rebaseOnto')} ${branch.name}`}
                                 >
                                   <GitPullRequest className="h-2.5 w-2.5" />
@@ -1071,7 +1094,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('remoteBranches')}
-                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.remoteBranches ? (
@@ -1114,14 +1137,14 @@ export const LeftSidebar: React.FC = () => {
                           title={`${t('sidebar.viewRemoteBranch')}: ${branch.name} (${t('sidebar.viewRemoteHint')})`}
                         >
                           <div className="flex items-center gap-1.5 truncate">
-                            {isSelected && <Eye className="h-3 w-3 text-emerald-400 shrink-0" />}
+                            {isSelected && <Eye className="h-3 w-3 text-git-added shrink-0" />}
                             <Cloud className="h-3 w-3 text-muted-foreground/80 shrink-0" />
                             <span className="truncate">{branch.name}</span>
                           </div>
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
+                            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                             title={t('sidebar.ctx.checkoutToLocal')}
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -1147,7 +1170,7 @@ export const LeftSidebar: React.FC = () => {
                     {/* Render remote branch folders */}
                     {Object.entries(remoteGrouped.folders).map(([folderName, folderBranches]) => (
                       <div key={folderName}>
-                        <div className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                        <div className="flex items-center gap-1 px-2 py-0.5 text-[12px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
                           <Cloud className="h-2.5 w-2.5" />
                           <span>{folderName}/</span>
                         </div>
@@ -1180,14 +1203,14 @@ export const LeftSidebar: React.FC = () => {
                               title={`${t('sidebar.viewRemoteBranch')}: ${branch.name} (${t('sidebar.viewRemoteHint')})`}
                             >
                               <div className="flex items-center gap-1.5 truncate">
-                                {isSelected && <Eye className="h-3 w-3 text-emerald-400 shrink-0" />}
+                                {isSelected && <Eye className="h-3 w-3 text-git-added shrink-0" />}
                                 <Cloud className="h-3 w-3 text-muted-foreground/80 shrink-0" />
                                 <span className="truncate">{branch.name}</span>
                               </div>
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
+                                className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                                 title={t('sidebar.ctx.checkoutToLocal')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -1225,7 +1248,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('pullRequests')}
-                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.pullRequests ? (
@@ -1238,7 +1261,7 @@ export const LeftSidebar: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="xs"
-                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
+                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                     title={t('sidebar.viewAllPrs')}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1278,7 +1301,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('tags')}
-                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.tags ? (
@@ -1288,12 +1311,12 @@ export const LeftSidebar: React.FC = () => {
                     )}
                     <span>{t('sidebar.tags')} ({filteredTags.length})</span>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                     {tags.length > 0 && (
                       <Button
                         variant="ghost"
                         size="xs"
-                        className="h-4 w-4 p-0 hover:text-emerald-400"
+                        className="h-4 w-4 p-0 hover:text-git-added"
                         title={t('sidebar.pushAllTags')}
                         onClick={async (e) => {
                           e.stopPropagation();
@@ -1326,7 +1349,7 @@ export const LeftSidebar: React.FC = () => {
 
                 {newTagOpen && (
                   <form onSubmit={handleCreateTag} className="p-2 bg-accent/50 border border-border/70 rounded-lg my-1 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <div className="flex items-center justify-between text-[12px] text-muted-foreground">
                       <span className="font-medium text-foreground">{t('sidebar.newTagTitle')}</span>
                       <button type="button" onClick={() => setNewTagOpen(false)}>
                         <X className="h-3 w-3" />
@@ -1345,7 +1368,7 @@ export const LeftSidebar: React.FC = () => {
                       placeholder={t('sidebar.tagAnnotationPlaceholder')}
                       className="h-6 text-[12px]"
                     />
-                    <Button type="submit" size="xs" className="w-full h-5 text-[11px]">
+                    <Button type="submit" size="xs" className="w-full h-5 text-[12px]">
                       {t('sidebar.createTag')}
                     </Button>
                   </form>
@@ -1365,13 +1388,13 @@ export const LeftSidebar: React.FC = () => {
                           <span className="truncate font-mono text-[12px] text-foreground/90">{tag.name}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-mono text-muted-foreground/60 group-hover:text-muted-foreground">
+                          <span className="text-[12px] font-mono text-muted-foreground/60 group-hover:text-muted-foreground">
                             {tag.commitHash.slice(0, 7)}
                           </span>
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-rose-400"
+                            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted"
                             title={t('sidebar.deleteTagTitle')}
                             onClick={(e) => handleDeleteTag(tag.name, e)}
                           >
@@ -1393,7 +1416,7 @@ export const LeftSidebar: React.FC = () => {
               <div>
                 <div
                   onClick={() => toggleSection('stashes')}
-                  className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
                 >
                   <div className="flex items-center gap-1">
                     {expandedSections.stashes ? (
@@ -1406,7 +1429,7 @@ export const LeftSidebar: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="xs"
-                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:text-primary"
+                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                     onClick={(e) => {
                       e.stopPropagation();
                       setNewStashOpen(!newStashOpen);
@@ -1432,7 +1455,7 @@ export const LeftSidebar: React.FC = () => {
                     }}
                     className="p-2 bg-accent/50 border border-border/70 rounded-lg my-1 space-y-1.5"
                   >
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <div className="flex items-center justify-between text-[12px] text-muted-foreground">
                       <span className="font-medium text-foreground">{t('sidebar.stashWorkingChanges')}</span>
                       <button type="button" onClick={() => setNewStashOpen(false)}>
                         <X className="h-3 w-3" />
@@ -1445,7 +1468,7 @@ export const LeftSidebar: React.FC = () => {
                       className="h-6 text-[12px]"
                       autoFocus
                     />
-                    <Button type="submit" size="xs" className="w-full h-5 text-[11px]">
+                    <Button type="submit" size="xs" className="w-full h-5 text-[12px]">
                       {t('sidebar.doStash')}
                     </Button>
                   </form>
@@ -1462,14 +1485,14 @@ export const LeftSidebar: React.FC = () => {
                         title={t('sidebar.rightClickMore')}
                       >
                         <div className="flex items-center gap-1.5 truncate">
-                          <Archive className="h-3 w-3 text-cyan-400 shrink-0" />
+                          <Archive className="h-3 w-3 text-primary shrink-0" />
                           <span className="truncate text-[12px]">{stash.message}</span>
                         </div>
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 px-1 text-[11px] hover:text-emerald-400"
+                            className="h-4 px-1 text-[12px] hover:text-git-added"
                             title={t('sidebar.popHere')}
                             onClick={async () => {
                               try {
@@ -1485,7 +1508,7 @@ export const LeftSidebar: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 w-4 p-0 hover:text-rose-400"
+                            className="h-4 w-4 p-0 hover:text-git-deleted"
                             title={t('sidebar.dropTitle')}
                             onClick={async () => {
                               try {

@@ -1,3 +1,6 @@
+import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
+import { ModalSurface } from '@/components/ui/ModalSurface';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { LeftSidebar } from './LeftSidebar';
@@ -20,21 +23,29 @@ import { checkAndInstallUpdate } from '@/services/updater/UpdateService';
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai'>('appearance');
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const { navigationOverlay, inspectorOverlay, panels } = useWorkspaceLayout();
   const [repoDialogOpen, setRepoDialogOpen] = useState(false);
   const [repoDialogMode, setRepoDialogMode] = useState<'open' | 'clone' | 'init'>('open');
   const [githubAuthOpen, setGithubAuthOpen] = useState(false);
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
 
   const {
-    leftSidebarWidth,
     setLeftSidebarWidth,
-    rightPaneWidth,
     setRightPaneWidth,
     toggleEmbeddedTerminal,
+    navigationPinned,
   } = useLayoutStore();
-  const { isLeftSidebarCollapsed, isRightPaneCollapsed, currentRepo, fetchRemote, pull, push, setActiveTab, checkExternalChanges } = useRepoStore();
+  const { isLeftSidebarCollapsed, isRightPaneCollapsed, activeTab, toggleLeftSidebar, toggleRightPane, currentRepo, fetchRemote, pull, push, setActiveTab, checkExternalChanges } = useRepoStore();
   const { compactMode, autoFetchInterval } = useSettingsStore();
   const { t } = useI18n();
+
+  useEffect(() => { setNavigationOpen(false); }, [activeTab, currentRepo?.path]);
+  useEffect(() => { setNavigationOpen(false); }, [navigationPinned]);
+  useEffect(() => { setInspectorOpen(false); }, [currentRepo?.path]);
+  useEffect(() => { if (!['changes', 'history'].includes(activeTab)) setInspectorOpen(false); }, [activeTab]);
 
   const isTypingTarget = (target: EventTarget | null): boolean => {
     const el = target as HTMLElement | null;
@@ -162,21 +173,30 @@ export const AppLayout: React.FC = () => {
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-background text-foreground select-none font-sans">
       {/* Top Header & Action Toolbar */}
       <Header
+        navigationOverlay={navigationOverlay}
+        inspectorOverlay={inspectorOverlay}
+        onToggleNavigation={() => navigationOverlay ? setNavigationOpen(!navigationOpen) : toggleLeftSidebar()}
+        onToggleInspector={() => inspectorOverlay ? setInspectorOpen(!inspectorOpen) : toggleRightPane()}
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
         onOpenRepoDialog={() => handleOpenRepoDialog('open')}
         onOpenGitHubAuth={() => setGithubAuthOpen(true)}
       />
 
       {/* Main 3-Column Work Area */}
       <div className="flex-1 flex overflow-hidden relative">
-        <LeftSidebar />
-        {!isLeftSidebarCollapsed && (
+        {!navigationOverlay && <LeftSidebar />}
+        {navigationOverlay && navigationOpen && <ModalSurface label={t('composer.navigation')} onDismiss={() => setNavigationOpen(false)} className="fixed inset-0 z-40 bg-black/35 flex">
+          <div className="h-full w-72 bg-sidebar flex flex-col shadow-2xl border-r border-border">
+            <LeftSidebar inDrawer onNavigate={() => setNavigationOpen(false)} />
+          </div>
+        </ModalSurface>}
+        {!navigationOverlay && !isLeftSidebarCollapsed && (
           <ResizeHandle
-            currentSize={leftSidebarWidth}
+            currentSize={panels.left}
             onSizeChange={setLeftSidebarWidth}
             minSize={160}
-            maxSize={480}
+            maxSize={500}
             defaultSize={DEFAULT_LAYOUT.leftSidebarWidth}
             title={t('layout.resizeLeft')}
           />
@@ -187,10 +207,9 @@ export const AppLayout: React.FC = () => {
           onInitRepoDialog={() => handleOpenRepoDialog('init')}
           onOpenGitHubAuth={() => setGithubAuthOpen(true)}
         />
-        {!isRightPaneCollapsed && (
-          <>
+        {!inspectorOverlay && !isRightPaneCollapsed && ['changes', 'history'].includes(activeTab) && currentRepo && (
             <ResizeHandle
-              currentSize={rightPaneWidth}
+              currentSize={panels.right}
               onSizeChange={setRightPaneWidth}
               minSize={220}
               maxSize={650}
@@ -198,9 +217,8 @@ export const AppLayout: React.FC = () => {
               reverse
               title={t('layout.resizeRight')}
             />
-            <RightPane />
-          </>
         )}
+        <RightPane overlay={inspectorOverlay} open={inspectorOpen} onClose={() => setInspectorOpen(false)} onOpenAiSettings={() => { setSettingsTab('ai'); setSettingsOpen(true); }} />
       </div>
 
       {/* Bottom Status Bar */}
@@ -210,11 +228,12 @@ export const AppLayout: React.FC = () => {
       <CommandPalette
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
         onOpenRepoDialog={() => handleOpenRepoDialog('open')}
       />
 
       <SettingsDialog
+        initialTab={settingsTab}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onOpenGitHubAuth={() => setGithubAuthOpen(true)}
@@ -233,6 +252,7 @@ export const AppLayout: React.FC = () => {
 
       {/* Global Floating Toast Notifications */}
       <ToastContainer />
+      <ConfirmDialog />
 
       {/* Keyboard Shortcut Cheat Sheet (?) */}
       <ShortcutCheatSheet open={cheatSheetOpen} onOpenChange={setCheatSheetOpen} />

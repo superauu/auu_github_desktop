@@ -1,10 +1,13 @@
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { confirmAction } from '@/stores/confirmStore';
+import { Button } from '@/components/ui/button';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   GitCommit as GitCommitIcon,
   Tag as TagIcon,
   Search,
   Check,
-  Monitor,
   Cloud,
   FileCode2,
   Laptop,
@@ -33,7 +36,6 @@ export const CommitHistoryView: React.FC = () => {
     setSelectedCommit,
     setActiveTab,
     status,
-    currentRepo,
     branches,
     selectedBranch,
     scrollToCommitHash,
@@ -46,12 +48,10 @@ export const CommitHistoryView: React.FC = () => {
     hardResetCommit,
   } = useRepoStore();
 
-  const currentBranchName =
-    branches.find((b) => b.isCurrent)?.name ||
-    status?.currentBranch ||
-    currentRepo?.currentBranch ||
-    'HEAD';
-
+  const [metadataWidth, setMetadataWidth] = useState(176);
+  const [graphWidth, setGraphWidth] = useState(64);
+  const focusAfterRender = useRef<string | null>(null);
+  const [columns, setColumns] = useState({ author: true, date: true, hash: false });
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ open: boolean; x: number; y: number; commit: GitCommit | null }>({
@@ -85,12 +85,11 @@ export const CommitHistoryView: React.FC = () => {
     const timer = setTimeout(() => {
       const index = filteredCommits.findIndex((commit) => commit.hash === hashToScroll);
       if (index >= 0 && viewportRef.current) {
-        viewportRef.current.scrollTo({ top: Math.max(0, (index + (hasWip ? 1 : 0)) * 42 - viewportRef.current.clientHeight / 2), behavior: 'smooth' });
+        const top = (index + (hasWip ? 1 : 0)) * 42;
+        if (scrollToCommitHash || top < viewportRef.current.scrollTop || top + 42 > viewportRef.current.scrollTop + viewportRef.current.clientHeight) viewportRef.current.scrollTo({ top: Math.max(0, top - viewportRef.current.clientHeight / 2), behavior: 'auto' });
       }
       const el = document.getElementById(`commit-row-${hashToScroll}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      if (scrollToCommitHash && el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
     }, 60);
 
     return () => clearTimeout(timer);
@@ -107,12 +106,32 @@ export const CommitHistoryView: React.FC = () => {
     );
   });
 
+  useEffect(() => { if (viewportRef.current) viewportRef.current.scrollTop = 0; setViewport(previous => ({ ...previous, top: 0 })); }, [searchQuery]);
   const firstVisible = Math.min(filteredCommits.length, Math.max(0, Math.floor(viewport.top / 42) - (hasWip ? 1 : 0) - 8));
   const lastVisible = Math.min(filteredCommits.length, Math.ceil((viewport.top + viewport.height) / 42) + 8);
-  const activeCommit = selectedCommit || filteredCommits[0];
+  const activeCommit = filteredCommits.find(commit => commit.hash === selectedCommit?.hash) || filteredCommits[0];
   const selectedIndex = hasWip
     ? filteredCommits.findIndex((c) => c.hash === activeCommit?.hash) + 1
     : filteredCommits.findIndex((c) => c.hash === activeCommit?.hash);
+
+  useEffect(() => {
+    if (!focusAfterRender.current) return;
+    const element = document.getElementById(`commit-row-${focusAfterRender.current}`);
+    if (element) { element.focus({ preventScroll: true }); focusAfterRender.current = null; }
+  }, [selectedCommit?.hash, firstVisible, lastVisible]);
+  const handleHistoryKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (!target.hasAttribute('data-commit-row') || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const index = filteredCommits.findIndex(commit => commit.hash === target.dataset.commitRow);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? filteredCommits.length - 1 : Math.max(0, Math.min(filteredCommits.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
+    const commit = filteredCommits[next];
+    if (!commit) return;
+    event.preventDefault(); focusAfterRender.current = commit.hash; setSelectedCommit(commit);
+    const rowTop = (next + (hasWip ? 1 : 0)) * 42;
+    const element = viewportRef.current;
+    if (element && (rowTop < element.scrollTop || rowTop + 42 > element.scrollTop + element.clientHeight)) element.scrollTop = Math.max(0, rowTop - element.clientHeight / 2);
+    document.getElementById(`commit-row-${commit.hash}`)?.focus({ preventScroll: true });
+  };
 
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -180,8 +199,8 @@ export const CommitHistoryView: React.FC = () => {
           id: 'reset-soft',
           label: t('history.ctx.resetSoft'),
           icon: <ArrowUpFromLine className="h-3.5 w-3.5" />,
-          onClick: () => {
-            if (!confirm(t('history.resetSoftConfirm').replace('{h}', ctxMenu.commit!.shortHash))) return;
+          onClick: async () => {
+            if (!await confirmAction({ title: t('history.ctx.resetSoft'), description: t('history.resetSoftConfirm').replace('{h}', ctxMenu.commit!.shortHash), detail: ctxMenu.commit!.subject })) return;
             runCommitAction(
               () => softResetCommit(ctxMenu.commit!.hash),
               t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
@@ -194,8 +213,8 @@ export const CommitHistoryView: React.FC = () => {
           label: t('history.ctx.resetHard'),
           icon: <ArrowDownToLine className="h-3.5 w-3.5" />,
           danger: true,
-          onClick: () => {
-            if (!confirm(t('history.resetHardConfirm').replace('{h}', ctxMenu.commit!.shortHash))) return;
+          onClick: async () => {
+            if (!await confirmAction({ title: t('history.ctx.resetHard'), description: t('history.resetHardConfirm').replace('{h}', ctxMenu.commit!.shortHash) + '\n' + t('composer.hardResetWarning'), detail: ctxMenu.commit!.subject })) return;
             runCommitAction(
               () => hardResetCommit(ctxMenu.commit!.hash),
               t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
@@ -207,17 +226,17 @@ export const CommitHistoryView: React.FC = () => {
     : [];
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
+    <div className="history-view flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Search & Filter Bar */}
       <div className="h-9 px-3 border-b border-border flex items-center justify-between text-xs bg-card/40 shrink-0">
         <div className="flex items-center gap-2">
           <GitCommitIcon className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-foreground">{t('history.title')}</span>
-          <Badge variant="outline" className="h-4 text-[11px] font-mono">
+          <Badge variant="outline" className="h-4 text-[12px] font-mono">
             {filteredCommits.length} {t('history.commitCount')}
           </Badge>
           {hasWip && (
-            <Badge variant="warning" className="h-4 px-1.5 text-[11px] font-mono gap-1 animate-pulse">
+            <Badge variant="warning" className="h-4 px-1.5 text-[12px] font-mono gap-1 ">
               <span>{totalChanges} {t('history.uncommitted')}</span>
             </Badge>
           )}
@@ -237,16 +256,22 @@ export const CommitHistoryView: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex items-center justify-end px-3 py-1 border-b border-border">
+        <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="xs">{t('composer.columns')}</Button></DropdownMenu.Trigger>
+          <DropdownMenu.Portal><DropdownMenu.Content align="end" className="z-50 min-w-40 bg-popover border border-border rounded-lg shadow-xl p-1">
+            {(['author', 'date', 'hash'] as const).map(key => <DropdownMenu.CheckboxItem key={key} className="menu-item" checked={columns[key]} onCheckedChange={checked => setColumns(previous => ({ ...previous, [key]: checked === true }))}><span className="w-4">{columns[key] ? '✓' : ''}</span>{t(`composer.column.${key}`)}</DropdownMenu.CheckboxItem>)}
+          </DropdownMenu.Content></DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
       {/* GitKraken-style Column Headers: BRANCH / TAG | GRAPH | COMMIT MESSAGE */}
-      <div className="h-7 px-3 border-b border-border/80 bg-muted/20 flex items-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
-        <div className="w-48 truncate pr-2">{t('history.col.branchTag')}</div>
-        <div className="w-16 text-center shrink-0">{t('history.col.graph')}</div>
+      <div className="h-7 px-3 border-b border-border/80 bg-muted/20 flex items-center text-[12px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+        <div style={{ width: graphWidth }} className="text-center shrink-0">{t('history.col.graph')}</div>
         <div className="flex-1 min-w-0 pl-3">{t('history.col.message')}</div>
-        <div className="w-44 text-right pr-2 hidden md:block shrink-0">{t('history.col.authorDate')}</div>
+        {Object.values(columns).some(Boolean) && <div style={{ width: metadataWidth }} className="history-meta text-right pr-2 shrink-0 items-center"><ResizeHandle currentSize={metadataWidth} onSizeChange={setMetadataWidth} minSize={120} maxSize={320} defaultSize={176} reverse title={t('composer.resizeMetadata')} className="h-7 mr-2" /><span className="flex-1">{t('history.col.authorDate')}</span></div>}
       </div>
 
       {/* Commit List Table with SVG Graph */}
-      <div ref={viewportRef} className="flex-1 min-h-0 overflow-auto" onScroll={(event) => setViewport({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight })}>
+      <div ref={viewportRef} role="list" aria-label={t('history.title')} onKeyDown={handleHistoryKey} className="flex-1 min-h-0 overflow-auto" onScroll={(event) => setViewport({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight })}>
         {isLoading && commits.length === 0 ? (
           <div className="py-6 px-3 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -262,9 +287,10 @@ export const CommitHistoryView: React.FC = () => {
         ) : (
           <div className="flex relative">
             {/* SVG Graph Column (Spanning entire rows, perfectly aligned to w-16 column at left: 12px(px-3) + 192px(w-48) = 204px) */}
-            <div className="pt-0 shrink-0 z-10 absolute left-[204px] top-0 pointer-events-none w-16">
+            <div className="pt-0 shrink-0 z-10 absolute left-[14px] top-0 pointer-events-none" style={{ width: graphWidth }}>
               <GitGraphRenderer
                 commits={filteredCommits}
+                onWidthChange={setGraphWidth}
                 selectedIndex={selectedIndex}
                 rowHeight={42}
                 hasWipNode={hasWip}
@@ -278,6 +304,8 @@ export const CommitHistoryView: React.FC = () => {
               {/* GitKraken-style Row 0: // WIP (Work in Progress) */}
               {hasWip && (
                 <div
+                  role="listitem" tabIndex={0}
+                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setActiveTab('changes'); } }}
                   onClick={() => {
                     setActiveTab('changes');
                     toast.info(t('history.wipToast'));
@@ -285,16 +313,8 @@ export const CommitHistoryView: React.FC = () => {
                   className="h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors bg-sky-500/10 hover:bg-sky-500/15 border-l-2 border-sky-600 dark:border-sky-400 group"
                   title={t('history.wipTitle')}
                 >
-                  {/* Left Column: Branch Indicator */}
-                  <div className="w-48 flex items-center gap-1.5 shrink-0 overflow-hidden pr-3">
-                    <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-mono gap-1 bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 max-w-[120px] truncate">
-                      <Monitor className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">{currentBranchName}</span>
-                    </Badge>
-                  </div>
-
                   {/* Spacer for Graph column */}
-                  <div className="w-16 shrink-0" />
+                  <div style={{ width: graphWidth }} className="shrink-0" />
 
                   {/* Commit message / WIP subject */}
                   <div className="flex items-center gap-2 min-w-0 flex-1 pl-3">
@@ -302,7 +322,7 @@ export const CommitHistoryView: React.FC = () => {
                       <FileCode2 className="h-3.5 w-3.5" />
                       <span>// WIP</span>
                     </span>
-                    <Badge variant="success" className="h-4 px-1.5 text-[10px] font-mono font-bold">
+                    <Badge variant="success" className="h-4 px-1.5 text-[12px] font-mono font-bold">
                       +{totalChanges}
                     </Badge>
                     <span className="text-[12px] text-muted-foreground truncate hidden sm:inline">
@@ -311,7 +331,7 @@ export const CommitHistoryView: React.FC = () => {
                   </div>
 
                   {/* Right Column: Prompt */}
-                  <div className="w-44 text-right pr-2 text-[11px] text-sky-600 dark:text-sky-400 font-mono shrink-0 hidden md:block">
+                  <div className="history-meta w-44 text-right pr-2 text-[12px] text-primary shrink-0">
                     {t('history.viewChanges')}
                   </div>
                 </div>
@@ -327,6 +347,17 @@ export const CommitHistoryView: React.FC = () => {
                   <div
                     key={commit.hash}
                     id={`commit-row-${commit.hash}`}
+                    role="listitem" data-commit-row={commit.hash} tabIndex={isSelected ? 0 : -1} aria-current={isSelected ? 'true' : undefined}
+                    aria-label={`${commit.subject} · ${commit.author.name} · ${commit.shortHash}`}
+                    title={commit.subject}
+                    onFocus={event => { if (event.target === event.currentTarget) setSelectedCommit(commit); }}
+                    onKeyDown={event => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === 'Enter') { event.preventDefault(); setSelectedCommit(commit); }
+                      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                        event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setCtxMenu({ open: true, x: box.left + 60, y: box.bottom, commit });
+                      }
+                    }}
                     onClick={() => setSelectedCommit(commit)}
                     onContextMenu={(e) => {
                       e.preventDefault();
@@ -336,12 +367,17 @@ export const CommitHistoryView: React.FC = () => {
                     className={cn(
                       "h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all group",
                       isSelected
-                        ? "bg-sky-500/15 dark:bg-sky-500/20 border-l-2 border-sky-600 dark:border-sky-400 shadow-[inset_0_0_16px_rgba(56,189,248,0.12)] text-foreground font-medium"
+                        ? "bg-sky-500/15 dark:bg-sky-500/20 border-l-2 border-sky-600 dark:border-sky-400  text-foreground font-medium"
                         : "hover:bg-accent/50 dark:hover:bg-white/[0.03] border-l-2 border-transparent text-muted-foreground hover:text-foreground"
                     )}
                   >
+                    {/* Spacer for Graph column */}
+                    <div style={{ width: graphWidth }} className="shrink-0" />
+
+                    {/* Subject */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1 pl-3">
                     {/* Left Column: BRANCH / TAG Badges */}
-                    <div className="w-48 flex items-center gap-1 shrink-0 overflow-hidden pr-3">
+                    <div className="flex items-center gap-1 min-w-0 max-w-[180px] shrink overflow-hidden">
                       {(() => {
                         const rawRefs = commit.refs ? [...commit.refs] : [];
                         if (
@@ -370,13 +406,13 @@ export const CommitHistoryView: React.FC = () => {
                                   key={ref}
                                   title={ref}
                                   className={cn(
-                                    "h-5 px-1.5 text-[10px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-xs border transition-all",
+                                    "h-5 px-1.5 text-[12px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-xs border transition-all",
                                     isTag && "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/40",
-                                    isHead && "bg-sky-500/15 text-sky-800 dark:text-sky-200 border-sky-500/40 shadow-[0_0_8px_rgba(56,189,248,0.25)]",
+                                    isHead && "bg-primary/10 text-primary border-primary/30",
                                     isRemote && "bg-secondary text-secondary-foreground border-border",
                                     !isTag && !isHead && !isRemote && (isSelectedBranch
-                                      ? "bg-sky-950/80 dark:bg-sky-950/90 text-sky-200 border-sky-500/80 font-semibold ring-1 ring-sky-500/40 shadow-xs"
-                                      : "bg-slate-800/80 dark:bg-[#1f1f23] text-slate-200 border-border"
+                                      ? "bg-accent text-accent-foreground border-primary/40 font-semibold"
+                                      : "bg-secondary text-secondary-foreground border-border"
                                     )
                                   )}
                                 >
@@ -400,7 +436,7 @@ export const CommitHistoryView: React.FC = () => {
                               );
                             })}
                             {rawRefs.length > 2 && (
-                              <Badge variant="outline" className="h-4 px-1 text-[10px] font-mono shrink-0">
+                              <Badge variant="outline" className="h-4 px-1 text-[12px] font-mono shrink-0">
                                 +{rawRefs.length - 2}
                               </Badge>
                             )}
@@ -409,28 +445,24 @@ export const CommitHistoryView: React.FC = () => {
                       })()}
                     </div>
 
-                    {/* Spacer for Graph column */}
-                    <div className="w-16 shrink-0" />
 
-                    {/* Subject */}
-                    <div className="flex items-center gap-2 min-w-0 flex-1 pl-3">
-                      <span className="text-xs text-foreground group-hover:text-primary transition-colors truncate">
+                      <span className="text-[13px] text-foreground transition-colors truncate">
                         {commit.subject}
                       </span>
                     </div>
 
                     {/* Author & Date & Hash */}
-                    <div className="w-44 flex items-center justify-end gap-2 text-[11px] text-muted-foreground shrink-0 pr-2 hidden md:flex">
-                      <span className="truncate max-w-[80px]">{commit.author.name}</span>
-                      <span className="opacity-70 whitespace-nowrap">{commit.author.relativeDate}</span>
-                      <button
+                    {Object.values(columns).some(Boolean) && <div style={{ width: metadataWidth }} className="history-meta items-center justify-end gap-2 text-[12px] text-muted-foreground shrink-0 pr-2">
+                      {columns.author && <span className="truncate max-w-[80px]" title={commit.author.name}>{commit.author.name}</span>}
+                      {columns.date && <span className="whitespace-nowrap">{commit.author.relativeDate}</span>}
+                      {columns.hash && <button
                         onClick={(e) => handleCopyHash(commit.hash, e)}
-                        className="font-mono text-[11px] px-1 py-0.5 rounded bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        className="font-mono text-[12px] px-1 py-0.5 rounded bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                         title={t('history.copyHashTitle')}
                       >
-                        {isCopied ? <Check className="h-2.5 w-2.5 text-emerald-400" /> : commit.shortHash}
-                      </button>
-                    </div>
+                        {isCopied ? <Check className="h-2.5 w-2.5 text-git-added" /> : commit.shortHash}
+                      </button>}
+                    </div>}
                   </div>
                 );
               })}
@@ -447,7 +479,7 @@ export const CommitHistoryView: React.FC = () => {
                       {t('history.loadMore')}
                     </button>
                   ) : (
-                    <span className="text-[11px] text-muted-foreground/60">
+                    <span className="text-[12px] text-muted-foreground/60">
                       {t('history.allLoaded')}
                     </span>
                   )}

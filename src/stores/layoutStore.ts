@@ -9,6 +9,7 @@ export interface LayoutState {
   actionsWorkflowsWidth: number;
   prListWidth: number;
   isEmbeddedTerminalOpen: boolean;
+  navigationPinned: boolean;
 
   // 调节动作
   setLeftSidebarWidth: (width: number) => void;
@@ -18,18 +19,20 @@ export interface LayoutState {
   setPrListWidth: (width: number) => void;
   toggleEmbeddedTerminal: () => void;
   setEmbeddedTerminalOpen: (open: boolean) => void;
+  setNavigationPinned: (pinned: boolean) => void;
 
   // 恢复默认布局
   resetLayout: () => void;
 }
 
 export const DEFAULT_LAYOUT = {
-  leftSidebarWidth: 240,
-  rightPaneWidth: 300,
+  leftSidebarWidth: 200,
+  rightPaneWidth: 320,
   changesFileListWidth: 260,
   actionsWorkflowsWidth: 260,
   prListWidth: 320,
-  isEmbeddedTerminalOpen: true,
+  isEmbeddedTerminalOpen: false,
+  navigationPinned: true,
 };
 
 export const useLayoutStore = create<LayoutState>()(
@@ -57,6 +60,8 @@ export const useLayoutStore = create<LayoutState>()(
 
       setEmbeddedTerminalOpen: (open: boolean) =>
         set({ isEmbeddedTerminalOpen: open }),
+
+      setNavigationPinned: (navigationPinned: boolean) => set({ navigationPinned }),
 
       resetLayout: () => set(DEFAULT_LAYOUT),
     }),

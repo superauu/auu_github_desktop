@@ -10,14 +10,25 @@ export interface GenerateCommitOptions {
   aiConfig: AiApiConfig;
 }
 
+export interface GenerationResult {
+  message: string;
+  source: 'builtin' | 'llm';
+  model?: string;
+  fallback: boolean;
+}
+
 export class AiCommitService {
   /**
    * 综合生成智能 Commit 说明：
    * 1. 采集并分析修改的文件及实际 Git Diff 内容
    * 2. 若配置了大模型 API Key，则尝试通过 OpenAI 兼容接口生成
-   * 3. 若无 API Key 或大模型调用超时/失败，则由本地深度语义规则引擎生成
+   * 3. 若无 API Key 或大模型调用超时/失败，则由本地规则引擎生成
    */
   async generateCommitMessage(options: GenerateCommitOptions): Promise<string> {
+    return (await this.generateCommitMessageResult(options)).message;
+  }
+
+  async generateCommitMessageResult(options: GenerateCommitOptions): Promise<GenerationResult> {
     const { repoPath, files, aiConfig } = options;
 
     if (!files || files.length === 0) {
@@ -32,15 +43,15 @@ export class AiCommitService {
       try {
         const llmMessage = await this.callLlmApi(files, diffSnippets, aiConfig);
         if (llmMessage && llmMessage.trim()) {
-          return llmMessage.trim();
+          return { message: llmMessage.trim(), source: 'llm', model: aiConfig.model || 'deepseek-chat', fallback: false };
         }
       } catch (err: any) {
-        console.warn('AI 大模型 API 调用失败，自动降级为本地深度分析引擎:', err?.message || err);
+        console.warn('AI 大模型 API 调用失败，自动降级为本地规则引擎:', err?.message || err);
       }
     }
 
-    // 3. 本地深度语义分析引擎
-    return this.generateLocalSemanticCommit(files, diffSnippets);
+    // 3. 本地规则分析引擎
+    return { message: this.generateLocalSemanticCommit(files, diffSnippets), source: 'builtin', fallback: aiConfig.provider === 'openai-compatible' };
   }
 
   /**
@@ -53,6 +64,12 @@ export class AiCommitService {
     head: string;
     aiConfig: AiApiConfig;
   }): Promise<string> {
+    return (await this.generatePRDescriptionResult(options)).message;
+  }
+
+  async generatePRDescriptionResult(options: {
+    repoPath: string; base: string; head: string; aiConfig: AiApiConfig;
+  }): Promise<GenerationResult> {
     const { repoPath, base, head, aiConfig } = options;
     const { files, patchText } = await gitService.getBranchDiff(repoPath, base, head);
     if (files.length === 0) {
@@ -62,12 +79,12 @@ export class AiCommitService {
     if (aiConfig.provider === 'openai-compatible' && aiConfig.apiKey.trim()) {
       try {
         const body = await this.callPrLlm(files, patchText, aiConfig);
-        if (body && body.trim()) return body.trim();
+        if (body && body.trim()) return { message: body.trim(), source: 'llm', model: aiConfig.model || 'deepseek-chat', fallback: false };
       } catch (err: any) {
         console.warn('AI PR 描述生成失败，降级本地模板:', err?.message || err);
       }
     }
-    return this.localPRBody(files, base, head);
+    return { message: this.localPRBody(files, base, head), source: 'builtin', fallback: aiConfig.provider === 'openai-compatible' };
   }
 
   private async callPrLlm(
@@ -300,7 +317,7 @@ export class AiCommitService {
   }
 
   /**
-   * 本地深度语义规则分析引擎
+   * 本地规则分析引擎
    */
   private generateLocalSemanticCommit(
     files: GitFileChange[],

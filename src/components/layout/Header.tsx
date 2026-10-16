@@ -1,3 +1,5 @@
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { confirmAction } from '@/stores/confirmStore';
 import React, { useState } from 'react';
 import {
   GitBranch as GitBranchIcon,
@@ -22,10 +24,10 @@ import {
   Archive,
   Inbox,
   Terminal,
-  Workflow,
   ChevronRight,
   Plus,
   X,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useI18n } from '@/i18n';
@@ -41,6 +43,10 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
 interface HeaderProps {
+  navigationOverlay: boolean;
+  inspectorOverlay: boolean;
+  onToggleNavigation: () => void;
+  onToggleInspector: () => void;
   onOpenCommandPalette?: () => void;
   onOpenSettings?: () => void;
   onOpenRepoDialog?: () => void;
@@ -48,6 +54,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  navigationOverlay, inspectorOverlay, onToggleNavigation, onToggleInspector,
   onOpenCommandPalette,
   onOpenSettings,
   onOpenRepoDialog,
@@ -58,8 +65,6 @@ export const Header: React.FC<HeaderProps> = ({
     status,
     isLeftSidebarCollapsed,
     isRightPaneCollapsed,
-    toggleLeftSidebar,
-    toggleRightPane,
     recentRepos,
     setCurrentRepo,
     openTabs,
@@ -75,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
     commits,
     stashPush,
     stashPop,
-    setActiveTab,
+    activeTab,
     stashes,
     branches,
     checkoutBranch,
@@ -93,8 +98,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [isUndoing, setIsUndoing] = useState(false);
   const [isRedoing, setIsRedoing] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
-  const [showPullMenu, setShowPullMenu] = useState(false);
-  const [showPushMenu, setShowPushMenu] = useState(false);
 
   const cycleTheme = () => {
     const nextTheme: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
@@ -135,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleForcePush = async () => {
-    if (!confirm(t('header.forcePushConfirm'))) return;
+    if (!await confirmAction({ title: t('header.forcePush'), description: t('header.forcePushConfirm') })) return;
     toast.info(t('header.pushing'));
     try {
       await push(undefined, undefined, { forceWithLease: true });
@@ -198,7 +201,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (isStashing) return;
     setIsStashing(true);
     try {
-      await stashPush('GitKraken-style Quick Stash');
+      await stashPush(t('changes.quickStashMsg'));
       toast.success(t('header.stashed'));
     } catch (err: any) {
       toast.error(t('changes.stashFailed'), err.message);
@@ -231,7 +234,6 @@ export const Header: React.FC<HeaderProps> = ({
     'main';
   const canUndo = commits.length > 0;
   const canRedo = redoStack.length > 0 && redoStack[0].branch === currentBranchName;
-  const nextRedoItem = redoStack[0];
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -271,7 +273,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="truncate max-w-[130px] text-[12px]">{repo.name}</span>
                     {repo.currentBranch && (
                       <span className={cn(
-                        "text-[10px] font-mono px-1 py-0.2 rounded hidden sm:inline-block truncate max-w-[70px]",
+                        "text-[12px] font-mono px-1 py-0.2 rounded hidden sm:inline-block truncate max-w-[70px]",
                         isActive ? "bg-primary/10 text-primary font-medium" : "bg-muted text-muted-foreground"
                       )}>
                         {repo.currentBranch}
@@ -284,7 +286,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                       className={cn(
                         "p-0.5 rounded hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-all ml-0.5",
-                        isActive ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-100"
+                        isActive ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                       )}
                       title={t('header.closeRepoTab')}
                     >
@@ -299,6 +301,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => onOpenRepoDialog?.()}
+                    aria-label={t('header.openCloneTooltip')}
                     className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors shrink-0"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -319,8 +322,9 @@ export const Header: React.FC<HeaderProps> = ({
                   size="icon"
                   className="h-6 w-6 text-muted-foreground hover:text-foreground"
                   onClick={cycleTheme}
+                  aria-label={t('header.toggleThemeTooltip')}
                 >
-                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />}
+                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-git-tag" /> : <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">{t('header.toggleThemeTooltip')}</TooltipContent>
@@ -331,6 +335,7 @@ export const Header: React.FC<HeaderProps> = ({
               <TooltipTrigger asChild>
                 <button
                   onClick={onOpenGitHubAuth}
+                  aria-label={t('header.manageGithubCreds')}
                   className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
                 >
                   {user?.avatar_url ? (
@@ -338,7 +343,7 @@ export const Header: React.FC<HeaderProps> = ({
                   ) : (
                     <Github className="h-3 w-3 text-foreground" />
                   )}
-                  <span className="font-medium text-[11px] max-w-[60px] truncate hidden xl:inline-block">
+                  <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
                     {isAuthenticated ? user?.login : t('header.login')}
                   </span>
                 </button>
@@ -356,6 +361,7 @@ export const Header: React.FC<HeaderProps> = ({
                   size="icon"
                   className="h-6 w-6 text-muted-foreground hover:text-foreground"
                   onClick={onOpenSettings}
+                  aria-label={t('header.openSettingsTooltip')}
                 >
                   <SettingsIcon className="h-3 w-3" />
                 </Button>
@@ -366,7 +372,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Tier 2: Main Git Action Ribbon & Breadcrumb Toolbar */}
-        <div className="h-10 px-3 flex items-center justify-between gap-2 text-xs bg-background/80 overflow-x-clip">
+        <div className="h-12 px-3 flex items-center justify-between gap-2 text-xs bg-background/80 ">
           {/* Left: Sidebar Toggle + Repo/Branch Dropdowns */}
           <div className="flex items-center gap-2 min-w-0">
             <Tooltip>
@@ -375,13 +381,14 @@ export const Header: React.FC<HeaderProps> = ({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={toggleLeftSidebar}
+                  onClick={onToggleNavigation}
+                  aria-label={t(isLeftSidebarCollapsed || navigationOverlay ? 'header.expandLeftSidebar' : 'header.collapseLeftSidebar')}
                 >
-                  {isLeftSidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                  {isLeftSidebarCollapsed || navigationOverlay ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {isLeftSidebarCollapsed ? t('header.expandLeftSidebar') : t('header.collapseLeftSidebar')}
+                {isLeftSidebarCollapsed || navigationOverlay ? t('header.expandLeftSidebar') : t('header.collapseLeftSidebar')}
               </TooltipContent>
             </Tooltip>
 
@@ -397,7 +404,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.repository')}</span>
-                  <span className="font-semibold text-foreground text-xs truncate max-w-[110px]">
+                  <span className="font-semibold text-foreground text-xs truncate max-w-[100px] xl:max-w-[160px]">
                     {currentRepo ? currentRepo.name : t('common.notOpen')}
                   </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
@@ -409,12 +416,12 @@ export const Header: React.FC<HeaderProps> = ({
                     className="absolute left-0 top-full mt-1 w-64 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
                     onMouseLeave={() => setShowRepoMenu(false)}
                   >
-                    <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <div className="px-2 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                       {t('header.repoMenu.current')}
                     </div>
                     <div className="px-2 py-1.5 text-xs font-medium text-foreground bg-accent/40 rounded-lg flex items-center justify-between">
                       <span className="truncate">{currentRepo?.name || t('common.none')}</span>
-                      {currentRepo && <Badge variant="success" className="h-4 text-[10px]">{t('common.loaded')}</Badge>}
+                      {currentRepo && <Badge variant="success" className="h-4 text-[12px]">{t('common.loaded')}</Badge>}
                     </div>
 
                     <div className="my-1.5 border-t border-border/60" />
@@ -432,7 +439,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                     {recentRepos.length > 0 && (
                       <>
-                        <div className="px-2 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <div className="px-2 pt-2 pb-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                           {t('header.repoMenu.recent')}
                         </div>
                         <div className="max-h-36 overflow-y-auto space-y-0.5">
@@ -447,7 +454,7 @@ export const Header: React.FC<HeaderProps> = ({
                               className="w-full text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between"
                             >
                               <span className="truncate max-w-[170px]">{repo.name}</span>
-                              <span className="text-[11px] text-muted-foreground font-mono">{repo.currentBranch}</span>
+                              <span className="text-[12px] text-muted-foreground font-mono">{repo.currentBranch}</span>
                             </button>
                           ))}
                         </div>
@@ -470,9 +477,9 @@ export const Header: React.FC<HeaderProps> = ({
                   className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.branch')}</span>
-                  <Badge variant="outline" className="h-4.5 px-1.5 text-[11px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
+                  <Badge variant="outline" className="h-4.5 px-1.5 text-[12px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
                     <GitBranchIcon className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
-                    <span className="max-w-[140px] truncate">{currentBranchName}</span>
+                    <span className="max-w-[100px] xl:max-w-[140px] truncate">{currentBranchName}</span>
                   </Badge>
                   <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
                 </button>
@@ -504,9 +511,9 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
 
                     {/* Local Branches List */}
-                    <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                    <div className="px-2 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                       <span>{t('header.localBranches')}</span>
-                      <span className="font-mono text-[10px]">{branches.filter((b) => !b.isRemote).length}</span>
+                      <span className="font-mono text-[12px]">{branches.filter((b) => !b.isRemote).length}</span>
                     </div>
 
                     <div className="max-h-52 overflow-y-auto space-y-0.5 px-0.5">
@@ -544,7 +551,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 <span className="truncate">{branch.name}</span>
                               </div>
                               {isCurrentBranch && (
-                                <span className="text-[10px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
+                                <span className="text-[12px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
                                   HEAD
                                 </span>
                               )}
@@ -577,326 +584,36 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Center: GitKraken-style Operations Ribbon (Undo, Redo, Pull, Push, Branch, Stash, Pop, | Terminal) */}
-          {currentRepo && (
-            <div className="hidden md:flex items-center gap-0.5 sm:gap-1 py-0.5">
-              {/* Undo */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleUndo}
-                    disabled={isUndoing || !canUndo}
-                    className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
-                  >
-                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.undo')}</span>
-                    <RotateCcw className="h-3.5 w-3.5 mt-0.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {canUndo ? t('header.undoTooltip') : t('header.undoTooltipEmpty')}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Redo */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleRedo}
-                    disabled={isRedoing || !canRedo}
-                    className={cn(
-                      "flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded transition-colors group",
-                      canRedo
-                        ? "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 cursor-pointer"
-                        : "text-muted-foreground/40 cursor-not-allowed"
-                    )}
-                  >
-                    <span className={cn("text-[11px] leading-tight hidden xl:block", canRedo && "group-hover:underline")}>{t('header.redo')}</span>
-                    <RotateCw className="h-3.5 w-3.5 mt-0.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {canRedo && nextRedoItem
-                    ? `${t('header.redoTooltipPrefix')}: ${nextRedoItem.commitSubject} (${nextRedoItem.commitHash.slice(0, 7)})`
-                    : t('header.redoTooltipEmpty')}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Pull with Dropdown */}
-              <div className="relative">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handlePull}
-                      className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[46px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors relative group"
-                    >
-                      <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.pull')}</span>
-                      <div className="flex items-center justify-center mt-0.5 gap-0.5">
-                        <ArrowDownToLine className="h-3.5 w-3.5" />
-                        <span
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowPullMenu(!showPullMenu);
-                          }}
-                          className="hover:bg-accent/80 rounded p-0.5 -mr-1 cursor-pointer"
-                          title={t('header.morePullOptions')}
-                        >
-                          <ChevronDown className="h-2.5 w-2.5" />
-                        </span>
-                      </div>
-                      {behindCount > 0 && (
-                        <span className="absolute -top-1 -right-0.5 bg-emerald-500 text-black text-[8px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-xs">
-                          {behindCount}
-                        </span>
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{t('header.pullTooltip')}</TooltipContent>
-                </Tooltip>
-
-                {/* Pull Dropdown Options */}
-                {showPullMenu && (
-                  <div
-                    className="absolute left-0 top-full mt-1 w-48 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
-                    onMouseLeave={() => setShowPullMenu(false)}
-                  >
-                    <button
-                      onClick={() => {
-                        setShowPullMenu(false);
-                        handlePull();
-                      }}
-                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
-                    >
-                      <span>{t('header.pullMenu')}</span>
-                      <ArrowDownToLine className="h-3 w-3 text-sky-400" />
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setShowPullMenu(false);
-                        toast.info(t('header.rebasePulling'));
-                        try {
-                          await pull(true);
-                          toast.success(t('header.rebasePulled'));
-                        } catch (err: any) {
-                          toast.error(t('header.rebasePullFailed'), err?.message);
-                        }
-                      }}
-                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
-                    >
-                      <span>{t('header.pullRebase')}</span>
-                      <GitPullRequest className="h-3 w-3 text-amber-400" />
-                    </button>
-                    <div className="my-1 border-t border-border/60" />
-                    <button
-                      onClick={() => {
-                        setShowPullMenu(false);
-                        handleFetch();
-                      }}
-                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
-                    >
-                      <span>{t('header.fetchAll')}</span>
-                      <RefreshCw className="h-3 w-3 text-cyan-400" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Push with Dropdown */}
-              <div className="relative">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={handlePush}
-                      className={cn(
-                        "flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded transition-colors relative group",
-                        aheadCount > 0
-                          ? "text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-500/15 font-medium"
-                          : "text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10"
-                      )}
-                    >
-                      <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.push')}</span>
-                      <div className="flex items-center justify-center mt-0.5 gap-0.5">
-                        <ArrowUpToLine className="h-3.5 w-3.5" />
-                        <span
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowPushMenu(!showPushMenu);
-                          }}
-                          className="hover:bg-accent/80 rounded p-0.5 -mr-1 cursor-pointer"
-                          title={t('header.morePushOptions')}
-                        >
-                          <ChevronDown className="h-2.5 w-2.5" />
-                        </span>
-                      </div>
-                      {aheadCount > 0 && (
-                        <span className="absolute -top-1 -right-0.5 bg-amber-500 text-black text-[8px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center shadow-xs">
-                          {aheadCount}
-                        </span>
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{t('header.pushTooltip')}</TooltipContent>
-                </Tooltip>
-
-                {/* Push Dropdown Options */}
-                {showPushMenu && (
-                  <div
-                    className="absolute left-0 top-full mt-1 w-52 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
-                    onMouseLeave={() => setShowPushMenu(false)}
-                  >
-                    <button
-                      onClick={() => {
-                        setShowPushMenu(false);
-                        handlePush();
-                      }}
-                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
-                    >
-                      <span>{t('header.push')}</span>
-                      <ArrowUpToLine className="h-3 w-3 text-cyan-400" />
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setShowPushMenu(false);
-                        await handleForcePush();
-                      }}
-                      className="w-full text-left px-2 py-1.5 text-xs text-foreground hover:bg-accent rounded-md flex items-center justify-between"
-                    >
-                      <span>{t('header.forcePush')}</span>
-                      <AlertTriangle className="h-3 w-3 text-amber-400" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Refresh（检测外部变更） */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                    className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[44px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group disabled:opacity-50"
-                  >
-                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.refresh')}</span>
-                    <RefreshCw className={cn('h-3.5 w-3.5 mt-0.5', isRefreshing && 'animate-spin')} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('header.refreshTooltip')}</TooltipContent>
-              </Tooltip>
-
-              {/* Branch */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setCreateBranchModalOpen(true)}
-                    className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[44px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
-                  >
-                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.branchAction')}</span>
-                    <GitBranchIcon className="h-3.5 w-3.5 mt-0.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('header.branchTooltip')}</TooltipContent>
-              </Tooltip>
-
-              {/* Stash */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleQuickStash}
-                    disabled={isStashing || !hasChanges}
-                    className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
-                  >
-                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.stash')}</span>
-                    <Archive className="h-3.5 w-3.5 mt-0.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {hasChanges ? t('header.stashTooltip') : t('header.stashTooltipEmpty')}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Pop */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleQuickPop}
-                    disabled={stashes.length === 0}
-                    className="flex flex-col items-center justify-center min-w-[30px] px-1.5 xl:min-w-[42px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed group"
-                  >
-                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.pop')}</span>
-                    <Inbox className="h-3.5 w-3.5 mt-0.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {stashes.length > 0 ? `${t('header.popTooltip')} (${stashes.length})` : t('header.popTooltipEmpty')}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Vertical Separator */}
-              <div className="h-6 w-[1px] bg-border/60 mx-1" />
-
-              {/* Terminal */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleOpenTerminal}
-                    className="flex flex-col items-center justify-center min-w-[32px] px-1.5 xl:min-w-[46px] xl:px-2 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
-                  >
-                    <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.terminal')}</span>
-                    <Terminal className="h-3.5 w-3.5 mt-0.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('header.terminalTooltip')}</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-
-          {/* Right: Actions, Search, Controls */}
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Actions (GitKraken style) */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setActiveTab('actions')}
-                  className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
-                >
-                  <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.actions')}</span>
-                  <Workflow className="h-3.5 w-3.5 mt-0.5 text-emerald-500 dark:text-emerald-400" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t('header.actionsDashboardTooltip')}</TooltipContent>
-            </Tooltip>
-
-            {/* Search (GitKraken style) */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onOpenCommandPalette}
-                  className="flex flex-col items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded text-slate-600 hover:text-cyan-600 hover:bg-cyan-50 dark:text-cyan-200 dark:hover:text-white dark:hover:bg-cyan-400/10 transition-colors group"
-                >
-                  <span className="text-[11px] leading-tight group-hover:underline hidden xl:block">{t('header.search')}</span>
-                  <Search className="h-3.5 w-3.5 mt-0.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t('header.searchTooltip')}</TooltipContent>
-            </Tooltip>
-
-            <div className="h-4 w-[1px] bg-border/60 mx-1" />
-
-            {/* Right Pane Collapse Toggle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={toggleRightPane}
-                >
-                  {isRightPaneCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {isRightPaneCollapsed ? t('header.expandRightPane') : t('header.collapseRightPane')}
-              </TooltipContent>
-            </Tooltip>
+          {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
+            <Button variant="ghost" onClick={handleFetch} title={t('header.fetchAll')}><RefreshCw className="h-4 w-4" /><span className="hidden lg:inline">{t('composer.fetch')}</span></Button>
+            <Button variant="outline" onClick={handlePull} title={t('header.pullTooltip')}><ArrowDownToLine className="h-4 w-4" />{t('header.pull')}{behindCount > 0 && <span className="font-mono">{behindCount}</span>}</Button>
+            <Button variant={aheadCount > 0 ? 'secondary' : 'ghost'} onClick={handlePush} title={t('header.pushTooltip')}><ArrowUpToLine className="h-4 w-4" />{t('header.push')}{aheadCount > 0 && <span className="font-mono">{aheadCount}</span>}</Button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
+              <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
+                <DropdownMenu.Label className="px-3 py-2 text-[12px] text-muted-foreground">{t('composer.repositoryActions')}</DropdownMenu.Label>
+                <DropdownMenu.Item className="menu-item" onSelect={() => setCreateBranchModalOpen(true)}><GitBranchIcon className="h-4 w-4" />{t('header.branchAction')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" disabled={isRefreshing} onSelect={() => void handleRefresh()}><RefreshCw className="h-4 w-4" />{t('header.refresh')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => void handleOpenTerminal()}><Terminal className="h-4 w-4" />{t('header.terminal')}</DropdownMenu.Item>
+                <DropdownMenu.Separator className="my-1 border-t border-border" />
+                <DropdownMenu.Item className="menu-item" disabled={isStashing || !hasChanges} onSelect={() => void handleQuickStash()}><Archive className="h-4 w-4" />{t('header.stash')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" disabled={!stashes.length} onSelect={() => void handleQuickPop()}><Inbox className="h-4 w-4" />{t('header.pop')}</DropdownMenu.Item>
+                <DropdownMenu.Separator className="my-1 border-t border-border" />
+                <DropdownMenu.Label className="px-3 py-2 text-[12px] text-muted-foreground">{t('composer.historyActions')}</DropdownMenu.Label>
+                <DropdownMenu.Item className="menu-item" disabled={isUndoing || !canUndo} onSelect={() => void handleUndo()}><RotateCcw className="h-4 w-4" />{t('header.undo')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" disabled={isRedoing || !canRedo} onSelect={() => void handleRedo()}><RotateCw className="h-4 w-4" />{t('header.redo')}</DropdownMenu.Item>
+                <DropdownMenu.Separator className="my-1 border-t border-border" />
+                <DropdownMenu.Item className="menu-item" onSelect={async () => { try { await pull(true); toast.success(t('header.rebasePulled')); } catch (error: any) { toast.error(t('header.rebasePullFailed'), error?.message); } }}><GitPullRequest className="h-4 w-4" />{t('header.pullRebase')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item text-destructive" onSelect={() => void handleForcePush()}><AlertTriangle className="h-4 w-4" />{t('header.forcePush')}</DropdownMenu.Item>
+              </DropdownMenu.Content></DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>}
+          <div className="flex items-center gap-1 shrink-0 border-l border-border pl-2">
+            <Button variant="ghost" size="icon" aria-label={t('header.searchTooltip')} onClick={onOpenCommandPalette}><Search className="h-4 w-4" /></Button>
+            <Button variant="ghost" disabled={!currentRepo || !['changes', 'history'].includes(activeTab)} aria-label={isRightPaneCollapsed || inspectorOverlay ? t('header.expandRightPane') : t('header.collapseRightPane')} onClick={onToggleInspector}>
+              {isRightPaneCollapsed || inspectorOverlay ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+              {inspectorOverlay && <span>{t(activeTab === 'history' ? 'rightPane.commitDetails' : 'rightPane.commit')}</span>}
+            </Button>
           </div>
         </div>
       </header>

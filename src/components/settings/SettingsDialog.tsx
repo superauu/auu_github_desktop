@@ -1,3 +1,4 @@
+import { version } from '../../../package.json';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useEffect } from 'react';
 import {
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
+import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore, type Language } from '@/stores/settingsStore';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
@@ -31,6 +33,7 @@ import { CheckCircle2, LogOut, Key } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 interface SettingsDialogProps {
+  initialTab?: SettingsTab;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenGitHubAuth?: () => void;
@@ -40,11 +43,12 @@ type SettingsTab = 'general' | 'git' | 'github' | 'ai' | 'appearance' | 'shortcu
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   open,
+  initialTab = 'appearance',
   onOpenChange,
   onOpenGitHubAuth,
 }) => {
   const { theme, setTheme } = useThemeStore();
-  const { resetLayout } = useLayoutStore();
+  const { resetLayout, navigationPinned, setNavigationPinned } = useLayoutStore();
   const { user, isAuthenticated, logout } = useGitHubStore();
   const {
     gitCliPath,
@@ -58,7 +62,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setAiConfig,
   } = useSettingsStore();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  useEffect(() => { if (open) setActiveTab(initialTab); }, [open, initialTab]);
   const [gitVersion, setGitVersion] = useState<string>('');
   const [isDetectingGit, setIsDetectingGit] = useState<boolean>(false);
   const [isTestingAi, setIsTestingAi] = useState<boolean>(false);
@@ -227,8 +232,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </div>
           </div>
 
-          <div className="p-2 text-[11px] text-muted-foreground/80 font-mono">
-            v0.1.0 (Tauri 2 Preview)
+          <div className="p-2 text-[12px] text-muted-foreground/80 font-mono">
+            v{version}
           </div>
         </div>
 
@@ -246,7 +251,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               variant="ghost"
               size="icon"
               className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={() => onOpenChange(false)}
+              aria-label={t('common.close')} onClick={() => onOpenChange(false)}
             >
               <X className="h-3.5 w-3.5" />
             </Button>
@@ -277,7 +282,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         )}
                       >
                         <div className="font-semibold text-xs text-foreground">{item.name}</div>
-                        <div className="text-[11px] text-muted-foreground mt-1">{item.desc}</div>
+                        <div className="text-[12px] text-muted-foreground mt-1">{item.desc}</div>
                         {theme === item.id && (
                           <Check className="h-3.5 w-3.5 text-primary absolute top-2.5 right-2.5" />
                         )}
@@ -287,6 +292,16 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 </div>
 
                 <div className="pt-2 border-t border-border">
+                  <label className="flex items-center justify-between gap-4 py-2 cursor-pointer">
+                    <span>
+                      <span className="block font-medium text-foreground">{t('layout.pinNavigation')}</span>
+                      <span className="block text-[12px] text-muted-foreground">{t('layout.pinNavigationDesc')}</span>
+                    </span>
+                    <input type="checkbox" checked={navigationPinned} onChange={event => {
+                      setNavigationPinned(event.target.checked);
+                      if (event.target.checked) useRepoStore.setState({ isLeftSidebarCollapsed: false });
+                    }} className="shrink-0 h-4 w-4 accent-primary" />
+                  </label>
                   <div className="flex items-center justify-between py-2">
                     <div>
                       <div className="font-medium text-foreground flex items-center gap-1.5">
@@ -379,7 +394,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   </div>
                   <div className="flex items-center gap-2 text-[12px] text-muted-foreground mt-1.5">
                     <span>{t('settings.git.versionLabel')}</span>
-                    <span className="font-mono font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    <span className="font-mono font-medium text-git-added bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                       {gitVersion}
                     </span>
                   </div>
@@ -403,7 +418,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <option value="10m" className="bg-popover text-foreground">{t("settings.git.autoFetch.every10")}</option>
                     <option value="30m" className="bg-popover text-foreground">{t("settings.git.autoFetch.every30")}</option>
                   </select>
-                  <div className="text-[11px] text-muted-foreground mt-1">
+                  <div className="text-[12px] text-muted-foreground mt-1">
                     {t('settings.git.autoFetchDesc')}
                   </div>
                 </div>
@@ -421,7 +436,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => setAiConfig({ provider: 'builtin' })}
+                      aria-pressed={aiConfig.provider === 'builtin'} onClick={() => setAiConfig({ provider: 'builtin' })}
                       className={cn(
                         "p-3 rounded-lg border text-left transition-all relative space-y-1",
                         aiConfig.provider === 'builtin'
@@ -433,7 +448,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         <Cpu className="h-3.5 w-3.5 text-primary" />
                         <span>{t('settings.ai.builtin.name')}</span>
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-[12px] text-muted-foreground">
                         {t('settings.ai.builtin.desc')}
                       </div>
                       {aiConfig.provider === 'builtin' && (
@@ -442,7 +457,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     </button>
 
                     <button
-                      onClick={() => setAiConfig({ provider: 'openai-compatible' })}
+                      aria-pressed={aiConfig.provider === 'openai-compatible'} onClick={() => setAiConfig({ provider: 'openai-compatible' })}
                       className={cn(
                         "p-3 rounded-lg border text-left transition-all relative space-y-1",
                         aiConfig.provider === 'openai-compatible'
@@ -454,7 +469,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         <Sparkles className="h-3.5 w-3.5 text-sky-400" />
                         <span>{t('settings.ai.api.name')}</span>
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-[12px] text-muted-foreground">
                         {t('settings.ai.api.desc')}
                       </div>
                       {aiConfig.provider === 'openai-compatible' && (
@@ -467,11 +482,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 {aiConfig.provider === 'openai-compatible' && (
                   <div className="p-3.5 rounded-xl border border-border/80 bg-accent/20 space-y-3 animate-in fade-in">
                     <div>
-                      <label className="text-[12px] font-medium text-foreground block mb-1">
+                      <label htmlFor="ai-endpoint" className="text-[12px] font-medium text-foreground block mb-1">
                         {t('settings.ai.endpoint')}
                       </label>
                       <Input
-                        value={aiConfig.endpoint}
+                        id="ai-endpoint" value={aiConfig.endpoint}
                         onChange={(e) => setAiConfig({ endpoint: e.target.value })}
                         placeholder="例如 https://api.deepseek.com/v1 或 https://api.openai.com/v1"
                         className="font-mono text-xs"
@@ -480,11 +495,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[12px] font-medium text-foreground block mb-1">
+                        <label htmlFor="ai-model" className="text-[12px] font-medium text-foreground block mb-1">
                           {t('settings.ai.model')}
                         </label>
                         <Input
-                          value={aiConfig.model}
+                          id="ai-model" value={aiConfig.model}
                           onChange={(e) => setAiConfig({ model: e.target.value })}
                           placeholder={t('settings.ai.modelPlaceholder')}
                           className="font-mono text-xs"
@@ -492,11 +507,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-[12px] font-medium text-foreground block mb-1">
+                        <label htmlFor="ai-key" className="text-[12px] font-medium text-foreground block mb-1">
                           API Key
                         </label>
                         <Input
-                          type="password"
+                          id="ai-key" type="password"
                           value={aiConfig.apiKey}
                           onChange={(e) => setAiConfig({ apiKey: e.target.value })}
                           placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
@@ -511,7 +526,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         size="xs"
                         onClick={handleTestAiConnection}
                         disabled={isTestingAi}
-                        className="h-7 text-xs gap-1.5 border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
+                        className="h-7 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
                       >
                         <Sparkles className="h-3 w-3" />
                         <span>{isTestingAi ? t('settings.ai.testing') : t('settings.ai.testBtn')}</span>
@@ -610,7 +625,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   {shortcuts.map((item) => (
                     <div key={item.key} className="p-2.5 flex items-center justify-between text-xs hover:bg-accent/30 transition-colors">
                       <span className="text-foreground/90">{item.desc}</span>
-                      <kbd className="inline-flex h-5 items-center rounded border border-border bg-muted/60 px-1.5 font-mono text-[11px] text-muted-foreground">
+                      <kbd className="inline-flex h-5 items-center rounded border border-border bg-muted/60 px-1.5 font-mono text-[12px] text-muted-foreground">
                         {item.key}
                       </kbd>
                     </div>

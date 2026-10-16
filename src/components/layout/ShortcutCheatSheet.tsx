@@ -42,6 +42,9 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
       titleKey: 'cheatsheet.group.view',
       rows: [
         { combo: 'Alt + 1 ~ 4', descKey: 'settings.shortcuts.switchViews' },
+        { combo: '↑ / ↓ / Home / End', descKey: 'composer.keyboardFiles' },
+        { combo: 'Space', descKey: 'composer.keyboardStage' },
+        { combo: 'Shift + F10', descKey: 'composer.keyboardMenu' },
         { combo: 'Ctrl + Alt + F', descKey: 'settings.shortcuts.filterFocus' },
       ],
     },

@@ -5,6 +5,14 @@
 @layer base {
   :root {
     /* Cyberpunk "Steel Ops" 浅色变体：冷灰蓝底 + 电光青主色 */
+    --git-added: 152 70% 27%;
+    --git-modified: 216 22% 38%;
+    --git-deleted: 0 70% 38%;
+    --git-renamed: 221 70% 40%;
+    --git-untracked: 172 75% 27%;
+    --git-branch: 252 60% 44%;
+    --git-tag: 35 85% 30%;
+    --git-commit: 192 95% 24%;
     --background: 212 38% 96%;
     --foreground: 235 40% 10%;
 
@@ -26,7 +34,7 @@
     --accent: 190 60% 90%;
     --accent-foreground: 235 40% 10%;
 
-    --destructive: 336 100% 48%;
+    --destructive: 336 85% 38%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 208 30% 82%;
@@ -46,6 +54,14 @@
 
   .dark {
     /* Cyberpunk "Graphite Neon" 暗色形态：中性炭灰底（skill: Cyberpunk UI #0D0D0D / OLED #121212）+ 霓虹青点缀 */
+    --git-added: 152 70% 72%;
+    --git-modified: 216 12% 72%;
+    --git-deleted: 0 85% 76%;
+    --git-renamed: 213 90% 75%;
+    --git-untracked: 172 65% 67%;
+    --git-branch: 252 85% 80%;
+    --git-tag: 42 90% 70%;
+    --git-commit: 186 100% 50%;
     --background: 0 0% 5%;
     --foreground: 0 0% 96%;
 
@@ -448,6 +464,37 @@ body {
   border-radius: 2px;
 }
 
+/* Keep command results inside the viewport and the search focus inside its field. */
+.command-palette {
+  max-height: min(40rem, calc(100dvh - min(12dvh, 6rem) - 1rem - 2px));
+}
+.command-palette [cmdk-input]:focus-visible {
+  outline: none;
+}
+.command-palette [cmdk-group-heading] {
+  padding: 4px 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  font-weight: 600;
+}
+.command-palette [cmdk-item] {
+  color: hsl(var(--foreground));
+}
+.command-palette [cmdk-item][data-selected='true'] {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+.command-palette [cmdk-item] > svg,
+.command-palette [cmdk-item] > .ml-auto {
+  flex-shrink: 0;
+}
+.command-palette [cmdk-item] > span:not(.ml-auto) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ===== 骨架屏 ===== */
 .skeleton {
   position: relative;
@@ -475,3 +522,15 @@ body {
     transform: translateX(100%);
   }
 }
+
+/* Desktop workspace: restrained surfaces and theme-aware interaction states. */
+body { font-size: 14px; }
+.history-view { container-type: inline-size; container-name: history; }
+.history-meta { display: none; }
+@container history (min-width: 700px) { .history-meta { display: flex; } }
+.menu-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; border-radius: 5px; cursor: pointer; outline: none; }
+.menu-item[data-highlighted] { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+.menu-item[data-disabled] { opacity: .45; pointer-events: none; }
+button:disabled { box-shadow: none !important; cursor: not-allowed; }
+.dark .btn-neon:not(:disabled) { box-shadow: 0 0 8px -4px hsl(var(--primary) / .3); }
+.text-glow-cyan, .text-glow-pink { text-shadow: none; }

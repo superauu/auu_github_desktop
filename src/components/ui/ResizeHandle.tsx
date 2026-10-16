@@ -81,6 +81,11 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 
   return (
     <div
+      role="separator" tabIndex={0} aria-label={title} aria-orientation="vertical" aria-valuemin={minSize} aria-valuemax={maxSize} aria-valuenow={currentSize}
+      onKeyDown={event => {
+        if (event.key === 'Home' && defaultSize !== undefined) { event.preventDefault(); onSizeChange(defaultSize); }
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const delta = (event.key === 'ArrowRight' ? 16 : -16) * (reverse ? -1 : 1); onSizeChange(Math.max(minSize, Math.min(maxSize, currentSize + delta))); }
+      }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       title={title}

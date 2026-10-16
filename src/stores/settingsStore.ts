@@ -12,6 +12,7 @@ export type Language = 'zh' | 'en';
 export interface SettingsState {
   gitCliPath: string;
   compactMode: boolean;
+  diffFontSize: number;
   autoFetchInterval: 'never' | '5m' | '10m' | '30m';
   aiConfig: AiApiConfig;
   language: Language;
@@ -22,6 +23,7 @@ export interface SettingsState {
   // Actions
   setGitCliPath: (path: string) => void;
   setCompactMode: (enabled: boolean) => void;
+  setDiffFontSize: (size: number) => void;
   setAutoFetchInterval: (interval: 'never' | '5m' | '10m' | '30m') => void;
   setAiConfig: (config: Partial<AiApiConfig>) => void;
   setLanguage: (lang: Language) => void;
@@ -38,6 +40,7 @@ const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' i
 const DEFAULT_SETTINGS = {
   gitCliPath: 'git',
   compactMode: false,
+  diffFontSize: 13,
   autoFetchInterval: '10m' as const,
   language: 'zh' as const,
   aiConfig: {
@@ -58,6 +61,7 @@ function loadSettings() {
       return {
         ...DEFAULT_SETTINGS,
         ...parsed,
+        diffFontSize: typeof parsed.diffFontSize === 'number' && [12, 13, 14, 16, 18].includes(parsed.diffFontSize) ? parsed.diffFontSize : 13,
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
           ...(parsed.aiConfig || {}),
@@ -79,6 +83,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       const current = {
         gitCliPath: get().gitCliPath,
         compactMode: get().compactMode,
+        diffFontSize: get().diffFontSize,
         autoFetchInterval: get().autoFetchInterval,
         aiConfig: get().aiConfig,
         language: get().language,
@@ -130,6 +135,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
           document.documentElement.classList.remove('compact-mode');
         }
       }
+    },
+
+    setDiffFontSize: (size: number) => {
+      if (![12, 13, 14, 16, 18].includes(size)) return;
+      set({ diffFontSize: size }); persist({ diffFontSize: size });
     },
 
     setAutoFetchInterval: (autoFetchInterval: 'never' | '5m' | '10m' | '30m') => {

@@ -14,6 +14,7 @@ export default {
       },
     },
     extend: {
+      fontSize: { xs: ['13px', '1.5'], sm: ['14px', '1.5'] },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -58,14 +59,14 @@ export default {
           border: "hsl(var(--sidebar-border))",
         },
         git: {
-          added: "#00ff9c",
-          modified: "#ffd60a",
-          deleted: "#ff3d6e",
-          renamed: "#41a6ff",
-          untracked: "#c46bff",
-          branch: "#8b7bff",
-          tag: "#ffb300",
-          commit: "#00e5ff",
+          added: "hsl(var(--git-added))",
+          modified: "hsl(var(--git-modified))",
+          deleted: "hsl(var(--git-deleted))",
+          renamed: "hsl(var(--git-renamed))",
+          untracked: "hsl(var(--git-untracked))",
+          branch: "hsl(var(--git-branch))",
+          tag: "hsl(var(--git-tag))",
+          commit: "hsl(var(--git-commit))",
         },
         neon: {
           cyan: "#00e5ff",

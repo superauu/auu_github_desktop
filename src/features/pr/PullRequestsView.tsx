@@ -1,3 +1,4 @@
+import { confirmAction } from '@/stores/confirmStore';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   GitPullRequest,
@@ -118,7 +119,7 @@ export const PullRequestsView: React.FC = () => {
 
   const handleMergePR = async () => {
     if (!activePR || !currentOwner || !currentRepoName) return;
-    if (!confirm(t('pr.mergeConfirm').replace('{n}', String(activePR.number)).replace('{base}', activePR.base.ref))) {
+    if (!await confirmAction({ title: t('composer.mergePr'), description: t('pr.mergeConfirm').replace('{n}', String(activePR.number)).replace('{base}', activePR.base.ref), detail: activePR.title })) {
       return;
     }
     setIsMerging(true);
@@ -141,7 +142,7 @@ export const PullRequestsView: React.FC = () => {
 
   const handleClosePR = async () => {
     if (!activePR || !currentOwner || !currentRepoName) return;
-    if (!confirm(t('pr.closeConfirm').replace('{n}', String(activePR.number)))) return;
+    if (!await confirmAction({ title: t('composer.closePr'), description: t('pr.closeConfirm').replace('{n}', String(activePR.number)), detail: activePR.title, danger: false })) return;
     setIsClosing(true);
     try {
       await githubService.updatePullRequestState(currentOwner, currentRepoName, activePR.number, 'closed');
