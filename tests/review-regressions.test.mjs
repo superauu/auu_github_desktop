@@ -632,6 +632,104 @@ test('ignore preview follows Git case sensitivity and reads ignored nested ignor
 });
 
 
+test('Actions refresh fetches fresh run status and steps independently of repository and PR failures', async () => {
+  const store = app.useGitHubStore, gate = deferred();
+  const old = { id: 25, status: 'in_progress', conclusion: null };
+  const fresh = { ...old, status: 'completed', conclusion: 'success' };
+  const jobs = [{ id: 42, status: 'completed', steps: [{ name: 'Build', status: 'completed', conclusion: 'success' }] }];
+  store.setState({ currentOwner: 'owner', currentRepoName: 'repo', selectedRun: old, selectedRunJobs: [] });
+  let calls = 0;
+  const restore = stub(app.githubService, {
+    getRepository: async () => { throw new Error('repository unavailable'); },
+    getPullRequests: async () => { throw new Error('PR permission denied'); },
+    getWorkflows: async () => [],
+    getWorkflowRuns: async () => { calls++; await gate.promise; return [fresh]; },
+    getRunJobs: async (owner, repo, id) => { assert.equal(id, 25); return jobs; },
+  });
+  try {
+    const pending = store.getState().loadRepoData('owner', 'repo');
+    assert.equal(store.getState().isRefreshingActions, true);
+    gate.resolve(); await pending;
+    assert.equal(store.getState().selectedRun.status, 'completed');
+    assert.deepEqual(store.getState().selectedRunJobs, jobs);
+    assert.equal(store.getState().isRefreshingActions, false);
+    await store.getState().refreshActions(); assert.equal(calls, 2);
+    const restoreWorkflows = stub(app.githubService, { getWorkflows: async () => { throw new Error('workflow definitions unavailable'); } });
+    try {
+      await store.getState().refreshActions();
+      assert.equal(store.getState().selectedRun.conclusion, 'success');
+      assert.deepEqual(store.getState().selectedRunJobs, jobs);
+      assert.equal(store.getState().error, 'workflow definitions unavailable');
+      assert.equal(store.getState().isRefreshingActions, false);
+    } finally { restoreWorkflows(); }
+  } finally { restore(); store.getState().clearRepo(); }
+});
+
+test('Actions refresh preserves older selections, reports job failures, and rejects stale repository replies', async () => {
+  const store = app.useGitHubStore;
+  const old = { id: 1, status: 'in_progress', conclusion: null };
+  const fresh = { ...old, status: 'completed', conclusion: 'success' };
+  store.setState({ currentOwner: 'owner', currentRepoName: 'repo', selectedRun: old });
+  const restore = stub(app.githubService, {
+    getWorkflows: async () => [], getWorkflowRuns: async () => [{ id: 99 }],
+    getWorkflowRun: async (owner, repo, id) => { assert.equal(id, 1); return fresh; },
+    getRunJobs: async () => { throw new Error('jobs unavailable'); },
+  });
+  try {
+    await store.getState().refreshActions();
+    assert.equal(store.getState().selectedRun.id, 1);
+    assert.equal(store.getState().selectedRun.status, 'completed');
+    assert.equal(store.getState().error, 'jobs unavailable');
+    assert.equal(store.getState().isRefreshingActions, false);
+    const gate = deferred();
+    const restorePending = stub(app.githubService, { getWorkflowRuns: async () => { await gate.promise; return [fresh]; } });
+    try {
+      const pending = store.getState().refreshActions(); store.getState().clearRepo();
+      gate.resolve(); await pending;
+      assert.deepEqual(store.getState().workflowRuns, []);
+      assert.equal(store.getState().selectedRun, null);
+      assert.equal(store.getState().isRefreshingActions, false);
+    } finally { restorePending(); }
+  } finally { restore(); store.getState().clearRepo(); }
+});
+
+test('changing the selected run during refresh keeps the new selection and its jobs', async () => {
+  const store = app.useGitHubStore, gate = deferred();
+  const first = { id: 1 }, second = { id: 2 };
+  store.setState({ currentOwner: 'owner', currentRepoName: 'repo', selectedRun: first });
+  const restore = stub(app.githubService, {
+    getWorkflows: async () => [],
+    getWorkflowRuns: async () => { await gate.promise; return [first, second]; },
+    getRunJobs: async (owner, repo, id) => [{ id: id * 10 }],
+  });
+  try {
+    const pending = store.getState().refreshActions();
+    await store.getState().selectRun(second); gate.resolve(); await pending;
+    assert.equal(store.getState().selectedRun.id, 2);
+    assert.deepEqual(store.getState().selectedRunJobs, [{ id: 20 }]);
+    assert.deepEqual(store.getState().workflowRuns, [first, second]);
+    assert.equal(store.getState().isRefreshingActions, false);
+  } finally { restore(); store.getState().clearRepo(); }
+});
+
+test('Actions API reads bypass the HTTP cache, including paginated job steps', async () => {
+  const savedFetch = globalThis.fetch; const urls = [];
+  globalThis.fetch = async (url, options) => {
+    urls.push(url); assert.equal(options.cache, 'no-store'); assert(options.signal);
+    if (url.includes('/jobs')) return new Response(JSON.stringify({ jobs: [{ id: urls.length }] }), {
+      headers: url.includes('page=2') ? {} : { Link: '<https://api.github.com/repos/o/r/actions/runs/1/jobs?page=2>; rel="next"' },
+    });
+    return new Response(JSON.stringify({ workflow_runs: [], workflows: [], id: 1 }));
+  };
+  try {
+    await app.githubService.getWorkflowRuns('o', 'r', 5);
+    await app.githubService.getWorkflowRun('o', 'r', 1);
+    await app.githubService.getWorkflows('o', 'r');
+    assert.equal((await app.githubService.getRunJobs('o', 'r', 1)).length, 2);
+    assert.match(urls[0], /workflows\/5\/runs/);
+  } finally { globalThis.fetch = savedFetch; }
+});
+
 test('running job logs show waiting, completed jobs load logs, and native string errors remain visible', async () => {
   const store=app.useGitHubStore;
   store.setState({currentOwner:'owner',currentRepoName:'repo'});

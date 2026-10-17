@@ -46,6 +46,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     selectWorkflow,
     selectRun,
     refreshActions,
+    isRefreshingActions,
     openJobLogs,
     openWorkflowYaml,
     openDispatchModal,
@@ -110,10 +111,12 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             variant="ghost"
             size="xs"
             onClick={() => refreshActions()}
+            disabled={isRefreshingActions || !currentOwner || !currentRepoName}
+            aria-busy={isRefreshingActions}
             className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
           >
-            <RotateCw className="h-3 w-3" />
-            <span>{t('actions.refresh')}</span>
+            <RotateCw className={cn('h-3 w-3', isRefreshingActions && 'animate-spin')} />
+            <span>{t(isRefreshingActions ? 'actions.refreshing' : 'actions.refresh')}</span>
           </Button>
         </div>
       </div>

@@ -780,6 +780,7 @@ export const en = {
   'actions.connectedAs': 'Connected',
   'actions.connectReal': 'Connect GitHub Account',
   'actions.refresh': 'Refresh',
+  'actions.refreshing': 'Refreshing…',
   'actions.workflows': 'Workflows',
   'actions.allWorkflows': 'All Workflows',
   'actions.viewYaml': 'View YAML source',

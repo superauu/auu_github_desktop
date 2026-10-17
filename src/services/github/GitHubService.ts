@@ -53,13 +53,13 @@ export class GitHubService {
     return res.json();
   }
 
-  private async pages<T>(url: string, key?: string): Promise<T[]> {
+  private async pages<T>(url: string, key?: string, cache?: RequestCache): Promise<T[]> {
     const result: T[] = [];
     const visited = new Set<string>();
     while (url && !visited.has(url)) {
       if (new URL(url).origin !== 'https://api.github.com') throw new Error('Invalid pagination URL');
       visited.add(url);
-      const res = await fetch(url, { headers: this.getHeaders(), signal: AbortSignal.timeout(20_000) });
+      const res = await fetch(url, { headers: this.getHeaders(), cache, signal: AbortSignal.timeout(20_000) });
       if (!res.ok) throw new GitHubApiError(res.status, await this.extractGitHubError(res));
       const data = await res.json();
       result.push(...(key ? data[key] || [] : data));
@@ -77,7 +77,7 @@ export class GitHubService {
   }
 
   async getWorkflows(owner: string, repo: string): Promise<GitHubWorkflow[]> {
-    return this.pages(`https://api.github.com/repos/${owner}/${repo}/actions/workflows?per_page=100`, 'workflows');
+    return this.pages(`https://api.github.com/repos/${owner}/${repo}/actions/workflows?per_page=100`, 'workflows', 'no-store');
   }
 
   async getWorkflowRuns(
@@ -89,14 +89,22 @@ export class GitHubService {
       ? `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=20`
       : `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=20`;
 
-    const res = await fetch(url, { headers: this.getHeaders() });
+    const res = await fetch(url, { headers: this.getHeaders(), cache: 'no-store', signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(await this.extractGitHubError(res));
     const data = await res.json();
     return data.workflow_runs || [];
   }
 
   async getRunJobs(owner: string, repo: string, runId: number): Promise<GitHubJob[]> {
-    return this.pages(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100`, 'jobs');
+    return this.pages(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100`, 'jobs', 'no-store');
+  }
+
+  async getWorkflowRun(owner: string, repo: string, runId: number): Promise<GitHubWorkflowRun> {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`, {
+      headers: this.getHeaders(), cache: 'no-store', signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new GitHubApiError(res.status, await this.extractGitHubError(res));
+    return res.json();
   }
 
   async getJob(owner: string, repo: string, jobId: number): Promise<GitHubJob> {

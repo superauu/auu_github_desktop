@@ -103,6 +103,7 @@ interface GitHubState {
   dispatchTargetWorkflow: GitHubWorkflow | null;
 
   isLoading: boolean;
+  isRefreshingActions: boolean;
   error: string | null;
 
   // Actions
@@ -146,7 +147,7 @@ const emptyRepo = {
   workflows: [], selectedWorkflow: null, workflowRuns: [], selectedRun: null, selectedRunJobs: [],
   commitChecks: {}, pullRequests: [], selectedPR: null,
   activeJobLogs: null, activeWorkflowYaml: null, isLogsModalOpen: false, isYamlModalOpen: false,
-  isDispatchModalOpen: false, dispatchTargetWorkflow: null, isLoading: false, error: null,
+  isDispatchModalOpen: false, dispatchTargetWorkflow: null, isLoading: false, isRefreshingActions: false, error: null,
 };
 
 export const useGitHubStore = create<GitHubState>((set, get) => {
@@ -179,7 +180,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         if (attempt !== authGeneration) return;
         githubService.setToken(token);
         set({ token, user, isAuthenticated: true });
-        await get().refreshActions();
+        const { currentOwner, currentRepoName } = get();
+        if (currentOwner && currentRepoName) await get().loadRepoData(currentOwner, currentRepoName);
       } catch (error) {
         if (attempt !== authGeneration) return;
         if (error instanceof GitHubApiError && error.status === 401) {
@@ -199,7 +201,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         if (attempt !== authGeneration) return;
         githubService.setToken(token);
         set({ token, user, isAuthenticated: true, isLoading: false });
-        await get().refreshActions();
+        const { currentOwner, currentRepoName } = get();
+        if (currentOwner && currentRepoName) await get().loadRepoData(currentOwner, currentRepoName);
       } catch (error: any) {
         if (attempt === authGeneration) set({ error: error.message, isLoading: false });
         throw error;
@@ -223,28 +226,55 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       }
       const valid = ticket('repo');
       const prsValid = ticket('prs');
-      ticket('runs'); ticket('jobs');
       set({ isLoading: true, error: null });
-      try {
-        const [repoDetails, workflows, runs, prs] = await Promise.all([
-          githubService.getRepository(owner, repo), githubService.getWorkflows(owner, repo),
-          githubService.getWorkflowRuns(owner, repo, get().selectedWorkflow?.id), githubService.getPullRequests(owner, repo, get().prFilterState),
-        ]);
-        if (!valid()) return;
-        const selectedRun = runs.find((run) => run.id === get().selectedRun?.id) || runs[0] || null;
-        const jobs = selectedRun ? await githubService.getRunJobs(owner, repo, selectedRun.id) : [];
-        if (!valid()) return;
-        set({ repoDetails, workflows, workflowRuns: runs, selectedRun, selectedRunJobs: jobs,
-          ...(prsValid() ? { pullRequests: prs, selectedPR: prs.find((pr) => pr.id === get().selectedPR?.id) || prs[0] || null } : {}), isLoading: false });
-      } catch (error: any) { if (valid()) set({ error: error.message, isLoading: false }); }
+      await Promise.all([
+        get().refreshActions(),
+        (async () => {
+          const [details, prs] = await Promise.allSettled([
+            githubService.getRepository(owner, repo), githubService.getPullRequests(owner, repo, get().prFilterState),
+          ]);
+          if (!valid()) return;
+          const failure = details.status === 'rejected' ? details.reason
+            : prsValid() && prs.status === 'rejected' ? prs.reason : null;
+          set({ isLoading: false,
+            ...(failure && !get().error ? { error: String(failure?.message || failure) } : {}),
+            ...(details.status === 'fulfilled' ? { repoDetails: details.value } : {}),
+            ...(prsValid() && prs.status === 'fulfilled' ? { pullRequests: prs.value, selectedPR: prs.value.find((pr) => pr.id === get().selectedPR?.id) || prs.value[0] || null } : {}),
+          });
+        })(),
+      ]);
     },
     refreshActions: async () => {
-      const { currentOwner, currentRepoName } = get();
-      if (currentOwner && currentRepoName) await get().loadRepoData(currentOwner, currentRepoName);
+      const { currentOwner: owner, currentRepoName: repo, selectedWorkflow } = get();
+      if (!owner || !repo) return;
+      const valid = ticket('runs');
+      const jobsValid = ticket('jobs');
+      set({ isRefreshingActions: true, error: null });
+      try {
+        // A workflow-definition failure must not discard fresh runs or job progress.
+        const workflowsRequest = githubService.getWorkflows(owner, repo).then(
+          (workflows) => { if (valid()) set({ workflows }); },
+          (error) => { if (valid()) set({ error: String(error?.message || error) }); },
+        );
+        const runs = await githubService.getWorkflowRuns(owner, repo, selectedWorkflow?.id);
+        if (!valid()) return;
+        set({ workflowRuns: runs });
+        if (jobsValid()) {
+          const previous = get().selectedRun;
+          const selectedRun = runs.find((run) => run.id === previous?.id)
+            || (previous ? await githubService.getWorkflowRun(owner, repo, previous.id) : runs[0] || null);
+          if (!valid() || !jobsValid()) return;
+          set({ selectedRun, selectedRunJobs: [] });
+          const jobs = selectedRun ? await githubService.getRunJobs(owner, repo, selectedRun.id) : [];
+          if (valid() && jobsValid()) set({ selectedRunJobs: jobs });
+        }
+        await workflowsRequest;
+      } catch (error: any) { if (valid()) set({ error: String(error?.message || error) }); }
+      finally { if (valid()) set({ isRefreshingActions: false }); }
     },
     selectWorkflow: async (workflow) => {
       const valid = ticket('runs'); ticket('jobs'); ticket('repo');
-      set({ isLoading: false, selectedWorkflow: workflow, workflowRuns: [], selectedRun: null, selectedRunJobs: [] });
+      set({ isLoading: false, isRefreshingActions: false, error: null, selectedWorkflow: workflow, workflowRuns: [], selectedRun: null, selectedRunJobs: [] });
       const { currentOwner: owner, currentRepoName: repo } = get();
       if (!owner || !repo) return;
       try {

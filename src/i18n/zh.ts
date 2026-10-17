@@ -788,6 +788,7 @@ export const zh = {
   'actions.connectedAs': '已连接',
   'actions.connectReal': '连接真实 GitHub 账号',
   'actions.refresh': '刷新',
+  'actions.refreshing': '刷新中…',
   'actions.workflows': '工作流',
   'actions.allWorkflows': '全部工作流 (All)',
   'actions.viewYaml': '查看 YAML 源码',

@@ -83,8 +83,7 @@ jobs:
           $version = (Get-Content package.json | ConvertFrom-Json).version
           $sigFile = Get-ChildItem "src-tauri/target/release/bundle" -Recurse -Filter "*-setup.exe.sig" | Select-Object -First 1
           if (-not $sigFile) {
-            Write-Host "No updater signature found, skipping latest.json"
-            exit 0
+            throw "No updater signature found; refusing to publish a release without automatic updates."
           }
           $signature = (Get-Content $sigFile.FullName -Raw).Trim()
           $exeName = $sigFile.Name.Replace(".sig", "")
@@ -99,7 +98,9 @@ jobs:
               }
             }
           }
-          $latest | ConvertTo-Json -Depth 5 | Set-Content -Path "output_exe/latest.json" -Encoding UTF8
+          # Windows PowerShell's Set-Content -Encoding UTF8 adds a BOM, which JSON parsers may reject.
+          $latestJson = $latest | ConvertTo-Json -Depth 5
+          [System.IO.File]::WriteAllText((Join-Path $PWD "output_exe/latest.json"), $latestJson, [System.Text.UTF8Encoding]::new($false))
           Write-Host "latest.json written:"
           Get-Content "output_exe/latest.json"
 
