@@ -34,3 +34,6 @@ __pycache__/
 # Isolated regression-test repositories and bundles
 .test-tmp-*
 .test-safety-*
+
+# Local AI development skills
+/.agent/skills/
