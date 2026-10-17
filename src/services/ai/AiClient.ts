@@ -41,23 +41,27 @@ export async function requestAiText(config: AiApiConfig, messages: AiMessage[], 
     method: 'POST', headers, body: JSON.stringify(body), signal: options.signal,
   });
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  const raw = await response.text();
+  const responseError = (message: string) => new Error(`${message}\nHTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}\n${raw}`);
   if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', detail.slice(0, 150)));
+    throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', () => raw));
   }
-  const data = await response.json();
-  if (data.error) throw new Error(String(data.error.message || data.error.type || tNow('err.aiEmptyResponse')));
+  let data;
+  try { data = JSON.parse(raw); }
+  catch { throw responseError(tNow('err.aiInvalidResponse')); }
+  if (!data || typeof data !== 'object') throw responseError(tNow('err.aiInvalidResponse'));
+  if (data.error) throw responseError(tNow('settings.ai.testFailed'));
   // A Responses request can return HTTP 200 with a failed/incomplete result.
   if (protocol === 'responses' && ['failed', 'incomplete', 'cancelled', 'queued', 'in_progress'].includes(data.status)) {
-    throw new Error(`AI response ${data.status}: ${data.incomplete_details?.reason || data.status}`);
+    throw responseError(`AI response ${data.status}: ${data.incomplete_details?.reason || data.status}`);
   }
-  const textBlocks = (blocks: any[], type: string) => blocks.filter(block => block.type === type && typeof block.text === 'string').map(block => block.text).join('\n');
+  const textBlocks = (blocks: unknown, type: string) => (Array.isArray(blocks) ? blocks : []).filter(block => block?.type === type && typeof block.text === 'string').map(block => block.text).join('\n');
   const content = protocol === 'responses'
-    ? (data.output || []).filter((item: any) => item.type === 'message').map((item: any) => textBlocks(item.content || [], 'output_text')).join('\n')
+    ? (Array.isArray(data.output) ? data.output : []).filter((item: any) => item?.type === 'message').map((item: any) => textBlocks(item.content, 'output_text')).join('\n')
     : protocol === 'anthropic-messages'
       ? (data.stop_reason === 'max_tokens' ? '' : textBlocks(data.content || [], 'text'))
       : data.choices?.[0]?.finish_reason === 'length' ? '' : data.choices?.[0]?.message?.content;
-  if (typeof content !== 'string' || !content.trim()) throw new Error(tNow('err.aiEmptyResponse'));
+  if (typeof content !== 'string' || !content.trim()) throw responseError(tNow('err.aiEmptyResponse'));
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   return content.trim();
 }

@@ -132,7 +132,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
       if (request === aiTestRequest.current) setAiTestResult({ type: 'success', title: t('settings.ai.testOk'), detail: t('settings.ai.testOkDesc').replace('{model}', aiConfig.model) });
     } catch (err: any) {
-      if (request === aiTestRequest.current) setAiTestResult({ type: 'error', title: t('settings.ai.testFailed'), detail: controller.signal.aborted ? t('settings.ai.testTimeout') : String(err?.message || err) });
+      if (request === aiTestRequest.current) setAiTestResult({ type: 'error', title: t('settings.ai.testFailed'), detail: `${controller.signal.aborted ? `${t('settings.ai.testTimeout')}\n` : ''}${String(err?.message || err)}` });
     } finally {
       clearTimeout(timeout);
       if (request === aiTestRequest.current) setIsTestingAi(false);
@@ -549,7 +549,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     </div>
                     {aiTestResult && <div ref={aiTestResultRef} role={aiTestResult.type === 'error' ? 'alert' : 'status'} className={cn('rounded-lg border p-3 text-xs select-text', aiTestResult.type === 'error' ? 'border-destructive/40 bg-destructive/10' : 'border-emerald-500/40 bg-emerald-500/10')}>
                       <p className="font-medium">{aiTestResult.title}</p>
-                      {aiTestResult.detail && <p className="mt-1 text-muted-foreground whitespace-pre-wrap break-words">{aiTestResult.detail}</p>}
+                      {aiTestResult.detail && <pre className="mt-1 max-h-64 overflow-auto text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-mono text-xs">{aiTestResult.detail}</pre>}
                     </div>}
                   </div>
                 )}

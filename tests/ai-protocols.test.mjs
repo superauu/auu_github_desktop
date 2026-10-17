@@ -117,6 +117,21 @@ test('native transport forwards only permitted Anthropic headers and preserves c
   } finally { delete globalThis.window; }
 });
 
+test('diagnostic errors preserve complete long HTTP, JSON and non-JSON responses', async () => {
+  const body = JSON.stringify({ error: { message: '错误信息'.repeat(300), type: 'invalid_request_error', param: 'model', code: 'not_supported', request_id: 'request-at-the-end', literal: '$& $$ $`' } });
+  globalThis.fetch = async () => new Response(body, { status: 400 });
+  await assert.rejects(app.requestAiText(config('responses'), messages), error => error.message.includes('400') && error.message.endsWith(body));
+  globalThis.fetch = async () => new Response(body);
+  await assert.rejects(app.requestAiText(config('responses'), messages), error => error.message.includes('HTTP 200') && error.message.endsWith(body));
+  const html = '<html>' + 'proxy diagnostic '.repeat(100) + 'trace-at-the-end</html>';
+  globalThis.fetch = async () => new Response(html);
+  await assert.rejects(app.requestAiText(config('responses'), messages), error => error.message.endsWith(html));
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async () => { throw 'HTTP 400: ' + body; } } };
+  try {
+    await assert.rejects(app.requestAiText(config('anthropic-messages'), messages), error => error.message === 'HTTP 400: ' + body);
+  } finally { delete globalThis.window; }
+});
+
 test('commit and PR generation and all explanation tasks share the selected protocol', async () => {
   const originals = { getFileDiff: app.gitService.getFileDiff, getBranchDiff: app.gitService.getBranchDiff };
   const files = [{ path: 'a.ts', status: 'modified', staged: true }];

@@ -212,7 +212,7 @@ async fn response_text(mut response: reqwest::Response) -> Result<String, String
         bytes.extend_from_slice(&chunk);
     }
     let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
-    if !status.is_success() { return Err(format!("HTTP {}: {}", status, text.chars().take(300).collect::<String>())); }
+    if !status.is_success() { return Err(format!("HTTP {}: {}", status, text)); }
     Ok(text)
 }
 
