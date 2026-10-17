@@ -47,6 +47,7 @@ import { MergeBranchModal } from '@/features/git/MergeBranchModal';
 import { RebaseBranchModal } from '@/features/git/RebaseBranchModal';
 import { HealthDiagnosisModal } from '@/features/git/HealthDiagnosisModal';
 import { DragDropActionModal } from '@/features/git/DragDropActionModal';
+import { RecoveryCenterDialog } from '@/features/git/RecoveryCenterDialog';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -117,6 +118,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
   const [tagNameInput, setTagNameInput] = useState('');
   const [tagMessageInput, setTagMessageInput] = useState('');
   const [healthModalOpen, setHealthModalOpen] = useState(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [createBranchBase, setCreateBranchBase] = useState<string | undefined>(undefined);
 
   // Universal Context Menu state
@@ -192,6 +194,16 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     const isCurrent = branch.isCurrent;
 
     const items: ContextMenuItem[] = [
+      {
+        id: 'preview-branch-operation',
+        label: t('safety.preview'),
+        icon: <Eye className="h-3.5 w-3.5 text-primary" />,
+        disabled: isCurrent || !branches.some(item => item.isCurrent),
+        onClick: () => {
+          const current = branches.find(item => item.isCurrent);
+          if (current) { setDragSource(branch); setDragTarget(current); setDragDropModalOpen(true); }
+        },
+      },
       {
         id: 'checkout',
         label: isCurrent ? `${t('sidebar.ctx.checkedOut')} (${branch.name})` : branch.worktreePath ? `${t('worktree.open')} (${branch.name})` : `${t('sidebar.ctx.checkout')} (${branch.name})`,
@@ -763,6 +775,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         </div>
       </div>
 
+      <button disabled={!currentRepo} onClick={() => setRecoveryOpen(true)} className="mx-2 my-1.5 rounded-md border border-border px-3 py-2 text-xs text-left hover:bg-accent">{t('recovery.title')}</button>
       {sidebarMode === 'agents' ? (
         /* GitKraken-style AI Agents Assistant Panel */
         <div className="flex-1 p-3 space-y-3 overflow-y-auto">
@@ -1563,6 +1576,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         open={healthModalOpen}
         onOpenChange={setHealthModalOpen}
       />
+      {recoveryOpen && currentRepo && <RecoveryCenterDialog key={currentRepo.path} repoPath={currentRepo.path} onClose={() => setRecoveryOpen(false)} />}
       <DragDropActionModal
         open={dragDropModalOpen}
         onOpenChange={setDragDropModalOpen}

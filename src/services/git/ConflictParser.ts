@@ -143,7 +143,8 @@ export function parseConflictBlocks(content: string): ParseConflictResult {
 export function resolveSingleBlock(
   content: string,
   blockIndex: number,
-  resolution: 'current' | 'incoming' | 'both' | 'both_reverse'
+  resolution: 'current' | 'incoming' | 'both' | 'both_reverse' | 'custom',
+  customContent: string = ''
 ): string {
   const parsed = parseConflictBlocks(content);
   const target = parsed.blocks.find((b) => b.index === blockIndex);
@@ -151,6 +152,9 @@ export function resolveSingleBlock(
 
   let replacement = '';
   switch (resolution) {
+    case 'custom':
+      replacement = customContent;
+      break;
     case 'current':
       replacement = target.currentContent;
       break;

@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "node --test tests/review-regressions.test.mjs tests/release-versions.test.mjs",
+    "test": "node --test tests/review-regressions.test.mjs tests/release-versions.test.mjs tests/branch-safety.test.mjs",
     "check:release": "node scripts/check-release.mjs"
   },
   "dependencies": {

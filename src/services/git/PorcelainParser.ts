@@ -347,6 +347,7 @@ export interface ParsedDiffLine {
   newNo: number | null;
   content: string;
   patchHeader?: string[];
+  patchContent?: string; // Original line bytes, including CR in CRLF file content.
 }
 
 /**
@@ -380,7 +381,7 @@ export function buildHunkPatch(
 ): string {
   if (hunk.length === 0 || hunk[0].type !== 'header') return '';
 
-  const body = hunk.map((l) => l.content).join('\n');
+  const body = hunk.map((l) => l.patchContent ?? l.content).join('\n');
   const safePath = filePath.replace(/\\/g, '/');
   const quote = (prefix: string) => JSON.stringify(prefix + safePath);
   const originalHeader = hunk[0].patchHeader?.filter((line) => !line.startsWith('index '));
@@ -406,7 +407,7 @@ export function buildHunkPatch(
 export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
   if (!rawDiff.trim()) return [];
 
-  const lines = rawDiff.split(/\r?\n/);
+  const lines = rawDiff.split('\n');
   const result: ParsedDiffLine[] = [];
 
   let oldLine = 0;
@@ -414,7 +415,8 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
   let inHunk = false;
   let patchHeader: string[] = [];
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, '');
     if (line.startsWith('diff --git')) {
       patchHeader = [line];
       inHunk = false;
@@ -433,6 +435,7 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
         oldNo: null,
         newNo: null,
         content: line,
+        ...(rawLine.endsWith('\r') ? { patchContent: rawLine } : {}),
         patchHeader: [...patchHeader],
       });
       inHunk = true;
@@ -458,6 +461,7 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
         oldNo: null,
         newNo: newLine++,
         content: line,
+        ...(rawLine.endsWith('\r') ? { patchContent: rawLine } : {}),
       });
     } else if (line.startsWith('-')) {
       result.push({
@@ -465,6 +469,7 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
         oldNo: oldLine++,
         newNo: null,
         content: line,
+        ...(rawLine.endsWith('\r') ? { patchContent: rawLine } : {}),
       });
     } else if (line.startsWith(' ')) {
       result.push({
@@ -472,6 +477,7 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
         oldNo: oldLine++,
         newNo: newLine++,
         content: line,
+        ...(rawLine.endsWith('\r') ? { patchContent: rawLine } : {}),
       });
     }
   }

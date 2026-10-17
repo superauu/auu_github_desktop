@@ -1,3 +1,7 @@
+import { ImageDiffView } from './ImageDiffView';
+import { isImagePath } from '@/services/git/ImageDiffService';
+import { stageSelectedLines } from '@/services/git/LineStagingService';
+import { CommitSplitDialog } from './CommitSplitDialog';
 import { useShallow } from 'zustand/react/shallow';
 import { VirtualRows } from '@/components/ui/VirtualRows';
 import { DiffFontControl } from '@/components/ui/DiffFontControl';
@@ -80,6 +84,9 @@ export const WorkingChangesView: React.FC = () => {
   } = useRepoStore(useShallow(state => ({ status: state.status, selectedFile: state.selectedFile, setSelectedFile: state.setSelectedFile, fileDiffLines: state.fileDiffLines, fileDiffLoading: state.fileDiffLoading, fileDiffError: state.fileDiffError, loadFileDiff: state.loadFileDiff, commits: state.commits, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, currentRepo: state.currentRepo, stageFile: state.stageFile, unstageFile: state.unstageFile, stageHunk: state.stageHunk, unstageHunk: state.unstageHunk, discardHunk: state.discardHunk, stageAll: state.stageAll, unstageAll: state.unstageAll, discardChanges: state.discardChanges, stashPush: state.stashPush, resolveFileOurs: state.resolveFileOurs, resolveFileTheirs: state.resolveFileTheirs, resetFileConflictMarkers: state.resetFileConflictMarkers })));
   const { t, lang } = useI18n();
 
+  const [selectedLines, setSelectedLines] = useState<Set<number>>(() => new Set());
+  const [lineBusy, setLineBusy] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
   const [copiedPath, setCopiedPath] = useState(false);
   const [showResolver, setShowResolver] = useState(true);
@@ -115,6 +122,12 @@ export const WorkingChangesView: React.FC = () => {
     finally { setBatchBusy(false); }
   };
 
+  useEffect(() => { setSelectedLines(new Set()); }, [activeFile?.path, activeFile?.staged, fileDiffLines]);
+  const applyLines = async () => {
+    if (!currentRepo || !activeFile) return; setLineBusy(true);
+    try { await stageSelectedLines(currentRepo.path, activeFile.path, fileDiffLines, selectedLines, activeFile.staged); if (useRepoStore.getState().currentRepo?.path === currentRepo.path) await useRepoStore.getState().refreshStatus(); toast.success(t('flow.linesApplied')); }
+    catch (error: any) { toast.error(t('changes.opFailed'), error.message); } finally { setLineBusy(false); }
+  };
   // Auto activate resolver mode when selecting a conflicted file
   React.useEffect(() => {
     if (activeFile?.status === 'conflicted') {
@@ -401,6 +414,7 @@ export const WorkingChangesView: React.FC = () => {
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Conflict In-Progress Banner */}
       <ConflictBanner />
+      {splitOpen && currentRepo && <CommitSplitDialog repoPath={currentRepo.path} onClose={() => setSplitOpen(false)} />}
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Changes File List Sub-panel */}
@@ -431,7 +445,7 @@ export const WorkingChangesView: React.FC = () => {
                 )}
               </button>
             )}
-            <span>{t('rightPane.changes')} ({totalChanges})</span>
+            <span className="whitespace-nowrap">{t('rightPane.changes')} ({totalChanges})</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -483,6 +497,7 @@ export const WorkingChangesView: React.FC = () => {
           </div>
         </div>
 
+        {totalChanges > 0 && <div className="px-2 py-1 border-b border-border"><Button variant="ghost" size="xs" className="w-full justify-start gap-2" onClick={() => setSplitOpen(true)}><Split className="w-3.5 h-3.5" />{t('flow.splitCommits')}</Button></div>}
         {selectedFiles.length > 0 && <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border text-[12px]" role="toolbar" aria-label={t('changes.selectionActions')}>
           <span>{selectedFiles.length} {t('changes.selected')}</span>
           <Button size="xs" variant="outline" disabled={batchBusy || !selectedFiles.some(file => !file.staged)} onClick={() => void applySelection('stage')}>{t('changes.stageSelected')}</Button>
@@ -965,7 +980,8 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
-        {activeFile && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
+        {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && <div className="px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
+        {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
         {activeFile?.status === 'conflicted' && showResolver ? (
           <InteractiveConflictResolver
             filePath={activeFile.path}
@@ -1056,7 +1072,7 @@ export const WorkingChangesView: React.FC = () => {
         ) : (
           /* Diff Content View */
           <div id={diffId} style={{ fontSize: diffFontSize }} className={cn("flex-1 overflow-auto font-mono leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text", wrap && "diff-wrap")}>
-            {fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><p className="text-destructive break-words">{fileDiffError}</p><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
+            {currentRepo && activeFile && isImagePath(activeFile.path) ? <ImageDiffView key={`${activeFile.path}-${activeFile.staged}-${status?.headOid}`} repoPath={currentRepo.path} path={activeFile.path} beforePath={activeFile.oldPath} before={activeFile.status === 'untracked' || (activeFile.staged && activeFile.status === 'added') ? 'EMPTY' : activeFile.staged ? (/^[0-9a-f]{40,64}$/.test(status?.headOid || '') ? status!.headOid! : 'EMPTY') : 'INDEX'} after={activeFile.staged ? 'INDEX' : 'WORKTREE'} /> : fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><p className="text-destructive break-words">{fileDiffError}</p><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
                 <div className="text-xs">
@@ -1158,6 +1174,7 @@ export const WorkingChangesView: React.FC = () => {
                         : "border-transparent text-foreground/85"
                     )}
                   >
+                    {activeFile?.status === 'modified' && !ignoreWhitespace && <label className="w-7 flex justify-center items-center shrink-0 select-none">{(isAdd || isDel) && <input type="checkbox" aria-label={`${t('flow.selectLine')} ${line.oldNo ?? line.newNo}`} checked={selectedLines.has(idx)} disabled={lineBusy || !!pendingWrites} onChange={e => setSelectedLines(previous => { const next = new Set(previous); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })} />}</label>}
                     {/* Line Numbers */}
                     <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20">
                       {line.oldNo ?? ''}

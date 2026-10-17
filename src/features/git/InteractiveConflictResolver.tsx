@@ -1,3 +1,5 @@
+import { AiTaskDialog } from './AiTaskDialog';
+import { ConflictAiSuggestion } from './ConflictAiSuggestion';
 import { useShallow } from 'zustand/react/shallow';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -60,6 +62,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   const originalContent = useRef<string | undefined>(undefined);
   const loadId = useRef(0);
   const [initialConflictCount, setInitialConflictCount] = useState(0);
+  const [aiBlock, setAiBlock] = useState<{ index: number; snapshot: string; context: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeBlockIndex, setActiveBlockIndex] = useState<number>(0);
   const blockRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -84,7 +87,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   };
 
   useEffect(() => {
-    void loadContent();
+    setAiBlock(null); void loadContent();
     return () => { loadId.current++; };
   }, [filePath, currentRepo?.path]);
 
@@ -384,6 +387,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
         </div>
       </div>
 
+      {aiBlock && <AiTaskDialog key={`${filePath}-${aiBlock.index}`} title={t('flow.aiConflict')} task="conflict" context={aiBlock.context} onClose={() => setAiBlock(null)}>{raw => <ConflictAiSuggestion key={raw} raw={raw} onApply={resolution => { if (content !== aiBlock.snapshot) { toast.error(t('safety.stale')); setAiBlock(null); return; } setContent(resolveSingleBlock(content, aiBlock.index, 'custom', resolution)); setAiBlock(null); }} />}</AiTaskDialog>}
       {/* Editor Content Area */}
       <div className="flex-1 overflow-auto bg-[#0c0c0e] text-foreground font-mono text-xs select-text">
         {!hasConflicts && initialConflictCount > 0 && (
@@ -480,6 +484,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                   </div>
                 </div>
 
+                <div className="p-2 border-b border-border"><Button size="sm" variant="outline" onClick={() => setAiBlock({ index: block.index, snapshot: content, context: JSON.stringify({ path: filePath, before: content.split(/\r?\n/).slice(Math.max(0, block.startLine - 8), block.startLine - 1).join('\n'), after: content.split(/\r?\n/).slice(block.endLine, block.endLine + 7).join('\n'), current: block.currentContent, base: block.baseContent, incoming: block.incomingContent }) })}>{t('flow.aiConflict')}</Button></div>
                 {/* Conflict Preview Blocks */}
                 <div className="divide-y divide-border/40">
                   {/* Current Section (HEAD) */}

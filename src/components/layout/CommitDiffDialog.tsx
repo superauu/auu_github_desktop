@@ -1,3 +1,5 @@
+import { ImageDiffView } from '@/features/git/ImageDiffView';
+import { isImagePath } from '@/services/git/ImageDiffService';
 import { DiffFontControl } from '@/components/ui/DiffFontControl';
 import { VirtualRows } from '@/components/ui/VirtualRows';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -11,7 +13,8 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
 
-export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, onReload }: {
+export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, onReload, image }: {
+  image?: { repoPath: string; before: string; after: string; beforePath?: string };
   path: string; hash: string; lines: ParsedDiffLine[]; loading: boolean; error: string | null; onClose: () => void; onReload: () => void;
 }) {
   const { t } = useI18n();
@@ -23,6 +26,7 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
   const rows = useMemo(() => split ? computeSplitRows(lines) : [], [split, lines]);
   const contents = useMemo(() => split ? rows.map(row => row.headerContent || `${row.left?.content || ''}\n${row.right?.content || ''}`) : lines.map(line => line.content), [split, rows, lines]);
   const lineClass = (type?: string) => type === 'add' ? 'diff-line-add' : type === 'delete' ? 'diff-line-del' : type === 'header' ? 'diff-line-header' : '';
+  if (image && isImagePath(path)) return <ModalSurface label={`${t('changes.viewDiff')} · ${path}`} onDismiss={onClose} className="fixed inset-0 z-[60] bg-black/45 flex items-center justify-center p-6"><div className="w-full h-[85vh] max-w-6xl flex flex-col rounded-xl border border-border bg-background shadow-2xl overflow-hidden"><header className="flex justify-between items-center p-4 border-b border-border"><h2 className="text-sm font-semibold truncate">{path}</h2><Button variant="ghost" size="icon" aria-label={t('common.close')} onClick={onClose}><X className="w-4 h-4" /></Button></header><ImageDiffView path={path} {...image} /></div></ModalSurface>;
   return <ModalSurface label={`${t('changes.viewDiff')} · ${path}`} onDismiss={onClose} className="fixed inset-0 z-[60] bg-black/45 flex items-center justify-center p-6">
     <div className="w-full h-[90vh] max-w-[1600px] flex flex-col rounded-xl border border-border bg-background shadow-2xl overflow-hidden">
       <header className="flex items-center gap-3 p-4 border-b border-border shrink-0">

@@ -1,3 +1,7 @@
+import { HistoryEditorDialog } from './HistoryEditorDialog';
+import { DragDropActionModal } from './DragDropActionModal';
+import { historyWorkflowService } from '@/services/git/HistoryWorkflowService';
+import type { GitBranch } from '@/services/git/types';
 import { useShallow } from 'zustand/react/shallow';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -59,6 +63,10 @@ export const CommitHistoryView: React.FC = () => {
   const setColumns = (update: (previous: typeof columns) => typeof columns) => updateView({ columns: update(columns) });
   const setSearchQuery = (query: string) => updateView({ query, scrollTop: 0 });
   const [graphWidth, setGraphWidth] = useState(64);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [searchMode, setSearchMode] = useState<'metadata' | 'contents'>('metadata');
+  const [branchDrop, setBranchDrop] = useState<{ source: GitBranch; target: GitBranch } | null>(null);
+  const searchIdentity = `${searchMode}:${searchQuery}`;
   const focusAfterRender = useRef<string | null>(null);
   const [remoteResults, setRemoteResults] = useState<{ query: string; commits: GitCommit[] } | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
@@ -121,17 +129,18 @@ export const CommitHistoryView: React.FC = () => {
     if (!searchQuery.trim() || !repoPath) { setSearchBusy(false); setRemoteResults(null); return; }
     setSearchBusy(true);
     const timer = setTimeout(() => {
-      void gitService.findCommits(repoPath, searchQuery).then(results => {
+      void (searchMode === 'contents' ? historyWorkflowService.searchContents(repoPath, searchQuery) : gitService.findCommits(repoPath, searchQuery)).then(results => {
         if (request !== searchRequest.current) return;
-        setRemoteResults({ query: searchQuery, commits: results }); setSearchComplete(results.length < 100);
+        setRemoteResults({ query: searchIdentity, commits: results }); setSearchComplete(searchMode === 'contents' || results.length < 100);
       }).catch((error: Error) => { if (request === searchRequest.current) setSearchError(error.message); })
         .finally(() => { if (request === searchRequest.current) setSearchBusy(false); });
     }, 250);
     return () => { clearTimeout(timer); searchRequest.current++; };
-  }, [repoPath, searchQuery]);
+  }, [repoPath, searchQuery, searchMode]);
 
-  const filteredCommits = useMemo(() => remoteResults?.query === searchQuery && searchQuery.trim() ? remoteResults.commits : commits.filter((c) => {
+  const filteredCommits = useMemo(() => remoteResults?.query === searchIdentity && searchQuery.trim() ? remoteResults.commits : commits.filter((c) => {
     if (!searchQuery.trim()) return true;
+    if (searchMode === 'contents') return false;
     const q = searchQuery.toLowerCase();
     return (
       c.subject.toLowerCase().includes(q) ||
@@ -139,18 +148,18 @@ export const CommitHistoryView: React.FC = () => {
       c.shortHash.toLowerCase().includes(q) ||
       c.refs?.some((r) => r.toLowerCase().includes(q))
     );
-  }), [commits, searchQuery, remoteResults]);
+  }), [commits, searchQuery, remoteResults, searchMode, searchIdentity]);
 
   const loadNext = async () => {
     if (!searchQuery.trim()) { await loadMoreCommits(); return; }
-    if (searchBusy) return;
+    if (searchBusy || searchMode === 'contents') return;
     const request = searchRequest.current;
     setSearchBusy(true);
     try {
       const next = await gitService.findCommits(repoPath, searchQuery, filteredCommits.length);
       if (request !== searchRequest.current) return;
       const seen = new Set(filteredCommits.map(commit => commit.hash));
-      setRemoteResults({ query: searchQuery, commits: [...filteredCommits, ...next.filter(commit => !seen.has(commit.hash))] });
+      setRemoteResults({ query: searchIdentity, commits: [...filteredCommits, ...next.filter(commit => !seen.has(commit.hash))] });
       setSearchComplete(next.length < 100);
     } catch (error: any) { if (request === searchRequest.current) setSearchError(error.message); }
     finally { if (request === searchRequest.current) setSearchBusy(false); }
@@ -283,7 +292,7 @@ export const CommitHistoryView: React.FC = () => {
   return (
     <div className="history-view flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Search & Filter Bar */}
-      <div className="h-9 px-3 border-b border-border flex items-center justify-between text-xs bg-card/40 shrink-0">
+      <div className="min-h-9 px-3 py-1 border-b border-border flex flex-wrap gap-2 items-center justify-between text-xs bg-card/40 shrink-0">
         <div className="flex items-center gap-2">
           <GitCommitIcon className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-foreground">{t('history.title')}</span>
@@ -297,9 +306,10 @@ export const CommitHistoryView: React.FC = () => {
           )}
         </div>
 
+        <Button variant="outline" size="xs" disabled={!repoPath} onClick={() => setEditorOpen(true)}>{t('flow.historyEditor')}</Button>
         {/* Search commit box */}
         <div className="flex items-center gap-2">
-          <div className="relative w-52">
+          <select aria-label={t('flow.searchMode')} value={searchMode} onChange={e => { setRemoteResults(null); setSearchMode(e.target.value as 'metadata' | 'contents'); }} className="max-w-28 rounded border border-input bg-background p-1 text-xs"><option value="metadata">{t('flow.searchMetadata')}</option><option value="contents">{t('flow.searchContents')}</option></select><div className="relative w-52">
             <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2" />
             <Input
               value={searchQuery}
@@ -407,7 +417,9 @@ export const CommitHistoryView: React.FC = () => {
                   <div
                     key={commit.hash}
                     id={`commit-row-${commit.hash}`}
-                    role="listitem" data-commit-row={commit.hash} tabIndex={isSelected ? 0 : -1} aria-current={isSelected ? 'true' : undefined}
+                    role="listitem" data-commit-row={commit.hash}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('application/x-auugit-commit', commit.hash); e.dataTransfer.effectAllowed = 'copy'; }} tabIndex={isSelected ? 0 : -1} aria-current={isSelected ? 'true' : undefined}
                     aria-label={`${commit.subject} · ${commit.author.name} · ${commit.shortHash}`}
                     title={commit.subject}
                     onFocus={event => { if (event.target === event.currentTarget) setSelectedCommit(commit); }}
@@ -464,7 +476,11 @@ export const CommitHistoryView: React.FC = () => {
                               return (
                                 <Badge
                                   key={ref}
-                                  title={ref}
+                                  draggable={!isTag && branches.some(branch => branch.name === cleanName)}
+                                  onDragStart={e => { e.stopPropagation(); const branch = branches.find(branch => branch.name === cleanName); if (branch) { e.dataTransfer.setData('application/x-auugit-branch', JSON.stringify({ name: branch.name, isRemote: branch.isRemote })); e.dataTransfer.setData('text/plain', branch.name); } }}
+                                  onDragOver={e => { if (!isTag && !isRemote) { e.preventDefault(); e.dataTransfer.dropEffect = e.dataTransfer.types.includes('application/x-auugit-commit') ? 'copy' : 'move'; } }}
+                                  onDrop={e => { e.preventDefault(); e.stopPropagation(); const target = branches.find(branch => branch.name === cleanName && !branch.isRemote); if (!target) return; const name = e.dataTransfer.getData('text/plain'); const source = branches.find(branch => branch.name === name); if (source && source.name !== target.name) { setBranchDrop({ source, target }); return; } const hash = e.dataTransfer.getData('application/x-auugit-commit'); if (target.isCurrent && /^[0-9a-f]{40,64}$/.test(hash)) { void (async () => { if (await confirmAction({ title: t('history.ctx.cherryPick'), description: `${hash.slice(0, 8)} → ${target.name}`, danger: false })) await runCommitAction(() => cherryPickCommit(hash), t('history.cherryPicked').replace('{h}', hash.slice(0, 8)), t('history.cherryPickFailed')); })(); } }}
+                                  title={`${ref} · ${t('flow.graphDragHint')}`}
                                   className={cn(
                                     "h-5 px-1.5 text-[12px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-xs border transition-all",
                                     isTag && "bg-amber-500/15 text-git-tag border-amber-500/40",
@@ -551,6 +567,8 @@ export const CommitHistoryView: React.FC = () => {
       </div>
 
       {/* Commit Context Menu (right click on any commit row) */}
+      {editorOpen && <HistoryEditorDialog repoPath={repoPath} onClose={() => setEditorOpen(false)} />}
+      {branchDrop && <DragDropActionModal open sourceBranch={branchDrop.source} targetBranch={branchDrop.target} onOpenChange={open => { if (!open) setBranchDrop(null); }} />}
       <ContextMenu
         open={ctxMenu.open}
         x={ctxMenu.x}

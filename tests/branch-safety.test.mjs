@@ -1,0 +1,273 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import { createServer } from 'vite';
+
+const root = process.cwd();
+const nativeFetch = globalThis.fetch;
+globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+let tmp, app, server, base, index = 0;
+const git = (cwd, ...args) => {
+  const result = spawnSync('git', ['-c', 'core.quotepath=false', ...args], { cwd, encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(result.stderr || result.error?.message);
+  return result.stdout;
+};
+const branch = (name, isRemote = false) => ({ name, isRemote, isCurrent: false });
+async function fixture() {
+  const repo = path.join(tmp, `repo-${++index}`); await fs.mkdir(repo);
+  git(repo, 'init', '-b', 'main'); git(repo, 'config', 'user.name', 'Test'); git(repo, 'config', 'user.email', 'test@example.invalid'); git(repo, 'config', 'core.autocrlf', 'false');
+  await fs.writeFile(path.join(repo, 'a.txt'), 'base\n'); git(repo, 'add', '-A'); git(repo, 'commit', '-m', 'initial');
+  return repo;
+}
+async function change(repo, name, text, message = 'change') { await fs.writeFile(path.join(repo, name), text); git(repo, 'add', '-A'); git(repo, 'commit', '-m', message); }
+before(async () => {
+  tmp = await fs.mkdtemp(path.join(root, '.test-safety-'));
+  const outfile = path.join(tmp, 'app.cjs');
+  await build({ stdin: { contents: `export * from './src/services/git/BranchSafetyService'; export * from './src/services/ai/AiExplanationService'; export * from './src/services/git/HistoryWorkflowService'; export * from './src/services/git/CommitSplitService'; export * from './src/services/git/LineStagingService'; export * from './src/services/ai/GitAssistantValidation'; export * from './src/services/ai/AiTransport'; export * from './src/services/git/ConflictParser'; export {gitService} from './src/services/git/GitService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  app = createRequire(import.meta.url)(outfile);
+  server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
+  await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
+  globalThis.fetch = (url, init) => nativeFetch(typeof url === 'string' && url.startsWith('/api/') ? base + url : url, init);
+});
+after(async () => {
+  globalThis.fetch = nativeFetch; await server?.close();
+  if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-safety-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
+});
+
+test('fast-forward preview leaves HEAD, index and working tree unchanged; merge saves a persistent recovery ref', async () => {
+  const repo = await fixture(); const initial = git(repo, 'rev-parse', 'HEAD').trim();
+  git(repo, 'config', 'merge.ff', 'false');
+  git(repo, 'switch', '-c', 'feature/login'); await change(repo, 'login.txt', 'login\n'); git(repo, 'switch', 'main');
+  const preview = await app.branchSafetyService.preview(repo, branch('feature/login'), branch('main'));
+  assert.equal(preview.sourceOnly, 1); assert.equal(preview.targetOnly, 0); assert.equal(preview.conflictCheck, 'clean'); assert.deepEqual(preview.files, ['login.txt']);
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), initial); assert.equal(git(repo, 'status', '--porcelain'), '');
+  await app.branchSafetyService.execute(preview, 'merge');
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), preview.sourceHash);
+  const [point] = await app.branchSafetyService.list(repo);
+  assert.equal(point.hash, initial); assert.equal(point.branch, 'main'); assert.equal(point.operation, 'merge');
+  assert.equal(git(repo, 'show', point.ref + ':a.txt'), 'base\n');
+});
+
+test('merge conflict preview reports exact paths and failed merge retains the recovery point', async () => {
+  const repo = await fixture(); const name = 'space 名称.txt'; await change(repo, name, 'base\n');
+  git(repo, 'switch', '-c', 'topic'); await change(repo, name, 'topic\n');
+  git(repo, 'switch', 'main'); await change(repo, name, 'main\n');
+  const before = git(repo, 'rev-parse', 'HEAD').trim();
+  const preview = await app.branchSafetyService.preview(repo, branch('topic'), branch('main'));
+  assert.equal(preview.conflictCheck, 'conflicts'); assert.deepEqual(preview.conflicts, [name]);
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+  await assert.rejects(app.branchSafetyService.execute(preview, 'merge'));
+  assert.equal((await app.branchSafetyService.list(repo))[0].hash, before);
+  await assert.rejects(app.branchSafetyService.create(repo));
+  git(repo, 'merge', '--abort');
+});
+
+test('stale previews and untracked work are rejected before switching branch or saving a point', async () => {
+  const repo = await fixture(); git(repo, 'branch', 'topic');
+  const preview = await app.branchSafetyService.preview(repo, branch('topic'), branch('main'));
+  await change(repo, 'a.txt', 'new\n');
+  await assert.rejects(app.branchSafetyService.execute(preview, 'merge'), /刷新|Refresh/);
+  const fresh = await app.branchSafetyService.preview(repo, branch('main'), branch('topic'));
+  await fs.writeFile(path.join(repo, 'untracked.txt'), 'precious\n');
+  await assert.rejects(app.branchSafetyService.execute(fresh, 'merge'), /Stash|stash/);
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'main'); assert.equal((await app.branchSafetyService.list(repo)).length, 0);
+});
+
+test('restore saves the current commit and rejects dirty work, wrong branch and a changed HEAD', async () => {
+  const repo = await fixture(); await app.branchSafetyService.create(repo); const [point] = await app.branchSafetyService.list(repo);
+  await change(repo, 'a.txt', 'second\n'); const current = git(repo, 'rev-parse', 'HEAD').trim();
+  await fs.writeFile(path.join(repo, 'a.txt'), 'unsaved\n');
+  await assert.rejects(app.branchSafetyService.restore(repo, point, current)); assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'unsaved\n');
+  git(repo, 'restore', 'a.txt');
+  await assert.rejects(app.branchSafetyService.restore(repo, point, point.hash));
+  git(repo, 'switch', '-c', 'other'); await assert.rejects(app.branchSafetyService.restore(repo, point, current)); git(repo, 'switch', 'main');
+  await app.branchSafetyService.restore(repo, point, current);
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), point.hash); assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'base\n');
+  const backup = (await app.branchSafetyService.list(repo)).find(value => value.operation === 'restore');
+  assert.equal(backup.hash, current);
+  await app.branchSafetyService.restore(repo, backup, point.hash); assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), current);
+});
+
+test('remote destinations are rejected and a remote source can merge into a local branch', async () => {
+  const repo = await fixture(); git(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  const preview = await app.branchSafetyService.preview(repo, branch('main'), branch('origin/main', true));
+  await assert.rejects(app.branchSafetyService.execute(preview, 'merge'), /本地|local/);
+  const inverse = await app.branchSafetyService.preview(repo, branch('origin/main', true), branch('main'));
+  await app.branchSafetyService.execute(inverse, 'merge'); assert.equal((await app.branchSafetyService.list(repo)).length, 1);
+});
+
+test('ordinary merge options retain the previewed no-fast-forward behavior and custom message', async () => {
+  const repo = await fixture(); git(repo, 'switch', '-c', 'topic'); await change(repo, 'topic.txt', 'topic\n'); git(repo, 'switch', 'main');
+  const preview = await app.branchSafetyService.preview(repo, branch('topic'), branch('main'));
+  await app.branchSafetyService.execute(preview, 'merge', { noFf: true, message: 'reviewed merge message' });
+  assert.equal(git(repo, 'log', '-1', '--format=%s').trim(), 'reviewed merge message');
+  assert.equal(git(repo, 'log', '-1', '--format=%P').trim().split(' ').length, 2);
+});
+
+test('rebase-source moves the source and saves its original commit; occupied worktrees are protected', async () => {
+  const repo = await fixture(); git(repo, 'switch', '-c', 'topic'); await change(repo, 'topic.txt', 'topic\n'); const original = git(repo, 'rev-parse', 'HEAD').trim();
+  git(repo, 'switch', 'main'); await change(repo, 'main.txt', 'main\n');
+  const preview = await app.branchSafetyService.preview(repo, branch('topic'), branch('main'));
+  git(repo, 'branch', 'keep-original', original); git(repo, 'config', 'rebase.updateRefs', 'true');
+  await app.branchSafetyService.execute(preview, 'rebase-source');
+  assert.equal(git(repo, 'rev-parse', 'keep-original').trim(), original);
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'topic'); assert.notEqual(git(repo, 'rev-parse', 'HEAD').trim(), original);
+  assert.equal((await app.branchSafetyService.list(repo))[0].hash, original);
+  const linked = path.join(tmp, 'linked'); git(repo, 'worktree', 'add', linked, 'main');
+  const occupied = await app.branchSafetyService.preview(repo, branch('topic'), branch('main'));
+  await assert.rejects(app.branchSafetyService.execute(occupied, 'merge'));
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'topic'); git(repo, 'worktree', 'remove', linked);
+});
+
+test('explanation context uses immutable commits, caps content and does not call an AI provider', async () => {
+  const repo = await fixture(); await change(repo, 'large.txt', 'evidence\n'.repeat(4000));
+  const hash = git(repo, 'rev-parse', 'HEAD').trim();
+  const context = await app.collectExplanation(repo, { kind: 'commit', hash });
+  assert.equal(context.text.length, 16000); assert.equal(context.truncated, true); assert.match(context.text, /large.txt/); assert.match(context.text, /evidence/);
+  const branchContext = await app.collectExplanation(repo, { kind: 'branch', base: 'HEAD~1', head: 'HEAD' }); assert.match(branchContext.text, new RegExp(hash));
+  await assert.rejects(app.explainChanges(context, { provider: 'builtin', apiKey: '', endpoint: '', model: '' }, 'en', new AbortController().signal));
+});
+
+test('AI explanation sends only the inspected context, handles cancellation and rejects empty responses', async () => {
+  const transport = globalThis.fetch; const config = { provider: 'openai-compatible', apiKey: 'test-only', endpoint: 'https://example.invalid/v1', model: 'test-model' };
+  let sent;
+  globalThis.fetch = async (url, init) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ choices: [{ message: { content: 'Observed changes' } }] })); };
+  try {
+    assert.equal(await app.explainChanges({ text: 'inspected diff', truncated: false }, config, 'en', new AbortController().signal), 'Observed changes');
+    assert.match(sent.messages[1].content, /inspected diff/); assert.equal(sent.model, 'test-model');
+    const abort = new AbortController(); abort.abort(); await assert.rejects(app.explainChanges({ text: '', truncated: false }, config, 'en', abort.signal), { name: 'AbortError' });
+    globalThis.fetch = async () => new Response(JSON.stringify({ choices: [] }));
+    await assert.rejects(app.explainChanges({ text: 'diff', truncated: false }, config, 'en', new AbortController().signal));
+  } finally { globalThis.fetch = transport; }
+});
+
+test('visual history editor squashes commits with a recovery point and preserves files', async () => {
+  const repo = await fixture(); await change(repo, 'one.txt', 'one\n', 'first feature'); await change(repo, 'two.txt', 'two\n', 'second feature');
+  const before = git(repo, 'rev-parse', 'HEAD').trim(); const plan = await app.historyWorkflowService.plan(repo, 2);
+  await app.historyWorkflowService.rewrite(repo, plan, plan.commits.map((commit, i) => ({ hash: commit.hash, action: i ? 'squash' : 'pick' })));
+  assert.equal(git(repo, 'rev-list', '--count', 'HEAD').trim(), '2');
+  assert.equal(git(repo, 'show', 'HEAD:one.txt'), 'one\n'); assert.equal(git(repo, 'show', 'HEAD:two.txt'), 'two\n');
+  assert.match(git(repo, 'log', '-1', '--format=%B'), /first feature/); assert.match(git(repo, 'log', '-1', '--format=%B'), /second feature/);
+  assert.equal((await app.branchSafetyService.list(repo))[0].hash, before);
+});
+
+test('history editor supports reorder and fixup, rejects published commits and malformed plans', async () => {
+  const repo = await fixture(); await change(repo, 'one.txt', 'one\n', 'one'); await change(repo, 'two.txt', 'two\n', 'two'); await change(repo, 'three.txt', 'three\n', 'three');
+  const plan = await app.historyWorkflowService.plan(repo, 3);
+  await assert.rejects(app.historyWorkflowService.rewrite(repo, plan, [{ hash: plan.head, action: 'pick' }]));
+  git(repo, 'update-ref', 'refs/remotes/origin/main', plan.head);
+  await assert.rejects(app.historyWorkflowService.rewrite(repo, plan, plan.commits.map(commit => ({ hash: commit.hash, action: 'pick' }))), /远程|remote/);
+  git(repo, 'update-ref', '-d', 'refs/remotes/origin/main');
+  const reversed = [...plan.commits].reverse();
+  await app.historyWorkflowService.rewrite(repo, plan, reversed.map((commit, index) => ({ hash: commit.hash, action: index === 1 ? 'fixup' : 'pick' })));
+  assert.equal(git(repo, 'log', '-1', '--format=%s').trim(), 'one'); assert.equal(git(repo, 'rev-list', '--count', 'HEAD').trim(), '3');
+});
+
+test('reflog recovery finds deleted branch commits and never overwrites an existing branch', async () => {
+  const repo = await fixture(); git(repo, 'switch', '-c', 'lost'); await change(repo, 'lost.txt', 'recover me\n'); const hash = git(repo, 'rev-parse', 'HEAD').trim();
+  git(repo, 'switch', 'main'); git(repo, 'branch', '-D', 'lost');
+  const entries = await app.historyWorkflowService.reflog(repo); assert.ok(entries.some(entry => entry.hash === hash));
+  const diff = await app.historyWorkflowService.compare(repo, hash); assert.match(diff.text, /recover me/);
+  await fs.writeFile(path.join(repo, 'a.txt'), 'unsaved\n');
+  await app.historyWorkflowService.recoverBranch(repo, hash, 'recovered/lost');
+  assert.equal(git(repo, 'rev-parse', 'recovered/lost').trim(), hash); assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+  await assert.rejects(app.historyWorkflowService.recoverBranch(repo, diff.head, 'recovered/lost'));
+  assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'unsaved\n');
+});
+
+test('content search finds code changes without matching commit metadata', async () => {
+  const repo = await fixture(); await change(repo, 'code.txt', 'uniqueLoginToken\n', 'unrelated title');
+  const matches = await app.historyWorkflowService.searchContents(repo, 'uniqueLoginToken'); assert.equal(matches.length, 1); assert.equal(matches[0].subject, 'unrelated title');
+});
+
+test('split planner stages only a chosen group and refuses stale file contents or existing staging', async () => {
+  globalThis.navigator = { userAgent: 'Windows' };
+  const repo = await fixture(); await fs.writeFile(path.join(repo, 'a.txt'), 'changed\n'); await fs.writeFile(path.join(repo, 'guide.md'), '# guide\n');
+  let plan = await app.commitSplitService.plan(repo); assert.equal(plan.files.length, 2);
+  await fs.writeFile(path.join(repo, 'guide.md'), '# changed after preview\n');
+  await assert.rejects(app.commitSplitService.stageGroup(repo, plan, ['guide.md']), /刷新|Refresh/);
+  plan = await app.commitSplitService.plan(repo); await app.commitSplitService.stageGroup(repo, plan, ['guide.md']);
+  assert.equal(git(repo, 'diff', '--cached', '--name-only').trim(), 'guide.md'); assert.match(git(repo, 'diff'), /changed/);
+  await assert.rejects(app.commitSplitService.plan(repo), /暂存|staged/);
+});
+
+test('line staging and unstaging preserve unselected changes across multiple hunks', async () => {
+  const repo = await fixture(); await change(repo, 'a.txt', Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n') + '\n');
+  const working = Array.from({ length: 30 }, (_, i) => i === 1 ? 'first edit  ' : i === 26 ? 'second edit' : `line ${i}`).join('\n') + '\n';
+  await fs.writeFile(path.join(repo, 'a.txt'), working);
+  let lines = await app.gitService.getFileDiff(repo, 'a.txt');
+  const picked = new Set(lines.flatMap((line, index) => (line.content === '-line 1' || line.content === '+first edit  ') ? [index] : []));
+  await app.stageSelectedLines(repo, 'a.txt', lines, picked);
+  assert.match(git(repo, 'show', ':a.txt'), /first edit  /); assert.doesNotMatch(git(repo, 'show', ':a.txt'), /second edit/);
+  assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), working);
+  lines = await app.gitService.getFileDiff(repo, 'a.txt', true);
+  await app.stageSelectedLines(repo, 'a.txt', lines, new Set(lines.flatMap((line, i) => line.type === 'add' || line.type === 'delete' ? [i] : [])), true);
+  assert.equal(git(repo, 'diff', '--cached'), ''); assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), working);
+});
+
+test('selecting one added line and stale line selections are handled without staging other edits', async () => {
+  const repo = await fixture(); await fs.writeFile(path.join(repo, 'a.txt'), 'base\nadd one\nadd two\n');
+  const lines = await app.gitService.getFileDiff(repo, 'a.txt');
+  await app.stageSelectedLines(repo, 'a.txt', lines, new Set([lines.findIndex(line => line.content === '+add two')]));
+  assert.equal(git(repo, 'show', ':a.txt'), 'base\nadd two\n');
+  await assert.rejects(app.stageSelectedLines(repo, 'a.txt', lines, new Set([1])), /刷新|Refresh/);
+});
+
+test('line staging applies multiple selected hunks together and preserves missing final newlines', async () => {
+  const repo = await fixture(); const original = Array.from({ length: 30 }, (_, i) => `old ${i}`).join('\n') + '\n';
+  await change(repo, 'a.txt', original);
+  const updated = original.replace('old 1\n', 'new first\n').replace('old 26\n', 'new last\n'); await fs.writeFile(path.join(repo, 'a.txt'), updated);
+  let lines = await app.gitService.getFileDiff(repo, 'a.txt');
+  await app.stageSelectedLines(repo, 'a.txt', lines, new Set(lines.flatMap((line, i) => line.type === 'add' || line.type === 'delete' ? [i] : [])));
+  assert.equal(git(repo, 'show', ':a.txt'), updated);
+  git(repo, 'commit', '-m', 'both hunks');
+  await fs.writeFile(path.join(repo, 'a.txt'), updated.trimEnd());
+  lines = await app.gitService.getFileDiff(repo, 'a.txt');
+  await app.stageSelectedLines(repo, 'a.txt', lines, new Set(lines.flatMap((line, i) => line.type === 'add' || line.type === 'delete' ? [i] : [])));
+  assert.equal(git(repo, 'show', ':a.txt'), updated.trimEnd());
+});
+
+test('line and hunk staging preserve CRLF content when Git autocrlf is disabled', async () => {
+  const repo = await fixture(); await change(repo, 'a.txt', 'first\r\nsecond\r\nthird\r\n');
+  await fs.writeFile(path.join(repo, 'a.txt'), 'first\r\nsecond\r\ninserted\r\nthird\r\n');
+  let lines = await app.gitService.getFileDiff(repo, 'a.txt');
+  await app.stageSelectedLines(repo, 'a.txt', lines, new Set([lines.findIndex(line => line.content === '+inserted')]));
+  assert.equal(git(repo, 'show', ':a.txt'), 'first\r\nsecond\r\ninserted\r\nthird\r\n');
+  lines = await app.gitService.getFileDiff(repo, 'a.txt', true);
+  await app.stageSelectedLines(repo, 'a.txt', lines, new Set([lines.findIndex(line => line.type === 'add')]), true);
+  assert.equal(git(repo, 'diff', '--cached'), '');
+  await app.gitService.stageHunk(repo, 'a.txt', lines);
+  assert.equal(git(repo, 'show', ':a.txt'), 'first\r\nsecond\r\ninserted\r\nthird\r\n');
+});
+
+test('AI structured results reject unknown/duplicate paths and marker-filled conflict resolutions', () => {
+  assert.deepEqual(app.parseCommitGroups('{"groups":[{"title":"fix: a","files":["a"]}]}', ['a']), [{ title: 'fix: a', files: ['a'] }]);
+  assert.throws(() => app.parseCommitGroups('{"groups":[{"title":"a","files":["secret"]}]}', ['a']));
+  assert.throws(() => app.parseCommitGroups('{"groups":[{"title":"a","files":["a","a"]}]}', ['a']));
+  assert.throws(() => app.parseConflictSuggestion('{"explanation":"bad","resolution":"<<<<<<< HEAD"}'));
+  const text = 'before\r\n<<<<<<< HEAD\r\na\r\n=======\r\nb\r\n>>>>>>> branch\r\nafter\r\n';
+  assert.equal(app.resolveSingleBlock(text, 0, 'custom', 'resolved'), 'before\r\nresolved\r\nafter\r\n');
+  assert.match(app.diagnoseGitError('non-fast-forward'), /远端|remote/);
+});
+
+test('native-style AI waits cancel promptly without waiting for the provider', async () => {
+  const abort = new AbortController(); let finish;
+  const pending = new Promise(resolve => { finish = resolve; });
+  const waiting = app.awaitAiResponse(pending, abort.signal); abort.abort();
+  await assert.rejects(waiting, { name: 'AbortError' }); finish('late response');
+});
+
+test('image endpoint preserves exact binary data, reads index versions and rejects traversal and oversized images', async () => {
+  const repo = await fixture();
+  const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN6kAAAAASUVORK5CYII=', 'base64');
+  await fs.writeFile(path.join(repo, 'pixel.png'), bytes); git(repo, 'add', '-A'); git(repo, 'commit', '-m', 'image');
+  const read = (filePath, revision) => globalThis.fetch('/api/git-image', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' }, body: JSON.stringify({ repoPath: repo, filePath, revision, gitBinary: 'git' }) });
+  const result = await read('pixel.png', 'INDEX'); assert.equal(result.status, 200); assert.equal((await result.json()).dataUrl, `data:image/png;base64,${bytes.toString('base64')}`);
+  const missing = await read('absent.png', 'WORKTREE'); assert.equal((await missing.json()).dataUrl, null);
+  assert.equal((await read('../outside.png', 'WORKTREE')).status, 400);
+  await fs.writeFile(path.join(repo, 'large.png'), Buffer.alloc(8 * 1024 * 1024 + 1)); assert.equal((await read('large.png', 'WORKTREE')).status, 400);
+});

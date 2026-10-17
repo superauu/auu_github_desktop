@@ -116,6 +116,44 @@ fn read_file_content(repo_path: String, file_path: String, allow_missing: Option
     }
 }
 
+#[tauri::command(async)]
+fn read_git_image(repo_path: String, file_path: String, revision: String, git_binary: Option<String>) -> Result<Option<String>, String> {
+    use base64::Engine;
+    let path = repo_file(repo_path.clone(), file_path.clone())?;
+    let bytes = if revision == "WORKTREE" {
+        match fs::metadata(&path) {
+            Ok(info) if info.len() > 8 * 1024 * 1024 => return Err("Image exceeds 8 MiB".into()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.to_string()),
+            _ => (),
+        }
+        fs::read(path).map_err(|e| e.to_string())?
+    } else {
+        if revision != "INDEX" && !(matches!(revision.len(), 40 | 64) && revision.bytes().all(|b| b.is_ascii_hexdigit())) { return Err("Invalid image revision".into()); }
+        let binary = git_binary.unwrap_or_else(|| "git".into());
+        let name = Path::new(&binary).file_name().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+        if name != "git" && name != "git.exe" { return Err("Invalid Git executable".into()); }
+        let spec = format!("{}:{}", if revision == "INDEX" { "" } else { &revision }, file_path.replace('\\', "/"));
+        let size = run_git(vec!["cat-file".into(), "-s".into(), spec.clone()], repo_path.clone(), Some(binary.clone()), None)?;
+        if size.exit_code != 0 { return Ok(None); }
+        if size.stdout.trim().parse::<u64>().map_err(|e| e.to_string())? > 8 * 1024 * 1024 { return Err("Image exceeds 8 MiB".into()); }
+        let mut command = Command::new(binary);
+        command.args(["cat-file", "blob", &spec]).current_dir(repo_path);
+        #[cfg(target_os = "windows")]
+        { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
+        let result = command.output().map_err(|e| e.to_string())?;
+        if !result.status.success() { return Err(String::from_utf8_lossy(&result.stderr).into_owned()); }
+        result.stdout
+    };
+    if bytes.len() > 8 * 1024 * 1024 { return Err("Image exceeds 8 MiB".into()); }
+    let mime = if bytes.starts_with(&[137,80,78,71,13,10,26,10]) { "image/png" }
+        else if bytes.starts_with(&[255,216]) { "image/jpeg" }
+        else if bytes.starts_with(b"GIF") { "image/gif" }
+        else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") { "image/webp" }
+        else if bytes.starts_with(b"BM") { "image/bmp" } else { return Err("Unsupported raster image".into()); };
+    Ok(Some(format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(bytes))))
+}
+
 // Only these two Git-owned destinations are exposed, including linked worktree excludes.
 #[tauri::command(async)]
 fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, content: Option<String>, expected_content: Option<String>, remove: Option<bool>) -> Result<serde_json::Value, String> {
@@ -398,6 +436,7 @@ pub fn run() {
             store_ai_key,
             get_ai_key,
             read_file_content,
+            read_git_image,
             write_file_content,
             ignore_file,
             request_github_device_code,

@@ -33,6 +33,11 @@ export async function executeGit(args: string[], cwd: string, stdin?: string): P
     : serializeGitWrite(cwd, () => executeGitNow(args, cwd, stdin));
 }
 
+/** Keep preflight, recovery refs and the operation in one application write queue. */
+export function executeGitTransaction<T>(cwd: string, run: (git: (args: string[], stdin?: string) => Promise<GitCommandResult>) => Promise<T>): Promise<T> {
+  return serializeGitWrite(cwd, () => run((args, stdin) => executeGitNow(args, cwd, stdin)));
+}
+
 async function executeGitNow(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {
   const customPath = useSettingsStore.getState().gitCliPath?.trim() || 'git';
 

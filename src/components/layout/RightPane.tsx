@@ -17,6 +17,7 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import { CommitComposer, useComposerDraft } from './CommitComposer';
 import { CommitDiffDialog } from './CommitDiffDialog';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { AiExplanationButton } from '@/features/git/AiExplanationButton';
 
 interface RightPaneProps {
   overlay: boolean;
@@ -88,6 +89,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
     </header>
     <div className={activeTab === 'changes' ? 'flex-1 min-h-0 overflow-hidden text-[13px]' : 'flex-1 min-h-0 overflow-y-auto p-4 text-[13px]'}>
       {errorMessage && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-destructive break-words">{errorMessage}</p>}
+      {errorMessage && <AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'error', message: errorMessage }} onOpenSettings={onOpenAiSettings} />}
       <div hidden={activeTab !== 'changes'} className="h-full"><CommitComposer draftState={draft} onOpenAiSettings={onOpenAiSettings} /></div>
       {activeTab === 'history' && (selectedCommit ? <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
@@ -99,6 +101,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
           <p className="text-[12px] text-muted-foreground">{selectedCommit.author.name} · {selectedCommit.author.relativeDate}</p>
           {selectedCommit.parents.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.parentLabel')} <span className="font-mono">{selectedCommit.parents.map(hash => hash.slice(0, 7)).join(', ')}</span></p>}
         </div>
+        <AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'commit', hash: selectedCommit.hash }} onOpenSettings={onOpenAiSettings} />
         <section className="border-t border-border pt-3 space-y-2">
           <div className="flex items-center justify-between gap-2"><h3 className="font-medium">{t('composer.changedFiles')} ({files.length})</h3><div className="flex gap-1">
             <Button variant="ghost" size="icon" aria-label={t('rightPane.toggleSort')} onClick={() => setAscending(!ascending)}>{ascending ? '↑' : '↓'}</Button>
@@ -115,7 +118,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
         </section>
       </div> : <p className="text-muted-foreground">{t('composer.selectCommit')}</p>)}
     </div>
-    {preview && selectedCommit && <CommitDiffDialog path={preview.path} hash={selectedCommit.shortHash} lines={lines} error={diffError} loading={diffLoading} onReload={() => void inspect(preview)} onClose={() => { request.current++; setPreview(null); }} />}
+    {preview && selectedCommit && <CommitDiffDialog image={{ repoPath: currentRepo.path, before: selectedCommit.parents[0] || 'EMPTY', after: selectedCommit.hash, beforePath: preview.oldPath }} path={preview.path} hash={selectedCommit.shortHash} lines={lines} error={diffError} loading={diffLoading} onReload={() => void inspect(preview)} onClose={() => { request.current++; setPreview(null); }} />}
   </aside>;
   return overlay ? <ModalSurface label={heading} onDismiss={onClose} className="fixed inset-0 z-40 bg-black/35 flex justify-end">{content}</ModalSurface> : content;
 };

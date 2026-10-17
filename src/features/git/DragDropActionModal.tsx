@@ -1,291 +1,99 @@
-import { useShallow } from 'zustand/react/shallow';
+import { useEffect, useState } from 'react';
+import { GitMerge, Loader2, RefreshCw, X } from 'lucide-react';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React, { useState } from 'react';
-import { 
-  GitMerge, 
-  GitPullRequest, 
-  X, 
-  Loader2, 
-  ArrowRight, 
-  AlertTriangle,
-  GitBranch as GitBranchIcon,
-  Cloud
-} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
-import { GitBranch } from '@/services/git/types';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import type { GitBranch } from '@/services/git/types';
+import { branchSafetyService, type BranchAction, type BranchPreview } from '@/services/git/BranchSafetyService';
+import { AiExplanationButton } from './AiExplanationButton';
 import { toast } from '@/stores/toastStore';
-import { cn } from '@/utils/cn';
 
 interface DragDropActionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sourceBranch: GitBranch | null;
   targetBranch: GitBranch | null;
+  initialAction?: BranchAction;
+  fixedAction?: boolean;
 }
 
-export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
-  open,
-  onOpenChange,
-  sourceBranch,
-  targetBranch,
-}) => {
-  const { currentRepo, branches, status, checkoutBranch, mergeBranch, rebaseBranch } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, status: state.status, checkoutBranch: state.checkoutBranch, mergeBranch: state.mergeBranch, rebaseBranch: state.rebaseBranch })));
+export function DragDropActionModal({ open, onOpenChange, sourceBranch: source, targetBranch: target, initialAction = 'merge', fixedAction = false }: DragDropActionModalProps) {
   const { t } = useI18n();
-  const [loading, setLoading] = useState(false);
-  const [selectedAction, setSelectedAction] = useState<'merge' | 'rebase-target' | 'rebase-source'>('merge');
-  const [error, setError] = useState<string | null>(null);
-
-  if (!open || !sourceBranch || !targetBranch) return null;
-
-  const currentBranchName =
-    branches.find((b) => b.isCurrent)?.name ||
-    status?.currentBranch ||
-    currentRepo?.currentBranch ||
-    '';
-
-  const handleExecute = async () => {
-    setLoading(true);
-    setError(null);
-
+  const repoPath = useRepoStore(state => state.currentRepo?.path);
+  const [action, setAction] = useState<BranchAction>('merge');
+  const [preview, setPreview] = useState<BranchPreview | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const previewKey = JSON.stringify([repoPath, source?.name, source?.isRemote, target?.name, target?.isRemote]);
+  const [loadedKey, setLoadedKey] = useState('');
+  const [noFf, setNoFf] = useState(false);
+  const [message, setMessage] = useState('');
+  useEffect(() => { setAction(initialAction); setNoFf(false); setMessage(''); }, [open, previewKey, initialAction]);
+  useEffect(() => {
+    let active = true; setPreview(null); setLoadedKey(''); setError('');
+    if (!open || !repoPath || !source || !target) return;
+    setChecking(true);
+    branchSafetyService.preview(repoPath, source, target).then(result => { if (active) { setPreview(result); setLoadedKey(previewKey); } })
+      .catch(error => { if (active) setError(error.message); }).finally(() => { if (active) setChecking(false); });
+    return () => { active = false; };
+  }, [open, previewKey, revision]);
+  if (!open || !source || !target || !repoPath) return null;
+  const affected = action === 'rebase-source' ? source : target;
+  const upstream = action === 'rebase-source' ? target : source;
+  const ready = preview && loadedKey === previewKey && !checking;
+  const execute = async () => {
+    if (!ready || busy) return;
+    setBusy(true); setError('');
     try {
-      if (selectedAction === 'merge') {
-        // Merge source into target
-        // If current branch is not target, checkout target first
-        if (currentBranchName !== targetBranch.name) {
-          toast.info(`${t('drag.checkingOut')}: ${targetBranch.name}...`);
-          await checkoutBranch(targetBranch.name, { openWorktree: false });
-        }
-        toast.info(`${t('drag.merging').replace('{src}', sourceBranch.name).replace('{dst}', targetBranch.name)}`);
-        await mergeBranch(sourceBranch.name);
-        toast.success(t('drag.mergeDone'), `${sourceBranch.name} ➜ ${targetBranch.name}`);
-      } else if (selectedAction === 'rebase-target') {
-        // Rebase target onto source
-        if (currentBranchName !== targetBranch.name) {
-          toast.info(`${t('drag.checkingOut')}: ${targetBranch.name}...`);
-          await checkoutBranch(targetBranch.name, { openWorktree: false });
-        }
-        toast.info(`${t('drag.rebasing').replace('{src}', targetBranch.name).replace('{dst}', sourceBranch.name)}`);
-        await rebaseBranch(sourceBranch.name);
-        toast.success(t('drag.rebaseDone'), `${targetBranch.name} onto ${sourceBranch.name}`);
-      } else {
-        // Rebase source onto target
-        if (currentBranchName !== sourceBranch.name) {
-          toast.info(`${t('drag.checkingOut')}: ${sourceBranch.name}...`);
-          await checkoutBranch(sourceBranch.name, { openWorktree: false });
-        }
-        toast.info(`${t('drag.rebasing').replace('{src}', sourceBranch.name).replace('{dst}', targetBranch.name)}`);
-        await rebaseBranch(targetBranch.name);
-        toast.success(t('drag.rebaseDone'), `${sourceBranch.name} onto ${targetBranch.name}`);
-      }
-
+      await branchSafetyService.execute(preview, action, { noFf, message });
+      toast.success(t(action === 'merge' ? 'drag.mergeDone' : 'drag.rebaseDone'));
       onOpenChange(false);
-    } catch (err: any) {
-      console.error(t('drag.failedLog'), err);
-      setError(err?.message || t('drag.failed'));
-      toast.error(t('drag.opIncomplete'), err?.message);
+    } catch (error: any) {
+      setError(error.message); setPreview(null);
+      toast.error(t('drag.opIncomplete'), error.message);
     } finally {
-      setLoading(false);
+      if (useRepoStore.getState().currentRepo?.path === repoPath) await useRepoStore.getState().refreshAll();
+      setBusy(false);
     }
   };
-
-  return (
-    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!loading} label={t('drag.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none p-4"
-    >
-      <div
-        className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5 animate-in zoom-in-95"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
-              <GitMerge className="h-5 w-5" />
+  return <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!busy} label={t('drag.title')} className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+    <div className="w-full max-w-2xl max-h-[90dvh] rounded-xl border border-border bg-card shadow-2xl p-5 flex flex-col gap-4">
+      <header className="flex items-center justify-between gap-2"><h2 className="font-semibold flex items-center gap-2"><GitMerge className="w-5 h-5 text-primary" />{t('drag.title')}</h2><Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.close')} onClick={() => onOpenChange(false)}><X className="w-4 h-4" /></Button></header>
+      <div className="min-h-0 overflow-y-auto space-y-4">
+        <fieldset disabled={busy} className="space-y-2"><legend className="text-sm text-muted-foreground mb-2">{t('drag.pickOp')}</legend>{(fixedAction ? [initialAction] : ['merge', 'rebase-target', 'rebase-source'] as BranchAction[]).map(value => <label key={value} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${action === value ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/40'}`}>
+          <input type="radio" name="branch-action" value={value} checked={action === value} onChange={() => setAction(value)} className="mt-1 accent-primary" />
+          <span className="min-w-0 text-sm"><span className="block font-medium">{t(value === 'merge' ? 'drag.merge' : value === 'rebase-target' ? 'drag.rebaseTarget' : 'drag.rebaseSource')}</span><span className="block text-xs text-muted-foreground break-all">{value === 'merge' ? `${source.name} → ${target.name}` : `${value === 'rebase-source' ? source.name : target.name} → ${t('safety.onto')} ${value === 'rebase-source' ? target.name : source.name}`}</span></span>
+        </label>)}</fieldset>
+        {action === 'merge' && <fieldset disabled={busy} className="space-y-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={noFf} onChange={e => setNoFf(e.target.checked)} />{t('merge.noFf')}</label>{noFf && <input aria-label={t('merge.customMsg')} placeholder={t('merge.customMsg')} value={message} onChange={e => setMessage(e.target.value)} className="w-full rounded border border-input bg-background p-2" />}</fieldset>}
+        <section className="rounded-lg border border-border p-3 space-y-3">
+          <div className="flex items-center justify-between"><h3 className="font-medium text-sm">{t('safety.preview')}</h3><Button variant="ghost" size="sm" disabled={busy || checking} onClick={() => setRevision(value => value + 1)}><RefreshCw className="w-3.5 h-3.5" />{t('worktree.refresh')}</Button></div>
+          {checking && <p role="status" className="text-sm flex gap-2 items-center text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" />{t('safety.checking')}</p>}
+          {ready && <>
+            <div className="grid grid-cols-2 gap-2 text-xs"><p className="rounded bg-muted p-2 break-all">{source.name}: <strong>{preview.sourceOnly}</strong> {t('safety.uniqueCommits')}</p><p className="rounded bg-muted p-2 break-all">{target.name}: <strong>{preview.targetOnly}</strong> {t('safety.uniqueCommits')}</p></div>
+            <div className="rounded bg-muted/50 p-3 space-y-2 text-xs">
+              <p className="font-medium">{t('safety.historyResult')}</p>
+              <svg viewBox="0 0 280 48" className="w-full h-12 text-primary" aria-hidden="true">
+                {action !== 'merge' || (preview.targetOnly === 0 && !noFf) || preview.sourceOnly === 0 ? <><path d="M12 24 H264" fill="none" stroke="currentColor" strokeWidth="2" />{[18, 76, 134, 192, 256].map((x, i) => <circle key={x} cx={x} cy="24" r="5" fill={i > 2 ? 'currentColor' : 'hsl(var(--background))'} stroke="currentColor" strokeWidth="2" />)}</> : <><path d="M18 32 H256 M76 32 C94 32 90 10 116 10 H190 C218 10 218 32 240 32" fill="none" stroke="currentColor" strokeWidth="2" />{[[18,32],[76,32],[140,10],[190,10],[190,32],[240,32]].map(([x,y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="4" fill="currentColor" />)}</>}
+              </svg>
+              <p className="break-words">{t(action !== 'merge' ? 'safety.rebaseHistory' : preview.sourceOnly === 0 ? 'safety.upToDate' : preview.targetOnly === 0 && !noFf ? 'safety.fastForward' : 'safety.mergeHistory')}</p>
+              <p className="text-muted-foreground">{t('safety.diagramHint')}</p>
             </div>
-            <div>
-              <div className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <span>{t('drag.title')}</span>
-                <Badge variant="outline" className="text-[11px] font-normal py-0 h-4 border-primary/30 text-primary">
-                  Drag & Drop
-                </Badge>
-              </div>
-              <div className="text-[12px] text-muted-foreground mt-0.5">
-                {t('drag.pickOp')}
-              </div>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={loading}
-            className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-lg"
-            onClick={() => onOpenChange(false)}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Source & Target Flow Display Banner */}
-        <div className="p-3 rounded-xl border border-border bg-accent/30 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className="p-1.5 rounded-lg bg-card border border-border shrink-0">
-              {sourceBranch.isRemote ? (
-                <Cloud className="h-3.5 w-3.5 text-sky-400" />
-              ) : (
-                <GitBranchIcon className="h-3.5 w-3.5 text-indigo-400" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="text-[11px] text-muted-foreground">{t('drag.source')}</div>
-              <div className="text-xs font-mono font-semibold text-foreground truncate max-w-[170px]" title={sourceBranch.name}>
-                {sourceBranch.name}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center shrink-0 px-2 text-muted-foreground">
-            <ArrowRight className="h-4 w-4 text-primary animate-pulse" />
-          </div>
-
-          <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
-            <div className="min-w-0">
-              <div className="text-[11px] text-muted-foreground">{t('drag.target')}</div>
-              <div className="text-xs font-mono font-semibold text-foreground truncate max-w-[170px]" title={targetBranch.name}>
-                {targetBranch.name}
-              </div>
-            </div>
-            <div className="p-1.5 rounded-lg bg-card border border-border shrink-0">
-              {targetBranch.isRemote ? (
-                <Cloud className="h-3.5 w-3.5 text-sky-400" />
-              ) : (
-                <GitBranchIcon className="h-3.5 w-3.5 text-emerald-400" />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Action Options Selection */}
-        <div className="space-y-2">
-          {/* Option 1: Merge */}
-          <div
-            onClick={() => setSelectedAction('merge')}
-            className={cn(
-              "p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3",
-              selectedAction === 'merge'
-                ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary/40"
-                : "border-border/70 hover:border-border hover:bg-accent/40 bg-card/60"
-            )}
-          >
-            <div className={cn("p-2 rounded-lg shrink-0 mt-0.5", selectedAction === 'merge' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-              <GitMerge className="h-4 w-4" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground">
-                  {t('drag.merge')}
-                </span>
-                <span className="text-[11px] font-mono text-muted-foreground">{t('drag.recommended')}</span>
-              </div>
-              <div className="text-[12px] text-muted-foreground leading-relaxed">
-                {t('drag.mergeDescPrefix')} <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> {t('drag.mergeDescMid')} <span className="font-mono text-foreground font-medium">{targetBranch.name}</span>
-              </div>
-              <div className="text-[11px] text-primary/80 font-mono pt-1">
-                $ git checkout {targetBranch.name} && git merge {sourceBranch.name}
-              </div>
-            </div>
-          </div>
-
-          {/* Option 2: Rebase target onto source */}
-          <div
-            onClick={() => setSelectedAction('rebase-target')}
-            className={cn(
-              "p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3",
-              selectedAction === 'rebase-target'
-                ? "border-amber-500 bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40"
-                : "border-border/70 hover:border-border hover:bg-accent/40 bg-card/60"
-            )}
-          >
-            <div className={cn("p-2 rounded-lg shrink-0 mt-0.5", selectedAction === 'rebase-target' ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground")}>
-              <GitPullRequest className="h-4 w-4" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground">
-                  {t('drag.rebaseTarget')}
-                </span>
-              </div>
-              <div className="text-[12px] text-muted-foreground leading-relaxed">
-                <span className="font-mono text-foreground font-medium">{targetBranch.name}</span> {t('drag.rebaseDescSuffix')} <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span>
-              </div>
-              <div className="text-[11px] text-amber-500/90 font-mono pt-1">
-                $ git checkout {targetBranch.name} && git rebase {sourceBranch.name}
-              </div>
-            </div>
-          </div>
-
-          {/* Option 3: Rebase source onto target */}
-          <div
-            onClick={() => setSelectedAction('rebase-source')}
-            className={cn(
-              "p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3",
-              selectedAction === 'rebase-source'
-                ? "border-amber-500 bg-amber-500/10 shadow-xs ring-1 ring-amber-500/40"
-                : "border-border/70 hover:border-border hover:bg-accent/40 bg-card/60"
-            )}
-          >
-            <div className={cn("p-2 rounded-lg shrink-0 mt-0.5", selectedAction === 'rebase-source' ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground")}>
-              <GitPullRequest className="h-4 w-4" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground">
-                  {t('drag.rebaseSource')}
-                </span>
-              </div>
-              <div className="text-[12px] text-muted-foreground leading-relaxed">
-                <span className="font-mono text-foreground font-medium">{sourceBranch.name}</span> {t('drag.rebaseDescSuffix')} <span className="font-mono text-foreground font-medium">{targetBranch.name}</span>
-              </div>
-              <div className="text-[11px] text-amber-500/90 font-mono pt-1">
-                $ git checkout {sourceBranch.name} && git rebase {targetBranch.name}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Error notification if any */}
-        {error && (
-          <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-500 text-xs flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <div className="flex-1 leading-relaxed">{error}</div>
-          </div>
-        )}
-
-        {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={loading}
-            onClick={() => onOpenChange(false)}
-            className="h-8 text-xs text-muted-foreground"
-          >
-            {t('common.cancel')}
-          </Button>
-
-          <Button
-            size="sm"
-            disabled={loading}
-            onClick={handleExecute}
-            className="h-8 text-xs px-5 gap-1.5 font-medium"
-          >
-            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            <span>{t('drag.confirm')}</span>
-          </Button>
-        </div>
+            <p className={`text-sm ${preview.conflictCheck === 'conflicts' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{t(`safety.conflict.${preview.conflictCheck}`)}</p>
+            {preview.conflicts.length > 0 && <ul className="text-xs font-mono max-h-24 overflow-auto select-text">{preview.conflicts.map(path => <li key={path} className="break-all">{path}</li>)}</ul>}
+            {action !== 'merge' && <p className="text-xs text-amber-600 dark:text-amber-400">{t('safety.rebaseConflictHint')}</p>}
+            <details><summary className="text-sm cursor-pointer">{t('safety.incomingFiles')} ({preview.files.length})</summary><ul className="text-xs font-mono mt-2 max-h-28 overflow-auto select-text">{preview.files.map(path => <li key={path} className="break-all py-0.5">{path}</li>)}</ul></details>
+            <AiExplanationButton repoPath={repoPath} scope={{ kind: 'branch', base: action === 'rebase-target' ? preview.sourceHash : preview.targetHash, head: action === 'rebase-target' ? preview.targetHash : preview.sourceHash }} />
+          </>}
+        </section>
+        <p className="text-xs text-muted-foreground">{t('safety.recoveryHint')}</p>
+        {affected.isRemote && <p role="alert" className="text-sm text-destructive">{t('safety.localRequired')}</p>}
+        {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap break-words">{error}</p>}
+        {error && <AiExplanationButton repoPath={repoPath} scope={{ kind: 'error', message: error }} />}
       </div>
-    </ModalSurface>
-  );
-};
+      <footer className="flex items-center justify-between gap-3 border-t border-border pt-3"><p className="text-xs text-muted-foreground break-all">{action === 'merge' ? `${upstream.name} → ${affected.name}` : `${affected.name} → ${t('safety.onto')} ${upstream.name}`}</p><Button disabled={busy || !ready || affected.isRemote} onClick={() => void execute()}>{busy && <Loader2 className="w-4 h-4 animate-spin" />}{t('drag.confirm')}</Button></footer>
+    </div>
+  </ModalSurface>;
+}

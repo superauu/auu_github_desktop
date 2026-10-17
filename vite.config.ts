@@ -142,6 +142,35 @@ export function gitApiPlugin(): Plugin {
             res.on('close', () => { if (!finished) { child.kill(); clearTimeout(timer); } });
             child.stdin.end(stdin || ''); return;
           }
+          if (url.pathname === '/git-image') {
+            if (typeof data.revision !== 'string' || !/^(WORKTREE|INDEX|[0-9a-f]{40,64})$/.test(data.revision)) throw new Error('Invalid image revision');
+            const resolved = await repoFile(data.repoPath, data.filePath);
+            let bytes: Buffer | null;
+            if (data.revision === 'WORKTREE') {
+              const stat = await fs.stat(resolved).catch((error) => { if (error.code === 'ENOENT') return null; throw error; });
+              if (stat && stat.size > 8 * 1024 * 1024) throw new Error('Image exceeds 8 MiB');
+              bytes = stat ? await fs.readFile(resolved) : null;
+            } else {
+              const binary = data.gitBinary || 'git';
+              if (!/^git(?:\.exe)?$/i.test(path.basename(binary))) throw new Error('Invalid Git executable');
+              const spec = `${data.revision === 'INDEX' ? '' : data.revision}:${data.filePath.replace(/\\/g, '/')}`;
+              bytes = await new Promise<Buffer | null>((resolve, reject) => {
+                const child = spawn(binary, ['cat-file', 'blob', spec], { cwd: data.repoPath, windowsHide: true });
+                const chunks: Buffer[] = []; let size = 0;
+                const timer = setTimeout(() => { child.kill(); reject(new Error('Image read timed out')); }, 15000);
+                child.stdout.on('data', chunk => { size += chunk.length; if (size > 8 * 1024 * 1024) { child.kill(); reject(new Error('Image exceeds 8 MiB')); } else chunks.push(chunk); });
+                child.stderr.resume(); child.on('error', error => { clearTimeout(timer); reject(error); });
+                child.on('close', code => { clearTimeout(timer); resolve(code === 0 ? Buffer.concat(chunks) : null); });
+              });
+            }
+            if (!bytes) { json(res, 200, { dataUrl: null }); return; }
+            if (bytes.length > 8 * 1024 * 1024) throw new Error('Image exceeds 8 MiB');
+            const mime = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? 'image/png'
+              : bytes[0] === 255 && bytes[1] === 216 ? 'image/jpeg' : bytes.subarray(0, 3).toString() === 'GIF' ? 'image/gif'
+              : bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP' ? 'image/webp' : bytes.subarray(0, 2).toString() === 'BM' ? 'image/bmp' : null;
+            if (!mime) throw new Error('Unsupported raster image');
+            json(res, 200, { dataUrl: `data:${mime};base64,${bytes.toString('base64')}` }); return;
+          }
           if (url.pathname === '/fs/read-file' || url.pathname === '/fs/write-file') {
             const resolved = await repoFile(data.repoPath, data.filePath);
             if (url.pathname === '/fs/read-file') {

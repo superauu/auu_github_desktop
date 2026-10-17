@@ -70,7 +70,7 @@ export async function validateDirectoryPath(path: string): Promise<DirectoryVali
   try {
     const res = await fetch('/api/fs/validate-path', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
       body: JSON.stringify({ path: path.trim() }),
     });
     if (!res.ok) return { exists: false, isDirectory: false, isGitRepo: false };
