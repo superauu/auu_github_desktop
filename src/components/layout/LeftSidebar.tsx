@@ -1086,7 +1086,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                     setRebaseModalOpen(true);
                                   }}
                                   className="p-1 hover:text-amber-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
-                                  title={`${t('sidebar.ctx.rebaseOnto')} ${branch.name}`}
+                                  title={`${t('sidebar.rebaseOnto')} ${branch.name}`}
                                 >
                                   <GitPullRequest className="h-2.5 w-2.5" />
                                 </button>
