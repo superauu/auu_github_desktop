@@ -1,4 +1,4 @@
-import { requestAiCompletion } from './AiTransport';
+import { requestAiText } from './AiClient';
 import { tNow } from '@/i18n';
 import { gitService } from '@/services/git/GitService';
 import type { GitFileChange } from '@/services/git/types';
@@ -92,9 +92,6 @@ export class AiCommitService {
     patchText: string,
     aiConfig: AiApiConfig
   ): Promise<string> {
-    // 去除末尾斜杠后统一拼接，避免 endpoint 已含 /chat/completions 时重复
-    const endpoint = (aiConfig.endpoint || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
-    const url = endpoint.endsWith('/chat/completions') ? endpoint : `${endpoint}/chat/completions`;
 
     const fileListText = files
       .map((f) => `- [${f.status}] ${f.path}`)
@@ -120,36 +117,13 @@ export class AiCommitService {
     ].join('\n\n');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-      const response = await requestAiCompletion(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${aiConfig.apiKey.trim()}`,
-        },
-        body: JSON.stringify({
-          model: aiConfig.model || 'deepseek-chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.3,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', errorBody.slice(0, 150)));
-      }
-
-      const data = await response.json();
-      let content = data.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error(tNow('err.aiEmptyResponse'));
-      }
+      let content = await requestAiText(aiConfig, [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], { signal: controller.signal, temperature: 0.3 });
 
       // 剥离可能包裹的 ``` 或 ```markdown（用字符串切割避免正则歧义）
       const fence = String.fromCharCode(96).repeat(3);
@@ -240,15 +214,13 @@ export class AiCommitService {
   }
 
   /**
-   * 调用兼容 OpenAI / DeepSeek / 通义千问等主流大模型的 /chat/completions 接口
+   * 使用配置的 API 协议生成提交说明。
    */
   private async callLlmApi(
     files: GitFileChange[],
     diffSnippets: Array<{ path: string; status: string; diffText: string; addedSymbols: string[] }>,
     aiConfig: AiApiConfig
   ): Promise<string> {
-    const endpoint = (aiConfig.endpoint || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
-    const url = endpoint.endsWith('/chat/completions') ? endpoint : `${endpoint}/chat/completions`;
 
     const fileListText = files
       .map((f) => `- [${f.status}] ${f.path}`)
@@ -277,36 +249,13 @@ export class AiCommitService {
     const userPrompt = `变更文件列表 (${files.length} 个文件):\n${fileListText}\n\n代码变更摘录:\n${diffsText || '(无代码增量摘录)'}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12秒超时
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-      const response = await requestAiCompletion(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${aiConfig.apiKey.trim()}`,
-        },
-        body: JSON.stringify({
-          model: aiConfig.model || 'deepseek-chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.2,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', errorBody.slice(0, 150)));
-      }
-
-      const data = await response.json();
-      let content = data.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error(tNow('err.aiEmptyResponse'));
-      }
+      let content = await requestAiText(aiConfig, [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], { signal: controller.signal, temperature: 0.2 });
 
       // 过滤包裹的 ``` 或 ```markdown
       content = content.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();

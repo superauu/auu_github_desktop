@@ -26,7 +26,7 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { gitService } from '@/services/git/GitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { requestAiCompletion } from '@/services/ai/AiTransport';
+import { requestAiText, type AiProtocol } from '@/services/ai/AiClient';
 import { RemotesManager } from './RemotesManager';
 import { CursorThemePicker } from './CursorThemePicker';
 import { Badge } from '@/components/ui/badge';
@@ -108,26 +108,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
     setIsTestingAi(true);
     try {
-      const base = aiConfig.endpoint.replace(/\/+$/, '');
-      const endpoint = base.endsWith('/chat/completions') ? base : base + '/chat/completions';
-      const res = await requestAiCompletion(endpoint, {
-        signal: AbortSignal.timeout(15_000),
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${aiConfig.apiKey.trim()}`,
-        },
-        body: JSON.stringify({
-          model: aiConfig.model || 'deepseek-chat',
-          messages: [{ role: 'user', content: 'Ping! Output pong.' }],
-          max_tokens: 5,
-        }),
+      await requestAiText(aiConfig, [{ role: 'user', content: 'Ping! Output pong.' }], {
+        signal: AbortSignal.timeout(30_000),
       });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errorText.slice(0, 100)}`);
-      }
 
       toast.success(t('settings.ai.testOk'), t('settings.ai.testOkDesc').replace('{model}', aiConfig.model));
     } catch (err: any) {
@@ -485,13 +468,22 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 {aiConfig.provider === 'openai-compatible' && (
                   <div className="p-3.5 rounded-xl border border-border/80 bg-accent/20 space-y-3 animate-in fade-in">
                     <div>
+                      <label htmlFor="ai-protocol" className="text-[12px] font-medium text-foreground block mb-1">{t('settings.ai.protocol')}</label>
+                      <select id="ai-protocol" value={aiConfig.protocol || 'chat-completions'} onChange={e => setAiConfig({ protocol: e.target.value as AiProtocol })} className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs">
+                        <option value="chat-completions">OpenAI Chat Completions</option>
+                        <option value="responses">OpenAI Responses</option>
+                        <option value="anthropic-messages">Anthropic Messages</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">{t('settings.ai.protocolHint')}</p>
+                    </div>
+                    <div>
                       <label htmlFor="ai-endpoint" className="text-[12px] font-medium text-foreground block mb-1">
                         {t('settings.ai.endpoint')}
                       </label>
                       <Input
                         id="ai-endpoint" value={aiConfig.endpoint}
                         onChange={(e) => setAiConfig({ endpoint: e.target.value })}
-                        placeholder="例如 https://api.deepseek.com/v1 或 https://api.openai.com/v1"
+                        placeholder={aiConfig.protocol === 'anthropic-messages' ? 'https://api.anthropic.com/v1' : aiConfig.protocol === 'responses' ? 'https://api.openai.com/v1' : 'https://api.deepseek.com/v1'}
                         className="font-mono text-xs"
                       />
                     </div>

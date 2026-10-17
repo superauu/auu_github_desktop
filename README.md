@@ -43,7 +43,9 @@ Release 中的 `auugit.exe` 是独立可执行文件。需要自动升级时，�
 
 ### AI 设置
 
-提交说明和 PR 描述支持本地规则或模板，无需 API Key。需要模型生成、变更解释或冲突建议时，在设置中选择 OpenAI 兼容接口，填写接口地址、模型名称和 API Key。
+提交说明和 PR 描述支持本地规则或模板，无需 API Key。需要模型生成、变更解释或冲突建议时，在设置中选择自定义大模型 API，再选择服务支持的协议：**OpenAI Chat Completions、OpenAI Responses 或 Anthropic Messages**。填写对应的接口地址、模型名称和 API Key，使用“测试连接”验证配置。
+
+地址可以填写 Base URL（例如 `https://api.openai.com/v1`、`https://api.anthropic.com/v1`），也可以填写完整接口路径。旧配置默认使用 Chat Completions；切换协议会保留已有地址、模型和密钥，请按服务要求调整。
 
 调用外部模型时，相关代码、差异或错误上下文会发送到你配置的服务。桌面端的 GitHub Token 和 AI API Key 使用系统凭据存储；浏览器开发模式仅在内存中保留凭据。AI 生成内容应在应用或提交前核对。
 

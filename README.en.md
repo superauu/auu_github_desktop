@@ -43,7 +43,9 @@ Browser development mode does not perform desktop updates. If an update check fa
 
 ### AI configuration
 
-Commit messages and PR descriptions can use local rules or templates without an API key. For model generation, change explanations, or conflict suggestions, configure an OpenAI-compatible endpoint, model name, and API key in settings.
+Commit messages and PR descriptions can use local rules or templates without an API key. For model generation, change explanations, or conflict suggestions, choose the custom model API in settings and select a protocol your service supports: **OpenAI Chat Completions, OpenAI Responses, or Anthropic Messages**. Enter its endpoint, model name, and API key, then use Test Connection to validate the configuration.
+
+The endpoint accepts a base URL (such as `https://api.openai.com/v1` or `https://api.anthropic.com/v1`) or a full API path. Existing configurations default to Chat Completions. Switching protocols preserves your endpoint, model, and key; adjust them to match your service.
 
 External model requests send relevant code, diffs, or error context to the service you configure. Desktop GitHub tokens and AI API keys use system credential storage; browser development mode keeps credentials in memory. Review generated content before applying or committing it.
 

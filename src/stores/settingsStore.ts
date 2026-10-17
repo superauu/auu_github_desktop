@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { applyCursorTheme, normalizeCursorTheme, type CursorThemeId } from '@/utils/cursorThemes';
+import type { AiProtocol } from '@/services/ai/AiClient';
 
 export interface AiApiConfig {
   provider: 'builtin' | 'openai-compatible';
+  protocol?: AiProtocol;
   endpoint: string;
   apiKey: string;
   model: string;
@@ -55,6 +57,7 @@ const DEFAULT_SETTINGS = {
   language: 'zh' as const,
   aiConfig: {
     provider: 'builtin' as const,
+    protocol: 'chat-completions' as AiProtocol,
     endpoint: 'https://api.deepseek.com/v1',
     apiKey: '',
     model: 'deepseek-chat',
@@ -76,6 +79,7 @@ function loadSettings() {
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
           ...(parsed.aiConfig || {}),
+          protocol: ['chat-completions', 'responses', 'anthropic-messages'].includes(parsed.aiConfig?.protocol) ? parsed.aiConfig.protocol : 'chat-completions',
           apiKey: legacyAiKey,
         },
       };

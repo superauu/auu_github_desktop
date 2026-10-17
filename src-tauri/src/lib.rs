@@ -232,14 +232,22 @@ async fn poll_github_device_token(client_id: String, device_code: String) -> Res
 }
 
 #[tauri::command]
-async fn request_ai_completion(url: String, authorization: String, body: String) -> Result<String, String> {
+async fn request_ai_completion(url: String, authorization: String, body: String, extra_headers: Option<std::collections::HashMap<String, String>>) -> Result<String, String> {
     let parsed = reqwest::Url::parse(&url).map_err(|e| e.to_string())?;
     let local = matches!(parsed.host_str(), Some("localhost" | "127.0.0.1" | "[::1]" | "::1"));
     if (parsed.scheme() != "https" && !(parsed.scheme() == "http" && local)) || !parsed.username().is_empty() || parsed.password().is_some() {
         return Err("AI endpoint must use HTTPS or local HTTP".into());
     }
     let payload: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
-    let response = http_client()?.post(parsed).header("Authorization", authorization).json(&payload).send().await.map_err(|e| e.to_string())?;
+    let mut request = http_client()?.post(parsed).timeout(Duration::from_secs(60)).json(&payload);
+    if !authorization.is_empty() { request = request.header("Authorization", authorization); }
+    for (name, value) in extra_headers.unwrap_or_default() {
+        match name.as_str() {
+            "x-api-key" | "anthropic-version" => { request = request.header(name, value); }
+            _ => return Err("Unsupported AI request header".into()),
+        }
+    }
+    let response = request.send().await.map_err(|e| e.to_string())?;
     response_text(response).await
 }
 
