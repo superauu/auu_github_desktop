@@ -35,7 +35,7 @@ function stub(target, replacements) { const originals = Object.fromEntries(Objec
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-'));
   const bundle = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export * from './src/services/git/IgnoreService'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -527,4 +527,106 @@ test('cursor selection applies immediately, survives restart, resets to native a
     if (previousRaw === null) localStorage.removeItem('auu_git_settings'); else localStorage.setItem('auu_git_settings', previousRaw);
     if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
   }
+});
+
+
+test('ignore scopes escape exact paths, distinguish extension ranges and preserve existing CRLF rules', async () => {
+  const repo = await repository();
+  const names = ['reports/模板 [1].csv', 'reports/模板 1.csv', 'reports/nested/child.csv', 'other.csv', 'archive.tar.gz', '.env.local'];
+  for (const name of names) { await fs.mkdir(path.dirname(file(repo, name)), { recursive: true }); await fs.writeFile(file(repo, name), 'data'); }
+  assert.deepEqual(app.buildIgnoreRules(['reports/模板 [1].csv'], 'file'), ['/reports/模板\\ \\[1\\].csv']);
+  assert.equal(app.fileExtension('archive.tar.gz'), '.tar.gz');
+  assert.equal(app.fileExtension('report.2026.csv'), '.csv');
+  assert.equal(app.fileExtension('.env.local'), '.local');
+  assert.equal(app.fileExtension('.env'), '');
+  const expected = { file: ['reports/模板 [1].csv'], typeHere: ['reports/模板 1.csv', 'reports/模板 [1].csv'], typeTree: ['reports/nested/child.csv', 'reports/模板 1.csv', 'reports/模板 [1].csv'], typeAll: ['other.csv', 'reports/nested/child.csv', 'reports/模板 1.csv', 'reports/模板 [1].csv'] };
+  for (const [mode, paths] of Object.entries(expected)) {
+    const rules = app.buildIgnoreRules(['reports/模板 [1].csv'], mode);
+    const preview = await app.previewIgnore(repo, 'shared', rules.join('\n') + '\n');
+    assert.deepEqual([...preview.untracked].sort(), [...paths].sort());
+    const snapshot = await app.readIgnoreFile(repo, 'shared');
+    const content = app.appendIgnoreRules(snapshot.content, rules);
+    await app.saveIgnoreFile(repo, snapshot, content);
+    const actual = (await app.gitService.getStatus(repo)).untracked.map(item => item.path);
+    for (const name of names) assert.equal(actual.includes(name), !paths.includes(name));
+    await app.undoIgnore(repo, snapshot, content);
+    assert.equal(await fs.access(file(repo, '.gitignore')).then(() => true, () => false), false);
+  }
+  assert.equal(app.appendIgnoreRules('# existing\r\nfoo\r\n', ['foo', '/bar']), '# existing\r\nfoo\r\n/bar\r\n');
+  assert.deepEqual(app.buildIgnoreRules(['a/x.csv', 'a/y.csv'], 'typeHere'), ['/a/*.csv']);
+  assert.deepEqual(app.buildIgnoreRules(['root.csv'], 'directory'), []);
+});
+
+test('ignore preview respects nested negation, excluded directories and tracked files', async () => {
+  const repo = await repository();
+  await fs.mkdir(file(repo, 'data/nested'), { recursive: true });
+  await fs.writeFile(file(repo, 'data/tracked.csv'), 'tracked'); await commit(repo);
+  await fs.writeFile(file(repo, 'data/.gitignore'), '!keep.csv\n');
+  await fs.writeFile(file(repo, 'data/keep.csv'), 'keep');
+  await fs.writeFile(file(repo, 'data/drop.csv'), 'drop');
+  await fs.writeFile(file(repo, 'data/nested/.gitignore'), '!keep.csv\n');
+  await fs.writeFile(file(repo, 'data/nested/keep.csv'), 'keep');
+  const preview = await app.previewIgnore(repo, 'shared', '*.csv\n', ['data/keep.csv']);
+  assert.deepEqual(preview.untracked, ['data/drop.csv']);
+  assert.deepEqual(preview.tracked, ['data/tracked.csv']);
+  assert.deepEqual(preview.selectedNotIgnored, ['data/keep.csv']);
+  const excluded = await app.previewIgnore(repo, 'shared', '/data/\n');
+  assert(excluded.untracked.includes('data/nested/keep.csv'));
+  const snapshot = await app.readIgnoreFile(repo, 'shared');
+  await app.saveIgnoreFile(repo, snapshot, '*.csv\n');
+  assert.equal(git(repo, 'ls-files', '--error-unmatch', 'data/tracked.csv').trim(), 'data/tracked.csv');
+  assert.match(await app.checkIgnore(repo, ['data/drop.csv']), /\*\.csv/);
+});
+
+test('local ignore rules work in linked worktrees and reject stale saves and unsafe undo', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a.txt'), 'a'); await commit(repo);
+  const linked = path.join(tmp, `ignore-linked-${repoIndex}`); git(repo, 'worktree', 'add', '-b', 'ignore-linked', linked);
+  await fs.writeFile(file(linked, 'secret.txt'), 'secret');
+  const snapshot = await app.readIgnoreFile(linked, 'local');
+  const content = app.appendIgnoreRules(snapshot.content, ['/secret.txt']);
+  await app.saveIgnoreFile(linked, snapshot, content);
+  assert(!(await app.gitService.getStatus(linked)).untracked.some(item => item.path === 'secret.txt'));
+  assert.equal(await fs.access(file(linked, '.gitignore')).then(() => true, () => false), false);
+  await assert.rejects(app.saveIgnoreFile(linked, snapshot, content + '/other\n'), /changed/);
+  await app.saveIgnoreFile(linked, { scope: 'local', content }, content + '# external edit\n');
+  await app.undoIgnore(linked, snapshot, content);
+  assert.equal((await app.readIgnoreFile(linked, 'local')).content, snapshot.content + '# external edit\n');
+  assert.equal(await fs.readFile(file(linked, 'secret.txt'), 'utf8'), 'secret');
+});
+
+
+test('ignore additions preserve ordered exceptions and undo keeps later rules after a missing newline', async () => {
+  const repo = await repository();
+  await fs.writeFile(file(repo, '.gitignore'), '# comment without newline');
+  await fs.writeFile(file(repo, 'a.csv'), 'a');
+  const snapshot = await app.readIgnoreFile(repo, 'shared');
+  const content = app.appendIgnoreRules(snapshot.content, ['*.csv', '!a.csv', '*.csv']);
+  assert.equal(content, '# comment without newline\n*.csv\n!a.csv\n*.csv\n');
+  await app.saveIgnoreFile(repo, snapshot, content);
+  assert(!(await app.gitService.getStatus(repo)).untracked.some(f => f.path === 'a.csv'));
+  await fs.appendFile(file(repo, '.gitignore'), '/later.txt\n');
+  await app.undoIgnore(repo, snapshot, content);
+  assert.equal(await fs.readFile(file(repo, '.gitignore'), 'utf8'), '# comment without newline\n/later.txt\n');
+  assert.deepEqual(app.buildIgnoreRules(['a.csv'], 'custom', '# my comment\n*.csv\n!a.csv'), ['# my comment', '*.csv', '!a.csv']);
+  const before = await app.readIgnoreFile(repo, 'shared');
+  await app.saveIgnoreFile(repo, before, '*.csv\n');
+  await fs.writeFile(file(repo, '.gitignore'), '/unrelated\n');
+  await assert.rejects(app.undoIgnore(repo, before, '*.csv\n'), /changed/);
+  assert.equal(await fs.readFile(file(repo, '.gitignore'), 'utf8'), '/unrelated\n');
+});
+
+test('ignore preview follows Git case sensitivity and reads ignored nested ignore files', async () => {
+  const repo = await repository(); git(repo, 'config', 'core.ignorecase', 'false');
+  await fs.mkdir(file(repo, 'nested'));
+  await fs.writeFile(file(repo, 'nested/.gitignore'), '!keep.csv\n');
+  await fs.writeFile(file(repo, 'nested/keep.csv'), 'keep');
+  await fs.writeFile(file(repo, 'nested/UPPER.CSV'), 'upper');
+  await fs.writeFile(file(repo, 'nested/drop.csv'), 'lower');
+  const preview = await app.previewIgnore(repo, 'shared', '.gitignore\n*.csv\n');
+  assert.deepEqual(preview.untracked.sort(), ['nested/.gitignore', 'nested/drop.csv']);
+  const snapshot = await app.readIgnoreFile(repo, 'shared');
+  await app.saveIgnoreFile(repo, snapshot, '.gitignore\n*.csv\n');
+  assert.deepEqual((await app.gitService.getStatus(repo)).untracked.map(f => f.path).sort(), ['nested/UPPER.CSV', 'nested/keep.csv']);
+  await fs.rm(file(repo, 'nested'), {recursive:true});
+  await app.previewIgnore(repo, 'shared', '*.csv\n');
 });

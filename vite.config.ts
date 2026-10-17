@@ -29,14 +29,21 @@ async function repoFile(repoPath: string, filePath: string): Promise<string> {
   }
   const root = await fs.realpath(repoPath);
   const candidate = path.resolve(root, filePath);
-  const parent = await fs.realpath(path.dirname(candidate));
-  let resolved = path.join(parent, path.basename(candidate));
-  try { resolved = await fs.realpath(candidate); } catch (error: any) { if (error.code !== 'ENOENT') throw error; }
+  let ancestor = candidate;
+  let resolved: string;
+  while (true) {
+    try { resolved = path.resolve(await fs.realpath(ancestor), path.relative(ancestor, candidate)); break; }
+    catch (error: any) {
+      if (error.code !== 'ENOENT' || path.dirname(ancestor) === ancestor) throw error;
+      ancestor = path.dirname(ancestor);
+    }
+  }
   const relative = path.relative(root, resolved);
   if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw new Error('Path outside repository');
   return resolved;
 }
 export function gitApiPlugin(): Plugin {
+  let ignoreWrites: Promise<unknown> = Promise.resolve();
   return {
     name: 'git-api-plugin',
     configureServer(server) {
@@ -72,6 +79,41 @@ export function gitApiPlugin(): Plugin {
           }
           if (req.method !== 'POST') { json(res, 405, { error: 'Method not allowed' }); return; }
           const data = await body(req);
+          if (url.pathname === '/fs/ignore-file') {
+            if (typeof data.gitBinary !== 'string' || !/^git(?:\.exe)?$/i.test(path.basename(data.gitBinary))) throw new Error('Invalid Git executable');
+            const operation = ignoreWrites.catch(() => {}).then(async () => {
+              let resolved: string;
+              if (data.scope === 'shared') resolved = await repoFile(data.repoPath, '.gitignore');
+              else if (data.scope === 'local') {
+                resolved = await new Promise<string>((resolve, reject) => {
+                  const child = spawn(data.gitBinary || 'git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], { cwd: data.repoPath, windowsHide: true });
+                  let output = '', error = '';
+                  child.stdout.on('data', chunk => { output += chunk; });
+                  child.stderr.on('data', chunk => { error += chunk; });
+                  child.on('error', reject);
+                  child.on('close', code => code === 0 ? resolve(output.replace(/[\r\n]+$/, '')) : reject(new Error(error)));
+                });
+              } else throw new Error('Invalid ignore scope');
+              let actual = '', exists = true;
+              try { actual = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await fs.readFile(resolved)); }
+              catch (error: any) { if (error.code !== 'ENOENT') throw error; exists = false; }
+              if (data.remove === true) {
+                if (data.expectedContent !== actual) throw new Error('Ignore rules changed on disk; reload before saving');
+                if (exists) await fs.unlink(resolved);
+                return { content: '', exists: false };
+              }
+              if (data.content !== undefined) {
+                if (typeof data.content !== 'string' || data.expectedContent !== actual) throw new Error('Ignore rules changed on disk; reload before saving');
+                await fs.mkdir(path.dirname(resolved), { recursive: true });
+                await fs.writeFile(resolved, data.content, 'utf8');
+                actual = data.content;
+                exists = true;
+              }
+              return { content: actual, exists };
+            });
+            ignoreWrites = operation;
+            json(res, 200, await operation); return;
+          }
           if (url.pathname === '/git') {
             const { args, cwd = process.cwd(), gitBinary = 'git', stdin } = data;
             if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string') ||
@@ -103,7 +145,10 @@ export function gitApiPlugin(): Plugin {
           if (url.pathname === '/fs/read-file' || url.pathname === '/fs/write-file') {
             const resolved = await repoFile(data.repoPath, data.filePath);
             if (url.pathname === '/fs/read-file') {
-              const bytes = await fs.readFile(resolved);
+              const bytes = await fs.readFile(resolved).catch((error) => {
+                if (data.allowMissing === true && error.code === 'ENOENT') return Buffer.alloc(0);
+                throw error;
+              });
               const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
               json(res, 200, { content });
             } else {

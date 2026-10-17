@@ -918,15 +918,15 @@ export class GitService implements IGitService {
     }
   }
 
-  async readWorkingFile(repoPath: string, filePath: string): Promise<string> {
+  async readWorkingFile(repoPath: string, filePath: string, allowMissing = false): Promise<string> {
     this.validateFilePath(filePath);
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       const { invoke } = await import('@tauri-apps/api/core');
-      return invoke<string>('read_file_content', { repoPath, filePath });
+      return invoke<string>('read_file_content', { repoPath, filePath, allowMissing });
     }
     const res = await fetch('/api/fs/read-file', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
-      body: JSON.stringify({ repoPath, filePath }),
+      body: JSON.stringify({ repoPath, filePath, allowMissing }),
     });
     if (!res.ok) throw new Error(`Unable to read ${filePath} (HTTP ${res.status})`);
     const data = await res.json();

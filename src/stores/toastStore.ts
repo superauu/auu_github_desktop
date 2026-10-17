@@ -8,6 +8,7 @@ export interface ToastItem {
   title: string;
   description?: string;
   duration?: number;
+  action?: { label: string; onClick: () => void | Promise<void> };
 }
 
 interface ToastState {

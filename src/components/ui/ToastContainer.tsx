@@ -28,6 +28,7 @@ export const ToastContainer: React.FC = () => {
 const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast, onClose }) => {
   const { t } = useI18n();
   const [copied, setCopied] = React.useState(false);
+  const [actionBusy, setActionBusy] = React.useState(false);
 
   const copyDetails = () => {
     const text = `${toast.title}\n${toast.description || ''}`;
@@ -76,6 +77,10 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
       </div>
 
       <div className="flex items-center gap-1 shrink-0 ml-1">
+        {toast.action && <button disabled={actionBusy} className="px-2 py-1 rounded hover:bg-accent text-primary disabled:opacity-50"
+          onClick={async () => { setActionBusy(true); try { await toast.action!.onClick(); onClose(); } finally { setActionBusy(false); } }}>
+          {toast.action.label}
+        </button>}
         {toast.type === 'error' && (
           <button
             onClick={copyDetails}

@@ -98,17 +98,54 @@ fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
     }) { return Err("Invalid repository file path".into()); }
     let root = fs::canonicalize(repo_path).map_err(|e| e.to_string())?;
     let candidate = root.join(relative);
-    let resolved = if candidate.exists() { fs::canonicalize(&candidate).map_err(|e| e.to_string())? } else {
-        let parent = fs::canonicalize(candidate.parent().ok_or("Missing parent directory")?).map_err(|e| e.to_string())?;
-        parent.join(candidate.file_name().ok_or("Missing file name")?)
-    };
+    let mut ancestor = candidate.as_path();
+    while !ancestor.exists() { ancestor = ancestor.parent().ok_or("Missing parent directory")?; }
+    let suffix = candidate.strip_prefix(ancestor).map_err(|e| e.to_string())?;
+    let canonical = fs::canonicalize(ancestor).map_err(|e| e.to_string())?;
+    let resolved = if suffix.as_os_str().is_empty() { canonical } else { canonical.join(suffix) };
     if !resolved.starts_with(&root) { return Err("Path outside repository".into()); }
     Ok(resolved)
 }
 
 #[tauri::command(async)]
-fn read_file_content(repo_path: String, file_path: String) -> Result<String, String> {
-    fs::read_to_string(repo_file(repo_path, file_path)?).map_err(|e| e.to_string())
+fn read_file_content(repo_path: String, file_path: String, allow_missing: Option<bool>) -> Result<String, String> {
+    match fs::read_to_string(repo_file(repo_path, file_path)?) {
+        Ok(content) => Ok(content),
+        Err(error) if allow_missing == Some(true) && error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+// Only these two Git-owned destinations are exposed, including linked worktree excludes.
+#[tauri::command(async)]
+fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, content: Option<String>, expected_content: Option<String>, remove: Option<bool>) -> Result<serde_json::Value, String> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = LOCK.lock().map_err(|e| e.to_string())?;
+    let path = match scope.as_str() {
+        "shared" => repo_file(repo_path.clone(), ".gitignore".into())?,
+        "local" => {
+            let result = run_git(vec!["rev-parse".into(), "--path-format=absolute".into(), "--git-path".into(), "info/exclude".into()], repo_path, git_binary, None)?;
+            if result.exit_code != 0 { return Err(result.stderr); }
+            PathBuf::from(result.stdout.trim_end_matches(['\r', '\n']))
+        }
+        _ => return Err("Invalid ignore scope".into()),
+    };
+    let exists = path.exists();
+    let actual = match fs::read_to_string(&path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error.to_string()),
+    };
+    if remove == Some(true) {
+        if expected_content.as_ref() != Some(&actual) { return Err("Ignore rules changed on disk; reload before saving".into()); }
+        if exists { fs::remove_file(path).map_err(|e| e.to_string())?; }
+        Ok(serde_json::json!({ "content": "", "exists": false }))
+    } else if let Some(content) = content {
+        if expected_content.as_ref() != Some(&actual) { return Err("Ignore rules changed on disk; reload before saving".into()); }
+        if let Some(parent) = path.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+        fs::write(path, &content).map_err(|e| e.to_string())?;
+        Ok(serde_json::json!({ "content": content, "exists": true }))
+    } else { Ok(serde_json::json!({ "content": actual, "exists": exists })) }
 }
 
 #[tauri::command(async)]
@@ -362,6 +399,7 @@ pub fn run() {
             get_ai_key,
             read_file_content,
             write_file_content,
+            ignore_file,
             request_github_device_code,
             poll_github_device_token,
             validate_directory,

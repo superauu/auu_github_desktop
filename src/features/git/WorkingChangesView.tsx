@@ -29,6 +29,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ConflictBanner } from './ConflictBanner';
+import { IgnoreDialog } from './IgnoreDialog';
 import { InteractiveConflictResolver } from './InteractiveConflictResolver';
 import { useRepoStore } from '@/stores/repoStore';
 import { useI18n } from '@/i18n';
@@ -202,6 +203,8 @@ export const WorkingChangesView: React.FC = () => {
   };
 
   const [fileMenu, setFileMenu] = useState<{ file: GitFileChange; x: number; y: number } | null>(null);
+  const [ignorePaths, setIgnorePaths] = useState<string[] | null>(null);
+  useEffect(() => { setIgnorePaths(null); setFileMenu(null); }, [currentRepo?.path]);
   const toggleFile = async (file: GitFileChange) => {
     await runGitAction(() => file.staged ? unstageFile(file.path) : stageFile(file.path), t(file.staged ? 'changes.unstagedToast' : 'changes.stagedToast'), t('changes.opFailed'));
     requestAnimationFrame(() => {
@@ -239,6 +242,9 @@ export const WorkingChangesView: React.FC = () => {
   };
   const fileMenuItems: ContextMenuItem[] = fileMenu ? [
     { id: 'stage', label: t(fileMenu.file.staged ? 'changes.unstageTitle' : 'changes.stageTitle'), onClick: () => void toggleFile(fileMenu.file) },
+    ...(fileMenu.file.status === 'untracked' ? [{ id: 'ignore', label: t('ignore.title'), onClick: () => setIgnorePaths(
+      picked.has(fileKey(fileMenu.file)) ? selectedFiles.filter(file => file.status === 'untracked').map(file => file.path) : [fileMenu.file.path]
+    ) }] : []),
     ...(!fileMenu.file.staged && fileMenu.file.status !== 'untracked' ? [{ id: 'discard', label: t('changes.discardTitle'), danger: true, onClick: () => void handleDiscard(fileMenu.file.path) }] : []),
   ] : [];
 
@@ -429,6 +435,9 @@ export const WorkingChangesView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1">
+            <Button variant="ghost" size="xs" title={t('ignore.manage')} onClick={() => setIgnorePaths([])}>
+              <Shield className="h-3.5 w-3.5" />
+            </Button>
             {totalChanges > 0 && (
               <Button
                 variant="ghost"
@@ -478,6 +487,7 @@ export const WorkingChangesView: React.FC = () => {
           <span>{selectedFiles.length} {t('changes.selected')}</span>
           <Button size="xs" variant="outline" disabled={batchBusy || !selectedFiles.some(file => !file.staged)} onClick={() => void applySelection('stage')}>{t('changes.stageSelected')}</Button>
           <Button size="xs" variant="outline" disabled={batchBusy || !selectedFiles.some(file => file.staged)} onClick={() => void applySelection('unstage')}>{t('changes.unstageSelected')}</Button>
+          <Button size="xs" variant="outline" disabled={batchBusy || !selectedFiles.some(file => file.status === 'untracked')} onClick={() => setIgnorePaths(selectedFiles.filter(file => file.status === 'untracked').map(file => file.path))}>{t('ignore.title')}</Button>
           <Button size="xs" variant="ghost" onClick={() => setPicked(new Set())}>{t('changes.clearSelection')}</Button>
         </div>}
         {pendingWrites > 0 && <p role="status" className="flex items-center gap-2 px-3 py-1 text-[12px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />{t('changes.processing')}</p>}
@@ -1168,6 +1178,7 @@ export const WorkingChangesView: React.FC = () => {
       </div>
     </div>
       <ContextMenu open={!!fileMenu} x={fileMenu?.x || 0} y={fileMenu?.y || 0} items={fileMenuItems} onClose={() => setFileMenu(null)} />
+      {ignorePaths && currentRepo && <IgnoreDialog repoPath={currentRepo.path} paths={ignorePaths} onClose={() => setIgnorePaths(null)} />}
   </div>
 );
 };

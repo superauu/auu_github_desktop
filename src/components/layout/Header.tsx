@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { confirmAction } from '@/stores/confirmStore';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   GitBranch as GitBranchIcon,
   RefreshCw,
@@ -29,6 +29,7 @@ import {
   Plus,
   X,
   MoreHorizontal,
+  Shield,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useI18n } from '@/i18n';
@@ -40,6 +41,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Badge } from '@/components/ui/badge';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { MergeBranchModal } from '@/features/git/MergeBranchModal';
+import { IgnoreDialog } from '@/features/git/IgnoreDialog';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -54,6 +56,8 @@ interface HeaderProps {
   onOpenGitHubAuth?: () => void;
 }
 
+const EMPTY_IGNORE_PATHS: string[] = [];
+
 export const Header: React.FC<HeaderProps> = ({
   navigationOverlay, inspectorOverlay, onToggleNavigation, onToggleInspector,
   onOpenCommandPalette,
@@ -61,6 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenRepoDialog,
   onOpenGitHubAuth,
 }) => {
+  const [ignoreRepoPath, setIgnoreRepoPath] = useState<string | null>(null);
   const {
     currentRepo,
     status,
@@ -91,6 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated } = useGitHubStore();
   const { t } = useI18n();
+  useEffect(() => { setIgnoreRepoPath(null); }, [currentRepo?.path]);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
@@ -596,6 +602,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <DropdownMenu.Item className="menu-item" onSelect={() => setCreateBranchModalOpen(true)}><GitBranchIcon className="h-4 w-4" />{t('header.branchAction')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" disabled={isRefreshing} onSelect={() => void handleRefresh()}><RefreshCw className="h-4 w-4" />{t('header.refresh')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => void handleOpenTerminal()}><Terminal className="h-4 w-4" />{t('header.terminal')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => setIgnoreRepoPath(currentRepo.path)}><Shield className="h-4 w-4" />{t('ignore.manage')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 border-t border-border" />
                 <DropdownMenu.Item className="menu-item" disabled={isStashing || !hasChanges} onSelect={() => void handleQuickStash()}><Archive className="h-4 w-4" />{t('header.stash')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" disabled={!stashes.length} onSelect={() => void handleQuickPop()}><Inbox className="h-4 w-4" />{t('header.pop')}</DropdownMenu.Item>
@@ -620,6 +627,7 @@ export const Header: React.FC<HeaderProps> = ({
       </header>
 
       {/* Modals */}
+      {ignoreRepoPath && ignoreRepoPath === currentRepo?.path && <IgnoreDialog repoPath={ignoreRepoPath} paths={EMPTY_IGNORE_PATHS} onClose={() => setIgnoreRepoPath(null)} />}
       <CreateBranchModal
         open={createBranchModalOpen}
         onOpenChange={setCreateBranchModalOpen}
