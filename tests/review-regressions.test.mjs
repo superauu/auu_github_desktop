@@ -35,7 +35,7 @@ function stub(target, replacements) { const originals = Object.fromEntries(Objec
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-'));
   const bundle = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -337,5 +337,194 @@ test('workspace sizing preserves a 640px main view across supported window sizes
       assert.deepEqual(requested, original);
       assert(fitted.files >= 160); assert.equal(Boolean(fitted.left), visible.left); assert.equal(Boolean(fitted.right), visible.right);
     }
+  }
+});
+
+test('binary diffs remain visible and porcelain exposes the current HEAD', () => {
+  assert.equal(app.parsePorcelainV2('# branch.oid abc123\0# branch.head main\0').headOid, 'abc123');
+  const binary = app.parseDiffOutput('diff --git a/image.png b/image.png\nBinary files a/image.png and b/image.png differ\n');
+  assert.equal(binary.length, 1); assert.match(binary[0].content, /Binary files/);
+  assert.deepEqual(binary[0].patchHeader, []);
+});
+
+test('failed diff and history-file reads reject instead of pretending there are no changes', async () => {
+  const missing = path.join(tmp, 'missing-repository');
+  await assert.rejects(app.gitService.getFileDiff(missing, 'file.txt'));
+  await assert.rejects(app.gitService.getCommitFiles(missing, 'HEAD'));
+  await assert.rejects(app.gitService.getCommitFileDiff(missing, 'HEAD', 'file.txt'));
+});
+
+test('batch staging uses literal paths and initial commits can be unstaged without deleting files', async () => {
+  const repo = await repository();
+  await fs.writeFile(file(repo, 'a[1].txt'), 'literal'); await fs.writeFile(file(repo, 'a1.txt'), 'glob');
+  await app.gitService.stageFiles(repo, ['a[1].txt']);
+  assert.deepEqual((await app.gitService.getStatus(repo)).staged.map(f => f.path), ['a[1].txt']);
+  await app.gitService.unstageFiles(repo, ['a[1].txt']);
+  assert.equal((await app.gitService.getStatus(repo)).staged.length, 0);
+  assert.equal(await fs.readFile(file(repo, 'a[1].txt'), 'utf8'), 'literal');
+  await app.gitService.stageFile(repo, 'a[1].txt'); await app.gitService.unstageFile(repo, 'a[1].txt');
+  assert.equal((await app.gitService.getStatus(repo)).staged.length, 0);
+  await app.gitService.stageAll(repo); await app.gitService.unstageAll(repo);
+  assert.equal((await app.gitService.getStatus(repo)).staged.length, 0);
+  assert.equal(await fs.readFile(file(repo, 'a1.txt'), 'utf8'), 'glob');
+  await commit(repo);
+  await fs.writeFile(file(repo, 'a[1].txt'), 'changed');
+  await app.gitService.stageFiles(repo, ['a[1].txt']); await app.gitService.unstageFiles(repo, ['a[1].txt']);
+  assert.equal((await app.gitService.getStatus(repo)).unstaged[0].path, 'a[1].txt');
+});
+
+test('unchanged polling reads status once and does not reload history or branches', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a'), 'base'); await commit(repo);
+  app.useRepoStore.getState().setCurrentRepo(info(repo)); await app.useRepoStore.getState().refreshAll();
+  let logs = 0, branches = 0, statuses = 0;
+  const originalStatus = app.gitService.getStatus.bind(app.gitService);
+  const originalLog = app.gitService.getCommits.bind(app.gitService);
+  const originalBranches = app.gitService.getBranches.bind(app.gitService);
+  const restore = stub(app.gitService, {
+    getStatus: (...args) => { statuses++; return originalStatus(...args); },
+    getCommits: (...args) => { logs++; return originalLog(...args); },
+    getBranches: (...args) => { branches++; return originalBranches(...args); },
+  });
+  try {
+    const commits = app.useRepoStore.getState().commits;
+    await app.useRepoStore.getState().checkExternalChanges();
+    assert.equal(statuses, 1); assert.equal(logs, 0); assert.equal(branches, 0);
+    assert.equal(app.useRepoStore.getState().commits, commits);
+  } finally { restore(); app.useRepoStore.getState().setCurrentRepo(null); }
+});
+
+test('Git writes queue per repository, allow independent repositories and recover after rejection', async () => {
+  const gate = deferred(), order = [];
+  const first = app.serializeGitWrite('repo-A', async () => { order.push('first'); await gate.promise; throw new Error('expected'); });
+  const rejected = assert.rejects(first, /expected/);
+  const second = app.serializeGitWrite('repo-A', async () => { order.push('second'); });
+  await app.serializeGitWrite('repo-B', async () => { order.push('independent'); });
+  assert.deepEqual(order, ['first', 'independent']); assert.equal(app.getPendingGitWrites('repo-A'), 2);
+  gate.resolve(); await rejected; await second; await new Promise(setImmediate);
+  assert.deepEqual(order, ['first', 'independent', 'second']); assert.equal(app.getPendingGitWrites('repo-A'), 0);
+});
+
+test('drafts are isolated by repository and branch and survive storage rehydration', async () => {
+  const store = app.useWorkspaceSessionStore; const previous = store.getState().drafts;
+  const first = app.draftKey('repo-A', 'main'), second = app.draftKey('repo-A', 'feature'), third = app.draftKey('repo-B', 'main');
+  try {
+    store.getState().updateDraft(first, { title: 'Main draft' });
+    store.getState().updateDraft(second, { title: 'Feature draft' });
+    store.getState().updateDraft(third, { body: 'Other repository' });
+    app.flushWorkspaceSession(); store.setState({ drafts: {} }); await store.persist.rehydrate();
+    assert.equal(store.getState().drafts[first].title, 'Main draft');
+    assert.equal(store.getState().drafts[second].title, 'Feature draft');
+    assert.equal(store.getState().drafts[third].body, 'Other repository');
+  } finally { store.setState({ drafts: previous }); app.flushWorkspaceSession(); }
+});
+
+test('history search finds commits outside the loaded page and resolves annotated tags', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a'), 'first'); await commit(repo, 'distant needle');
+  const first = git(repo, 'rev-parse', 'HEAD').trim(); git(repo, 'tag', '-a', 'archive-release', '-m', 'annotated');
+  await fs.writeFile(file(repo, 'a'), 'second'); await commit(repo, 'second');
+  await fs.writeFile(file(repo, 'a'), 'third'); await commit(repo, 'third');
+  assert(!(await app.gitService.getCommits(repo, 1)).some(commit => commit.hash === first));
+  assert.equal((await app.gitService.findCommits(repo, 'distant needle'))[0].hash, first);
+  assert.equal((await app.gitService.findCommits(repo, first.slice(0, 8)))[0].hash, first);
+  assert.equal((await app.gitService.findCommits(repo, 'archive-release'))[0].hash, first);
+  assert.equal(await app.gitService.getBranchCommitHash(repo, 'refs/tags/archive-release'), first);
+  const page1 = await app.gitService.getCommits(repo, 2); const page2 = await app.gitService.getCommits(repo, 2, 2);
+  assert.equal(new Set([...page1, ...page2].map(commit => commit.hash)).size, 3);
+});
+
+test('ignoring whitespace changes only the diff view, preserving complete file staging', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a.txt'), 'const value = 1;\n'); await commit(repo);
+  await fs.writeFile(file(repo, 'a.txt'), 'const  value = 1;\n');
+  assert((await app.gitService.getFileDiff(repo, 'a.txt')).some(line => line.type === 'add'));
+  assert.equal((await app.gitService.getFileDiff(repo, 'a.txt', false, false, true)).length, 0);
+  await app.gitService.stageFile(repo, 'a.txt');
+  assert.equal(git(repo, 'show', ':a.txt'), 'const  value = 1;\n');
+  assert.equal((await app.gitService.getFileDiff(repo, 'a.txt', true, false, true)).length, 0);
+  git(repo, 'commit', '-m', 'spacing');
+  assert((await app.gitService.getCommitFileDiff(repo, 'HEAD', 'a.txt')).some(line => line.type === 'add'));
+  assert.equal((await app.gitService.getCommitFileDiff(repo, 'HEAD', 'a.txt', true)).length, 0);
+});
+
+test('history pagination keeps the page offset after locating a commit beyond the loaded page', async () => {
+  const store = app.useRepoStore;
+  const repo = 'pagination-repository'; let requestedSkip;
+  const loaded = Array.from({ length: 100 }, (_, index) => ({ hash: `commit-${index}` }));
+  const next = [{ hash: 'commit-100' }, { hash: 'located-commit' }];
+  const restore = stub(app.gitService, { getCommits: async (_repo, _limit, skip) => { requestedSkip = skip; return next; } });
+  try {
+    store.getState().setCurrentRepo(info(repo));
+    store.setState({ commits: [...loaded, { hash: 'located-commit' }], commitsLimit: 100, commitsLoadedAll: false });
+    await store.getState().loadMoreCommits();
+    assert.equal(requestedSkip, 100);
+    assert.equal(store.getState().commits.length, 102);
+    assert(store.getState().commits.some(commit => commit.hash === 'commit-100'));
+  } finally { restore(); store.getState().setCurrentRepo(null); }
+});
+
+test('returning from history reloads the working diff without using the selected historical commit', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a.txt'), 'base\n'); await commit(repo);
+  const store = app.useRepoStore;
+  try {
+    store.getState().setCurrentRepo(info(repo)); await store.getState().refreshAll();
+    store.getState().setActiveTab('history');
+    store.getState().setSelectedCommit(store.getState().commits[0]);
+    await fs.writeFile(file(repo, 'a.txt'), 'working edit\n');
+    await store.getState().checkExternalChanges();
+    store.getState().setActiveTab('changes');
+    await eventually(() => store.getState().fileDiffLines.some(line => line.content === '+working edit'));
+    assert.equal(store.getState().fileDiffLoading, false);
+  } finally { store.getState().setCurrentRepo(null); store.getState().setActiveTab('changes'); }
+});
+
+test('all curated cursors ship locally with valid hotspots and unknown preferences use the system cursor', async () => {
+  assert.equal(app.CURSOR_STYLES.length, 14);
+  assert.equal(new Set(app.CURSOR_STYLES.map(style => style.id)).size, 14);
+  for (const invalid of [undefined, null, '', 'missing-theme', '__proto__', 'url(https://invalid.example)']) {
+    assert.equal(app.normalizeCursorTheme(invalid), 'system');
+  }
+  for (const style of app.CURSOR_STYLES) {
+    assert.equal(app.normalizeCursorTheme(style.id), style.id);
+    for (const role of ['arrow', 'hand']) {
+      const assetPath = style[role];
+      assert(assetPath.startsWith('/cursors/'));
+      const asset = await fs.readFile(path.join(root, 'public', assetPath));
+      assert(asset.length > 0);
+      const hotspot = role === 'arrow' ? style.hotspot : style.handHotspot;
+      assert(hotspot.every(value => Number.isInteger(value) && value >= 0 && value < 32));
+      if (assetPath.endsWith('.png')) { assert.equal(asset.readUInt32BE(16), 32); assert.equal(asset.readUInt32BE(20), 32); }
+      else { assert.match(asset.toString('utf8'), /width="32"/); assert.match(asset.toString('utf8'), /height="32"/); }
+    }
+  }
+});
+
+test('cursor selection applies immediately, survives restart, resets to native and rejects stale saved themes', async () => {
+  const settings = app.useSettingsStore;
+  const previous = settings.getState(); const previousRaw = localStorage.getItem('auu_git_settings');
+  const previousDocument = globalThis.document;
+  const properties = new Map(); const dataset = {};
+  globalThis.document = { documentElement: { style: { setProperty: (key, value) => properties.set(key, value), removeProperty: key => properties.delete(key) }, dataset, classList: { remove: () => {} } } };
+  const require = createRequire(import.meta.url);
+  const bundle = path.join(tmp, 'cursor-settings.cjs');
+  try {
+    settings.getState().setCursorTheme('nordzy-mocha-teal');
+    assert.equal(dataset.cursorTheme, 'nordzy-mocha-teal');
+    assert.match(properties.get('--app-cursor-default'), /arrow.png"\) 3 2, default$/);
+    assert.match(properties.get('--app-cursor-pointer'), /hand.png"\) 9 3, pointer$/);
+    assert.equal(JSON.parse(localStorage.getItem('auu_git_settings')).cursorTheme, 'nordzy-mocha-teal');
+    await build({ stdin: { contents: `export {useSettingsStore} from './src/stores/settingsStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+    const restart = () => { delete require.cache[bundle]; return require(bundle).useSettingsStore; };
+    const restored = restart();
+    assert.equal(restored.getState().cursorTheme, 'nordzy-mocha-teal');
+    restored.getState().resetSettings();
+    assert.equal(restored.getState().cursorTheme, 'system');
+    assert.equal(properties.size, 0); assert.equal(dataset.cursorTheme, 'system');
+    assert.equal(restart().getState().cursorTheme, 'system');
+    localStorage.setItem('auu_git_settings', JSON.stringify({ cursorTheme: 'removed-theme' }));
+    assert.equal(restart().getState().cursorTheme, 'system');
+    assert.equal(properties.size, 0);
+  } finally {
+    settings.setState(previous);
+    if (previousRaw === null) localStorage.removeItem('auu_git_settings'); else localStorage.setItem('auu_git_settings', previousRaw);
+    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
   }
 });

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React from 'react';
 import {
   FolderOpen,
@@ -21,7 +22,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
   onCloneRepo,
   onInitRepo,
 }) => {
-  const { recentRepos, setCurrentRepo } = useRepoStore();
+  const { recentRepos, setCurrentRepo } = useRepoStore(useShallow(state => ({ recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo })));
   const { t } = useI18n();
 
   return (

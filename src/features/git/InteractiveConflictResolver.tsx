@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Check,
@@ -50,7 +51,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     resetFileConflictMarkers,
     resolveFileOurs,
     resolveFileTheirs,
-  } = useRepoStore();
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, readWorkingFile: state.readWorkingFile, saveAndStageConflictFile: state.saveAndStageConflictFile, resetFileConflictMarkers: state.resetFileConflictMarkers, resolveFileOurs: state.resolveFileOurs, resolveFileTheirs: state.resolveFileTheirs })));
   const { t } = useI18n();
 
   const [loading, setLoading] = useState(true);

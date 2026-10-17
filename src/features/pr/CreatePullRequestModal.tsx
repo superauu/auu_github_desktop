@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useEffect, useRef } from 'react';
@@ -21,7 +22,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   open,
   onOpenChange,
 }) => {
-  const { currentRepo, branches, commits, status } = useRepoStore();
+  const { currentRepo, branches, commits, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, commits: state.commits, status: state.status })));
   const { currentOwner, currentRepoName, loadPullRequests, selectPR } = useGitHubStore();
   const { aiConfig } = useSettingsStore();
   const { t } = useI18n();

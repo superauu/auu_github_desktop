@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React, { useEffect } from 'react';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -7,7 +8,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 
 export const App: React.FC = () => {
   const { initTheme } = useThemeStore();
-  const { setCurrentRepo } = useRepoStore();
+  const { setCurrentRepo } = useRepoStore(useShallow(state => ({ setCurrentRepo: state.setCurrentRepo })));
   const { initAuth } = useGitHubStore();
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState } from 'react';
 import { GitBranch, X, Loader2, Check } from 'lucide-react';
@@ -20,7 +21,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
   defaultBaseBranch,
   defaultCommitHash,
 }) => {
-  const { currentRepo, branches, status, commits, createBranch } = useRepoStore();
+  const { currentRepo, branches, status, commits, createBranch } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, status: state.status, commits: state.commits, createBranch: state.createBranch })));
   const { t } = useI18n();
 
   const currentBranch =

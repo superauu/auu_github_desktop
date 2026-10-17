@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import { GitMerge, X, Loader2, AlertCircle, Check, ArrowRight } from 'lucide-react';
@@ -18,7 +19,7 @@ export const MergeBranchModal: React.FC<MergeBranchModalProps> = ({
   onOpenChange,
   targetBranch: initialTargetBranch,
 }) => {
-  const { currentRepo, branches, status, mergeBranch } = useRepoStore();
+  const { currentRepo, branches, status, mergeBranch } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, status: state.status, mergeBranch: state.mergeBranch })));
   const { t } = useI18n();
 
   const currentBranch =

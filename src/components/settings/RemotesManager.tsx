@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, RefreshCw, Check, X } from 'lucide-react';
@@ -16,7 +17,7 @@ interface RemoteEntry {
 
 export const RemotesManager: React.FC = () => {
   const { t } = useI18n();
-  const { currentRepo, refreshAll } = useRepoStore();
+  const { currentRepo, refreshAll } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, refreshAll: state.refreshAll })));
 
   const [remotes, setRemotes] = useState<RemoteEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);

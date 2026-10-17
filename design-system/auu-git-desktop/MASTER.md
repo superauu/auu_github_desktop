@@ -37,6 +37,7 @@ Inspect changes → control staged content → write a message → commit → pu
 - File lists support arrows, Home/End, Enter, Space to stage/unstage, and Shift+F10 for context menus. History navigation works across virtualized rows.
 - Context menus support arrows and Escape and restore focus to their origin. Hover actions must also appear on keyboard focus.
 - Icon buttons have accessible names and practical pointer targets. Resize separators support keyboard adjustment.
+- Mouse cursors use the system style by default. Appearance settings offer all 14 curated styles with paired arrow/hand previews on light and dark backgrounds. Apply and persist the choice immediately; preserve native text, resize and disabled cursors, including a native fallback in forced-color mode.
 - Use application confirmation dialogs for destructive operations. Show repository, branch, affected object and recovery implications. Focus Cancel initially.
 - Do not add confirmation to ordinary staging actions.
 

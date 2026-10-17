@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React, { lazy, Suspense } from 'react';
 import { useRepoStore } from '@/stores/repoStore';
 import { WelcomeView } from '@/features/repository/WelcomeView';
@@ -22,7 +23,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
   onInitRepoDialog,
   onOpenGitHubAuth,
 }) => {
-  const { currentRepo, activeTab } = useRepoStore();
+  const { currentRepo, activeTab } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab })));
   const { isEmbeddedTerminalOpen, setEmbeddedTerminalOpen } = useLayoutStore();
 
   if (!currentRepo) {

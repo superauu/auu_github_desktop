@@ -14,6 +14,8 @@ import { gitService } from '@/services/git/GitService';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import { hasConflictMarkers } from '@/services/git/ConflictParser';
 import { useGitHubStore } from '@/stores/githubStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 
 export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests';
 
@@ -32,6 +34,8 @@ interface RepoState {
   selectedFile: GitFileChange | null;
   selectedCommit: GitCommit | null;
   fileDiffLines: ParsedDiffLine[];
+  fileDiffLoading: boolean;
+  fileDiffError: string | null;
   commits: GitCommit[];
   commitsLimit: number;
   commitsLoadedAll: boolean;
@@ -73,7 +77,7 @@ interface RepoState {
   fetchRemote: () => Promise<void>;
   pull: (rebase?: boolean) => Promise<void>;
   push: (remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }) => Promise<void>;
-  loadFileDiff: (file: GitFileChange, commitHash?: string) => Promise<void>;
+  loadFileDiff: (file: GitFileChange, commitHash?: string, background?: boolean) => Promise<void>;
   stageFile: (filePath: string) => Promise<void>;
   unstageFile: (filePath: string) => Promise<void>;
   stageHunk: (filePath: string, hunk: ParsedDiffLine[], isUntracked?: boolean) => Promise<void>;
@@ -133,7 +137,9 @@ export const useRepoStore = create<RepoState>((set, get) => {
   let repoEpoch = 0;
   let refreshId = 0;
   let diffId = 0;
-  let checkingExternal = false;
+  const checkingExternal = new Set<number>();
+  let refsFingerprint: string | null = null;
+  let loadingMore = false;
   const publish = set;
   const scopedSet = (): typeof set => {
     const epoch = repoEpoch;
@@ -176,6 +182,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
     selectedFile: null,
     selectedCommit: null,
     fileDiffLines: [],
+    fileDiffLoading: false,
+    fileDiffError: null,
     commits: [],
     commitsLimit: 100,
     commitsLoadedAll: false,
@@ -199,6 +207,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
     setCurrentRepo: (repo) => {
       repoEpoch++; refreshId++; diffId++;
+      refsFingerprint = null;
       useGitHubStore.getState().clearRepo();
       set((state) => {
         let newTabs = state.openTabs;
@@ -217,6 +226,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           selectedFile: null,
           selectedCommit: null,
           fileDiffLines: [],
+          fileDiffLoading: false, fileDiffError: null,
           redoStack: [],
           openTabs: newTabs,
         };
@@ -245,12 +255,21 @@ export const useRepoStore = create<RepoState>((set, get) => {
         get().setCurrentRepo(tab);
       }
     },
-    setActiveTab: (activeTab) => { diffId++; set({ activeTab }); },
+    setActiveTab: (activeTab) => {
+      diffId++; set({ activeTab, fileDiffLoading: false });
+      if (activeTab === 'changes' && get().selectedFile) void get().loadFileDiff(get().selectedFile!);
+    },
     setStatus: (status) => set({ status }),
     setSelectedFile: (selectedFile) => {
+      const previous = get().selectedFile;
+      if (previous?.path === selectedFile?.path && previous?.staged === selectedFile?.staged) {
+        if (JSON.stringify(previous) !== JSON.stringify(selectedFile)) set({ selectedFile });
+        if (selectedFile && get().activeTab === 'changes') void get().loadFileDiff(selectedFile, undefined, true);
+        return;
+      }
       diffId++;
-      set({ selectedFile, fileDiffLines: [] });
-      if (selectedFile) {
+      set({ selectedFile, fileDiffLines: [], fileDiffError: null, fileDiffLoading: !!selectedFile && get().activeTab === 'changes' });
+      if (selectedFile && get().activeTab === 'changes') {
         get().loadFileDiff(selectedFile);
       } else {
         set({ fileDiffLines: [] });
@@ -265,6 +284,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       const { currentRepo, commits, branches } = get();
       if (!currentRepo) return;
 
+      useWorkspaceSessionStore.getState().updateHistoryView(currentRepo.path, { query: '', scrollTop: 0 });
       set({ selectedBranch: branchName, activeTab: 'history' });
 
       // 1. Try to find the target commit hash from branches or git rev-parse
@@ -352,21 +372,47 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }),
 
     checkExternalChanges: async () => {
-      if (!get().currentRepo || checkingExternal) return;
-      checkingExternal = true;
+      const repo = get().currentRepo;
+      const epoch = repoEpoch;
+      if (!repo || checkingExternal.has(epoch)) return;
+      const refresh = refreshId;
+      checkingExternal.add(epoch);
       try {
-        // Status codes alone cannot detect edits to an already-dirty file or new local commits.
-        // Refresh local data; syncRepo avoids repeated GitHub requests for unchanged bindings.
-        await get().refreshAll().catch(() => {});
-      } finally { checkingExternal = false; }
+        const [status, refs, remoteUrl] = await Promise.all([
+          gitService.getStatus(repo.path), gitService.getRefsFingerprint(repo.path), gitService.getOriginUrl(repo.path),
+        ]);
+        if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
+        if (refsFingerprint !== refs || status.headOid !== get().status?.headOid || status.currentBranch !== repo.currentBranch || remoteUrl !== repo.remoteUrl) {
+          await get().refreshAll();
+          return;
+        }
+        const operationState = await gitService.getRepoOperationState(repo.path, status);
+        if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
+        if (JSON.stringify(status) !== JSON.stringify(get().status)) set({ status });
+        if (JSON.stringify(operationState) !== JSON.stringify(get().operationState)) set({ operationState });
+        const changes = [...status.staged, ...status.unstaged, ...status.untracked];
+        const selected = get().selectedFile;
+        const next = changes.find(file => file.path === selected?.path && file.staged === selected.staged) || changes[0] || null;
+        // Re-read the visible diff even if status codes did not change; keep old content while loading.
+        get().setSelectedFile(next);
+      } catch (error: any) {
+        if (isCurrent(repo.path, epoch) && refresh === refreshId) set({ errorMessage: error.message });
+      } finally { checkingExternal.delete(epoch); }
     },
 
     loadMoreCommits: async () => {
       const set = scopedSet();
-      const { currentRepo } = get();
-      if (!currentRepo) return;
-      set((state) => ({ commitsLimit: state.commitsLimit + 100 }));
-      await get().refreshAll();
+      const { currentRepo, commits, commitsLimit, commitsLoadedAll } = get();
+      if (!currentRepo || loadingMore || commitsLoadedAll) return;
+      loadingMore = true;
+      const epoch = repoEpoch;
+      const refresh = refreshId;
+      try {
+        const next = await gitService.getCommits(currentRepo.path, 100, commitsLimit);
+        if (!isCurrent(currentRepo.path, epoch) || refresh !== refreshId) return;
+        const seen = new Set(commits.map(commit => commit.hash));
+        set({ commits: [...commits, ...next.filter(commit => !seen.has(commit.hash))], commitsLimit: commitsLimit + 100, commitsLoadedAll: next.length < 100 });
+      } finally { loadingMore = false; }
     },
 
     refreshAll: async () => {
@@ -380,13 +426,15 @@ export const useRepoStore = create<RepoState>((set, get) => {
       set({ isLoading: true, errorMessage: null });
       try {
         const { commitsLimit } = get();
+        const statusPromise = gitService.getStatus(currentRepo.path);
+        const nextRefs = gitService.getRefsFingerprint(currentRepo.path).catch(() => null);
         const [status, commits, branches, tags, stashes, operationState] = await Promise.all([
-          gitService.getStatus(currentRepo.path),
+          statusPromise,
           gitService.getCommits(currentRepo.path, commitsLimit),
           gitService.getBranches(currentRepo.path),
           gitService.getTags(currentRepo.path),
           gitService.getStashes(currentRepo.path),
-          gitService.getRepoOperationState(currentRepo.path),
+          statusPromise.then(status => gitService.getRepoOperationState(currentRepo.path, status)),
         ]);
 
         // Compute authoritative active branch
@@ -401,8 +449,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
         };
 
         // Re-read origin even when cached, so remote edits/removals cannot retain an old binding.
-        const detected = await gitService.openRepository(activeRepo.path);
+        const detected = await gitService.openRepository(activeRepo.path, status);
+        const resolvedRefs = await nextRefs;
         if (!valid()) return;
+        refsFingerprint = resolvedRefs;
         activeRepo = { ...activeRepo, remoteUrl: detected.remoteUrl,
           isGitHubRepo: detected.isGitHubRepo, gitHubOwner: detected.gitHubOwner, gitHubRepo: detected.gitHubRepo };
 
@@ -466,10 +516,11 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
       try {
         const { commitsLimit } = get();
-        const [status, commits] = await Promise.all([
-          gitService.getStatus(currentRepo.path),
-          gitService.getCommits(currentRepo.path, commitsLimit),
-        ]);
+        const status = await gitService.getStatus(currentRepo.path);
+        const previous = get().status;
+        const commits = status.headOid !== previous?.headOid || status.currentBranch !== previous?.currentBranch
+          ? await gitService.getCommits(currentRepo.path, commitsLimit) : get().commits;
+        const operationState = await gitService.getRepoOperationState(currentRepo.path, status);
 
         if (!valid()) return;
         set((state) => {
@@ -480,6 +531,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
             isLoading: false,
             currentRepo: { ...currentRepo, currentBranch: status.currentBranch },
             status,
+            operationState,
             commits,
             commitsLoadedAll: commits.length < commitsLimit,
             openTabs: updatedTabs,
@@ -551,33 +603,36 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    loadFileDiff: async (file: GitFileChange, commitHash?: string) => {
+    loadFileDiff: async (file: GitFileChange, commitHash?: string, background = false) => {
       const set = scopedSet();
-      const { currentRepo, selectedCommit, activeTab } = get();
+      const { currentRepo } = get();
       if (!currentRepo) return;
       const epoch = repoEpoch;
       const request = ++diffId;
       const valid = () => isCurrent(currentRepo.path, epoch) && request === diffId;
+      if (!background) set({ fileDiffLoading: true, fileDiffError: null });
 
       try {
-        const targetCommit =
-          commitHash || (activeTab === 'history' && selectedCommit ? selectedCommit.hash : undefined);
-
         let diffLines: ParsedDiffLine[] = [];
-        if (targetCommit) {
-          diffLines = await gitService.getCommitFileDiff(currentRepo.path, targetCommit, file.path);
+        const ignoreWhitespace = useSettingsStore.getState().diffIgnoreWhitespace;
+        if (commitHash) {
+          diffLines = await gitService.getCommitFileDiff(currentRepo.path, commitHash, file.path, ignoreWhitespace);
         } else {
           diffLines = await gitService.getFileDiff(
             currentRepo.path,
             file.path,
             file.staged,
-            file.status === 'untracked'
+            file.status === 'untracked',
+            ignoreWhitespace
           );
         }
-        if (valid()) set({ fileDiffLines: diffLines });
+        if (valid()) {
+          const changed = JSON.stringify(diffLines) !== JSON.stringify(get().fileDiffLines);
+          set({ ...(changed ? { fileDiffLines: diffLines } : {}), fileDiffLoading: false, fileDiffError: null });
+        }
       } catch (err: any) {
         console.warn('获取 Diff 失败:', err);
-        if (valid()) set({ fileDiffLines: [] });
+        if (valid()) set({ fileDiffLoading: false, fileDiffError: err.message || String(err) });
       }
     },
 
@@ -587,7 +642,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.stageFile(currentRepo.path, filePath);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;
@@ -600,7 +655,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.unstageFile(currentRepo.path, filePath);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;
@@ -613,7 +668,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.stageHunk(currentRepo.path, filePath, hunk, isUntracked);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;
@@ -626,7 +681,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.unstageHunk(currentRepo.path, filePath, hunk);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;
@@ -639,7 +694,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) return;
       try {
         await gitService.discardHunk(currentRepo.path, filePath, hunk);
-        await get().refreshAll();
+        await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });
         throw err;

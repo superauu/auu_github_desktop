@@ -101,6 +101,17 @@ export const en = {
   'settings.panel.github': 'GitHub Auth & Credentials',
   'settings.panel.shortcuts': 'Global Keyboard Shortcuts',
   'settings.appearance.themeLabel': 'UI Color Theme',
+  'settings.cursor.label': 'Mouse cursor',
+  'settings.cursor.description': 'Applies within the app. Changes take effect and are saved immediately.',
+  'settings.cursor.system': 'System default (default)',
+  'settings.cursor.ice': 'Ice Rounded',
+  'settings.cursor.systemHint': 'Uses your system cursor style and size. Text editing, resizing and disabled states keep their native cursors.',
+  'settings.cursor.preview': 'Mouse cursor preview',
+  'settings.cursor.lightPreview': 'Light background',
+  'settings.cursor.darkPreview': 'Dark background',
+  'settings.cursor.arrow': 'Default arrow',
+  'settings.cursor.hand': 'Link pointer',
+  'settings.cursor.previewHint': 'Images are shown at 2× size. Move the mouse or hover a button to try the actual size.',
   'settings.appearance.theme.dark.name': 'Dark',
   'settings.appearance.theme.dark.desc': 'Graphite charcoal cyber dark',
   'settings.appearance.theme.light.name': 'Light',
@@ -342,7 +353,7 @@ export const en = {
   'changes.viewDiff': 'View Diff',
   'changes.unstageOrStage': 'Unstage',
   'changes.stageThisFile': 'Stage this file',
-  'changes.emptyDiffUntracked': 'No text diff, or this is a new untracked file',
+  'changes.emptyDiffUntracked': 'No text diff (the file may be empty or only metadata changed)',
 
 
   // ============ Header extras ============
@@ -1134,7 +1145,21 @@ export const en = {
   'header.refresh': 'Refresh',
   'header.refreshed': 'Repository state refreshed',
   'header.refreshFailed': 'Refresh failed',
-  'header.refreshTooltip': 'Refresh repository state — picks up external changes (terminal, editor, etc.)'
+  'header.refreshTooltip': 'Refresh repository state — picks up external changes (terminal, editor, etc.)',
+  'history.searchingAll': 'Searching the full repository history…',
+  'diff.search': 'Find in diff',
+  'diff.previousMatch': 'Previous match',
+  'diff.nextMatch': 'Next match',
+  'diff.wrap': 'Wrap lines',
+  'diff.ignoreWhitespace': 'Ignore whitespace',
+  'diff.ignoreHint': 'Display only. Staging a whole file includes whitespace changes; turn this off for hunk actions.',
+  'changes.selectionActions': 'Selected file actions',
+  'changes.selected': 'selected',
+  'changes.stageSelected': 'Stage selected',
+  'changes.unstageSelected': 'Unstage selected',
+  'changes.clearSelection': 'Clear selection',
+  'changes.processing': 'Processing Git operations…',
+  'changes.selectionHint': 'Ctrl / ⌘ click to select multiple; Shift click for a range',
 } as const;
 
 export type TranslationKey = keyof typeof en;

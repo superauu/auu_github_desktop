@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --app-cursor-default: default;
+    --app-cursor-pointer: pointer;
     /* Cyberpunk "Steel Ops" 浅色变体：冷灰蓝底 + 电光青主色 */
     --git-added: 152 70% 27%;
     --git-modified: 216 22% 38%;
@@ -15,6 +17,8 @@
     --git-commit: 192 95% 24%;
     --background: 212 38% 96%;
     --foreground: 235 40% 10%;
+    --selection-background: 216 75% 38%;
+    --selection-foreground: 0 0% 100%;
 
     --card: 0 0% 100%;
     --card-foreground: 235 40% 10%;
@@ -64,6 +68,8 @@
     --git-commit: 186 100% 50%;
     --background: 0 0% 5%;
     --foreground: 0 0% 96%;
+    --selection-background: 186 100% 50% / 0.32;
+    --selection-foreground: 200 100% 97%;
 
     --card: 0 0% 8%;
     --card-foreground: 0 0% 96%;
@@ -115,16 +121,11 @@
   border-radius: 9999px;
 }
 
-/* 文本选区：暗色用亮青+浅字，浅色主题切换为深字保证对比度 */
+/* Opaque light-theme selection also overrides syntax and diff text colors. */
 ::selection {
-  background: rgba(0, 229, 255, 0.32);
-  color: #f0faff;
-}
-
-.light ::selection,
-:root:not(.dark) ::selection {
-  background: rgba(0, 150, 199, 0.25);
-  color: inherit;
+  background-color: hsl(var(--selection-background));
+  color: hsl(var(--selection-foreground));
+  text-shadow: none;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -534,3 +535,23 @@ body { font-size: 14px; }
 button:disabled { box-shadow: none !important; cursor: not-allowed; }
 .dark .btn-neon:not(:disabled) { box-shadow: 0 0 8px -4px hsl(var(--primary) / .3); }
 .text-glow-cyan, .text-glow-pink { text-shadow: none; }
+[data-file-path] > div > button:first-child { min-width: 28px; min-height: 28px; display: flex; align-items: center; justify-content: center; }
+[data-file-path][data-picked='true'] { box-shadow: inset 0 0 0 1px hsl(var(--primary) / .5); background: hsl(var(--accent)); }
+.diff-wrap [data-diff-content] { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+
+/* Native cursors preserve the exact hotspot without adding a per-frame mouse tracker. */
+body, .cursor-default { cursor: var(--app-cursor-default); }
+.cursor-pointer, .menu-item,
+:where(button, a[href], summary, select, label[for], [role='button'], [role='menuitem'], [role='option'], input[type='checkbox'], input[type='radio']):not(:disabled):not([aria-disabled='true']) {
+  cursor: var(--app-cursor-pointer);
+}
+/* Utility classes retain the meaning of editing, dragging and unavailable actions. */
+.cursor-text, textarea, input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='button']):not([type='submit']) { cursor: text; }
+.cursor-col-resize { cursor: col-resize; }
+.cursor-row-resize { cursor: row-resize; }
+.cursor-not-allowed, [aria-disabled='true'], input:disabled, textarea:disabled, select:disabled { cursor: not-allowed; }
+@media (forced-colors: active) {
+  body, .cursor-default { cursor: default; }
+  .cursor-pointer, .menu-item,
+  :where(button, a[href], summary, select, label[for], [role='button'], [role='menuitem'], [role='option'], input[type='checkbox'], input[type='radio']):not(:disabled):not([aria-disabled='true']) { cursor: pointer; }
+}

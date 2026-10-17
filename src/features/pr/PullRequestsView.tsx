@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -46,7 +47,7 @@ export const PullRequestsView: React.FC = () => {
     error,
   } = useGitHubStore();
 
-  const { fetchAndCheckoutPR } = useRepoStore();
+  const { fetchAndCheckoutPR } = useRepoStore(useShallow(state => ({ fetchAndCheckoutPR: state.fetchAndCheckoutPR })));
   const { t } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');

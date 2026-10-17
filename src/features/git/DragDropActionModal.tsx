@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState } from 'react';
 import { 
@@ -31,7 +32,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
   sourceBranch,
   targetBranch,
 }) => {
-  const { currentRepo, branches, status, checkoutBranch, mergeBranch, rebaseBranch } = useRepoStore();
+  const { currentRepo, branches, status, checkoutBranch, mergeBranch, rebaseBranch } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, status: state.status, checkoutBranch: state.checkoutBranch, mergeBranch: state.mergeBranch, rebaseBranch: state.rebaseBranch })));
   const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [selectedAction, setSelectedAction] = useState<'merge' | 'rebase-target' | 'rebase-source'>('merge');

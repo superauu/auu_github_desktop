@@ -1,3 +1,4 @@
+import { VirtualRows } from '@/components/ui/VirtualRows';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
@@ -32,15 +33,15 @@ function parseAnsi(text: string): React.ReactNode[] {
       } else if (part === '\x1b[1m') {
         isBold = true;
       } else if (part === '\x1b[32m') {
-        currentColor = 'text-emerald-400';
+        currentColor = 'text-git-added';
       } else if (part === '\x1b[31m') {
-        currentColor = 'text-rose-400';
+        currentColor = 'text-git-deleted';
       } else if (part === '\x1b[33m') {
-        currentColor = 'text-amber-400';
+        currentColor = 'text-git-tag';
       } else if (part === '\x1b[34m' || part === '\x1b[36m') {
-        currentColor = 'text-cyan-400';
+        currentColor = 'text-primary';
       } else if (part === '\x1b[35m') {
-        currentColor = 'text-violet-400';
+        currentColor = 'text-git-branch';
       }
       return null;
     }
@@ -76,9 +77,8 @@ export const JobLogsViewerModal: React.FC = () => {
   }, [activeJobLogs?.rawLogs]);
 
   const filteredLines = useMemo(() => {
-    if (!searchQuery.trim()) return rawLines;
     const q = searchQuery.toLowerCase();
-    return rawLines.filter((l) => l.toLowerCase().includes(q));
+    return rawLines.filter(line => !line.includes('##[endgroup]') && (!q.trim() || line.toLowerCase().includes(q)));
   }, [rawLines, searchQuery]);
 
   useEffect(() => {
@@ -119,7 +119,7 @@ export const JobLogsViewerModal: React.FC = () => {
         {/* Terminal Header Bar */}
         <div className="h-10 px-4 border-b border-border/80 bg-accent/30 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <Terminal className="h-4 w-4 text-emerald-400" />
+            <Terminal className="h-4 w-4 text-git-added" />
             <span className="text-xs font-semibold font-mono text-foreground">
               {activeJobLogs.jobName}
             </span>
@@ -160,7 +160,7 @@ export const JobLogsViewerModal: React.FC = () => {
               className="h-7 px-2 text-[11px] gap-1 font-mono"
               title={t('logs.copyAll')}
             >
-              {isCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+              {isCopied ? <Check className="h-3 w-3 text-git-added" /> : <Copy className="h-3 w-3" />}
               <span>{isCopied ? t('logs.copied') : t('logs.copy')}</span>
             </Button>
 
@@ -179,7 +179,7 @@ export const JobLogsViewerModal: React.FC = () => {
               variant="ghost"
               size="xs"
               onClick={closeJobLogs}
-              className="h-7 w-7 p-0 hover:text-rose-400"
+              className="h-7 w-7 p-0 hover:text-git-deleted"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -196,23 +196,19 @@ export const JobLogsViewerModal: React.FC = () => {
               {t('logs.noMatch')}
             </div>
           ) : (
-            filteredLines.map((line, idx) => {
+            <VirtualRows items={filteredLines} rowHeight={24} renderRow={(line, idx) => {
               const isGroupHeader = line.includes('##[group]');
-              const isGroupEnd = line.includes('##[endgroup]');
-
-              if (isGroupEnd) return null;
-
               const cleanLine = isGroupHeader ? line.replace('##[group]', '▶ ') : line;
 
               return (
                 <div
                   key={idx}
                   className={cn(
-                    "flex hover:bg-white/[0.03] px-1 py-0.5 rounded transition-colors whitespace-pre-wrap break-all",
-                    isGroupHeader && "text-indigo-300 font-semibold bg-indigo-950/20 my-1 py-1"
+                    "flex hover:bg-accent/40 px-1 py-0.5 rounded transition-colors whitespace-pre-wrap break-all",
+                    isGroupHeader && "text-git-branch font-semibold bg-muted/50 my-1 py-1"
                   )}
                 >
-                  <span className="w-10 text-muted-foreground/30 text-right pr-3 select-none shrink-0 text-[11px]">
+                  <span className="w-10 text-muted-foreground text-right pr-3 select-none shrink-0 text-[11px]">
                     {idx + 1}
                   </span>
                   <div className="flex-1">
@@ -220,7 +216,7 @@ export const JobLogsViewerModal: React.FC = () => {
                   </div>
                 </div>
               );
-            })
+            }} />
           )}
         </div>
       </div>

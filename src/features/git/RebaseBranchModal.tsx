@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState } from 'react';
 import { GitPullRequest, X, Loader2, AlertTriangle, Check, ArrowRight, RefreshCw, Ban } from 'lucide-react';
@@ -18,7 +19,7 @@ export const RebaseBranchModal: React.FC<RebaseBranchModalProps> = ({
   onOpenChange,
   upstreamBranch: initialUpstreamBranch,
 }) => {
-  const { currentRepo, branches, status, rebaseBranch, rebaseContinue, rebaseAbort } = useRepoStore();
+  const { currentRepo, branches, status, rebaseBranch, rebaseContinue, rebaseAbort } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, status: state.status, rebaseBranch: state.rebaseBranch, rebaseContinue: state.rebaseContinue, rebaseAbort: state.rebaseAbort })));
   const { t } = useI18n();
 
   const currentBranch =

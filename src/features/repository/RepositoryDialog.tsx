@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import {
@@ -54,7 +55,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const [pathValidation, setPathValidation] = useState<DirectoryValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
 
-  const { setCurrentRepo, addRecentRepo, removeRecentRepo, recentRepos } = useRepoStore();
+  const { setCurrentRepo, addRecentRepo, removeRecentRepo, recentRepos } = useRepoStore(useShallow(state => ({ setCurrentRepo: state.setCurrentRepo, addRecentRepo: state.addRecentRepo, removeRecentRepo: state.removeRecentRepo, recentRepos: state.recentRepos })));
   const { t } = useI18n();
 
   useEffect(() => {

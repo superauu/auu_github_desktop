@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React, { useState } from 'react';
 import {
   AlertTriangle,
@@ -21,7 +22,7 @@ export const ConflictBanner: React.FC = () => {
     operationState,
     abortCurrentOperation,
     completeCurrentOperation,
-  } = useRepoStore();
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, operationState: state.operationState, abortCurrentOperation: state.abortCurrentOperation, completeCurrentOperation: state.completeCurrentOperation })));
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAbortConfirm, setShowAbortConfirm] = useState(false);

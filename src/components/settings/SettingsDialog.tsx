@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { requestAiCompletion } from '@/services/ai/AiTransport';
 import { RemotesManager } from './RemotesManager';
+import { CursorThemePicker } from './CursorThemePicker';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, LogOut, Key } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -290,6 +291,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     ))}
                   </div>
                 </div>
+
+                <CursorThemePicker />
 
                 <div className="pt-2 border-t border-border">
                   <label className="flex items-center justify-between gap-4 py-2 cursor-pointer">

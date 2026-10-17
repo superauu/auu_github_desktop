@@ -1,3 +1,5 @@
+import { useShallow } from 'zustand/react/shallow';
+import { VirtualRows } from '@/components/ui/VirtualRows';
 import { DiffFontControl } from '@/components/ui/DiffFontControl';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
@@ -6,7 +8,9 @@ import { FilePath } from '@/components/ui/FilePath';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { moveListFocus } from '@/utils/listKeyboard';
 import { computeSplitRows } from '@/utils/diffRows';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useId } from 'react';
+import { DiffTools, highlightDiff } from '@/components/ui/DiffTools';
+import { useGitActivity } from '@/hooks/useGitActivity';
 import {
   CheckSquare,
   Square,
@@ -44,11 +48,18 @@ export const WorkingChangesView: React.FC = () => {
   const { setChangesFileListWidth } = useLayoutStore();
   const { panels } = useWorkspaceLayout();
   const diffFontSize = useSettingsStore(state => state.diffFontSize);
+  const wrap = useSettingsStore(state => state.diffWrapLines);
+  const ignoreWhitespace = useSettingsStore(state => state.diffIgnoreWhitespace);
+  const [diffQuery, setDiffQuery] = useState('');
+  const diffId = useId();
   const {
     status,
     selectedFile,
     setSelectedFile,
     fileDiffLines,
+    fileDiffLoading,
+    fileDiffError,
+    loadFileDiff,
     commits,
     setSelectedCommit,
     setActiveTab,
@@ -65,7 +76,7 @@ export const WorkingChangesView: React.FC = () => {
     resolveFileOurs,
     resolveFileTheirs,
     resetFileConflictMarkers,
-  } = useRepoStore();
+  } = useRepoStore(useShallow(state => ({ status: state.status, selectedFile: state.selectedFile, setSelectedFile: state.setSelectedFile, fileDiffLines: state.fileDiffLines, fileDiffLoading: state.fileDiffLoading, fileDiffError: state.fileDiffError, loadFileDiff: state.loadFileDiff, commits: state.commits, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, currentRepo: state.currentRepo, stageFile: state.stageFile, unstageFile: state.unstageFile, stageHunk: state.stageHunk, unstageHunk: state.unstageHunk, discardHunk: state.discardHunk, stageAll: state.stageAll, unstageAll: state.unstageAll, discardChanges: state.discardChanges, stashPush: state.stashPush, resolveFileOurs: state.resolveFileOurs, resolveFileTheirs: state.resolveFileTheirs, resetFileConflictMarkers: state.resetFileConflictMarkers })));
   const { t, lang } = useI18n();
 
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
@@ -83,6 +94,25 @@ export const WorkingChangesView: React.FC = () => {
   const untrackedFiles = status?.untracked || [];
 
   const activeFile = selectedFile || stagedFiles[0] || unstagedFiles[0] || untrackedFiles[0];
+  const allFiles = useMemo(() => [...stagedFiles, ...unstagedFiles, ...untrackedFiles], [stagedFiles, unstagedFiles, untrackedFiles]);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const selectionAnchor = useRef(0);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const pendingWrites = useGitActivity(currentRepo?.path || '');
+  const fileKey = (file: GitFileChange) => JSON.stringify([file.path, file.staged]);
+  useEffect(() => { setPicked(new Set()); }, [currentRepo?.path]);
+  const selectedFiles = allFiles.filter(file => picked.has(fileKey(file)));
+  const applySelection = async (mode: 'stage' | 'unstage') => {
+    if (!currentRepo || batchBusy) return;
+    const path = currentRepo.path;
+    const paths = selectedFiles.filter(file => mode === 'stage' ? !file.staged : file.staged).map(file => file.path);
+    setBatchBusy(true);
+    try {
+      await (mode === 'stage' ? gitService.stageFiles(path, paths) : gitService.unstageFiles(path, paths));
+      if (useRepoStore.getState().currentRepo?.path === path) { setPicked(new Set()); await useRepoStore.getState().refreshStatus(); }
+    } catch (error: any) { toast.error(t('changes.opFailed'), error.message); }
+    finally { setBatchBusy(false); }
+  };
 
   // Auto activate resolver mode when selecting a conflicted file
   React.useEffect(() => {
@@ -93,7 +123,7 @@ export const WorkingChangesView: React.FC = () => {
 
   // 切换文件时回到 Diff 视图并清空 blame/历史数据
   useEffect(() => {
-    setContentMode('diff');
+    setContentMode('diff'); setDiffQuery('');
     setBlameLines([]);
     setFileCommits([]);
   }, [activeFile?.path]);
@@ -125,7 +155,7 @@ export const WorkingChangesView: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [contentMode, activeFile?.path, currentRepo]);
+  }, [contentMode, activeFile?.path, currentRepo?.path]);
 
   const getStatusBadge = (statusType: string) => {
     switch (statusType) {
@@ -179,12 +209,22 @@ export const WorkingChangesView: React.FC = () => {
       row?.focus();
     });
   };
-  const fileRowProps = (file: GitFileChange): React.HTMLAttributes<HTMLDivElement> & { 'data-list-row': string; 'data-file-path': string } => {
+  const fileRowProps = (file: GitFileChange): React.HTMLAttributes<HTMLDivElement> & { 'data-list-row': string; 'data-file-path': string; 'data-picked': string } => {
     const selected = activeFile?.path === file.path && activeFile?.staged === file.staged;
     return {
       role: 'listitem', tabIndex: selected ? 0 : -1, 'aria-current': selected ? 'true' : undefined,
       'aria-label': file.path, 'data-list-row': '', 'data-file-path': file.path,
-      onClick: () => setSelectedFile(file),
+      'data-picked': String(picked.has(fileKey(file))),
+      onClick: event => {
+        const index = allFiles.indexOf(file);
+        if (event.shiftKey) {
+          setPicked(previous => new Set([...previous, ...allFiles.slice(Math.min(selectionAnchor.current, index), Math.max(selectionAnchor.current, index) + 1).map(fileKey)]));
+        } else if (event.ctrlKey || event.metaKey) {
+          setPicked(previous => { const next = new Set(previous); const key = fileKey(file); next.has(key) ? next.delete(key) : next.add(key); return next; });
+          selectionAnchor.current = index;
+        } else { setPicked(new Set()); selectionAnchor.current = index; }
+        setSelectedFile(file);
+      },
       onFocus: event => { if (event.target === event.currentTarget) setSelectedFile(file); },
       onContextMenu: event => { event.preventDefault(); setSelectedFile(file); setFileMenu({ file, x: event.clientX, y: event.clientY }); },
       onKeyDown: event => {
@@ -232,6 +272,7 @@ export const WorkingChangesView: React.FC = () => {
     if (diffMode !== 'split' || fileDiffLines.length === 0) return [];
     return computeSplitRows(fileDiffLines);
   }, [diffMode, fileDiffLines]);
+  const diffContents = useMemo(() => diffMode === 'split' ? splitRows.map(row => row.headerContent || `${row.left?.content || ''}\n${row.right?.content || ''}`) : fileDiffLines.map(line => line.content), [diffMode, splitRows, fileDiffLines]);
 
   // 块级操作：按 @@ 头切分 hunk，并为统一视图的每个块头记录索引
   const hunks = useMemo(() => groupDiffIntoHunks(fileDiffLines), [fileDiffLines]);
@@ -278,7 +319,7 @@ export const WorkingChangesView: React.FC = () => {
   };
 
   const renderHunkActions = (hunkIdx: number) => {
-    if (!showHunkActions || hunkIdx < 0 || !activeFile) return null;
+    if (ignoreWhitespace || !showHunkActions || hunkIdx < 0 || !activeFile || !hunks[hunkIdx]?.some(line => line.type === 'add' || line.type === 'delete')) return null;
     const isUntracked = activeFile.status === 'untracked';
     const btnBase =
       'h-7 w-7 rounded flex items-center justify-center shrink-0 transition-colors';
@@ -433,6 +474,13 @@ export const WorkingChangesView: React.FC = () => {
           </div>
         </div>
 
+        {selectedFiles.length > 0 && <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border text-[12px]" role="toolbar" aria-label={t('changes.selectionActions')}>
+          <span>{selectedFiles.length} {t('changes.selected')}</span>
+          <Button size="xs" variant="outline" disabled={batchBusy || !selectedFiles.some(file => !file.staged)} onClick={() => void applySelection('stage')}>{t('changes.stageSelected')}</Button>
+          <Button size="xs" variant="outline" disabled={batchBusy || !selectedFiles.some(file => file.staged)} onClick={() => void applySelection('unstage')}>{t('changes.unstageSelected')}</Button>
+          <Button size="xs" variant="ghost" onClick={() => setPicked(new Set())}>{t('changes.clearSelection')}</Button>
+        </div>}
+        {pendingWrites > 0 && <p role="status" className="flex items-center gap-2 px-3 py-1 text-[12px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />{t('changes.processing')}</p>}
         <ScrollArea className="flex-1 p-2">
           {totalChanges === 0 ? (
             <EmptyState
@@ -458,7 +506,7 @@ export const WorkingChangesView: React.FC = () => {
                     </button>
                   </div>
                   <div className="space-y-0.5">
-                    {stagedFiles.map((file) => (
+                    <VirtualRows items={stagedFiles} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
                         {...fileRowProps(file)}
@@ -504,7 +552,7 @@ export const WorkingChangesView: React.FC = () => {
                           <Minus className="h-3 w-3" />
                         </Button>
                       </div>
-                    ))}
+                    )} />
                   </div>
                 </div>
               )}
@@ -524,7 +572,7 @@ export const WorkingChangesView: React.FC = () => {
                     </button>
                   </div>
                   <div className="space-y-0.5">
-                    {unstagedFiles.map((file) => (
+                    <VirtualRows items={unstagedFiles} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
                         {...fileRowProps(file)}
@@ -671,7 +719,7 @@ export const WorkingChangesView: React.FC = () => {
                           )}
                         </div>
                       </div>
-                    ))}
+                    )} />
                   </div>
                 </div>
               )}
@@ -683,7 +731,7 @@ export const WorkingChangesView: React.FC = () => {
                     <span>{t('changes.untracked')} ({untrackedFiles.length})</span>
                   </div>
                   <div className="space-y-0.5">
-                    {untrackedFiles.map((file) => (
+                    <VirtualRows items={untrackedFiles} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
                         {...fileRowProps(file)}
@@ -729,13 +777,14 @@ export const WorkingChangesView: React.FC = () => {
                           <Plus className="h-3 w-3" />
                         </Button>
                       </div>
-                    ))}
+                    )} />
                   </div>
                 </div>
               )}
             </div>
           )}
         </ScrollArea>
+        {totalChanges > 0 && <p className="px-3 py-2 text-[12px] text-muted-foreground border-t border-border">{t('changes.selectionHint')}</p>}
       </div>
 
       <ResizeHandle
@@ -906,6 +955,7 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
+        {activeFile && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
         {activeFile?.status === 'conflicted' && showResolver ? (
           <InteractiveConflictResolver
             filePath={activeFile.path}
@@ -995,8 +1045,8 @@ export const WorkingChangesView: React.FC = () => {
           </div>
         ) : (
           /* Diff Content View */
-          <div style={{ fontSize: diffFontSize }} className="flex-1 overflow-auto font-mono leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
-            {fileDiffLines.length === 0 ? (
+          <div id={diffId} style={{ fontSize: diffFontSize }} className={cn("flex-1 overflow-auto font-mono leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text", wrap && "diff-wrap")}>
+            {fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><p className="text-destructive break-words">{fileDiffError}</p><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
                 <div className="text-xs">
@@ -1005,8 +1055,7 @@ export const WorkingChangesView: React.FC = () => {
               </div>
             ) : diffMode === 'split' ? (
               /* Split Two-Column View */
-              <div className="min-w-full">
-                {splitRows.map((row, idx) => {
+              <VirtualRows items={splitRows} rowHeight={24} renderRow={(row, idx) => {
                   if (row.isHeader) {
                     return (
                       <div
@@ -1043,8 +1092,8 @@ export const WorkingChangesView: React.FC = () => {
                         <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
                           {row.left?.lineNo ?? ''}
                         </div>
-                        <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
-                          {row.left?.content ?? ''}
+                        <div data-diff-content className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
+                          {highlightDiff(row.left?.content || '', diffQuery)}
                         </div>
                       </div>
 
@@ -1062,17 +1111,16 @@ export const WorkingChangesView: React.FC = () => {
                         <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20 border-r border-border/40">
                           {row.right?.lineNo ?? ''}
                         </div>
-                        <div className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
-                          {row.right?.content ?? ''}
+                        <div data-diff-content className="px-2.5 whitespace-pre font-mono flex-1 overflow-x-auto">
+                          {highlightDiff(row.right?.content || '', diffQuery)}
                         </div>
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                }} />
             ) : (
               /* Unified Single Column View */
-              <div className="min-w-max">{fileDiffLines.map((line, idx) => {
+              <VirtualRows items={fileDiffLines} contentWidth={!wrap} rowHeight={24} renderRow={(line, idx) => {
                 if (line.type === 'header') {
                   return (
                     <div
@@ -1108,12 +1156,12 @@ export const WorkingChangesView: React.FC = () => {
                       {line.newNo ?? ''}
                     </div>
                     {/* Content */}
-                    <div className="px-3 whitespace-pre font-mono flex-1">
-                      {line.content}
+                    <div data-diff-content className="px-3 whitespace-pre font-mono flex-1">
+                      {highlightDiff(line.content, diffQuery)}
                     </div>
                   </div>
                 );
-              })}</div>
+              }} />
             )}
           </div>
         )}

@@ -57,6 +57,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
   const lines = nulDelimited ? output.split('\0') : output.split(/\r?\n/);
 
   let currentBranch = 'main';
+  let headOid: string | undefined;
   let trackingBranch: string | undefined = undefined;
   let ahead = 0;
   let behind = 0;
@@ -70,7 +71,9 @@ export function parsePorcelainV2(output: string): GitStatusResult {
     if (!line.trim()) continue;
 
     // Header branch lines
-    if (line.startsWith('# branch.head ')) {
+    if (line.startsWith('# branch.oid ')) {
+      headOid = line.substring('# branch.oid '.length).trim();
+    } else if (line.startsWith('# branch.head ')) {
       currentBranch = line.substring('# branch.head '.length).trim();
       if (currentBranch === '(detached)') {
         currentBranch = 'DETACHED';
@@ -167,6 +170,7 @@ export function parsePorcelainV2(output: string): GitStatusResult {
   const isClean = staged.length === 0 && unstaged.length === 0 && untracked.length === 0;
 
   return {
+    headOid,
     currentBranch,
     trackingBranch,
     ahead,
@@ -436,6 +440,9 @@ export function parseDiffOutput(rawDiff: string): ParsedDiffLine[] {
     }
 
     if (!inHunk) {
+      if (line.startsWith('Binary files ') || line.startsWith('GIT binary patch')) {
+        result.push({ type: 'header', oldNo: null, newNo: null, content: line, patchHeader: [] });
+      }
       patchHeader.push(line);
       continue;
     }

@@ -1,8 +1,11 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { confirmAction } from '@/stores/confirmStore';
 import { Button } from '@/components/ui/button';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import { useWorkspaceSessionStore, DEFAULT_HISTORY_VIEW } from '@/stores/workspaceSessionStore';
+import { gitService } from '@/services/git/GitService';
 import {
   GitCommit as GitCommitIcon,
   Tag as TagIcon,
@@ -46,13 +49,26 @@ export const CommitHistoryView: React.FC = () => {
     cherryPickCommit,
     softResetCommit,
     hardResetCommit,
-  } = useRepoStore();
+  } = useRepoStore(useShallow(state => ({ commits: state.commits, selectedCommit: state.selectedCommit, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, scrollToCommitHash: state.scrollToCommitHash, isLoading: state.isLoading, commitsLoadedAll: state.commitsLoadedAll, loadMoreCommits: state.loadMoreCommits, revertCommit: state.revertCommit, cherryPickCommit: state.cherryPickCommit, softResetCommit: state.softResetCommit, hardResetCommit: state.hardResetCommit })));
 
-  const [metadataWidth, setMetadataWidth] = useState(176);
+  const repoPath = useRepoStore(state => state.currentRepo?.path) || '';
+  const savedView = useWorkspaceSessionStore(state => state.historyViews[repoPath]) || DEFAULT_HISTORY_VIEW;
+  const { metadataWidth, columns, query: searchQuery } = savedView;
+  const updateView = useCallback((patch: Partial<typeof DEFAULT_HISTORY_VIEW>) => useWorkspaceSessionStore.getState().updateHistoryView(repoPath, patch), [repoPath]);
+  const setMetadataWidth = (metadataWidth: number) => updateView({ metadataWidth });
+  const setColumns = (update: (previous: typeof columns) => typeof columns) => updateView({ columns: update(columns) });
+  const setSearchQuery = (query: string) => updateView({ query, scrollTop: 0 });
   const [graphWidth, setGraphWidth] = useState(64);
   const focusAfterRender = useRef<string | null>(null);
-  const [columns, setColumns] = useState({ author: true, date: true, hash: false });
-  const [searchQuery, setSearchQuery] = useState('');
+  const [remoteResults, setRemoteResults] = useState<{ query: string; commits: GitCommit[] } | null>(null);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [searchComplete, setSearchComplete] = useState(false);
+  const searchRequest = useRef(0);
+  const scrollSave = useRef<ReturnType<typeof setTimeout>>();
+  const lastScroll = useRef(savedView.scrollTop);
+  const previousQuery = useRef(searchQuery);
+  const restoringScroll = useRef(savedView.scrollTop > 0);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ open: boolean; x: number; y: number; commit: GitCommit | null }>({
     open: false,
@@ -68,17 +84,20 @@ export const CommitHistoryView: React.FC = () => {
 
   const hasWip = totalChanges > 0;
   const viewportRef = useRef<HTMLDivElement>(null);
-  const [viewport, setViewport] = useState({ top: 0, height: 800 });
+  const [viewport, setViewport] = useState({ top: savedView.scrollTop, height: 800 });
   useEffect(() => {
     const element = viewportRef.current;
     if (!element) return;
+    element.scrollTop = savedView.scrollTop;
     const update = () => setViewport({ top: element.scrollTop, height: element.clientHeight });
     const observer = new ResizeObserver(update); observer.observe(element); update();
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); clearTimeout(scrollSave.current); updateView({ scrollTop: lastScroll.current }); };
   }, []);
 
   // Auto-scroll to selected commit or target branch commit
   useEffect(() => {
+    if (restoringScroll.current && !scrollToCommitHash) { restoringScroll.current = false; return; }
+    restoringScroll.current = false;
     const hashToScroll = scrollToCommitHash || selectedCommit?.hash;
     if (!hashToScroll) return;
 
@@ -90,12 +109,28 @@ export const CommitHistoryView: React.FC = () => {
       }
       const el = document.getElementById(`commit-row-${hashToScroll}`);
       if (scrollToCommitHash && el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+      if (scrollToCommitHash) useRepoStore.getState().setScrollToCommitHash(null);
     }, 60);
 
     return () => clearTimeout(timer);
   }, [scrollToCommitHash, selectedCommit?.hash]);
 
-  const filteredCommits = commits.filter((c) => {
+  useEffect(() => {
+    const request = ++searchRequest.current;
+    setSearchError(''); setSearchComplete(false);
+    if (!searchQuery.trim() || !repoPath) { setSearchBusy(false); setRemoteResults(null); return; }
+    setSearchBusy(true);
+    const timer = setTimeout(() => {
+      void gitService.findCommits(repoPath, searchQuery).then(results => {
+        if (request !== searchRequest.current) return;
+        setRemoteResults({ query: searchQuery, commits: results }); setSearchComplete(results.length < 100);
+      }).catch((error: Error) => { if (request === searchRequest.current) setSearchError(error.message); })
+        .finally(() => { if (request === searchRequest.current) setSearchBusy(false); });
+    }, 250);
+    return () => { clearTimeout(timer); searchRequest.current++; };
+  }, [repoPath, searchQuery]);
+
+  const filteredCommits = useMemo(() => remoteResults?.query === searchQuery && searchQuery.trim() ? remoteResults.commits : commits.filter((c) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -104,9 +139,29 @@ export const CommitHistoryView: React.FC = () => {
       c.shortHash.toLowerCase().includes(q) ||
       c.refs?.some((r) => r.toLowerCase().includes(q))
     );
-  });
+  }), [commits, searchQuery, remoteResults]);
 
-  useEffect(() => { if (viewportRef.current) viewportRef.current.scrollTop = 0; setViewport(previous => ({ ...previous, top: 0 })); }, [searchQuery]);
+  const loadNext = async () => {
+    if (!searchQuery.trim()) { await loadMoreCommits(); return; }
+    if (searchBusy) return;
+    const request = searchRequest.current;
+    setSearchBusy(true);
+    try {
+      const next = await gitService.findCommits(repoPath, searchQuery, filteredCommits.length);
+      if (request !== searchRequest.current) return;
+      const seen = new Set(filteredCommits.map(commit => commit.hash));
+      setRemoteResults({ query: searchQuery, commits: [...filteredCommits, ...next.filter(commit => !seen.has(commit.hash))] });
+      setSearchComplete(next.length < 100);
+    } catch (error: any) { if (request === searchRequest.current) setSearchError(error.message); }
+    finally { if (request === searchRequest.current) setSearchBusy(false); }
+  };
+
+  useEffect(() => {
+    if (previousQuery.current === searchQuery) return;
+    previousQuery.current = searchQuery; lastScroll.current = 0;
+    if (viewportRef.current) viewportRef.current.scrollTop = 0;
+    setViewport(previous => ({ ...previous, top: 0 }));
+  }, [searchQuery]);
   const firstVisible = Math.min(filteredCommits.length, Math.max(0, Math.floor(viewport.top / 42) - (hasWip ? 1 : 0) - 8));
   const lastVisible = Math.min(filteredCommits.length, Math.ceil((viewport.top + viewport.height) / 42) + 8);
   const activeCommit = filteredCommits.find(commit => commit.hash === selectedCommit?.hash) || filteredCommits[0];
@@ -253,16 +308,15 @@ export const CommitHistoryView: React.FC = () => {
               className="h-7 pl-7 text-[12px] bg-secondary/30"
             />
           </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-end px-3 py-1 border-b border-border">
         <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="xs">{t('composer.columns')}</Button></DropdownMenu.Trigger>
           <DropdownMenu.Portal><DropdownMenu.Content align="end" className="z-50 min-w-40 bg-popover border border-border rounded-lg shadow-xl p-1">
             {(['author', 'date', 'hash'] as const).map(key => <DropdownMenu.CheckboxItem key={key} className="menu-item" checked={columns[key]} onCheckedChange={checked => setColumns(previous => ({ ...previous, [key]: checked === true }))}><span className="w-4">{columns[key] ? '✓' : ''}</span>{t(`composer.column.${key}`)}</DropdownMenu.CheckboxItem>)}
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root>
+        </div>
       </div>
+
+
       {/* GitKraken-style Column Headers: BRANCH / TAG | GRAPH | COMMIT MESSAGE */}
       <div className="h-7 px-3 border-b border-border/80 bg-muted/20 flex items-center text-[12px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
         <div style={{ width: graphWidth }} className="text-center shrink-0">{t('history.col.graph')}</div>
@@ -271,7 +325,13 @@ export const CommitHistoryView: React.FC = () => {
       </div>
 
       {/* Commit List Table with SVG Graph */}
-      <div ref={viewportRef} role="list" aria-label={t('history.title')} onKeyDown={handleHistoryKey} className="flex-1 min-h-0 overflow-auto" onScroll={(event) => setViewport({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight })}>
+      {searchBusy && <p role="status" className="px-3 py-1 text-[12px] text-muted-foreground">{t('history.searchingAll')}</p>}
+      {searchError && <p role="alert" className="px-3 py-1 text-[12px] text-destructive">{searchError}</p>}
+      <div ref={viewportRef} role="list" aria-label={t('history.title')} onKeyDown={handleHistoryKey} className="flex-1 min-h-0 overflow-auto" onScroll={(event) => {
+        const top = event.currentTarget.scrollTop;
+        setViewport({ top, height: event.currentTarget.clientHeight }); lastScroll.current = top;
+        clearTimeout(scrollSave.current); scrollSave.current = setTimeout(() => updateView({ scrollTop: top }), 150);
+      }}>
         {isLoading && commits.length === 0 ? (
           <div className="py-6 px-3 space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -407,7 +467,7 @@ export const CommitHistoryView: React.FC = () => {
                                   title={ref}
                                   className={cn(
                                     "h-5 px-1.5 text-[12px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-xs border transition-all",
-                                    isTag && "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/40",
+                                    isTag && "bg-amber-500/15 text-git-tag border-amber-500/40",
                                     isHead && "bg-primary/10 text-primary border-primary/30",
                                     isRemote && "bg-secondary text-secondary-foreground border-border",
                                     !isTag && !isHead && !isRemote && (isSelectedBranch
@@ -418,18 +478,18 @@ export const CommitHistoryView: React.FC = () => {
                                 >
                                   {isTag ? (
                                     <>
-                                      <TagIcon className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400 shrink-0" />
+                                      <TagIcon className="h-2.5 w-2.5 text-git-tag shrink-0" />
                                       <span className="truncate">{cleanName}</span>
                                     </>
                                   ) : isRemote ? (
                                     <>
-                                      <Cloud className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                                      <Cloud className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                                       <span className="truncate">{cleanName}</span>
                                     </>
                                   ) : (
                                     <>
                                       <span className="truncate">{cleanName}</span>
-                                      <Laptop className="h-2.5 w-2.5 text-slate-300 shrink-0 opacity-80" />
+                                      <Laptop className="h-2.5 w-2.5 text-muted-foreground shrink-0 opacity-80" />
                                     </>
                                   )}
                                 </Badge>
@@ -471,9 +531,9 @@ export const CommitHistoryView: React.FC = () => {
               {/* Progressive history loading footer */}
               {filteredCommits.length > 0 && (
                 <div className="py-3 flex justify-center">
-                  {!commitsLoadedAll ? (
+                  {!(searchQuery.trim() ? searchComplete : commitsLoadedAll) ? (
                     <button
-                      onClick={() => loadMoreCommits().catch(() => {})}
+                      disabled={searchBusy} onClick={() => loadNext().catch((error: Error) => toast.error(error.message))}
                       className="px-3 py-1 rounded-md text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-border/60 transition-colors"
                     >
                       {t('history.loadMore')}

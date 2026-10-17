@@ -33,6 +33,7 @@ export interface GitBlameLine {
 }
 
 export interface GitStatusResult {
+  headOid?: string;
   currentBranch: string;
   trackingBranch?: string;
   ahead: number;

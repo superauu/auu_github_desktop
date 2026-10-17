@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState } from 'react';
 import { Play, X, GitBranch, Sparkles, Terminal } from 'lucide-react';
@@ -12,7 +13,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
   const { isDispatchModalOpen, dispatchTargetWorkflow, closeDispatchModal, dispatchWorkflow } =
     useGitHubStore();
   const { t } = useI18n();
-  const { branches } = useRepoStore();
+  const { branches } = useRepoStore(useShallow(state => ({ branches: state.branches })));
 
   const currentHeadBranch = branches.find((b) => b.isCurrent)?.name || 'master';
   const [targetRef, setTargetRef] = useState(currentHeadBranch);

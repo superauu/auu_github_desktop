@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import { 
@@ -28,7 +29,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
   onOpenChange,
 }) => {
   const { t } = useI18n();
-  const { currentRepo, diagnoseRepository } = useRepoStore();
+  const { currentRepo, diagnoseRepository } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, diagnoseRepository: state.diagnoseRepository })));
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RepoHealthDiagnosis | null>(null);
   const [error, setError] = useState<string | null>(null);

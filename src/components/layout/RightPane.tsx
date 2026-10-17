@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,6 +16,7 @@ import { FilePath } from '@/components/ui/FilePath';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { CommitComposer, useComposerDraft } from './CommitComposer';
 import { CommitDiffDialog } from './CommitDiffDialog';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 interface RightPaneProps {
   overlay: boolean;
@@ -24,7 +26,7 @@ interface RightPaneProps {
 }
 
 export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, onOpenAiSettings }) => {
-  const { currentRepo, activeTab, selectedCommit, isRightPaneCollapsed, errorMessage } = useRepoStore();
+  const { currentRepo, activeTab, selectedCommit, isRightPaneCollapsed, errorMessage } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, selectedCommit: state.selectedCommit, isRightPaneCollapsed: state.isRightPaneCollapsed, errorMessage: state.errorMessage })));
   const { panels } = useWorkspaceLayout();
   const { t } = useI18n();
   const draft = useComposerDraft(currentRepo?.path, currentRepo?.currentBranch);
@@ -61,7 +63,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
     const id = ++request.current;
     setPreview(file); setLines([]); setDiffError(null); setDiffLoading(true);
     try {
-      const result = await gitService.getCommitFileDiff(currentRepo.path, selectedCommit.hash, file.path);
+      const result = await gitService.getCommitFileDiff(currentRepo.path, selectedCommit.hash, file.path, useSettingsStore.getState().diffIgnoreWhitespace);
       if (id === request.current) setLines(result);
     } catch (error: any) { if (id === request.current) setDiffError(error?.message || t('rightPane.operationFailed')); }
     finally { if (id === request.current) setDiffLoading(false); }
@@ -113,7 +115,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
         </section>
       </div> : <p className="text-muted-foreground">{t('composer.selectCommit')}</p>)}
     </div>
-    {preview && selectedCommit && <CommitDiffDialog path={preview.path} hash={selectedCommit.shortHash} lines={lines} error={diffError} loading={diffLoading} onClose={() => { request.current++; setPreview(null); }} />}
+    {preview && selectedCommit && <CommitDiffDialog path={preview.path} hash={selectedCommit.shortHash} lines={lines} error={diffError} loading={diffLoading} onReload={() => void inspect(preview)} onClose={() => { request.current++; setPreview(null); }} />}
   </aside>;
   return overlay ? <ModalSurface label={heading} onDismiss={onClose} className="fixed inset-0 z-40 bg-black/35 flex justify-end">{content}</ModalSurface> : content;
 };

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React from 'react';
 import { Command } from 'cmdk';
@@ -46,7 +47,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     branches,
     tags,
     checkoutBranch,
-  } = useRepoStore();
+    selectAndLocateBranch,
+  } = useRepoStore(useShallow(state => ({ setActiveTab: state.setActiveTab, fetchRemote: state.fetchRemote, pull: state.pull, push: state.push, branches: state.branches, tags: state.tags, checkoutBranch: state.checkoutBranch, selectAndLocateBranch: state.selectAndLocateBranch })));
   const { setTheme } = useThemeStore();
   const { t } = useI18n();
 
@@ -236,8 +238,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <Command.Item
                     key={t.name}
                     onSelect={() => {
-                      setActiveTab('history');
                       onOpenChange(false);
+                      void selectAndLocateBranch(`refs/tags/${t.name}`).catch((error: Error) => toast.error(error.message));
                     }}
                     className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-accent cursor-pointer text-xs"
                   >

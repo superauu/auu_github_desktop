@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React from 'react';
 import {
   GitBranch as GitBranchIcon,
@@ -7,10 +8,12 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
+import { useGitActivity } from '@/hooks/useGitActivity';
 
 export const StatusBar: React.FC = () => {
-  const { currentRepo, status, branches } = useRepoStore();
+  const { currentRepo, status, branches } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, branches: state.branches })));
   const { t } = useI18n();
+  const pending = useGitActivity(currentRepo?.path || '');
 
   const currentBranchName =
     branches.find((b) => b.isCurrent)?.name ||
@@ -55,7 +58,7 @@ export const StatusBar: React.FC = () => {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1 text-[12px]">
           <CheckCircle2 className="h-3 w-3 text-git-added" />
-          <span>{t('status.gitReady')}</span>
+          <span role="status">{t(pending ? 'changes.processing' : 'status.gitReady')}</span>
         </div>
 
         <div className="h-3 w-[1px] bg-border" />

@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { useState } from 'react';
@@ -84,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
     stashes,
     branches,
     checkoutBranch,
-  } = useRepoStore();
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo, openTabs: state.openTabs, closeTab: state.closeTab, switchTab: state.switchTab, fetchRemote: state.fetchRemote, refreshAll: state.refreshAll, pull: state.pull, push: state.push, undoLastCommit: state.undoLastCommit, redoStack: state.redoStack, redoLastCommit: state.redoLastCommit, commits: state.commits, stashPush: state.stashPush, stashPop: state.stashPop, activeTab: state.activeTab, stashes: state.stashes, branches: state.branches, checkoutBranch: state.checkoutBranch })));
 
   const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
   const { resolvedTheme, setTheme } = useThemeStore();

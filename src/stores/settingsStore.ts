@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { applyCursorTheme, normalizeCursorTheme, type CursorThemeId } from '@/utils/cursorThemes';
 
 export interface AiApiConfig {
   provider: 'builtin' | 'openai-compatible';
@@ -12,7 +13,10 @@ export type Language = 'zh' | 'en';
 export interface SettingsState {
   gitCliPath: string;
   compactMode: boolean;
+  cursorTheme: CursorThemeId;
   diffFontSize: number;
+  diffWrapLines: boolean;
+  diffIgnoreWhitespace: boolean;
   autoFetchInterval: 'never' | '5m' | '10m' | '30m';
   aiConfig: AiApiConfig;
   language: Language;
@@ -23,7 +27,10 @@ export interface SettingsState {
   // Actions
   setGitCliPath: (path: string) => void;
   setCompactMode: (enabled: boolean) => void;
+  setCursorTheme: (theme: CursorThemeId) => void;
   setDiffFontSize: (size: number) => void;
+  setDiffWrapLines: (enabled: boolean) => void;
+  setDiffIgnoreWhitespace: (enabled: boolean) => void;
   setAutoFetchInterval: (interval: 'never' | '5m' | '10m' | '30m') => void;
   setAiConfig: (config: Partial<AiApiConfig>) => void;
   setLanguage: (lang: Language) => void;
@@ -40,7 +47,10 @@ const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' i
 const DEFAULT_SETTINGS = {
   gitCliPath: 'git',
   compactMode: false,
+  cursorTheme: 'system' as CursorThemeId,
   diffFontSize: 13,
+  diffWrapLines: false,
+  diffIgnoreWhitespace: false,
   autoFetchInterval: '10m' as const,
   language: 'zh' as const,
   aiConfig: {
@@ -61,6 +71,7 @@ function loadSettings() {
       return {
         ...DEFAULT_SETTINGS,
         ...parsed,
+        cursorTheme: normalizeCursorTheme(parsed.cursorTheme),
         diffFontSize: typeof parsed.diffFontSize === 'number' && [12, 13, 14, 16, 18].includes(parsed.diffFontSize) ? parsed.diffFontSize : 13,
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
@@ -77,13 +88,17 @@ function loadSettings() {
 
 export const useSettingsStore = create<SettingsState>((set, get) => {
   const initial = loadSettings();
+  applyCursorTheme(initial.cursorTheme);
 
   const persist = (partial: Partial<typeof initial>) => {
     try {
       const current = {
         gitCliPath: get().gitCliPath,
         compactMode: get().compactMode,
+        cursorTheme: get().cursorTheme,
         diffFontSize: get().diffFontSize,
+        diffWrapLines: get().diffWrapLines,
+        diffIgnoreWhitespace: get().diffIgnoreWhitespace,
         autoFetchInterval: get().autoFetchInterval,
         aiConfig: get().aiConfig,
         language: get().language,
@@ -137,10 +152,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       }
     },
 
+    setCursorTheme: (theme) => {
+      const cursorTheme = normalizeCursorTheme(theme);
+      set({ cursorTheme });
+      persist({ cursorTheme });
+      applyCursorTheme(cursorTheme);
+    },
+
     setDiffFontSize: (size: number) => {
       if (![12, 13, 14, 16, 18].includes(size)) return;
       set({ diffFontSize: size }); persist({ diffFontSize: size });
     },
+    setDiffWrapLines: (diffWrapLines) => { set({ diffWrapLines }); persist({ diffWrapLines }); },
+    setDiffIgnoreWhitespace: (diffIgnoreWhitespace) => { set({ diffIgnoreWhitespace }); persist({ diffIgnoreWhitespace }); },
 
     setAutoFetchInterval: (autoFetchInterval: 'never' | '5m' | '10m' | '30m') => {
       set({ autoFetchInterval });
@@ -173,6 +197,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
     resetSettings: () => {
       get().setAiConfig({ apiKey: '' });
       set(DEFAULT_SETTINGS);
+      applyCursorTheme('system');
       localStorage.removeItem(SETTINGS_KEY);
       if (typeof document !== 'undefined') {
         document.documentElement.classList.remove('compact-mode');

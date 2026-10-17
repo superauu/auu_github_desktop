@@ -1,5 +1,6 @@
 import { useSettingsStore } from '@/stores/settingsStore';
 import { tNow } from '@/i18n';
+import { isReadOnlyGitCommand, serializeGitWrite } from './GitQueue';
 
 export interface GitCommandResult {
   exitCode: number;
@@ -28,6 +29,11 @@ export class GitExecutionError extends Error {
 }
 
 export async function executeGit(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {
+  return isReadOnlyGitCommand(args) ? executeGitNow(args, cwd, stdin)
+    : serializeGitWrite(cwd, () => executeGitNow(args, cwd, stdin));
+}
+
+async function executeGitNow(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {
   const customPath = useSettingsStore.getState().gitCliPath?.trim() || 'git';
 
   // Check if running inside Tauri 2 desktop window

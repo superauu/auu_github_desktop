@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useWorkspaceSessionStore, draftKey, EMPTY_DRAFT } from '@/stores/workspaceSessionStore';
 import { Check, FileText, Loader2, Send, Settings, Sparkles } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -18,12 +20,14 @@ export function useComposerDraft(repoPath?: string, branch?: string) {
   const [busy, setBusy] = useState(false);
   const operation = useRef(false);
   const scopeSignature = useRef('');
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const key = draftKey(repoPath, branch);
+  const saved = useWorkspaceSessionStore(state => state.drafts[key]) || EMPTY_DRAFT;
+  const { title, body } = saved;
+  const setTitle = useCallback((title: string) => useWorkspaceSessionStore.getState().updateDraft(key, { title }), [key]);
+  const setBody = useCallback((body: string) => useWorkspaceSessionStore.getState().updateDraft(key, { body }), [key]);
   const [amend, setAmend] = useState(false);
   const [amendCommit, setAmendCommit] = useState<GitCommit | null>(null);
   const [origin, setOrigin] = useState<GenerationResult | null>(null);
-  useEffect(() => { setTitle(''); setBody(''); setAmend(false); setAmendCommit(null); setOrigin(null); }, [repoPath]);
   useEffect(() => { setAmend(false); setAmendCommit(null); setOrigin(null); }, [repoPath, branch]);
   return { busy, setBusy, operation, scopeSignature, title, setTitle, body, setBody, amend, setAmend, amendCommit, setAmendCommit, origin, setOrigin };
 }
@@ -31,7 +35,7 @@ export function useComposerDraft(repoPath?: string, branch?: string) {
 export function CommitComposer({ onOpenAiSettings, draftState }: {
   onOpenAiSettings: () => void; draftState: ReturnType<typeof useComposerDraft>;
 }) {
-  const { currentRepo, status } = useRepoStore();
+  const { currentRepo, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status })));
   const { aiConfig } = useSettingsStore();
   const { t } = useI18n();
   const { busy, setBusy, operation, scopeSignature, title, setTitle, body, setBody, amend, setAmend, amendCommit, setAmendCommit, origin, setOrigin } = draftState;
@@ -51,7 +55,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   useEffect(() => {
     generation.current++;
     setPreview(null); setGenerating(false);
-  }, [currentRepo?.path]);
+  }, [currentRepo?.path, currentRepo?.currentBranch]);
   useEffect(() => {
     const signature = scopeKey + amend;
     if (signature !== scopeSignature.current) { generation.current++; setPreview(null); setOrigin(null); setGenerating(false); scopeSignature.current = signature; }

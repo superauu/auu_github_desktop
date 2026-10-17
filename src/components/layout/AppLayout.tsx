@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -38,7 +39,7 @@ export const AppLayout: React.FC = () => {
     toggleEmbeddedTerminal,
     navigationPinned,
   } = useLayoutStore();
-  const { isLeftSidebarCollapsed, isRightPaneCollapsed, activeTab, toggleLeftSidebar, toggleRightPane, currentRepo, fetchRemote, pull, push, setActiveTab, checkExternalChanges } = useRepoStore();
+  const { isLeftSidebarCollapsed, isRightPaneCollapsed, activeTab, toggleLeftSidebar, toggleRightPane, currentRepo, fetchRemote, pull, push, setActiveTab, checkExternalChanges } = useRepoStore(useShallow(state => ({ isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, activeTab: state.activeTab, toggleLeftSidebar: state.toggleLeftSidebar, toggleRightPane: state.toggleRightPane, currentRepo: state.currentRepo, fetchRemote: state.fetchRemote, pull: state.pull, push: state.push, setActiveTab: state.setActiveTab, checkExternalChanges: state.checkExternalChanges })));
   const { compactMode, autoFetchInterval } = useSettingsStore();
   const { t } = useI18n();
 
@@ -145,7 +146,7 @@ export const AppLayout: React.FC = () => {
       clearInterval(timer);
       window.removeEventListener('focus', tick);
     };
-  }, [currentRepo, checkExternalChanges]);
+  }, [currentRepo?.path, checkExternalChanges]);
   // Background Auto Fetch timer
   useEffect(() => {
     if (!currentRepo || autoFetchInterval === 'never') return;
@@ -162,7 +163,7 @@ export const AppLayout: React.FC = () => {
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [currentRepo, autoFetchInterval, fetchRemote]);
+  }, [currentRepo?.path, autoFetchInterval, fetchRemote]);
 
   const handleOpenRepoDialog = (mode: 'open' | 'clone' | 'init' = 'open') => {
     setRepoDialogMode(mode);
@@ -230,6 +231,7 @@ export const AppLayout: React.FC = () => {
         onOpenChange={setCommandPaletteOpen}
         onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
         onOpenRepoDialog={() => handleOpenRepoDialog('open')}
+        onOpenGitHubAuth={() => setGithubAuthOpen(true)}
       />
 
       <SettingsDialog

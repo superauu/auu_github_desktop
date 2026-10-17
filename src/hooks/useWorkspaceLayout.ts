@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useSyncExternalStore } from 'react';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -12,7 +13,7 @@ const subscribe = (notify: () => void) => {
 export function useWorkspaceLayout() {
   const width = useSyncExternalStore(subscribe, () => window.innerWidth);
   const { leftSidebarWidth, rightPaneWidth, changesFileListWidth, navigationPinned } = useLayoutStore();
-  const { activeTab, currentRepo, isLeftSidebarCollapsed, isRightPaneCollapsed } = useRepoStore();
+  const { activeTab, currentRepo, isLeftSidebarCollapsed, isRightPaneCollapsed } = useRepoStore(useShallow(state => ({ activeTab: state.activeTab, currentRepo: state.currentRepo, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed })));
   const navigationOverlay = !navigationPinned;
   // A pinned navigation takes priority over keeping the inspector inline.
   const inspectorOverlay = width < (navigationPinned && !isLeftSidebarCollapsed ? 1480 : 1240);

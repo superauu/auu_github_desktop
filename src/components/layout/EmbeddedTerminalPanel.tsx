@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Terminal as TerminalIcon,
@@ -10,6 +11,7 @@ import {
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { executeGit } from '@/services/git/GitExecutor';
+import { isReadOnlyGitCommand } from '@/services/git/GitQueue';
 import { cn } from '@/utils/cn';
 
 /**
@@ -59,15 +61,15 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
   onClose,
 }) => {
   const { t } = useI18n();
-  const { currentRepo, openTerminal, refreshAll } = useRepoStore();
+  const { currentRepo, openTerminal, checkExternalChanges } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, openTerminal: state.openTerminal, checkExternalChanges: state.checkExternalChanges })));
   const [height, setHeight] = useState(210);
   const [isMaximized, setIsMaximized] = useState(false);
   const [inputVal, setInputVal] = useState('');
   const [history, setHistory] = useState<CommandHistoryItem[]>([
     {
       id: 'init-1',
-      command: 'git status -s',
-      output: 'AuuGit Embedded Cyber Terminal\nReady for Git & Shell operations.',
+      command: '',
+      output: t('terminal.gitOnlyHint'),
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -83,7 +85,8 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
   // Focus input when opened
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 150);
+      const frame = requestAnimationFrame(() => inputRef.current?.focus());
+      return () => cancelAnimationFrame(frame);
     }
   }, [open]);
 
@@ -140,6 +143,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       return;
     }
 
+    let changesRepository = false;
     try {
       let outputText = '';
       if (rawCmd.startsWith('git ')) {
@@ -148,11 +152,9 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
         if (!repoPath) {
           outputText = 'Error: No repository open';
         } else {
+          changesRepository = !isReadOnlyGitCommand(args);
           const res = await executeGit(args, repoPath);
           outputText = res.stdout || res.stderr || 'Done (Exit Code 0)';
-          if (['commit', 'merge', 'rebase', 'reset', 'checkout', 'branch', 'stash', 'pull', 'tag'].some(c => args[0] === c)) {
-            refreshAll().catch(() => {});
-          }
         }
       } else {
         outputText = `[Local Terminal]: ${rawCmd}\n(${t('terminal.gitOnlyHint')})`;
@@ -180,6 +182,9 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       ]);
     } finally {
       setIsExecuting(false);
+      if (changesRepository && useRepoStore.getState().currentRepo?.path === repoPath) {
+        void checkExternalChanges();
+      }
     }
   };
 
@@ -264,18 +269,18 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       {/* Terminal Output & Input Area */}
       <div
         ref={scrollRef}
-        onClick={() => inputRef.current?.focus()}
+        onClick={() => { if (!window.getSelection()?.toString()) inputRef.current?.focus(); }}
         className="flex-1 p-3 font-mono text-[12px] overflow-y-auto space-y-2 cursor-text"
       >
         {history.map((item) => (
           <div key={item.id} className="space-y-1">
-            <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-400/90 font-semibold">
-              <span className="text-muted-foreground/60 select-none">PS {repoPath}&gt;</span>
+            {item.command && <div className="flex items-center gap-1.5 text-primary font-semibold">
+              <span className="text-muted-foreground select-none">{repoPath} &gt;</span>
               <span>{item.command}</span>
-            </div>
+            </div>}
             <pre
               className={cn(
-                "whitespace-pre-wrap pl-4 font-mono text-[12px] leading-relaxed",
+                "whitespace-pre-wrap pl-4 font-mono text-[12px] leading-relaxed select-text",
                 item.isError ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-foreground/80"
               )}
             >
@@ -293,14 +298,16 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
         {/* Command Input Prompt */}
         <form onSubmit={handleExecute} className="flex items-center gap-1.5 pt-1">
           <span className="text-sky-700 dark:text-sky-400/80 font-semibold select-none shrink-0">
-            PS {repoPath}&gt;
+            {repoPath} &gt;
           </span>
           <input
             ref={inputRef}
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isExecuting}
+            readOnly={isExecuting}
+            aria-busy={isExecuting}
+            aria-label={t('terminal.placeholder')}
             placeholder={t('terminal.placeholder')}
             className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-foreground font-mono text-[12px] p-0 placeholder:text-muted-foreground/50 focus:ring-0"
             autoFocus

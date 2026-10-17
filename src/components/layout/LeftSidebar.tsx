@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { confirmAction } from '@/stores/confirmStore';
@@ -76,7 +77,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     stashPop,
     stashApply,
     stashDrop,
-  } = useRepoStore();
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, commits: state.commits, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, createBranch: state.createBranch, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, pushTag: state.pushTag, pushAllTags: state.pushAllTags, deleteRemoteTag: state.deleteRemoteTag, push: state.push, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
 
   const { pullRequests } = useGitHubStore();
   const { panels } = useWorkspaceLayout();

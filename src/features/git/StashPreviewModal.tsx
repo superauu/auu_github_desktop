@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import { Archive, X, Loader2 } from 'lucide-react';
@@ -16,7 +17,7 @@ interface StashPreviewModalProps {
 
 export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onClose }) => {
   const { t } = useI18n();
-  const { currentRepo } = useRepoStore();
+  const { currentRepo } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo })));
   const [patchLines, setPatchLines] = useState<ParsedDiffLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 

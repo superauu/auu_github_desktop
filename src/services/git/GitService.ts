@@ -41,12 +41,12 @@ export class GitService implements IGitService {
     return res.stdout.trim();
   }
 
-  async openRepository(path: string): Promise<RepositoryInfo> {
+  async openRepository(path: string, snapshot?: GitStatusResult): Promise<RepositoryInfo> {
     const normalizedPath = path.trim().replace(/\\/g, '/');
     // Validate repository by running git rev-parse
     await executeGit(['rev-parse', '--git-dir'], normalizedPath);
 
-    const status = await this.getStatus(normalizedPath);
+    const status = snapshot || await this.getStatus(normalizedPath);
     const name = normalizedPath.split(/[/\\]/).filter(Boolean).pop() || 'repository';
 
     let remoteUrl: string | undefined = undefined;
@@ -109,6 +109,15 @@ export class GitService implements IGitService {
     return parsePorcelainV2(res.stdout);
   }
 
+  async getRefsFingerprint(repoPath: string): Promise<string> {
+    return (await executeGit(['for-each-ref', '--format=%(refname)%00%(objectname)', 'refs/heads', 'refs/remotes', 'refs/tags', 'refs/stash'], repoPath)).stdout;
+  }
+
+  async getOriginUrl(repoPath: string): Promise<string | undefined> {
+    try { return (await executeGit(['remote', 'get-url', 'origin'], repoPath)).stdout.trim() || undefined; }
+    catch { return undefined; }
+  }
+
   async getBranches(repoPath: string): Promise<GitBranch[]> {
     try {
       const res = await executeGit(['branch', '-a', '-v', '--no-abbrev', '--no-color'], repoPath);
@@ -120,7 +129,7 @@ export class GitService implements IGitService {
 
   async getBranchCommitHash(repoPath: string, branchName: string): Promise<string | null> {
     try {
-      const res = await executeGit(['rev-parse', branchName], repoPath);
+      const res = await executeGit(['rev-parse', '--verify', '--end-of-options', `${branchName}^{commit}`], repoPath);
       const hash = res.stdout.trim();
       return hash || null;
     } catch {
@@ -138,11 +147,11 @@ export class GitService implements IGitService {
     }
   }
 
-  async getCommits(repoPath: string, limit: number = 50): Promise<GitCommit[]> {
+  async getCommits(repoPath: string, limit: number = 50, skip = 0): Promise<GitCommit[]> {
     try {
       const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
       const res = await executeGit(
-        ['log', '--all', '--topo-order', `-n`, String(limit), `--format=${format}`],
+        ['log', '--all', '--topo-order', '-n', String(limit), `--skip=${skip}`, `--format=${format}`],
         repoPath
       );
       return parseGitLog(res.stdout);
@@ -150,6 +159,25 @@ export class GitService implements IGitService {
       // Empty repository or brand new repo without commits
       return [];
     }
+  }
+
+  async findCommits(repoPath: string, query: string, skip = 0): Promise<GitCommit[]> {
+    const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
+    if (/^[0-9a-f]{7,40}$/i.test(query.trim())) {
+      try {
+        const hash = (await executeGit(['rev-parse', '--verify', '--end-of-options', `${query.trim()}^{commit}`], repoPath)).stdout.trim();
+        return skip ? [] : parseGitLog((await executeGit(['show', '-s', `--format=${format}`, hash], repoPath)).stdout);
+      } catch { return []; }
+    }
+    // Git combines author and message filters with AND; combine separate result sets with OR.
+    const [messages, authors] = await Promise.all(['--grep', '--author'].map(flag => executeGit(
+      ['log', '--all', '--topo-order', '-n', String(skip + 100), '--regexp-ignore-case', '--fixed-strings', `${flag}=${query.trim()}`, `--format=${format}`], repoPath
+    )));
+    const refs = (await executeGit(['for-each-ref', '--format=%(refname)'], repoPath)).stdout.split(/\r?\n/).filter(ref => ref.toLowerCase().includes(query.trim().toLowerCase())).slice(0, skip + 100);
+    const refCommits = refs.length ? parseGitLog((await executeGit(['log', '--no-walk', `--format=${format}`, ...refs, '--'], repoPath)).stdout) : [];
+    const unique = new Map<string, GitCommit>();
+    [...parseGitLog(messages.stdout), ...parseGitLog(authors.stdout), ...refCommits].forEach(commit => unique.set(commit.hash, commit));
+    return [...unique.values()].sort((a, b) => Date.parse(b.author.date) - Date.parse(a.author.date)).slice(skip, skip + 100);
   }
 
   async getCommitsForBranch(repoPath: string, branchName: string, limit: number = 100): Promise<GitCommit[]> {
@@ -237,16 +265,22 @@ export class GitService implements IGitService {
   }
 
   async stageFile(repoPath: string, filePath: string): Promise<void> {
-    await executeGit(['add', '--', filePath], repoPath);
+    await this.stageFiles(repoPath, [filePath]);
+  }
+
+  async stageFiles(repoPath: string, filePaths: string[]): Promise<void> {
+    if (filePaths.length) await executeGit(['--literal-pathspecs', 'add', '--pathspec-from-file=-', '--pathspec-file-nul'], repoPath, filePaths.join('\0') + '\0');
+  }
+
+  async unstageFiles(repoPath: string, filePaths: string[]): Promise<void> {
+    if (!filePaths.length) return;
+    const initial = (await this.getStatus(repoPath)).headOid === '(initial)';
+    await executeGit(initial ? ['--literal-pathspecs', 'rm', '--cached', '--ignore-unmatch', '--pathspec-from-file=-', '--pathspec-file-nul']
+      : ['--literal-pathspecs', 'restore', '--staged', '--pathspec-from-file=-', '--pathspec-file-nul'], repoPath, filePaths.join('\0') + '\0');
   }
 
   async unstageFile(repoPath: string, filePath: string): Promise<void> {
-    // Try git restore --staged first, fallback to git reset HEAD
-    try {
-      await executeGit(['restore', '--staged', '--', filePath], repoPath);
-    } catch {
-      await executeGit(['reset', 'HEAD', '--', filePath], repoPath);
-    }
+    await this.unstageFiles(repoPath, [filePath]);
   }
 
   async stageAll(repoPath: string): Promise<void> {
@@ -254,11 +288,8 @@ export class GitService implements IGitService {
   }
 
   async unstageAll(repoPath: string): Promise<void> {
-    try {
-      await executeGit(['restore', '--staged', '.'], repoPath);
-    } catch {
-      await executeGit(['reset'], repoPath);
-    }
+    const status = await this.getStatus(repoPath);
+    await this.unstageFiles(repoPath, status.staged.map(file => file.path));
   }
 
   async discardChanges(repoPath: string, filePath: string): Promise<void> {
@@ -449,16 +480,18 @@ export class GitService implements IGitService {
     repoPath: string,
     filePath: string,
     staged?: boolean,
-    isUntracked?: boolean
+    isUntracked?: boolean,
+    ignoreWhitespace = false
   ): Promise<ParsedDiffLine[]> {
     try {
       if (isUntracked) {
         const nullDev = navigator.userAgent.includes('Windows') ? 'nul' : '/dev/null';
-        const res = await executeGit(['diff', '--no-index', '--no-color', '--', nullDev, filePath], repoPath);
+        const res = await executeGit(['diff', '--no-index', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--', nullDev, filePath], repoPath);
         return parseDiffOutput(res.stdout);
       }
 
       const args = ['diff', '--no-color'];
+      if (ignoreWhitespace) args.push('-w');
       if (staged) {
         args.push('--staged');
       }
@@ -467,8 +500,7 @@ export class GitService implements IGitService {
       const res = await executeGit(args, repoPath);
       return parseDiffOutput(res.stdout);
     } catch (err: any) {
-      console.warn('Get file diff warning:', err);
-      return [];
+      throw err;
     }
   }
 
@@ -497,18 +529,16 @@ export class GitService implements IGitService {
         };
       });
     } catch (err) {
-      console.warn('Get commit files warning:', err);
-      return [];
+      throw err;
     }
   }
 
-  async getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]> {
+  async getCommitFileDiff(repoPath: string, commitHash: string, filePath: string, ignoreWhitespace = false): Promise<ParsedDiffLine[]> {
     try {
-      const res = await executeGit(['show', '--format=', '--no-color', '--first-parent', '--diff-merges=first-parent', commitHash, '--', filePath], repoPath);
+      const res = await executeGit(['show', '--format=', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--first-parent', '--diff-merges=first-parent', commitHash, '--', filePath], repoPath);
       return parseDiffOutput(res.stdout);
     } catch (err) {
-      console.warn('Get commit file diff warning:', err);
-      return [];
+      throw err;
     }
   }
 
@@ -833,20 +863,23 @@ export class GitService implements IGitService {
     };
   }
 
-  async getRepoOperationState(repoPath: string): Promise<RepoOperationState> {
-    const status = await this.getStatus(repoPath);
+  async getRepoOperationState(repoPath: string, snapshot?: GitStatusResult): Promise<RepoOperationState> {
+    const status = snapshot || await this.getStatus(repoPath);
     const conflictedFiles = status.unstaged.filter((file) => file.status === 'conflicted').map((file) => file.path);
     // Git's path resolver supports linked worktrees and does not depend on localized status prose.
+    const names = ['rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'MERGE_HEAD'];
+    const resolved = (await executeGit(['rev-parse', '--path-format=absolute', ...names.flatMap(name => ['--git-path', name])], repoPath)).stdout.trimEnd().split(/\r?\n/);
     const exists = async (name: string) => {
-      const { stdout } = await executeGit(['rev-parse', '--path-format=absolute', '--git-path', name], repoPath);
+      const path = resolved[names.indexOf(name)];
+      if (!path) throw new Error('Unable to resolve Git operation paths');
       const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
       if (isTauri) {
         const { invoke } = await import('@tauri-apps/api/core');
-        return invoke<boolean>('path_exists', { path: stdout.trim() });
+        return invoke<boolean>('path_exists', { path });
       }
       const res = await fetch('/api/fs/exists', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
-        body: JSON.stringify({ path: stdout.trim(), cwd: repoPath }),
+        body: JSON.stringify({ path, cwd: repoPath }),
       });
       if (!res.ok) throw new Error('Unable to read repository operation state');
       return (await res.json()).exists as boolean;
