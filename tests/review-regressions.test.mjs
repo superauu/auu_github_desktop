@@ -35,7 +35,7 @@ function stub(target, replacements) { const originals = Object.fromEntries(Objec
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-'));
   const bundle = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export * from './src/services/git/IgnoreService'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export * from './src/services/git/IgnoreService'; export * from './src/services/git/worktrees'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -674,4 +674,57 @@ test('closing or changing the repository invalidates pending job log requests', 
     const next=store.getState().openJobLogs(42,'Build');store.getState().clearRepo();await next;
     assert.equal(store.getState().activeJobLogs,null);assert.equal(store.getState().isLogsModalOpen,false);
   } finally {restore();store.getState().clearRepo();}
+});
+
+
+test('worktree listing preserves NUL-delimited paths and detached, locked, prunable and bare states', () => {
+  const trees=app.parseWorktrees('worktree /repos/main\0HEAD abc\0branch refs/heads/main\0\0worktree /repos/中文 space\nline\0HEAD def\0detached\0locked portable drive\0prunable missing directory\0\0worktree /repos/bare\0bare\0\0');
+  assert.equal(trees.length,3);assert.equal(trees[0].branch,'refs/heads/main');
+  assert.equal(trees[1].path,'/repos/中文 space\nline');assert.equal(trees[1].detached,true);
+  assert.equal(trees[1].locked,'portable drive');assert.equal(trees[1].prunable,'missing directory');
+  assert.equal(trees[2].bare,true);
+  assert(app.sameWorktreePath('E:\\code\\Repo\\','e:/code/repo'));
+  assert(!app.sameWorktreePath('/code/Repo','/code/repo'));
+});
+
+test('worktrees can be created on new or existing branches and occupied targets are never overwritten', async () => {
+  const repo=await repository();await fs.writeFile(file(repo,'base.txt'),'base\n');await commit(repo);
+  const linked=path.join(tmp,`worktree-中文 space-${repoIndex}`);
+  await app.gitService.createWorktree(repo,linked,'HEAD','feature/worktree');
+  let trees=await app.gitService.getWorktrees(repo);
+  assert(trees.some(tree=>app.sameWorktreePath(tree.path,linked)&&tree.branch==='refs/heads/feature/worktree'));
+  const branches=await app.gitService.getBranches(repo);
+  assert(app.sameWorktreePath(branches.find(branch=>branch.name==='feature/worktree').worktreePath,linked));
+  assert.equal((await app.gitService.getStatus(linked)).currentBranch,'feature/worktree');
+  git(repo,'branch','free');const existing=path.join(tmp,`worktree-existing-${repoIndex}`);
+  await app.gitService.createWorktree(repo,existing,'free');
+  assert.equal((await app.gitService.getStatus(existing)).currentBranch,'free');
+  const occupied=path.join(tmp,`worktree-occupied-${repoIndex}`);await fs.mkdir(occupied);await fs.writeFile(file(occupied,'keep.txt'),'keep');
+  await assert.rejects(app.gitService.createWorktree(repo,occupied,'HEAD','other'));
+  assert.equal(await fs.readFile(file(occupied,'keep.txt'),'utf8'),'keep');
+  await assert.rejects(app.gitService.createWorktree(repo,path.join(tmp,`duplicate-${repoIndex}`),'feature/worktree'));
+  await assert.rejects(app.gitService.createWorktree(repo,'relative/path','HEAD','unsafe'),/absolute|绝对/);
+  await assert.rejects(app.gitService.createWorktree(repo,path.join(tmp,'invalid-branch'),'HEAD','bad branch'));
+  assert.equal(await fs.readFile(file(linked,'base.txt'),'utf8'),'base\n');
+});
+
+test('selecting an occupied branch opens its worktree and preserves dirty files in both directories', async () => {
+  const repo=await repository();await fs.writeFile(file(repo,'base.txt'),'base\n');await commit(repo);
+  const linked=path.join(tmp,`switch-worktree-${repoIndex}`);await app.gitService.createWorktree(repo,linked,'HEAD','feature/worktree');
+  await fs.writeFile(file(repo,'base.txt'),'main dirty\n');await fs.writeFile(file(linked,'base.txt'),'linked dirty\n');
+  git(repo,'remote','add','origin','https://example.invalid/repository.git');git(repo,'update-ref','refs/remotes/origin/feature/worktree','HEAD');
+  const store=app.useRepoStore;store.getState().setCurrentRepo(info(repo));await store.getState().refreshAll();
+  try {
+    await assert.rejects(store.getState().checkoutBranch('feature/worktree',{openWorktree:false}),/worktree|Worktree/);
+    assert(app.sameWorktreePath(store.getState().currentRepo.path,repo));
+    await store.getState().checkoutBranch('origin/feature/worktree');
+    assert(app.sameWorktreePath(store.getState().currentRepo.path,linked));
+    assert.equal(store.getState().status.currentBranch,'feature/worktree');
+    await eventually(()=>store.getState().fileDiffLines.some(line=>line.content==='+linked dirty'));
+    assert.equal(git(repo,'branch','--show-current').trim(),'main');
+    assert.equal(await fs.readFile(file(repo,'base.txt'),'utf8'),'main dirty\n');
+    assert.equal(await fs.readFile(file(linked,'base.txt'),'utf8'),'linked dirty\n');
+    assert.equal(store.getState().openTabs.some(tab=>app.sameWorktreePath(tab.path,repo)),true);
+    assert.equal(store.getState().openTabs.some(tab=>app.sameWorktreePath(tab.path,linked)),true);
+  } finally {store.getState().setCurrentRepo(null);}
 });

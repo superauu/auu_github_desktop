@@ -42,6 +42,7 @@ import { Badge } from '@/components/ui/badge';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { MergeBranchModal } from '@/features/git/MergeBranchModal';
 import { IgnoreDialog } from '@/features/git/IgnoreDialog';
+import { WorktreesDialog } from '@/features/git/WorktreesDialog';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -66,6 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenGitHubAuth,
 }) => {
   const [ignoreRepoPath, setIgnoreRepoPath] = useState<string | null>(null);
+  const [worktreesRepoPath, setWorktreesRepoPath] = useState<string | null>(null);
   const {
     currentRepo,
     status,
@@ -96,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated } = useGitHubStore();
   const { t } = useI18n();
-  useEffect(() => { setIgnoreRepoPath(null); }, [currentRepo?.path]);
+  useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
@@ -556,6 +558,7 @@ export const Header: React.FC<HeaderProps> = ({
                               <div className="flex items-center gap-1.5 truncate min-w-0">
                                 <GitBranchIcon className={cn("h-3 w-3 shrink-0", isCurrentBranch ? "text-primary" : "text-muted-foreground")} />
                                 <span className="truncate">{branch.name}</span>
+                                {branch.worktreePath && !isCurrentBranch && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>Worktree</span>}
                               </div>
                               {isCurrentBranch && (
                                 <span className="text-[12px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">
@@ -603,6 +606,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <DropdownMenu.Item className="menu-item" disabled={isRefreshing} onSelect={() => void handleRefresh()}><RefreshCw className="h-4 w-4" />{t('header.refresh')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => void handleOpenTerminal()}><Terminal className="h-4 w-4" />{t('header.terminal')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => setIgnoreRepoPath(currentRepo.path)}><Shield className="h-4 w-4" />{t('ignore.manage')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => setWorktreesRepoPath(currentRepo.path)}><FolderGit2 className="h-4 w-4" />{t('worktree.title')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 border-t border-border" />
                 <DropdownMenu.Item className="menu-item" disabled={isStashing || !hasChanges} onSelect={() => void handleQuickStash()}><Archive className="h-4 w-4" />{t('header.stash')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" disabled={!stashes.length} onSelect={() => void handleQuickPop()}><Inbox className="h-4 w-4" />{t('header.pop')}</DropdownMenu.Item>
@@ -627,6 +631,7 @@ export const Header: React.FC<HeaderProps> = ({
       </header>
 
       {/* Modals */}
+      {worktreesRepoPath && worktreesRepoPath === currentRepo?.path && <WorktreesDialog repoPath={worktreesRepoPath} onClose={() => setWorktreesRepoPath(null)} />}
       {ignoreRepoPath && ignoreRepoPath === currentRepo?.path && <IgnoreDialog repoPath={ignoreRepoPath} paths={EMPTY_IGNORE_PATHS} onClose={() => setIgnoreRepoPath(null)} />}
       <CreateBranchModal
         open={createBranchModalOpen}

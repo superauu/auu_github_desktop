@@ -11,6 +11,8 @@ import {
   RepoOperationState,
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
+import { sameWorktreePath } from '@/services/git/worktrees';
+import { tNow } from '@/i18n';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import { hasConflictMarkers } from '@/services/git/ConflictParser';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -89,7 +91,7 @@ interface RepoState {
   commit: (message: string, amend?: boolean) => Promise<void>;
   createBranch: (name: string, startPoint?: string, checkout?: boolean) => Promise<void>;
   deleteBranch: (name: string, force?: boolean) => Promise<void>;
-  checkoutBranch: (name: string) => Promise<void>;
+  checkoutBranch: (name: string, options?: { openWorktree?: boolean }) => Promise<void>;
   createTag: (name: string, commitHash?: string, message?: string) => Promise<void>;
   deleteTag: (name: string) => Promise<void>;
   pushTag: (name: string) => Promise<void>;
@@ -784,12 +786,23 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    checkoutBranch: async (name: string) => {
+    checkoutBranch: async (name: string, options) => {
       const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       const epoch = repoEpoch;
       try {
+        const worktree = await gitService.getBranchWorktree(currentRepo.path, name);
+        if (!isCurrent(currentRepo.path, epoch)) return;
+        if (worktree && !sameWorktreePath(worktree.path, currentRepo.path)) {
+          if (options?.openWorktree === false) throw new Error(tNow('worktree.inUse').replace('{path}', worktree.path));
+          const repo = await gitService.openRepository(worktree.path);
+          if (!isCurrent(currentRepo.path, epoch)) return;
+          get().addRecentRepo(repo);
+          get().setCurrentRepo(repo);
+          await get().refreshAll();
+          return;
+        }
         await gitService.checkoutBranch(currentRepo.path, name);
         if (!isCurrent(currentRepo.path, epoch)) return;
         const updatedRepo = { ...currentRepo, currentBranch: name };

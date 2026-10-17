@@ -194,7 +194,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     const items: ContextMenuItem[] = [
       {
         id: 'checkout',
-        label: isCurrent ? `${t('sidebar.ctx.checkedOut')} (${branch.name})` : `${t('sidebar.ctx.checkout')} (${branch.name})`,
+        label: isCurrent ? `${t('sidebar.ctx.checkedOut')} (${branch.name})` : branch.worktreePath ? `${t('worktree.open')} (${branch.name})` : `${t('sidebar.ctx.checkout')} (${branch.name})`,
         icon: <GitBranchIcon className="h-3.5 w-3.5 text-indigo-400" />,
         disabled: isCurrent,
         onClick: async () => {
@@ -264,7 +264,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         id: 'delete',
         label: isCurrent ? t('sidebar.ctx.cannotDeleteCurrent') : `${t('sidebar.ctx.deleteBranch')} ${branch.name}`,
         icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
-        disabled: isCurrent,
+        disabled: isCurrent || !!branch.worktreePath,
         danger: true,
         onClick: async () => {
           if (await confirmAction({ title: t('sidebar.ctx.deleteBranch'), description: t('composer.deleteBranchWarning'), detail: branch.name })) {
@@ -968,6 +968,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                       ) : null}
                                       <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                                       <span className="truncate">{leafName}</span>
+                                      {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>Worktree</span>}
                                     </div>
                                     {branch.isCurrent ? (
                                       <span className="text-[12px] uppercase px-1 rounded bg-primary/25 text-primary font-bold font-mono">
@@ -1040,6 +1041,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             ) : null}
                             <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                             <span className="truncate">{branch.name}</span>
+                            {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>Worktree</span>}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {branch.isCurrent ? (
@@ -1141,6 +1143,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             {isSelected && <Eye className="h-3 w-3 text-git-added shrink-0" />}
                             <Cloud className="h-3 w-3 text-muted-foreground/80 shrink-0" />
                             <span className="truncate">{branch.name}</span>
+
                           </div>
                           <Button
                             variant="ghost"
@@ -1207,6 +1210,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                 {isSelected && <Eye className="h-3 w-3 text-git-added shrink-0" />}
                                 <Cloud className="h-3 w-3 text-muted-foreground/80 shrink-0" />
                                 <span className="truncate">{branch.name}</span>
+
                               </div>
                               <Button
                                 variant="ghost"

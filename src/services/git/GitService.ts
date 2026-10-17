@@ -3,6 +3,7 @@ import {
   GitBranch,
   GitCommit,
   GitFileChange,
+  GitWorktree,
   GitStatusResult,
   GitStash,
   GitTag,
@@ -12,7 +13,8 @@ import {
   HealthIssue,
   RepoOperationState,
 } from './types';
-import { executeGit } from './GitExecutor';
+import { executeGit, GitExecutionError } from './GitExecutor';
+import { parseWorktrees } from './worktrees';
 import {
   parseDiffOutput,
   ParsedDiffLine,
@@ -120,11 +122,48 @@ export class GitService implements IGitService {
 
   async getBranches(repoPath: string): Promise<GitBranch[]> {
     try {
-      const res = await executeGit(['branch', '-a', '-v', '--no-abbrev', '--no-color'], repoPath);
-      return parseGitBranches(res.stdout);
+      const [res, worktrees] = await Promise.all([
+        executeGit(['branch', '-a', '-v', '--no-abbrev', '--no-color'], repoPath), this.getWorktrees(repoPath),
+      ]);
+      return parseGitBranches(res.stdout).map(branch => ({ ...branch,
+        worktreePath: branch.isRemote ? undefined : worktrees.find(tree => tree.branch === `refs/heads/${branch.name}`)?.path,
+      }));
     } catch {
       return [];
     }
+  }
+
+  async getWorktrees(repoPath: string): Promise<GitWorktree[]> {
+    return parseWorktrees((await executeGit(['worktree', 'list', '--porcelain', '-z'], repoPath)).stdout);
+  }
+
+  async getBranchWorktree(repoPath: string, name: string): Promise<GitWorktree | undefined> {
+    const target = name.trim().replace(/^remotes\//, '');
+    const trees = await this.getWorktrees(repoPath);
+    const direct = trees.find(tree => tree.branch === `refs/heads/${target}`);
+    if (direct || trees.length < 2) return direct;
+    const hasRef = async (ref: string) => {
+      try { await executeGit(['show-ref', '--verify', '--quiet', ref], repoPath); return true; }
+      catch (error) { if (error instanceof GitExecutionError && error.exitCode === 1) return false; throw error; }
+    };
+    if (!await hasRef(`refs/heads/${target}`) && await hasRef(`refs/remotes/${target}`)) {
+      const localName = target.slice(target.indexOf('/') + 1);
+      return trees.find(tree => tree.branch === `refs/heads/${localName}`);
+    }
+    return undefined;
+  }
+
+  async createWorktree(repoPath: string, path: string, branch: string, newBranch?: string): Promise<void> {
+    if (!path.trim() || /[\0\r\n]/.test(path) || !/^(?:[a-z]:[/\\]|[/\\])/i.test(path)) throw new Error(tNow('worktree.invalidPath'));
+    if (!branch || branch.startsWith('-')) throw new Error(tNow('worktree.invalidBranch'));
+    const args = ['worktree', 'add'];
+    if (newBranch !== undefined) {
+      if (!newBranch || newBranch.startsWith('-')) throw new Error(tNow('worktree.invalidBranch'));
+      await executeGit(['check-ref-format', `refs/heads/${newBranch}`], repoPath);
+      args.push('-b', newBranch);
+    }
+    args.push('--', path, branch);
+    await executeGit(args, repoPath);
   }
 
   async getBranchCommitHash(repoPath: string, branchName: string): Promise<string | null> {

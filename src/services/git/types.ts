@@ -67,11 +67,22 @@ export interface GitBranch {
   isCurrent: boolean;
   isRemote: boolean;
   upstream?: string;
+  worktreePath?: string;
   lastCommit?: {
     hash: string;
     message: string;
     date: string;
   };
+}
+
+export interface GitWorktree {
+  path: string;
+  head?: string;
+  branch?: string;
+  detached?: boolean;
+  bare?: boolean;
+  locked?: string | true;
+  prunable?: string | true;
 }
 
 export interface GitTag {
@@ -139,6 +150,8 @@ export interface IGitService {
   setRemoteUrl(repoPath: string, name: string, url: string): Promise<void>;
   createBranch(repoPath: string, name: string, startPoint?: string): Promise<void>;
   checkoutBranch(repoPath: string, name: string): Promise<void>;
+  getWorktrees(repoPath: string): Promise<GitWorktree[]>;
+  createWorktree(repoPath: string, path: string, branch: string, newBranch?: string): Promise<void>;
   deleteBranch(repoPath: string, name: string, force?: boolean): Promise<void>;
   getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean): Promise<any[]>;
   getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]>;

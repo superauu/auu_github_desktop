@@ -56,7 +56,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
         // If current branch is not target, checkout target first
         if (currentBranchName !== targetBranch.name) {
           toast.info(`${t('drag.checkingOut')}: ${targetBranch.name}...`);
-          await checkoutBranch(targetBranch.name);
+          await checkoutBranch(targetBranch.name, { openWorktree: false });
         }
         toast.info(`${t('drag.merging').replace('{src}', sourceBranch.name).replace('{dst}', targetBranch.name)}`);
         await mergeBranch(sourceBranch.name);
@@ -65,7 +65,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
         // Rebase target onto source
         if (currentBranchName !== targetBranch.name) {
           toast.info(`${t('drag.checkingOut')}: ${targetBranch.name}...`);
-          await checkoutBranch(targetBranch.name);
+          await checkoutBranch(targetBranch.name, { openWorktree: false });
         }
         toast.info(`${t('drag.rebasing').replace('{src}', targetBranch.name).replace('{dst}', sourceBranch.name)}`);
         await rebaseBranch(sourceBranch.name);
@@ -74,7 +74,7 @@ export const DragDropActionModal: React.FC<DragDropActionModalProps> = ({
         // Rebase source onto target
         if (currentBranchName !== sourceBranch.name) {
           toast.info(`${t('drag.checkingOut')}: ${sourceBranch.name}...`);
-          await checkoutBranch(sourceBranch.name);
+          await checkoutBranch(sourceBranch.name, { openWorktree: false });
         }
         toast.info(`${t('drag.rebasing').replace('{src}', sourceBranch.name).replace('{dst}', targetBranch.name)}`);
         await rebaseBranch(targetBranch.name);
