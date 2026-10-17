@@ -147,6 +147,7 @@ export const zh = {
   'settings.ai.protocolHint': '请选择服务支持的协议，并填写对应地址和模型；切换协议会保留原有配置。',
   'settings.ai.needModel': '请填写模型名称',
   'settings.ai.endpoint': 'API 端点 (Base URL)',
+  'settings.ai.endpointHint': '可填写 Base URL 或完整接口地址，自动处理接口后缀，不会重复拼接。',
   'settings.ai.model': '模型名称',
   'settings.ai.testBtn': '测试连接',
   'settings.ai.testing': '正在测试...',

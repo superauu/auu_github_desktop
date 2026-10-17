@@ -46,6 +46,17 @@ test('endpoint resolution accepts base and full URLs and preserves proxy paths a
   assert.equal(app.aiEndpoint('https://model.invalid/v1/messages', 'chat-completions'), 'https://model.invalid/v1/chat/completions');
 });
 
+test('optional API suffixes never duplicate or alter an explicit root-level API path', () => {
+  for (const [protocol, suffix] of [['chat-completions', 'chat/completions'], ['responses', 'responses'], ['anthropic-messages', 'messages']]) {
+    for (const endpoint of ['https://model.invalid/v1', 'https://model.invalid/v1/', `https://model.invalid/v1/${suffix}`, ` https://model.invalid/v1/${suffix}/ `]) {
+      assert.equal(app.aiEndpoint(endpoint, protocol), `https://model.invalid/v1/${suffix}`);
+    }
+    assert.equal(app.aiEndpoint(`https://model.invalid/${suffix}/?route=a`, protocol), `https://model.invalid/${suffix}?route=a`);
+    assert.equal(app.aiEndpoint('https://model.invalid/proxy/v1', protocol), `https://model.invalid/proxy/v1/${suffix}`);
+  }
+  assert.equal(app.aiEndpoint('https://model.invalid/chat/completions', 'responses'), 'https://model.invalid/responses');
+});
+
 for (const protocol of ['chat-completions', 'responses', 'anthropic-messages']) {
   test(`${protocol} uses its authentication, input schema and text output`, async () => {
     let calls = 0;

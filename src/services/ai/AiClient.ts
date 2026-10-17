@@ -8,8 +8,10 @@ export interface AiMessage { role: 'system' | 'user' | 'assistant'; content: str
 export function aiEndpoint(endpoint: string, protocol: AiProtocol = 'chat-completions'): string {
   const url = new URL(endpoint.trim());
   const suffix = protocol === 'responses' ? '/responses' : protocol === 'anthropic-messages' ? '/messages' : '/chat/completions';
-  const base = url.pathname.replace(/\/+$/, '').replace(/\/(chat\/completions|responses|messages)$/, '');
-  url.pathname = (base || '/v1') + suffix;
+  const path = url.pathname.replace(/\/+$/, '');
+  const hasApiSuffix = /\/(chat\/completions|responses|messages)$/.test(path);
+  const base = hasApiSuffix ? path.replace(/\/(chat\/completions|responses|messages)$/, '') : path || '/v1';
+  url.pathname = base + suffix;
   return url.toString();
 }
 

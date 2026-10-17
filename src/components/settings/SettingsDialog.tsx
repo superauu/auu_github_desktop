@@ -486,6 +486,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         placeholder={aiConfig.protocol === 'anthropic-messages' ? 'https://api.anthropic.com/v1' : aiConfig.protocol === 'responses' ? 'https://api.openai.com/v1' : 'https://api.deepseek.com/v1'}
                         className="font-mono text-xs"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">{t('settings.ai.endpointHint')}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">

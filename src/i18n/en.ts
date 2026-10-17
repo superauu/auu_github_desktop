@@ -147,6 +147,7 @@ export const en = {
   'settings.ai.protocolHint': 'Choose a protocol your service supports and enter its endpoint and model. Switching protocols preserves your settings.',
   'settings.ai.needModel': 'Enter a model name',
   'settings.ai.endpoint': 'API Endpoint (Base URL)',
+  'settings.ai.endpointHint': 'Enter a base URL or a full API URL. The endpoint suffix is handled automatically without duplication.',
   'settings.ai.model': 'Model Name',
   'settings.ai.testBtn': 'Test Connection',
   'settings.ai.testing': 'Testing...',
