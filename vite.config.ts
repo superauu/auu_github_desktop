@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { version } from './package.json';
 
 const MAX_BODY = 8 * 1024 * 1024;
 const json = (res: ServerResponse, status: number, data: unknown) => {
@@ -79,6 +80,48 @@ export function gitApiPlugin(): Plugin {
           }
           if (req.method !== 'POST') { json(res, 405, { error: 'Method not allowed' }); return; }
           const data = await body(req);
+          if (url.pathname === '/ai/completion') {
+            // Local development relay: same origin only, no credential persistence or redirects.
+            const target = new URL(data.url);
+            if (target.username || target.password || (target.protocol !== 'https:' && !(target.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)))) {
+              json(res, 400, { error: 'AI endpoint must use HTTPS or local HTTP' }); return;
+            }
+            const payload = JSON.parse(data.body);
+            const headers: Record<string, string> = { 'Content-Type': 'application/json', 'User-Agent': `AuuGit/${version}` };
+            if (typeof data.authorization === 'string' && data.authorization) headers.Authorization = data.authorization;
+            for (const [name, value] of Object.entries(data.extraHeaders || {})) {
+              if (!['x-api-key', 'anthropic-version', 'x-opencode-session'].includes(name) || typeof value !== 'string') {
+                json(res, 400, { error: 'Unsupported AI request header' }); return;
+              }
+              headers[name] = value;
+            }
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 60_000);
+            const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+            res.on('close', disconnected);
+            try {
+              const upstream = await fetch(target, { method: 'POST', headers, body: JSON.stringify(payload), redirect: 'manual', signal: controller.signal });
+              if (upstream.status >= 300 && upstream.status < 400) {
+                controller.abort(); json(res, 502, { error: 'AI endpoint redirected. Enter the final API URL; credentials were not forwarded.' }); return;
+              }
+              const reader = upstream.body?.getReader();
+              const chunks: Uint8Array[] = []; let length = 0;
+              if (reader) while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                length += value.byteLength;
+                if (length > 32 * 1024 * 1024) { controller.abort(); throw new Error('AI response exceeds 32 MiB'); }
+                chunks.push(value);
+              }
+              if (!res.destroyed && !res.writableEnded) {
+                res.statusCode = upstream.status;
+                res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/plain; charset=utf-8');
+                res.setHeader('Cache-Control', 'no-store');
+                res.end(Buffer.concat(chunks));
+              }
+            } finally { clearTimeout(timer); res.off('close', disconnected); }
+            return;
+          }
           if (url.pathname === '/fs/ignore-file') {
             if (typeof data.gitBinary !== 'string' || !/^git(?:\.exe)?$/i.test(path.basename(data.gitBinary))) throw new Error('Invalid Git executable');
             const operation = ignoreWrites.catch(() => {}).then(async () => {

@@ -47,6 +47,8 @@ Commit messages and PR descriptions can use local rules or templates without an 
 
 The endpoint accepts a base URL (such as `https://api.openai.com/v1` or `https://api.anthropic.com/v1`) or a full API path. Existing configurations default to Chat Completions. Switching protocols preserves your endpoint, model, and key; adjust them to match your service.
 
+Browser development mode relays AI requests through the local development server to support providers that do not allow browser cross-origin requests. OpenCode Go requests automatically include the AuuGit client identity and a stable ID for the current application session; no manual headers are needed.
+
 External model requests send relevant code, diffs, or error context to the service you configure. Desktop GitHub tokens and AI API keys use system credential storage; browser development mode keeps credentials in memory. Review generated content before applying or committing it.
 
 ## Local development

@@ -47,6 +47,8 @@ Release 中的 `auugit.exe` 是独立可执行文件。需要自动升级时，�
 
 地址可以填写 Base URL（例如 `https://api.openai.com/v1`、`https://api.anthropic.com/v1`），也可以填写完整接口路径。旧配置默认使用 Chat Completions；切换协议会保留已有地址、模型和密钥，请按服务要求调整。
 
+浏览器开发模式通过本机开发服务器转发 AI 请求，以兼容不支持浏览器跨域访问的服务。OpenCode Go 请求会自动附带 AuuGit 客户端标识和本次应用会话的稳定 ID，无需手动填写请求头。
+
 调用外部模型时，相关代码、差异或错误上下文会发送到你配置的服务。桌面端的 GitHub Token 和 AI API Key 使用系统凭据存储；浏览器开发模式仅在内存中保留凭据。AI 生成内容应在应用或提交前核对。
 
 ## 本地开发

@@ -4,11 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
+import { createServer as createViteServer } from 'vite';
+import { createServer as createHttpServer } from 'node:http';
 
 const root = process.cwd(), originalFetch = globalThis.fetch;
 const saved = new Map([['auu_git_settings', JSON.stringify({ aiConfig: { provider: 'openai-compatible', endpoint: 'https://legacy.invalid/v1', model: 'legacy' } })]]);
 globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
-let app, tmp;
+let app, tmp, devServer, devBase;
 const config = protocol => ({ provider: 'openai-compatible', protocol, endpoint: 'https://model.invalid/v1', model: 'test-model', apiKey: 'test-secret' });
 const messages = [{ role: 'system', content: 'Explain Git changes' }, { role: 'user', content: 'a.ts changed' }];
 const json = value => new Response(JSON.stringify(value));
@@ -22,9 +24,12 @@ before(async () => {
   const bundle = path.join(tmp, 'ai.cjs');
   await build({ stdin: { contents: `export * from './src/services/ai/AiClient'; export * from './src/services/ai/AiTransport'; export * from './src/services/ai/AiExplanationService'; export { aiCommitService } from './src/services/ai/AiCommitService'; export { gitService } from './src/services/git/GitService'; export { useSettingsStore } from './src/stores/settingsStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
+  devServer = await createViteServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
+  await devServer.listen(); devBase = `http://127.0.0.1:${devServer.httpServer.address().port}`;
 });
 after(async () => {
   globalThis.fetch = originalFetch; delete globalThis.window;
+  await devServer?.close();
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-ai-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 });
 });
 
@@ -160,4 +165,71 @@ test('invalid endpoint schemes, embedded credentials and cancelled requests neve
   }
   const controller = new AbortController(); controller.abort();
   await assert.rejects(app.requestAiText(config('responses'), messages, { signal: controller.signal }), { name: 'AbortError' });
+});
+
+test('browser requests use the local relay and OpenCode Go receives a stable client session only on its own host', async () => {
+  const calls = [];
+  globalThis.window = {};
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, '/api/ai/completion');
+    assert.equal(new Headers(init.headers).get('x-auugit-request'), '1');
+    calls.push(JSON.parse(init.body)); return json(output('chat-completions'));
+  };
+  try {
+    const init = { method: 'POST', headers: { Authorization: 'Bearer test-only' }, body: '{}' };
+    await app.requestAiCompletion('https://opencode.ai/inference/go/openai/v1/chat/completions', init);
+    await app.requestAiCompletion('https://opencode.ai/zen/go/v1/chat/completions', init);
+    await app.requestAiCompletion('https://opencode.ai.evil.invalid/inference/go/v1/chat/completions', init);
+    assert.match(calls[0].extraHeaders['x-opencode-session'], /^[0-9a-f-]{36}$/);
+    assert.equal(calls[0].extraHeaders['x-opencode-session'], calls[1].extraHeaders['x-opencode-session']);
+    assert.equal(calls[2].extraHeaders['x-opencode-session'], undefined);
+    assert.equal(calls[0].authorization, 'Bearer test-only');
+    let native;
+    window.__TAURI_INTERNALS__ = { invoke: async (_command, args) => { native = args; return '{}'; } };
+    await app.requestAiCompletion('https://opencode.ai/inference/go/v1/chat/completions', init);
+    assert.equal(native.extraHeaders['x-opencode-session'], calls[0].extraHeaders['x-opencode-session']);
+  } finally { delete globalThis.window; }
+});
+
+test('local relay forwards API headers and full errors without CORS support, and blocks foreign origins, invalid targets and redirects', async () => {
+  globalThis.fetch = originalFetch;
+  const captured = [];
+  const longError = JSON.stringify({ error: { message: 'provider error '.repeat(100), request_id: 'last-detail' } });
+  const upstream = createHttpServer(async (req, res) => {
+    let body = ''; for await (const chunk of req) body += chunk;
+    captured.push({ url: req.url, headers: req.headers, body });
+    if (req.url === '/redirect') { res.writeHead(302, { Location: '/sink' }); res.end(); return; }
+    res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(longError);
+  });
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  const target = `http://127.0.0.1:${upstream.address().port}`;
+  const headers = { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' };
+  const payload = { url: `${target}/v1/messages`, authorization: 'Bearer test-only', extraHeaders: { 'x-api-key': 'test-only', 'anthropic-version': '2023-06-01', 'x-opencode-session': 'test-session' }, body: JSON.stringify({ model: 'test' }) };
+  const relay = (data, extra = {}) => originalFetch(devBase + '/api/ai/completion', { method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(data) });
+  try {
+    const result = await relay(payload);
+    assert.equal(result.status, 400); assert.equal(await result.text(), longError);
+    assert.equal(result.headers.get('cache-control'), 'no-store');
+    assert.equal(captured[0].headers.authorization, 'Bearer test-only');
+    assert.equal(captured[0].headers['x-api-key'], 'test-only');
+    assert.equal(captured[0].headers['x-opencode-session'], 'test-session');
+    assert.match(captured[0].headers['user-agent'], /^AuuGit\//);
+    assert.equal((await relay(payload, { Origin: 'https://untrusted.invalid' })).status, 403);
+    assert.equal((await relay(payload, { 'X-AuuGit-Request': '' })).status, 403);
+    assert.equal((await relay({ ...payload, url: 'http://untrusted.invalid/v1' })).status, 400);
+    assert.equal((await relay({ ...payload, url: 'https://user:password@model.invalid/v1' })).status, 400);
+    assert.equal((await relay({ ...payload, extraHeaders: { Host: 'untrusted.invalid' } })).status, 400);
+    assert.equal(captured.length, 1);
+    const redirect = await relay({ ...payload, url: target + '/redirect' });
+    assert.equal(redirect.status, 502); assert.equal(captured.length, 2);
+    assert(!captured.some(request => request.url === '/sink'));
+    // Exercise the complete browser adapter -> local relay -> provider response path.
+    globalThis.window = {};
+    globalThis.fetch = (url, init) => originalFetch(typeof url === 'string' && url.startsWith('/api/') ? devBase + url : url, init);
+    await assert.rejects(app.requestAiText({ ...config('anthropic-messages'), endpoint: target + '/v1/messages' }, messages), error => error.message.endsWith(longError));
+    assert.equal(captured[2].headers['x-api-key'], 'test-secret');
+  } finally {
+    delete globalThis.window; globalThis.fetch = originalFetch;
+    await new Promise(resolve => upstream.close(resolve));
+  }
 });
