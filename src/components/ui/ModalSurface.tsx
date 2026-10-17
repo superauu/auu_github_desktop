@@ -19,7 +19,7 @@ export function ModalSurface({ onDismiss, dismissible = true, label = 'Dialog', 
         <Dialog.Content asChild aria-describedby={undefined}
           onCloseAutoFocus={(event) => { event.preventDefault(); previousFocus.current?.focus(); }}
           onEscapeKeyDown={(event) => { if (!dismissible) event.preventDefault(); }}
-          onInteractOutside={(event) => { if (!dismissible) event.preventDefault(); }}>
+          onInteractOutside={(event) => { if (!dismissible || (event.target instanceof Element && event.target.closest('[data-auugit-toast]'))) event.preventDefault(); }}>
           {React.cloneElement(children, {}, <>
             <Dialog.Title className="sr-only">{label}</Dialog.Title>
             {children.props.children}

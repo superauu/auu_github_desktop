@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
   CheckCircle2,
   AlertCircle,
@@ -16,12 +17,12 @@ export const ToastContainer: React.FC = () => {
 
   if (toasts.length === 0) return null;
 
-  return (
-    <div className="fixed bottom-9 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full select-none">
+  return createPortal(
+    <div data-auugit-toast className="fixed bottom-9 right-4 z-[100] flex flex-col gap-2 pointer-events-none max-w-sm w-full select-none">
       {toasts.map((toast) => (
         <ToastCard key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
       ))}
-    </div>
+    </div>, document.body
   );
 };
 

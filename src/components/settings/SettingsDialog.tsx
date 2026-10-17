@@ -1,6 +1,6 @@
 import { version } from '../../../package.json';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Settings,
   Terminal,
@@ -68,6 +68,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [gitVersion, setGitVersion] = useState<string>('');
   const [isDetectingGit, setIsDetectingGit] = useState<boolean>(false);
   const [isTestingAi, setIsTestingAi] = useState<boolean>(false);
+  const [aiTestResult, setAiTestResult] = useState<{ type: 'success' | 'error'; title: string; detail?: string } | null>(null);
+  const aiTestRequest = useRef(0);
+  const aiTestController = useRef<AbortController | null>(null);
+  const aiTestResultRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    aiTestRequest.current++;
+    aiTestController.current?.abort();
+    setIsTestingAi(false);
+    setAiTestResult(null);
+    return () => { aiTestRequest.current++; aiTestController.current?.abort(); };
+  }, [open, aiConfig]);
+  useEffect(() => { aiTestResultRef.current?.scrollIntoView({ block: 'nearest' }); }, [aiTestResult]);
 
   // Load real Git version dynamically
   const detectGitVersion = async () => {
@@ -97,26 +109,33 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   // Test custom AI connection
   const handleTestAiConnection = async () => {
     if (aiConfig.provider === 'builtin') {
-      toast.success(t('settings.ai.builtinReady'), t('settings.ai.builtinReadyDesc'));
+      setAiTestResult({ type: 'success', title: t('settings.ai.builtinReady'), detail: t('settings.ai.builtinReadyDesc') });
       return;
     }
 
     if (!aiConfig.apiKey.trim()) {
-      toast.warning(t('settings.ai.needKey'));
+      setAiTestResult({ type: 'error', title: t('settings.ai.needKey') });
       return;
     }
 
+    const request = ++aiTestRequest.current;
+    aiTestController.current?.abort();
+    const controller = new AbortController();
+    aiTestController.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 30_000);
     setIsTestingAi(true);
+    setAiTestResult(null);
     try {
       await requestAiText(aiConfig, [{ role: 'user', content: 'Ping! Output pong.' }], {
-        signal: AbortSignal.timeout(30_000),
+        signal: controller.signal,
       });
 
-      toast.success(t('settings.ai.testOk'), t('settings.ai.testOkDesc').replace('{model}', aiConfig.model));
+      if (request === aiTestRequest.current) setAiTestResult({ type: 'success', title: t('settings.ai.testOk'), detail: t('settings.ai.testOkDesc').replace('{model}', aiConfig.model) });
     } catch (err: any) {
-      toast.error(t('settings.ai.testFailed'), err.message);
+      if (request === aiTestRequest.current) setAiTestResult({ type: 'error', title: t('settings.ai.testFailed'), detail: controller.signal.aborted ? t('settings.ai.testTimeout') : String(err?.message || err) });
     } finally {
-      setIsTestingAi(false);
+      clearTimeout(timeout);
+      if (request === aiTestRequest.current) setIsTestingAi(false);
     }
   };
 
@@ -528,6 +547,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         <span>{isTestingAi ? t('settings.ai.testing') : t('settings.ai.testBtn')}</span>
                       </Button>
                     </div>
+                    {aiTestResult && <div ref={aiTestResultRef} role={aiTestResult.type === 'error' ? 'alert' : 'status'} className={cn('rounded-lg border p-3 text-xs select-text', aiTestResult.type === 'error' ? 'border-destructive/40 bg-destructive/10' : 'border-emerald-500/40 bg-emerald-500/10')}>
+                      <p className="font-medium">{aiTestResult.title}</p>
+                      {aiTestResult.detail && <p className="mt-1 text-muted-foreground whitespace-pre-wrap break-words">{aiTestResult.detail}</p>}
+                    </div>}
                   </div>
                 )}
               </div>
