@@ -111,6 +111,9 @@ export interface JobLogsData {
   jobId: number;
   jobName: string;
   rawLogs: string;
+  state?: 'loading' | 'waiting' | 'ready' | 'error';
+  error?: string;
+  htmlUrl?: string;
   stepLogs?: { stepNumber: number; stepName: string; lines: string[] }[];
 }
 

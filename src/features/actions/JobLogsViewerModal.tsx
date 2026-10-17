@@ -10,6 +10,9 @@ import {
   ArrowDownToLine,
   Maximize2,
   Minimize2,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -63,16 +66,22 @@ function parseAnsi(text: string): React.ReactNode[] {
 }
 
 export const JobLogsViewerModal: React.FC = () => {
-  const { isLogsModalOpen, activeJobLogs, closeJobLogs } = useGitHubStore();
+  const { isLogsModalOpen, activeJobLogs, closeJobLogs, openJobLogs } = useGitHubStore();
   const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { setSearchQuery(''); setIsCopied(false); }, [activeJobLogs?.jobId, isLogsModalOpen]);
+  useEffect(() => {
+    if (!isLogsModalOpen || activeJobLogs?.state !== 'waiting') return;
+    const timer = setTimeout(() => { void openJobLogs(activeJobLogs.jobId, activeJobLogs.jobName); }, 15000);
+    return () => clearTimeout(timer);
+  }, [isLogsModalOpen, activeJobLogs, openJobLogs]);
 
   const rawLines = useMemo(() => {
-    if (!activeJobLogs?.rawLogs) return [];
+    if (!activeJobLogs?.rawLogs?.trim()) return [];
     return activeJobLogs.rawLogs.split(/\r?\n/);
   }, [activeJobLogs?.rawLogs]);
 
@@ -97,6 +106,20 @@ export const JobLogsViewerModal: React.FC = () => {
 
   if (!isLogsModalOpen || !activeJobLogs) return null;
 
+  const loading = activeJobLogs.state === 'loading';
+  const waiting = activeJobLogs.state === 'waiting';
+  const failed = activeJobLogs.state === 'error';
+  const githubUrl = activeJobLogs.htmlUrl?.startsWith('https://github.com/') ? activeJobLogs.htmlUrl : null;
+  const openGitHub = async () => {
+    if (!githubUrl) return;
+    try {
+      if ('__TAURI_INTERNALS__' in window) {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(githubUrl);
+      } else window.open(githubUrl, '_blank', 'noopener,noreferrer');
+    } catch (error: any) { toast.error(t('logs.openFailed'), String(error?.message || error)); }
+  };
+
   const handleCopyLogs = () => {
     navigator.clipboard.writeText(activeJobLogs.rawLogs);
     setIsCopied(true);
@@ -106,7 +129,7 @@ export const JobLogsViewerModal: React.FC = () => {
   };
 
   return (
-    <ModalSurface onDismiss={closeJobLogs} dismissible={!false} label={'Job logs'}
+    <ModalSurface onDismiss={closeJobLogs} label={t('actions.viewLogs')}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150 select-none"
     >
       <div
@@ -124,7 +147,7 @@ export const JobLogsViewerModal: React.FC = () => {
               {activeJobLogs.jobName}
             </span>
             <Badge variant="outline" className="h-4 text-[11px] font-mono">
-              {filteredLines.length} {t('logs.lines')}
+              {loading ? t('logs.loading') : waiting ? t('logs.waitingBadge') : failed ? t('logs.failed') : `${filteredLines.length} ${t('logs.lines')}`}
             </Badge>
           </div>
 
@@ -134,6 +157,7 @@ export const JobLogsViewerModal: React.FC = () => {
               <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" />
               <Input
                 value={searchQuery}
+                disabled={loading || waiting || failed}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('logs.searchPlaceholder')}
                 className="h-7 pl-7 text-[12px] font-mono bg-background/50 border-border/60"
@@ -156,6 +180,7 @@ export const JobLogsViewerModal: React.FC = () => {
             <Button
               variant="outline"
               size="xs"
+              disabled={rawLines.length === 0}
               onClick={handleCopyLogs}
               className="h-7 px-2 text-[11px] gap-1 font-mono"
               title={t('logs.copyAll')}
@@ -186,14 +211,24 @@ export const JobLogsViewerModal: React.FC = () => {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2 border-b border-border shrink-0">
+          {githubUrl && <Button variant="outline" size="xs" onClick={() => void openGitHub()}><ExternalLink className="h-3 w-3" />{t('logs.openGitHub')}</Button>}
+          <Button variant="outline" size="xs" disabled={loading} onClick={() => void openJobLogs(activeJobLogs.jobId, activeJobLogs.jobName)}><RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />{t('logs.retry')}</Button>
+        </div>
+
         {/* Terminal Content Screen */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-auto p-4 font-mono text-[12px] leading-relaxed bg-background dark:bg-[#08080a] text-foreground dark:text-muted-foreground select-text"
         >
-          {filteredLines.length === 0 ? (
+          {loading || waiting || failed ? <div role={failed ? 'alert' : 'status'} className="py-16 text-center space-y-3">
+            {loading && <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />}
+            <p className={failed ? 'text-destructive' : 'text-muted-foreground'}>{t(loading ? 'logs.loading' : waiting ? 'logs.waiting' : 'logs.failed')}</p>
+            {waiting && <p className="text-muted-foreground">{t('logs.waitingHint')}</p>}
+            {failed && <p className="text-muted-foreground break-words select-text">{activeJobLogs.error}</p>}
+          </div> : filteredLines.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground/50">
-              {t('logs.noMatch')}
+              {t(searchQuery.trim() ? 'logs.noMatch' : 'logs.empty')}
             </div>
           ) : (
             <VirtualRows items={filteredLines} rowHeight={24} renderRow={(line, idx) => {

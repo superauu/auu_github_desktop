@@ -630,3 +630,48 @@ test('ignore preview follows Git case sensitivity and reads ignored nested ignor
   await fs.rm(file(repo, 'nested'), {recursive:true});
   await app.previewIgnore(repo, 'shared', '*.csv\n');
 });
+
+
+test('running job logs show waiting, completed jobs load logs, and native string errors remain visible', async () => {
+  const store=app.useGitHubStore;
+  store.setState({currentOwner:'owner',currentRepoName:'repo'});
+  let status='in_progress', downloads=0;
+  const job={id:42,name:'Build',status,html_url:'https://github.com/owner/repo/actions/runs/1/job/42'};
+  const restore=stub(app.githubService,{
+    getJob:async()=>({...job,status}),
+    getJobLogs:async()=>{downloads++;return {jobId:42,jobName:'Build',rawLogs:'compiled successfully'};},
+  });
+  try {
+    await store.getState().openJobLogs(42,'Build');
+    assert.equal(store.getState().activeJobLogs.state,'waiting');
+    assert.equal(store.getState().activeJobLogs.rawLogs,'');assert.equal(downloads,0);
+    assert.equal(store.getState().activeJobLogs.htmlUrl,job.html_url);
+    status='completed';await store.getState().openJobLogs(42,'Build');
+    assert.equal(store.getState().activeJobLogs.state,'ready');assert.equal(downloads,1);
+    assert.equal(store.getState().activeJobLogs.rawLogs,'compiled successfully');
+    const restoreError=stub(app.githubService,{getJobLogs:async()=>{throw 'HTTP 403: missing actions permission';}});
+    try {
+      await store.getState().openJobLogs(42,'Build');
+      assert.equal(store.getState().activeJobLogs.state,'error');
+      assert.equal(store.getState().activeJobLogs.error,'HTTP 403: missing actions permission');
+      assert.equal(store.getState().activeJobLogs.rawLogs,'');
+    } finally {restoreError();}
+  } finally {restore();store.getState().clearRepo();}
+});
+
+test('closing or changing the repository invalidates pending job log requests', async () => {
+  const store=app.useGitHubStore, gate=deferred();let downloads=0;
+  store.setState({currentOwner:'owner',currentRepoName:'repo'});
+  const restore=stub(app.githubService,{
+    getJob:async()=>{await gate.promise;return {id:42,status:'completed',html_url:'https://github.com/owner/repo/actions/runs/1/job/42'};},
+    getJobLogs:async()=>{downloads++;return {jobId:42,jobName:'Build',rawLogs:'late output'};},
+  });
+  try {
+    const pending=store.getState().openJobLogs(42,'Build');
+    assert.equal(store.getState().activeJobLogs.state,'loading');
+    store.getState().closeJobLogs();gate.resolve();await pending;
+    assert.equal(store.getState().activeJobLogs,null);assert.equal(downloads,0);
+    const next=store.getState().openJobLogs(42,'Build');store.getState().clearRepo();await next;
+    assert.equal(store.getState().activeJobLogs,null);assert.equal(store.getState().isLogsModalOpen,false);
+  } finally {restore();store.getState().clearRepo();}
+});

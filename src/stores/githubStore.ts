@@ -281,12 +281,22 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       const valid = ticket('logs');
       const { currentOwner: owner, currentRepoName: repo } = get();
       if (!owner || !repo) return;
-      set({ isLogsModalOpen: true, activeJobLogs: { jobId, jobName: jobName || `Job #${jobId}`, rawLogs: 'Loading…' } });
+      const name = jobName || `Job #${jobId}`;
+      const knownJob = get().selectedRunJobs.find(job => job.id === jobId);
+      let htmlUrl = knownJob?.html_url;
+      set({ isLogsModalOpen: true, activeJobLogs: { jobId, jobName: name, rawLogs: '', state: 'loading', htmlUrl } });
       try {
+        const job = await githubService.getJob(owner, repo, jobId);
+        if (!valid()) return;
+        htmlUrl = job.html_url;
+        if (job.status !== 'completed') {
+          set({ activeJobLogs: { jobId, jobName: name, rawLogs: '', state: 'waiting', htmlUrl } });
+          return;
+        }
         const logs = await githubService.getJobLogs(owner, repo, jobId);
-        if (valid()) set({ activeJobLogs: { ...logs, jobName: jobName || logs.jobName } });
+        if (valid()) set({ activeJobLogs: { ...logs, jobName: jobName || logs.jobName, state: 'ready', htmlUrl } });
       } catch (error: any) {
-        if (valid()) set({ activeJobLogs: { jobId, jobName: jobName || `Job #${jobId}`, rawLogs: error.message } });
+        if (valid()) set({ activeJobLogs: { jobId, jobName: name, rawLogs: '', state: 'error', error: String(error?.message || error), htmlUrl } });
       }
     },
     closeJobLogs: () => { ticket('logs'); set({ isLogsModalOpen: false, activeJobLogs: null }); },

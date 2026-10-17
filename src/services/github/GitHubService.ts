@@ -99,6 +99,14 @@ export class GitHubService {
     return this.pages(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100`, 'jobs');
   }
 
+  async getJob(owner: string, repo: string, jobId: number): Promise<GitHubJob> {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/jobs/${jobId}`, {
+      headers: this.getHeaders(), signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new GitHubApiError(res.status, await this.extractGitHubError(res));
+    return res.json();
+  }
+
   async getCommitChecks(
     owner: string,
     repo: string,
