@@ -19,7 +19,14 @@ import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { checkAndInstallUpdate } from '@/services/updater/UpdateService';
+import { checkForUpdates } from '@/services/updater/UpdateService';
+import { createExternalChangePoller } from '@/services/git/ExternalChangePoller';
+import { getPendingGitWrites } from '@/services/git/GitQueue';
+import { OperationHistoryDialog } from './OperationHistoryDialog';
+import { RecoveryCenterDialog } from '@/features/git/RecoveryCenterDialog';
+import { UpdateDialog } from './UpdateDialog';
+import { gitService } from '@/services/git/GitService';
+import { toast } from '@/stores/toastStore';
 
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -32,6 +39,8 @@ export const AppLayout: React.FC = () => {
   const [repoDialogMode, setRepoDialogMode] = useState<'open' | 'clone' | 'init'>('open');
   const [githubAuthOpen, setGithubAuthOpen] = useState(false);
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [recoveryPath, setRecoveryPath] = useState<string | null>(null);
 
   const {
     setLeftSidebarWidth,
@@ -122,7 +131,7 @@ export const AppLayout: React.FC = () => {
   // 启动后静默检查应用更新（仅桌面端）
   useEffect(() => {
     const timer = setTimeout(() => {
-      checkAndInstallUpdate(true);
+      void checkForUpdates(true);
     }, 15000);
     return () => clearTimeout(timer);
   }, []);
@@ -134,17 +143,22 @@ export const AppLayout: React.FC = () => {
     }
   }, [compactMode]);
 
-  // 外部变更轮询：每 10 秒 + 窗口聚焦时比对 status 指纹，发现变化自动全量刷新
+  // Active windows poll at 10s; idle windows back off. Focus changes are debounced.
   useEffect(() => {
     if (!currentRepo) return;
-    const tick = () => {
-      if (document.visibilityState === 'visible') checkExternalChanges();
-    };
-    const timer = setInterval(tick, 10000);
-    window.addEventListener('focus', tick);
+    const poller = createExternalChangePoller({ check: checkExternalChanges,
+      canCheck: () => document.visibilityState === 'visible' && getPendingGitWrites(currentRepo.path) === 0 });
+    const wake = () => { if (document.visibilityState === 'visible') poller.wake(); };
+    window.addEventListener('focus', wake);
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pointerdown', poller.touch, { passive: true });
+    window.addEventListener('keydown', poller.touch);
     return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', tick);
+      poller.stop();
+      window.removeEventListener('focus', wake);
+      document.removeEventListener('visibilitychange', wake);
+      window.removeEventListener('pointerdown', poller.touch);
+      window.removeEventListener('keydown', poller.touch);
     };
   }, [currentRepo?.path, checkExternalChanges]);
   // Background Auto Fetch timer
@@ -157,6 +171,7 @@ export const AppLayout: React.FC = () => {
     if (autoFetchInterval === '30m') intervalMs = 30 * 60 * 1000;
 
     const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible' || getPendingGitWrites(currentRepo.path) > 0) return;
       fetchRemote().catch((err) => {
         console.warn('Auto fetch failed silently:', err);
       });
@@ -168,6 +183,15 @@ export const AppLayout: React.FC = () => {
   const handleOpenRepoDialog = (mode: 'open' | 'clone' | 'init' = 'open') => {
     setRepoDialogMode(mode);
     setRepoDialogOpen(true);
+  };
+  const openRecovery = async (path: string) => {
+    try {
+      if (useRepoStore.getState().currentRepo?.path !== path) {
+        const repo = await gitService.openRepository(path);
+        useRepoStore.getState().setCurrentRepo(repo);
+      }
+      setHistoryOpen(false); setRecoveryPath(path);
+    } catch (error) { toast.error(t('operationLog.recoveryFailed'), error instanceof Error ? error.message : String(error)); }
   };
 
   return (
@@ -223,7 +247,10 @@ export const AppLayout: React.FC = () => {
       </div>
 
       {/* Bottom Status Bar */}
-      <StatusBar />
+      <StatusBar onOpenHistory={() => setHistoryOpen(true)} />
+      {historyOpen && <OperationHistoryDialog onClose={() => setHistoryOpen(false)} onRecovery={path => { void openRecovery(path); }} />}
+      {recoveryPath && <RecoveryCenterDialog repoPath={recoveryPath} onClose={() => setRecoveryPath(null)} />}
+      <UpdateDialog />
 
       {/* Global Modals & Dialogs */}
       <CommandPalette

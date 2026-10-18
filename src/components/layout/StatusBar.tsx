@@ -1,19 +1,35 @@
 import { useShallow } from 'zustand/react/shallow';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   GitBranch as GitBranchIcon,
   CheckCircle2,
+  Loader2,
   Terminal,
   FolderGit2,
+  History,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
-import { useGitActivity } from '@/hooks/useGitActivity';
+import { useGitWriteActivity } from '@/hooks/useGitActivity';
+import { cancelQueuedGitWrites } from '@/services/git/GitQueue';
+import { openUpdateDialog, useUpdateStore } from '@/services/updater/UpdateService';
 
-export const StatusBar: React.FC = () => {
+export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHistory }) => {
   const { currentRepo, status, branches } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, branches: state.branches })));
   const { t } = useI18n();
-  const pending = useGitActivity(currentRepo?.path || '');
+  const updatePhase = useUpdateStore(state => state.phase);
+  const updateVersion = useUpdateStore(state => state.version);
+  const activity = useGitWriteActivity(currentRepo?.path || '');
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!activity?.startedAt) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [activity?.startedAt]);
+  const elapsed = activity?.startedAt ? Math.max(0, Math.floor((now - activity.startedAt) / 1000)) : 0;
+  const operation = activity ? t(`activity.command.${activity.command}`) : '';
+  const operationLabel = operation.startsWith('activity.command.') ? t('changes.processing') : operation;
 
   const currentBranchName =
     branches.find((b) => b.isCurrent)?.name ||
@@ -56,9 +72,17 @@ export const StatusBar: React.FC = () => {
 
       {/* Right side status */}
       <div className="flex items-center gap-3">
+        {updateVersion && <button className="text-primary hover:underline" onClick={openUpdateDialog}>{t(['ready', 'installed'].includes(updatePhase) ? 'updates.downloaded' : 'updates.title')} · v{updateVersion}</button>}
+        {onOpenHistory && <button className="flex items-center gap-1 hover:text-foreground" onClick={onOpenHistory} title={t('operationLog.title')}><History className="h-3 w-3" />{t('operationLog.title')}</button>}
         <div className="flex items-center gap-1 text-[12px]">
-          <CheckCircle2 className="h-3 w-3 text-git-added" />
-          <span role="status">{t(pending ? 'changes.processing' : 'status.gitReady')}</span>
+          {activity ? <Loader2 className="h-3 w-3 text-primary animate-spin" /> : <CheckCircle2 className="h-3 w-3 text-git-added" />}
+          <span role="status">{activity ? operationLabel : t('status.gitReady')}</span>
+          {activity?.startedAt != null && <span className="tabular-nums" aria-label={t('activity.elapsed')}>{elapsed}s</span>}
+          {!!activity?.queued && <>
+            <span>{t('activity.queued').replace('{n}', String(activity.queued))}</span>
+            <button className="text-primary hover:underline" title={t('activity.cancelHint')}
+              onClick={() => cancelQueuedGitWrites(currentRepo?.path || '', t('activity.cancelled'))}>{t('activity.cancelQueued')}</button>
+          </>}
         </div>
 
         <div className="h-3 w-[1px] bg-border" />

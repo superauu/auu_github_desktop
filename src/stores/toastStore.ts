@@ -11,8 +11,18 @@ export interface ToastItem {
   action?: { label: string; onClick: () => void | Promise<void> };
 }
 
+export interface OperationEntry extends Omit<ToastItem, 'duration'> {
+  createdAt: number;
+  repoPath?: string;
+  elapsedMs?: number;
+}
+
 interface ToastState {
   toasts: ToastItem[];
+  history: OperationEntry[];
+  record: (entry: Omit<OperationEntry, 'id' | 'createdAt'>) => void;
+  clearHistory: () => void;
+  consumeAction: (id: string) => void;
   addToast: (toast: Omit<ToastItem, 'id'>) => string;
   removeToast: (id: string) => void;
   success: (title: string, description?: string) => string;
@@ -23,6 +33,12 @@ interface ToastState {
 
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
+  history: [],
+  record: (entry) => set(state => ({ history: [{ ...entry, description: entry.description && entry.description.length > 64000 ? `${entry.description.slice(0, 64000)}…` : entry.description,
+    id: `operation-${Date.now()}-${Math.random().toString(36).slice(2)}`, createdAt: Date.now() }, ...state.history].slice(0, 100) })),
+  clearHistory: () => set({ history: [] }),
+  consumeAction: (id) => set(state => ({ history: state.history.map(entry => entry.id === id ? { ...entry, action: undefined } : entry),
+    toasts: state.toasts.map(entry => entry.id === id ? { ...entry, action: undefined } : entry) })),
 
   addToast: (toast) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -30,6 +46,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
 
     set((state) => ({
       toasts: [...state.toasts, { ...toast, id }],
+      history: [{ ...toast, id, createdAt: Date.now(), description: toast.description && toast.description.length > 64000 ? `${toast.description.slice(0, 64000)}…` : toast.description }, ...state.history].slice(0, 100),
     }));
 
     if (duration > 0) {

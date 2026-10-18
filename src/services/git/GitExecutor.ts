@@ -1,6 +1,7 @@
 import { useSettingsStore } from '@/stores/settingsStore';
 import { tNow } from '@/i18n';
-import { isReadOnlyGitCommand, serializeGitWrite } from './GitQueue';
+import { GitQueueCancelledError, isReadOnlyGitCommand, serializeGitWrite, updateGitWriteCommand } from './GitQueue';
+import { useToastStore } from '@/stores/toastStore';
 
 export interface GitCommandResult {
   exitCode: number;
@@ -29,13 +30,39 @@ export class GitExecutionError extends Error {
 }
 
 export async function executeGit(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {
-  return isReadOnlyGitCommand(args) ? executeGitNow(args, cwd, stdin)
-    : serializeGitWrite(cwd, () => executeGitNow(args, cwd, stdin));
+  if (isReadOnlyGitCommand(args)) return executeGitNow(args, cwd, stdin);
+  const started = Date.now();
+  try {
+    const result = await serializeGitWrite(cwd, () => executeGitNow(args, cwd, stdin), args[0]);
+    recordGitOperation(args[0], cwd, started);
+    return result;
+  } catch (error) {
+    recordGitOperation(args[0], cwd, started, error, args[0] === 'fetch' ? async () => { await executeGit(args, cwd, stdin); } : undefined);
+    throw error;
+  }
 }
 
 /** Keep preflight, recovery refs and the operation in one application write queue. */
-export function executeGitTransaction<T>(cwd: string, run: (git: (args: string[], stdin?: string) => Promise<GitCommandResult>) => Promise<T>): Promise<T> {
-  return serializeGitWrite(cwd, () => run((args, stdin) => executeGitNow(args, cwd, stdin)));
+export async function executeGitTransaction<T>(cwd: string, run: (git: (args: string[], stdin?: string) => Promise<GitCommandResult>) => Promise<T>): Promise<T> {
+  const started = Date.now();
+  let command = 'transaction';
+  try {
+    const result = await serializeGitWrite(cwd, () => run((args, stdin) => {
+      if (!isReadOnlyGitCommand(args)) command = args[0];
+      updateGitWriteCommand(cwd, args[0]);
+      return executeGitNow(args, cwd, stdin);
+    }));
+    recordGitOperation(command, cwd, started);
+    return result;
+  } catch (error) { recordGitOperation(command, cwd, started, error); throw error; }
+}
+
+function recordGitOperation(command: string, repoPath: string, started: number, error?: unknown, retry?: () => Promise<void>) {
+  const cancelled = error instanceof GitQueueCancelledError;
+  useToastStore.getState().record({ type: error ? cancelled ? 'info' : 'error' : 'success', repoPath,
+    elapsedMs: Date.now() - started, title: `Git · ${command}`,
+    description: error ? error instanceof Error ? error.message : String(error) : tNow('operationLog.completed'),
+    action: retry && !cancelled ? { label: tNow('operationLog.retryFetch'), onClick: retry } : undefined });
 }
 
 async function executeGitNow(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {

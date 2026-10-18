@@ -341,8 +341,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       } catch (error: any) { if (valid()) set({ activeWorkflowYaml: { path: workflow.path, content: error.message } }); }
     },
     closeWorkflowYaml: () => { ticket('yaml'); set({ isYamlModalOpen: false, activeWorkflowYaml: null }); },
-    openDispatchModal: (workflow) => set({ isDispatchModalOpen: true, dispatchTargetWorkflow: workflow }),
-    closeDispatchModal: () => set({ isDispatchModalOpen: false, dispatchTargetWorkflow: null }),
+    openDispatchModal: (workflow) => { ticket('dispatch'); set({ isDispatchModalOpen: true, dispatchTargetWorkflow: workflow }); },
+    closeDispatchModal: () => { ticket('dispatch'); set({ isDispatchModalOpen: false, dispatchTargetWorkflow: null }); },
     dispatchWorkflow: async (ref, inputs) => {
       const { currentOwner: owner, currentRepoName: repo, dispatchTargetWorkflow: workflow } = get();
       if (!owner || !repo || !workflow) return;
@@ -352,7 +352,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         if (!valid()) return;
         toast.success('调度请求已提交至 GitHub'); get().closeDispatchModal();
         await get().refreshActions();
-      } catch (error: any) { if (valid()) toast.error('触发工作流失败', error.message); }
+      } catch (error: any) { if (valid()) throw error; }
     },
     rerunWorkflowRun: async (runId, failedOnly = false) => {
       const { currentOwner: owner, currentRepoName: repo } = get();

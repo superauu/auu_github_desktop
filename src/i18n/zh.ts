@@ -1,4 +1,6 @@
 import { workflowZh } from './workflow';
+import { resilienceZh } from './resilience';
+import { optimizationZh } from './optimization';
 /**
  * 中文资源包（基准语言）
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
@@ -1306,4 +1308,6 @@ export const zh = {
   'explain.requestFailed': '模型请求失败（HTTP {status}），请检查 AI 设置后重试。',
   'recovery.op.rewrite': '提交整理前',
   ...workflowZh,
+  ...resilienceZh,
+  ...optimizationZh,
 } as const;

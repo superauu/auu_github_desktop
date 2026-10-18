@@ -629,7 +629,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           );
         }
         if (valid()) {
-          const changed = JSON.stringify(diffLines) !== JSON.stringify(get().fileDiffLines);
+          const changed = diffLines !== get().fileDiffLines;
           set({ ...(changed ? { fileDiffLines: diffLines } : {}), fileDiffLoading: false, fileDiffError: null });
         }
       } catch (err: any) {

@@ -27,8 +27,10 @@ import {
   parseBlamePorcelain,
 } from './PorcelainParser';
 import { tNow } from '@/i18n';
+import { DiffCache } from './DiffCache';
 
 export class GitService implements IGitService {
+  private readonly diffCache = new DiffCache();
   async isGitInstalled(): Promise<boolean> {
     try {
       const res = await executeGit(['--version'], '.');
@@ -526,7 +528,7 @@ export class GitService implements IGitService {
       if (isUntracked) {
         const nullDev = navigator.userAgent.includes('Windows') ? 'nul' : '/dev/null';
         const res = await executeGit(['diff', '--no-index', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--', nullDev, filePath], repoPath);
-        return parseDiffOutput(res.stdout);
+        return this.diffCache.parse(JSON.stringify([repoPath, filePath, 'untracked', ignoreWhitespace]), res.stdout);
       }
 
       const args = ['diff', '--no-color'];
@@ -537,7 +539,7 @@ export class GitService implements IGitService {
       args.push('--', filePath);
 
       const res = await executeGit(args, repoPath);
-      return parseDiffOutput(res.stdout);
+      return this.diffCache.parse(JSON.stringify([repoPath, filePath, !!staged, ignoreWhitespace]), res.stdout);
     } catch (err: any) {
       throw err;
     }

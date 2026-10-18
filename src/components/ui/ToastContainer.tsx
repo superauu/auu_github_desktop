@@ -30,12 +30,12 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
   const { t } = useI18n();
   const [copied, setCopied] = React.useState(false);
   const [actionBusy, setActionBusy] = React.useState(false);
+  const [actionError, setActionError] = React.useState('');
 
   const copyDetails = () => {
     const text = `${toast.title}\n${toast.description || ''}`;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+      .catch(() => setActionError(t('resilience.copyFailed')));
   };
 
   return (
@@ -74,12 +74,13 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
               {toast.description}
             </div>
           )}
+          {actionError && <p role="alert" className="break-words text-destructive">{actionError}</p>}
         </div>
       </div>
 
       <div className="flex items-center gap-1 shrink-0 ml-1">
         {toast.action && <button disabled={actionBusy} className="px-2 py-1 rounded hover:bg-accent text-primary disabled:opacity-50"
-          onClick={async () => { setActionBusy(true); try { await toast.action!.onClick(); onClose(); } finally { setActionBusy(false); } }}>
+          onClick={async () => { setActionBusy(true); setActionError(''); try { await toast.action!.onClick(); useToastStore.getState().consumeAction(toast.id); onClose(); } catch (error) { setActionError(error instanceof Error ? error.message : String(error)); } finally { setActionBusy(false); } }}>
           {toast.action.label}
         </button>}
         {toast.type === 'error' && (

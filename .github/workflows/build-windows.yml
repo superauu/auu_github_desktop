@@ -87,9 +87,12 @@ jobs:
           }
           $signature = (Get-Content $sigFile.FullName -Raw).Trim()
           $exeName = $sigFile.Name.Replace(".sig", "")
+          $notesPath = Join-Path $PWD "releases/v$version.md"
+          $releaseNotes = if (Test-Path -LiteralPath $notesPath) { Get-Content -LiteralPath $notesPath -Raw -Encoding UTF8 } else { "AuuGit v$version" }
+          [System.IO.File]::WriteAllText((Join-Path $PWD ".release-notes.md"), $releaseNotes, [System.Text.UTF8Encoding]::new($false))
           $latest = [ordered]@{
             version = $version
-            notes = "AuuGit v$version"
+            notes = $releaseNotes
             pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = [ordered]@{
               "windows-x86_64" = [ordered]@{
@@ -117,6 +120,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: output_exe/*
+          body_path: .release-notes.md
           generate_release_notes: true
           draft: false
           prerelease: false

@@ -32,6 +32,7 @@ import { CursorThemePicker } from './CursorThemePicker';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, LogOut, Key } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { checkForUpdates, openUpdateDialog } from '@/services/updater/UpdateService';
 
 interface SettingsDialogProps {
   initialTab?: SettingsTab;
@@ -237,6 +238,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
           <div className="p-2 text-[12px] text-muted-foreground/80 font-mono">
             v{version}
+            <button className="block mt-1 text-primary hover:underline" onClick={() => { openUpdateDialog(); void checkForUpdates(false); }}>{t('updates.check')}</button>
           </div>
         </div>
 

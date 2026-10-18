@@ -451,7 +451,13 @@ pub fn run() {
             poll_github_device_token,
             validate_directory,
             list_directories,
+            restart_application,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn restart_application(app: tauri::AppHandle) {
+    app.restart();
 }

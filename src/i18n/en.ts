@@ -1,4 +1,6 @@
 import { workflowEn } from './workflow';
+import { resilienceEn } from './resilience';
+import { optimizationEn } from './optimization';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
@@ -1290,6 +1292,8 @@ export const en = {
   'explain.requestFailed': 'Model request failed (HTTP {status}). Check AI settings and try again.',
   'recovery.op.rewrite': 'Before history rewrite',
   ...workflowEn,
+  ...resilienceEn,
+  ...optimizationEn,
 } as const;
 
 export type TranslationKey = keyof typeof en;

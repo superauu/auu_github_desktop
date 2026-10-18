@@ -2,6 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import React, { lazy, Suspense } from 'react';
 import { useRepoStore } from '@/stores/repoStore';
 import { WelcomeView } from '@/features/repository/WelcomeView';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 const WorkingChangesView = lazy(() => import('@/features/git/WorkingChangesView').then((module) => ({ default: module.WorkingChangesView })));
 const CommitHistoryView = lazy(() => import('@/features/git/CommitHistoryView').then((module) => ({ default: module.CommitHistoryView })));
 const ActionsDashboardView = lazy(() => import('@/features/actions/ActionsDashboardView').then((module) => ({ default: module.ActionsDashboardView })));
@@ -59,7 +60,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
           key={`${currentRepo.path}:${activeTab}`}
           className="flex-1 flex flex-col overflow-hidden min-h-0 animate-in fade-in duration-200 slide-in-from-bottom-2 ease-out"
         >
-          <Suspense fallback={<div role="status" aria-label="Loading" className="p-6 animate-pulse">…</div>}>{renderActiveView()}</Suspense>
+          <ErrorBoundary><Suspense fallback={<div role="status" aria-label="Loading" className="p-6 animate-pulse">…</div>}>{renderActiveView()}</Suspense></ErrorBoundary>
         </div>
       </div>
 

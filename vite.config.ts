@@ -276,7 +276,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.replace(/\\/g, '/').includes('/node_modules/')) return 'vendor';
+          const normalized = id.replace(/\\/g, '/');
+          if (normalized.includes('/node_modules/yaml/')) return 'workflow-yaml';
+          if (normalized.includes('/node_modules/')) return 'vendor';
         },
       },
     },

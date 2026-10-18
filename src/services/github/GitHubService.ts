@@ -210,17 +210,21 @@ export class GitHubService {
   async getWorkflowYaml(
     owner: string,
     repo: string,
-    path: string
+    path: string,
+    ref?: string,
+    signal?: AbortSignal,
   ): Promise<WorkflowYamlContent> {
+    const filePath = path.split('/').map(encodeURIComponent).join('/');
     const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      { headers: this.getHeaders() }
+      `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`,
+      { headers: this.getHeaders(), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000), cache: 'no-store' }
     );
     if (!res.ok) {
       throw new Error(tNow('err.ghYaml').replace('{s}', String(res.status)));
     }
     const data = await res.json();
     let content = '';
+    if (data.encoding !== 'base64' || typeof data.content !== 'string') throw new Error(tNow('dispatch.invalidDefinition'));
     if (data.content) {
       // Decode base64 to binary string, then convert to UTF-8
       const binaryStr = atob(data.content.replace(/\s/g, ''));

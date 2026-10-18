@@ -23,6 +23,10 @@ AI helps explain changes, draft descriptions, and suggest resolutions. The app d
 | AI assistance | Draft commit messages, explain commits and branch differences, diagnose Git errors, and suggest file groups or conflict resolutions. |
 | Customization | Chinese and English interfaces, themes, compact mode, adjustable panels, and cursor themes. |
 
+Manual GitHub Actions runs load the workflow definition from the selected branch and show required inputs, defaults, and choices. Environment inputs accept an environment name configured in the repository. Failed loads can be retried without submitting inputs from a previous branch.
+
+Git writes show the current operation, elapsed time, and queue count in the status bar. Cancel queued skips tasks that have not started; the running operation continues. If a main view fails to render, retry it or copy diagnostics. Save any text you are editing before reloading the entire window.
+
 Merge, rebase, and history editing include previews or recovery mechanisms. History editing blocks commits found on fetched remote branches; fetch remote changes before rewriting history.
 
 ## Installation
@@ -37,9 +41,15 @@ The `auugit.exe` release asset is a standalone executable. Use an installer buil
 
 ### Automatic updates
 
-The desktop app checks for updates about 15 seconds after startup. When a newer version is available, it downloads and installs the update, then prompts you to restart. Update packages are verified with a signature, and release metadata is provided through `latest.json`.
+The desktop app checks for updates about 15 seconds after startup. When a newer version is found, the status bar keeps an update entry. Review release notes, download with progress, or handle it later. Installation starts only after you select Install and restart and confirm; pending Git tasks in any repository block installation. Save your edits before installing. Update packages are verified with a signature, and release metadata is provided through `latest.json`.
 
 Browser development mode does not perform desktop updates. If an update check fails, you can download an installer from Releases manually.
+
+### Background refresh and recent operations
+
+Active windows check for external changes every 10 seconds, backing off to 30 seconds after two idle minutes and 60 seconds after five. Hidden windows and repositories with pending Git writes skip background checks; focus events trigger a debounced refresh. Identical diffs reuse parsed results, while consecutive edits are re-read even when Git status codes stay the same.
+
+Recent operations in the status bar keeps the last 100 Git writes and notifications for the session. Filter errors, copy details, retry a failed fetch, or open recovery for the recorded repository. Duration includes queue time. Records stay in memory and are cleared when the app closes.
 
 ### AI configuration
 
