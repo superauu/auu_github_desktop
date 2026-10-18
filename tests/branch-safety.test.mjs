@@ -271,3 +271,102 @@ test('image endpoint preserves exact binary data, reads index versions and rejec
   assert.equal((await read('../outside.png', 'WORKTREE')).status, 400);
   await fs.writeFile(path.join(repo, 'large.png'), Buffer.alloc(8 * 1024 * 1024 + 1)); assert.equal((await read('large.png', 'WORKTREE')).status, 400);
 });
+
+test('named recovery points persist locally and renaming never changes the saved commit or dirty work', async () => {
+  const repo = await fixture(); const head = git(repo, 'rev-parse', 'HEAD').trim();
+  await app.branchSafetyService.create(repo, '登录模块重构前');
+  let [point] = await app.branchSafetyService.list(repo);
+  assert.equal(point.name, '登录模块重构前'); assert.equal(point.hash, head);
+  const key = `auugit.recovery-${point.ref.split('/')[3]}.name`;
+  assert.equal(git(repo, 'config', '--local', '--get', key).trim(), point.name);
+  await fs.writeFile(path.join(repo, 'a.txt'), 'staged\n'); git(repo, 'add', 'a.txt');
+  await fs.writeFile(path.join(repo, 'a.txt'), 'unsaved\n');
+  const indexBefore = git(repo, 'ls-files', '--stage');
+  const refsBefore = git(repo, 'show-ref');
+  await app.branchSafetyService.rename(repo, point, '--global');
+  [point] = await app.branchSafetyService.list(repo);
+  assert.equal(point.name, '--global'); assert.equal(point.hash, head);
+  assert.equal(git(repo, 'config', '--get', 'user.name').trim(), 'Test');
+  assert.equal(git(repo, 'show-ref'), refsBefore); assert.equal(git(repo, 'ls-files', '--stage'), indexBefore);
+  assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'unsaved\n');
+  await app.branchSafetyService.rename(repo, point, '  ');
+  assert.equal((await app.branchSafetyService.list(repo))[0].name, undefined);
+  assert.equal(git(repo, 'rev-parse', point.ref).trim(), head);
+});
+
+test('deleting one recovery point preserves other points, commits, branch, index, and uncommitted files', async () => {
+  const repo = await fixture(); const head = git(repo, 'rev-parse', 'HEAD').trim();
+  await app.branchSafetyService.create(repo, 'keep'); await app.branchSafetyService.create(repo, 'delete');
+  const points = await app.branchSafetyService.list(repo), target = points.find(point => point.name === 'delete');
+  await fs.writeFile(path.join(repo, 'a.txt'), 'staged\n'); git(repo, 'add', 'a.txt');
+  await fs.writeFile(path.join(repo, 'a.txt'), 'working\n'); await fs.writeFile(path.join(repo, 'untracked.txt'), 'untracked\n');
+  const status = git(repo, 'status', '--porcelain=v2', '-z'), indexBefore = git(repo, 'ls-files', '--stage');
+  await app.branchSafetyService.remove(repo, target);
+  const remaining = await app.branchSafetyService.list(repo);
+  assert.equal(remaining.length, 1); assert.equal(remaining[0].name, 'keep');
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), head); assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+  assert.equal(git(repo, 'status', '--porcelain=v2', '-z'), status); assert.equal(git(repo, 'ls-files', '--stage'), indexBefore);
+  assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'working\n');
+  assert.equal(await fs.readFile(path.join(repo, 'untracked.txt'), 'utf8'), 'untracked\n');
+  const result = spawnSync('git', ['config', '--local', '--get', `auugit.recovery-${target.ref.split('/')[3]}.name`], { cwd: repo, encoding: 'utf8' });
+  assert.equal(result.status, 1);
+});
+
+test('recovery management rejects invalid names, foreign refs, and recovery points changed after listing', async () => {
+  const repo = await fixture();
+  for (const name of ['x'.repeat(81), 'line\nbreak', 'nul\0name']) await assert.rejects(app.branchSafetyService.create(repo, name));
+  assert.equal((await app.branchSafetyService.list(repo)).length, 0);
+  await app.branchSafetyService.create(repo);
+  const [point] = await app.branchSafetyService.list(repo);
+  await assert.rejects(app.branchSafetyService.remove(repo, { ...point, ref: 'refs/heads/main' }));
+  await assert.rejects(app.branchSafetyService.rename(repo, { ...point, ref: 'refs/heads/main' }, 'wrong'));
+  await change(repo, 'a.txt', 'later\n'); const later = git(repo, 'rev-parse', 'HEAD').trim();
+  git(repo, 'update-ref', point.ref, later);
+  await assert.rejects(app.branchSafetyService.remove(repo, point));
+  await assert.rejects(app.branchSafetyService.rename(repo, point, 'stale'));
+  assert.equal(git(repo, 'rev-parse', point.ref).trim(), later); assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), later);
+});
+
+test('recovery names are shared across linked worktrees and remain compatible with restore', async () => {
+  const repo = await fixture(); await app.branchSafetyService.create(repo, 'before changes');
+  const [point] = await app.branchSafetyService.list(repo);
+  const linked = path.join(tmp, `named-linked-${index}`); git(repo, 'worktree', 'add', '-b', 'linked', linked);
+  assert.equal((await app.branchSafetyService.list(linked))[0].name, 'before changes');
+  await app.branchSafetyService.rename(linked, point, '共享名称');
+  assert.equal((await app.branchSafetyService.list(repo))[0].name, '共享名称');
+  await change(repo, 'a.txt', 'later\n'); const later = git(repo, 'rev-parse', 'HEAD').trim();
+  await app.branchSafetyService.restore(repo, point, later);
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), point.hash);
+  assert.ok((await app.branchSafetyService.list(repo)).some(saved => saved.operation === 'restore' && saved.hash === later));
+});
+
+test('recovery deletion refuses a ref changed between validation and compare-and-delete', async () => {
+  const repo = await fixture(); await app.branchSafetyService.create(repo, 'race guard');
+  const [point] = await app.branchSafetyService.list(repo);
+  await change(repo, 'a.txt', 'newer\n'); const later = git(repo, 'rev-parse', 'HEAD').trim();
+  const previousFetch = globalThis.fetch; let raced = false;
+  globalThis.fetch = (url, init) => {
+    const data = typeof url === 'string' && url === '/api/git' && init?.body ? JSON.parse(init.body) : null;
+    if (data?.cwd === repo && data.args.includes('update-ref') && data.args.includes('-d')) {
+      raced = true; git(repo, 'update-ref', point.ref, later);
+    }
+    return previousFetch(url, init);
+  };
+  try {
+    await assert.rejects(app.branchSafetyService.remove(repo, point));
+    assert.equal(raced, true); assert.equal(git(repo, 'rev-parse', point.ref).trim(), later);
+    assert.equal((await app.branchSafetyService.list(repo))[0].name, 'race guard');
+  } finally { globalThis.fetch = previousFetch; }
+});
+
+test('deleting a symbolic recovery ref never deletes its target branch', async () => {
+  const repo = await fixture(); const head = git(repo, 'rev-parse', 'HEAD').trim();
+  const ref = 'refs/auugit/recovery/123-abc/manual/main';
+  git(repo, 'symbolic-ref', ref, 'refs/heads/main');
+  const [point] = await app.branchSafetyService.list(repo);
+  assert.equal(point.ref, ref); assert.equal(point.hash, head);
+  await app.branchSafetyService.remove(repo, point);
+  assert.equal(git(repo, 'rev-parse', 'refs/heads/main').trim(), head);
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), head);
+  assert.equal((await app.branchSafetyService.list(repo)).length, 0);
+});

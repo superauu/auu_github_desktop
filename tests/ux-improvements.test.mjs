@@ -48,7 +48,7 @@ const submitButton = renderer => renderer.root.findAllByType('button').find(b =>
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ux-'));
   const bundle = path.join(tmp, 'ux.cjs');
-  await build({ stdin: { contents: `export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog';`, resolveDir: root },
+  await build({ stdin: { contents: `export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
     plugins: [{ name: 'headless-modal', setup(build) { build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' })); } }],
   });
@@ -196,4 +196,60 @@ test('view errors show diagnostics and retry remounts only the failed subtree', 
     assert.match(JSON.stringify(renderer.toJSON()), /recovered view/);
     assert.equal(renderer.root.findAllByProps({ role: 'alert' }).length, 0);
   } finally { console.error = originalError; if (renderer) act(() => renderer.unmount()); }
+});
+
+async function withRecoveryDialog(check) {
+  const point = { ref: 'refs/auugit/recovery/123-abc/manual/main', hash: 'a'.repeat(40), branch: 'main', operation: 'manual', timestamp: 123, name: '旧名称' };
+  let points = [point], renderer;
+  const calls = { create: [], rename: [], remove: [] };
+  const savedSafety = { ...app.branchSafetyService };
+  const getStatus = app.gitService.getStatus, reflog = app.historyWorkflowService.reflog;
+  app.branchSafetyService.list = async () => points;
+  app.branchSafetyService.create = async (repo, name) => { calls.create.push([repo, name]); };
+  app.branchSafetyService.rename = async (repo, saved, name) => { calls.rename.push([repo, saved.ref, name]); points = points.map(item => item.ref === saved.ref ? { ...item, name: name.trim() || undefined } : item); };
+  app.branchSafetyService.remove = async (repo, saved) => { calls.remove.push([repo, saved.ref]); points = points.filter(item => item.ref !== saved.ref); };
+  app.gitService.getStatus = async () => ({ currentBranch: 'main' });
+  app.historyWorkflowService.reflog = async () => [];
+  try {
+    await act(async () => { renderer = create(React.createElement(app.RecoveryCenterDialog, { repoPath: 'recovery-test', onClose() {} })); });
+    await check(renderer, calls, point);
+  } finally {
+    app.useConfirmStore.getState().settle(false);
+    if (renderer) act(() => renderer.unmount());
+    Object.assign(app.branchSafetyService, savedSafety); app.gitService.getStatus = getStatus; app.historyWorkflowService.reflog = reflog;
+  }
+}
+
+test('recovery UI accepts a name at creation and supports cancelling or saving a rename', async () => {
+  await withRecoveryDialog(async (renderer, calls) => {
+    act(() => renderer.root.findAllByType('input')[0].props.onChange({ target: { value: '重构之前' } }));
+    await act(async () => { renderer.root.findByType('form').props.onSubmit({ preventDefault() {} }); });
+    assert.deepEqual(calls.create, [['recovery-test', '重构之前']]);
+    assert.equal(renderer.root.findAllByType('input')[0].props.value, '');
+    const rename = () => renderer.root.findAllByType('button').find(button => button.children.includes('改名'));
+    act(() => rename().props.onClick());
+    act(() => renderer.root.findAllByType('input')[1].props.onChange({ target: { value: '取消的名称' } }));
+    act(() => renderer.root.findAllByType('button').find(button => button.children.includes('取消')).props.onClick());
+    assert.equal(calls.rename.length, 0); assert.match(JSON.stringify(renderer.toJSON()), /旧名称/);
+    act(() => rename().props.onClick());
+    act(() => renderer.root.findAllByType('input')[1].props.onChange({ target: { value: '合并之前' } }));
+    await act(async () => { renderer.root.findAllByType('form')[1].props.onSubmit({ preventDefault() {} }); });
+    assert.equal(calls.rename[0][2], '合并之前'); assert.match(JSON.stringify(renderer.toJSON()), /合并之前/);
+  });
+});
+
+test('recovery deletion identifies the point, requires confirmation, and cancellation leaves it listed', async () => {
+  await withRecoveryDialog(async (renderer, calls, point) => {
+    const remove = () => renderer.root.findAllByType('button').find(button => button.children.includes('删除恢复点'));
+    await act(async () => remove().props.onClick());
+    assert.equal(calls.remove.length, 0);
+    assert.match(app.useConfirmStore.getState().pending.description, /旧名称/);
+    assert.match(app.useConfirmStore.getState().pending.detail, /main/);
+    await act(async () => app.useConfirmStore.getState().settle(false));
+    assert.equal(calls.remove.length, 0); assert.match(JSON.stringify(renderer.toJSON()), /旧名称/);
+    await act(async () => remove().props.onClick());
+    await act(async () => app.useConfirmStore.getState().settle(true));
+    assert.deepEqual(calls.remove, [['recovery-test', point.ref]]);
+    assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /旧名称/);
+  });
 });

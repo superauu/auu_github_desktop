@@ -27,6 +27,8 @@ Manual GitHub Actions runs load the workflow definition from the selected branch
 
 Git writes show the current operation, elapsed time, and queue count in the status bar. Cancel queued skips tasks that have not started; the running operation continues. If a main view fails to render, retry it or copy diagnostics. Save any text you are editing before reloading the entire window.
 
+Recovery points can be named when created, renamed later, or deleted. Names live in repository-local configuration and are shared across linked worktrees; an empty name uses the default label. Deleting a point removes only that point, leaving branches and working files unchanged. Git may eventually prune commits no longer retained by any reference.
+
 Merge, rebase, and history editing include previews or recovery mechanisms. History editing blocks commits found on fetched remote branches; fetch remote changes before rewriting history.
 
 ## Installation

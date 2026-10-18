@@ -22,9 +22,27 @@ export interface RecoveryPoint {
   branch: string;
   operation: string;
   timestamp: number;
+  name?: string;
 }
 type Git = (args: string[], stdin?: string) => Promise<GitCommandResult>;
 const prefix = 'refs/auugit/recovery/';
+function nameKey(ref: string): string {
+  const match = ref.match(/^refs\/auugit\/recovery\/(\d+-[0-9a-f-]+)\/[a-z-]+\/.+$/);
+  if (!match) throw new Error(tNow('recoveryManage.invalidPoint'));
+  return `auugit.recovery-${match[1]}.name`;
+}
+function validateName(value: string): string {
+  if (value.length > 80 || /[\x00-\x1f\x7f]/.test(value)) throw new Error(tNow('recoveryManage.invalidName'));
+  return value.trim();
+}
+async function removeName(git: Git, key: string) {
+  try { await git(['config', '--local', '--unset-all', '--', key]); }
+  catch (error) { if (!(error instanceof GitExecutionError && error.exitCode === 5)) throw error; }
+}
+async function requirePoint(git: Git, point: RecoveryPoint) {
+  nameKey(point.ref);
+  if (!/^[0-9a-f]{40,64}$/.test(point.hash) || await resolve(git, point.ref) !== point.hash) throw new Error(tNow('safety.stale'));
+}
 const refFor = (branch: GitBranch) => `${branch.isRemote ? 'refs/remotes/' : 'refs/heads/'}${branch.name}`;
 const resolve = async (git: Git, ref: string) => (await git(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`])).stdout.trim();
 
@@ -33,9 +51,16 @@ export async function requireClean(repoPath: string, git: Git) {
   if ((await gitService.getRepoOperationState(repoPath)).type !== 'none') throw new Error(tNow('safety.operationActive'));
 }
 
-export async function savePoint(git: Git, branch: string, hash: string, operation: string): Promise<string> {
+export async function savePoint(git: Git, branch: string, hash: string, operation: string, name = ''): Promise<string> {
   const ref = `${prefix}${Date.now()}-${crypto.randomUUID()}/${operation}/${branch}`;
-  await git(['update-ref', ref, hash, '0'.repeat(hash.length)]);
+  const label = validateName(name);
+  // Labels stay in repository-local config; they never change the saved commit or ref name.
+  if (label) await git(['config', '--local', '--replace-all', '--', nameKey(ref), label]);
+  try { await git(['update-ref', ref, hash, '0'.repeat(hash.length)]); }
+  catch (error) {
+    if (label) { try { await removeName(git, nameKey(ref)); } catch { /* An orphan label does not retain or modify commits. */ } }
+    throw error;
+  }
   return ref;
 }
 
@@ -87,19 +112,47 @@ export const branchSafetyService = {
 
   async list(repoPath: string): Promise<RecoveryPoint[]> {
     const result = await executeGit(['for-each-ref', '--format=%(refname)%09%(objectname)', prefix], repoPath);
+    const names = new Map<string, string>();
+    try {
+      const labels = await executeGit(['config', '--local', '-z', '--get-regexp', '^auugit\\.recovery-[0-9]+-[0-9a-f-]+\\.name$'], repoPath);
+      for (const record of labels.stdout.split('\0')) {
+        const split = record.indexOf('\n');
+        if (split >= 0) names.set(record.slice(0, split), record.slice(split + 1));
+      }
+    } catch (error) { if (!(error instanceof GitExecutionError && error.exitCode === 1)) throw error; }
     return result.stdout.split(/\r?\n/).filter(Boolean).flatMap(line => {
       const [ref, hash] = line.split('\t');
       const [id, operation, ...parts] = ref.slice(prefix.length).split('/');
       const timestamp = Number(id.split('-')[0]);
-      return timestamp && parts.length && /^[0-9a-f]{40,64}$/.test(hash) ? [{ ref, hash, branch: parts.join('/'), operation, timestamp }] : [];
+      return timestamp && parts.length && /^[0-9a-f]{40,64}$/.test(hash) ? [{ ref, hash, branch: parts.join('/'), operation, timestamp, name: names.get(`auugit.recovery-${id}.name`) || undefined }] : [];
     }).sort((a, b) => b.timestamp - a.timestamp);
   },
 
-  async create(repoPath: string): Promise<void> {
+  async create(repoPath: string, name = ''): Promise<void> {
+    const label = validateName(name);
     return executeGitTransaction(repoPath, async git => {
       await requireClean(repoPath, git);
       const branch = (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'])).stdout.trim();
-      await savePoint(git, branch, await resolve(git, 'HEAD'), 'manual');
+      await savePoint(git, branch, await resolve(git, 'HEAD'), 'manual', label);
+    });
+  },
+
+  async rename(repoPath: string, point: RecoveryPoint, name: string): Promise<void> {
+    const label = validateName(name);
+    return executeGitTransaction(repoPath, async git => {
+      await requirePoint(git, point);
+      if (label) await git(['config', '--local', '--replace-all', '--', nameKey(point.ref), label]);
+      else await removeName(git, nameKey(point.ref));
+    });
+  },
+
+  async remove(repoPath: string, point: RecoveryPoint): Promise<void> {
+    return executeGitTransaction(repoPath, async git => {
+      await requirePoint(git, point);
+      // Compare-and-delete protects a recovery ref changed by another Git process.
+      await git(['update-ref', '--no-deref', '-d', point.ref, point.hash]);
+      try { await removeName(git, nameKey(point.ref)); }
+      catch (error) { console.warn('Recovery point deleted; unused label cleanup failed:', error); }
     });
   },
 
