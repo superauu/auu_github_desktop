@@ -110,6 +110,25 @@ export const WorkingChangesView: React.FC = () => {
   const fileKey = (file: GitFileChange) => JSON.stringify([file.path, file.staged]);
   useEffect(() => { setPicked(new Set()); }, [currentRepo?.path]);
   const selectedFiles = allFiles.filter(file => picked.has(fileKey(file)));
+  const togglePicked = (file: GitFileChange, range: boolean) => {
+    const index = allFiles.indexOf(file);
+    if (range) {
+      setPicked(previous => new Set([...previous, ...allFiles.slice(Math.min(selectionAnchor.current, index), Math.max(selectionAnchor.current, index) + 1).map(fileKey)]));
+    } else {
+      setPicked(previous => { const next = new Set(previous); const key = fileKey(file); next.has(key) ? next.delete(key) : next.add(key); return next; });
+      selectionAnchor.current = index;
+    }
+  };
+  const pickCheckbox = (file: GitFileChange) => (
+    <input
+      type="checkbox"
+      aria-label={t('changes.pickFile')}
+      title={t('changes.pickFile')}
+      checked={picked.has(fileKey(file))}
+      onClick={event => { event.stopPropagation(); togglePicked(file, event.shiftKey); }}
+      className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary"
+    />
+  );
   const applySelection = async (mode: 'stage' | 'unstage') => {
     if (!currentRepo || batchBusy) return;
     const path = currentRepo.path;
@@ -424,27 +443,6 @@ export const WorkingChangesView: React.FC = () => {
         >
           <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
           <div className="flex items-center gap-2">
-            {totalChanges > 0 && (
-              <button
-                onClick={() => {
-                  if (stagedFiles.length === totalChanges) {
-                    runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
-                  } else {
-                    runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
-                  }
-                }}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                title={stagedFiles.length === totalChanges ? t("changes.unselectAll") : t("changes.selectAll")}
-              >
-                {stagedFiles.length === totalChanges ? (
-                  <CheckSquare className="h-3.5 w-3.5 text-git-added" />
-                ) : stagedFiles.length > 0 ? (
-                  <CheckSquare className="h-3.5 w-3.5 text-primary" />
-                ) : (
-                  <Square className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-              </button>
-            )}
             <span className="whitespace-nowrap">{t('rightPane.changes')} ({totalChanges})</span>
           </div>
 
@@ -543,20 +541,7 @@ export const WorkingChangesView: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              runGitAction(
-                                () => unstageFile(file.path),
-                                `${t('changes.unstagedToast')}: ${file.path}`,
-                                `${t('changes.unstageFailed')}: ${file.path}`
-                              );
-                            }}
-                            className="text-git-added hover:text-git-added shrink-0"
-                            title={t('changes.clickToUnstage')}
-                          >
-                            <CheckSquare className="h-3.5 w-3.5" />
-                          </button>
+                          {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
                         </div>
@@ -609,20 +594,7 @@ export const WorkingChangesView: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              runGitAction(
-                                () => stageFile(file.path),
-                                `${t('changes.stagedToast')}: ${file.path}`,
-                                `${t('changes.stageFailed')}: ${file.path}`
-                              );
-                            }}
-                            className="text-muted-foreground hover:text-git-added shrink-0"
-                            title={t('changes.clickToStage')}
-                          >
-                            <Square className="h-3.5 w-3.5" />
-                          </button>
+                          {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
                         </div>
@@ -754,6 +726,23 @@ export const WorkingChangesView: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>{t('changes.untracked')} ({untrackedFiles.length})</span>
+                    <button
+                      onClick={() => {
+                        const path = currentRepo?.path;
+                        if (!path) return;
+                        runGitAction(
+                          async () => {
+                            await gitService.stageFiles(path, untrackedFiles.map(file => file.path));
+                            if (useRepoStore.getState().currentRepo?.path === path) await useRepoStore.getState().refreshStatus();
+                          },
+                          t('changes.addAllToast'),
+                          t('changes.stageFailed')
+                        );
+                      }}
+                      className="text-[12px] text-muted-foreground hover:text-foreground"
+                    >
+                      {t('changes.addAllSection')}
+                    </button>
                   </div>
                   <div className="space-y-0.5">
                     <VirtualRows items={untrackedFiles} rowHeight={44} renderRow={(file) => (
@@ -768,20 +757,7 @@ export const WorkingChangesView: React.FC = () => {
                         )}
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              runGitAction(
-                                () => stageFile(file.path),
-                                `${t('changes.tracked')}: ${file.path}`,
-                                `${t('changes.trackedFailed')}: ${file.path}`
-                              );
-                            }}
-                            className="text-muted-foreground hover:text-git-added shrink-0"
-                            title={t('changes.clickToTrack')}
-                          >
-                            <Square className="h-3.5 w-3.5" />
-                          </button>
+                          {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
                         </div>
