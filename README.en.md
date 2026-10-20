@@ -29,6 +29,8 @@ Git writes show the current operation, elapsed time, and queue count in the stat
 
 Recovery points can be named when created, renamed later, or deleted. Names live in repository-local configuration and are shared across linked worktrees; an empty name uses the default label. Deleting a point removes only that point, leaving branches and working files unchanged. Git may eventually prune commits no longer retained by any reference.
 
+In the changes list, file checkboxes only pick files for batch actions: tick several to stage, unstage, or ignore them together, and Shift-tick for a range. Stage a single file with the plus/minus button at the row end, the space key, or the context menu. "Add All" in the untracked files section tracks and stages every new file at once.
+
 Merge, rebase, and history editing include previews or recovery mechanisms. History editing blocks commits found on fetched remote branches; fetch remote changes before rewriting history.
 
 ## Installation
