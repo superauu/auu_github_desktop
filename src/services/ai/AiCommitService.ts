@@ -275,8 +275,8 @@ export class AiCommitService {
     const paths = files.map((f) => f.path.replace(/\\/g, '/').toLowerCase());
 
     // 1. 计算 Type 与 Scope
-    let type = 'chore';
-    let scope = 'core';
+    let type: string;
+    let scope: string;
 
     const hasNewFiles = files.some((f) => f.status === 'untracked' || f.status === 'added');
     const isDocOnly = paths.every((p) => p.endsWith('.md') || p.includes('doc') || p.includes('readme'));
@@ -287,13 +287,10 @@ export class AiCommitService {
 
     if (isDocOnly) {
       type = 'docs';
-      scope = 'docs';
     } else if (isStyleOnly) {
       type = 'style';
-      scope = 'ui';
     } else if (isTestOnly) {
       type = 'test';
-      scope = 'test';
     } else if (hasBugFix) {
       type = 'fix';
     } else if (hasNewFiles) {
@@ -329,7 +326,7 @@ export class AiCommitService {
       .slice(0, 3)
       .map((f) => f.path.split(/[\\/]/).pop() || f.path);
 
-    let summary = '';
+    let summary: string;
     if (mainSymbol) {
       summary = `实现与完善 ${mainSymbol} 相关逻辑`;
     } else if (type === 'docs') {

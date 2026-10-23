@@ -24,6 +24,7 @@ import { cn } from '@/utils/cn';
 
 // Simple lightweight ANSI parser for standard terminal color escapes
 function parseAnsi(text: string): React.ReactNode[] {
+  // eslint-disable-next-line no-control-regex -- ANSI color sequences start with ESC.
   const parts = text.split(/(\x1b\[[0-9;]*m)/g);
   let currentColor = '';
   let isBold = false;

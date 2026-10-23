@@ -14,7 +14,7 @@ export function escapeIgnorePath(path: string): string {
   if (!path || /[\r\n\0]/.test(path) || path.startsWith('/') || /^[a-z]:/i.test(path) || path.split('/').some(p => p === '..' || p === '.git')) {
     throw new Error('Invalid repository file path');
   }
-  return path.replace(/[\\*?\[\]#! ]/g, '\\$&');
+  return path.replace(/[\\*?[\]#! ]/g, '\\$&');
 }
 
 export function fileExtension(path: string): string {

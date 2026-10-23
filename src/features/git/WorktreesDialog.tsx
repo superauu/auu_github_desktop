@@ -24,6 +24,7 @@ export function WorktreesDialog({ repoPath, onClose }: { repoPath: string; onClo
   const [manualPath, setManualPath] = useState<string | null>(null);
   const [openAfter, setOpenAfter] = useState(true);
   const name = newMode ? newBranch : existingBranch;
+  // eslint-disable-next-line no-control-regex -- Windows filenames cannot contain control characters.
   const targetPath = manualPath ?? `${repoPath.replace(/[/\\]$/, '')}-${name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '-') || 'worktree'}`;
   const freeBranches = branches.filter(branch => !branch.isRemote && !trees.some(tree => tree.branch === `refs/heads/${branch.name}`));
 

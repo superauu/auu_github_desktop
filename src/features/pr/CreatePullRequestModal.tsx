@@ -81,7 +81,6 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     setBody(commits[0]?.body || '');
     setError(null);
     // The values above intentionally snapshot the draft at the start of this session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, targetKey]);
 
   useEffect(() => {
@@ -101,7 +100,6 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       .finally(() => { if (active) setLoadingBase(false); });
     return () => { active = false; };
     // Branches are a snapshot for the fallback; refreshing refs must not overwrite a chosen base.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, targetKey]);
 
   useEffect(() => {
@@ -118,7 +116,6 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     }).catch(reason => { if (active) setSourceError(reason?.message || t('remote.loadFailed')); });
     return () => { active = false; };
     // sourceKey includes the target identity and local branch; old replies are discarded above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sourceKey, sourceAttempt, t]);
 
   const sources = sourceFor === sourceKey ? sourceRepositories(sourceContext) : [];

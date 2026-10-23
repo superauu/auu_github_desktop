@@ -172,7 +172,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
           const x2 = parentNode.x;
           const y2 = parentNode.y;
 
-          let d = '';
+          let d: string;
           if (x1 === x2) {
             d = `M ${x1} ${y1} L ${x2} ${y2}`;
           } else {

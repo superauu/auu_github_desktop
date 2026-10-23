@@ -32,6 +32,7 @@ function nameKey(ref: string): string {
   return `auugit.recovery-${match[1]}.name`;
 }
 function validateName(value: string): string {
+  // eslint-disable-next-line no-control-regex -- Recovery names must reject control characters.
   if (value.length > 80 || /[\x00-\x1f\x7f]/.test(value)) throw new Error(tNow('recoveryManage.invalidName'));
   return value.trim();
 }

@@ -60,7 +60,7 @@ export function parseConflictBlocks(content: string): ParseConflictResult {
 
   let startLine = 0;
   let currentBranch = '当前更改 (HEAD)';
-  let incomingBranch = '传入更改 (Incoming)';
+  let incomingBranch: string;
   let currentLines: string[] = [];
   let baseLines: string[] = [];
   let incomingLines: string[] = [];
