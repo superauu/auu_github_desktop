@@ -1,4 +1,5 @@
 import { tNow } from '@/i18n';
+import { validateGitHubUrl } from '@/utils/externalUrl';
 export interface DeviceCodeResponse {
   device_code: string;
   user_code: string;
@@ -37,6 +38,7 @@ export class GitHubOAuthService {
         if (!data.device_code || !data.user_code) {
           throw new Error(data.error_description || data.error || tNow('err.ghNoCredentials'));
         }
+        data.verification_uri = validateGitHubUrl(data.verification_uri);
         return data as DeviceCodeResponse;
       } catch (err: any) {
         throw new Error(tNow('err.ghDeviceFailed').replace('{m}', err.message || String(err)));
@@ -69,6 +71,7 @@ export class GitHubOAuthService {
       throw new Error(tNow('err.ghNoDevice'));
     }
 
+    data.verification_uri = validateGitHubUrl(data.verification_uri);
     return data;
   }
 

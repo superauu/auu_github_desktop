@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import { validateGitHubUrl } from '@/utils/externalUrl';
 
 interface GitHubAuthDialogProps {
   open: boolean;
@@ -31,6 +32,7 @@ interface GitHubAuthDialogProps {
 }
 
 const openExternalUrl = async (url: string) => {
+  url = validateGitHubUrl(url);
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   if (isTauri) {
     try {
@@ -422,7 +424,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                         <span>{t('auth.autoCopied')}</span>
                         <button
                           type="button"
-                          onClick={() => openExternalUrl(deviceData.verification_uri)}
+                          onClick={() => { void openExternalUrl(deviceData.verification_uri).catch(error => toast.error(t('auth.oauthFailed'), error.message)); }}
                           className="text-primary hover:underline inline-flex items-center gap-0.5 shrink-0 font-medium ml-2"
                         >
                           <span>{t('auth.reopenPage')}</span>
