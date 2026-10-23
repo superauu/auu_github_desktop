@@ -21,6 +21,8 @@ import { hasConflictMarkers } from '@/services/git/ConflictParser';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
+import { LAST_ACTIVE_REPO_KEY, OPEN_TABS_KEY, RECENT_REPOS_KEY, loadRepositoryList, saveRepositoryState } from './repositoryStorage';
+import { authorizeRepository } from '@/services/fs/RepositoryAccess';
 
 export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests';
 
@@ -135,8 +137,6 @@ interface RepoState {
   completeCurrentOperation: (commitMessage?: string) => Promise<void>;
 }
 
-const RECENT_REPOS_KEY = 'auu_git_recent_repos';
-const OPEN_TABS_KEY = 'auu_git_open_tabs';
 
 export const useRepoStore = create<RepoState>((set, get) => {
   let repoEpoch = 0;
@@ -155,26 +155,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
   };
   const isCurrent = (path: string, epoch: number) => get().currentRepo?.path === path && repoEpoch === epoch;
   // Load initial recent repos
-  let initialRecent: RepositoryInfo[] = [];
-  try {
-    const saved = localStorage.getItem(RECENT_REPOS_KEY);
-    if (saved) {
-      initialRecent = JSON.parse(saved);
-    }
-  } catch {
-    initialRecent = [];
-  }
+  const initialRecent = loadRepositoryList(RECENT_REPOS_KEY);
 
   // Load initial open tabs
-  let initialTabs: RepositoryInfo[] = [];
-  try {
-    const savedTabs = localStorage.getItem(OPEN_TABS_KEY);
-    if (savedTabs) {
-      initialTabs = JSON.parse(savedTabs);
-    }
-  } catch {
-    initialTabs = [];
-  }
+  let initialTabs = loadRepositoryList(OPEN_TABS_KEY);
   if (!initialTabs || initialTabs.length === 0) {
     initialTabs = initialRecent.slice(0, 4);
   }
@@ -219,9 +203,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         if (repo && !newTabs.some((t) => t.path === repo.path)) {
           newTabs = [...newTabs, repo];
         }
-        try {
-          localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(newTabs));
-        } catch {}
+        saveRepositoryState(OPEN_TABS_KEY, newTabs);
         return {
           currentRepo: repo,
           status: null, commits: [], branches: [], tags: [], stashes: [],
@@ -237,18 +219,16 @@ export const useRepoStore = create<RepoState>((set, get) => {
         };
       });
       if (repo) {
-        try {
-          localStorage.setItem('auu_git_last_active_repo', JSON.stringify(repo));
-        } catch {}
+        saveRepositoryState(LAST_ACTIVE_REPO_KEY, repo);
         void get().refreshAll().catch(() => {});
       } else {
-        localStorage.removeItem('auu_git_last_active_repo');
+        saveRepositoryState(LAST_ACTIVE_REPO_KEY, null);
       }
     },
 
     closeTab: (path: string) => {
       const remaining = get().openTabs.filter((tab) => tab.path !== path);
-      try { localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(remaining)); } catch {}
+      saveRepositoryState(OPEN_TABS_KEY, remaining);
       const wasActive = get().currentRepo?.path === path;
       set({ openTabs: remaining });
       if (wasActive) get().setCurrentRepo(remaining[0] || null);
@@ -359,20 +339,14 @@ export const useRepoStore = create<RepoState>((set, get) => {
       set((state) => {
         const filtered = state.recentRepos.filter((r) => r.path !== repo.path);
         const updated = [repo, ...filtered].slice(0, 10);
-        try {
-          localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(updated));
-        } catch {
-          // ignore
-        }
+        saveRepositoryState(RECENT_REPOS_KEY, updated);
         return { recentRepos: updated };
       }),
 
     removeRecentRepo: (path: string) =>
       set((state) => {
         const updated = state.recentRepos.filter((r) => r.path !== path);
-        try {
-          localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(updated));
-        } catch {}
+        saveRepositoryState(RECENT_REPOS_KEY, updated);
         return { recentRepos: updated };
       }),
 
@@ -430,6 +404,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
       set({ isLoading: true, errorMessage: null });
       try {
+        if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+          await authorizeRepository(currentRepo.path);
+          if (!valid()) return;
+        }
         const { commitsLimit } = get();
         const statusPromise = gitService.getStatus(currentRepo.path);
         const nextRefs = gitService.getRefsFingerprint(currentRepo.path).catch(() => null);
@@ -462,9 +440,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           isGitHubRepo: detected.isGitHubRepo, gitHubOwner: detected.gitHubOwner, gitHubRepo: detected.gitHubRepo, gitHubRemote: detected.gitHubRemote };
 
         // Persist updated repo to localStorage
-        try {
-          localStorage.setItem('auu_git_last_active_repo', JSON.stringify(activeRepo));
-        } catch {}
+        saveRepositoryState(LAST_ACTIVE_REPO_KEY, activeRepo);
 
         set((state) => {
           const updatedTabs = state.openTabs.map((t) =>
@@ -473,9 +449,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           const updatedRecent = state.recentRepos.map((r) =>
             r.path === activeRepo.path ? { ...r, currentBranch: activeRepo.currentBranch } : r
           );
-          try {
-            localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(updatedRecent));
-          } catch {}
+          saveRepositoryState(RECENT_REPOS_KEY, updatedRecent);
 
           return {
             currentRepo: activeRepo,
@@ -810,9 +784,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         await gitService.checkoutBranch(currentRepo.path, name);
         if (!isCurrent(currentRepo.path, epoch)) return;
         const updatedRepo = { ...currentRepo, currentBranch: name };
-        try {
-          localStorage.setItem('auu_git_last_active_repo', JSON.stringify(updatedRepo));
-        } catch {}
+        saveRepositoryState(LAST_ACTIVE_REPO_KEY, updatedRepo);
 
         set((state) => {
           const updatedTabs = state.openTabs.map((t) =>
@@ -821,9 +793,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           const updatedRecent = state.recentRepos.map((r) =>
             r.path === updatedRepo.path ? { ...r, currentBranch: name } : r
           );
-          try {
-            localStorage.setItem(RECENT_REPOS_KEY, JSON.stringify(updatedRecent));
-          } catch {}
+          saveRepositoryState(RECENT_REPOS_KEY, updatedRecent);
 
           const updatedBranches = state.branches.map((b) => ({
             ...b,
@@ -1150,8 +1120,9 @@ export const useRepoStore = create<RepoState>((set, get) => {
       try {
         await gitService.openTerminal(currentRepo.path);
       } catch (err: any) {
-        set({ errorMessage: err.message });
-        throw err;
+        const message = err instanceof Error ? err.message : String(err);
+        set({ errorMessage: message });
+        toast.error(tNow('terminal.openFailed'), message);
       }
     },
 

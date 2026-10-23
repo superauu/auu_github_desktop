@@ -23,18 +23,8 @@ export interface ListDirsResult {
 export async function pickFolderNative(): Promise<string | null> {
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   if (isTauri) {
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: '选择 Git 仓库目录',
-      });
-      if (typeof selected === 'string') return selected;
-      return null;
-    } catch (e) {
-      console.warn('Tauri open dialog error, fallback to HTTP API:', e);
-    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<string | null>('pick_repository_folder');
   }
 
   try {

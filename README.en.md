@@ -77,7 +77,7 @@ External model requests send relevant code, diffs, or error context to the servi
 
 Requirements:
 
-- Node.js 20 or later and npm.
+- Node.js 20.19+, 22.13+, or 24+ and npm.
 - Git.
 - For desktop builds: stable Rust and the platform-specific [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). Windows requires Microsoft C++ Build Tools and WebView2.
 
@@ -95,6 +95,10 @@ npm run dev
 
 Open `http://localhost:5173`. The development server includes APIs that access local repositories and is intended for local use. Git operations affect the actual repository you select.
 
+Development APIs are restricted to this project directory and its descendants by default. Set `AUUGIT_DEV_ROOTS` before starting the server to allow other repositories; separate roots with the platform path delimiter (a semicolon on Windows). Existing ancestors and directory links are resolved before checking access.
+
+The desktop app remembers directories chosen through its native picker. Manually entered paths and paths restored from older versions require confirmation on first access. Text and ignore-rule files are limited to 8 MiB. Saves serialize application writes, recheck the original contents and atomically replace the file. A small race with external editors remains between the final check and replacement.
+
 Start desktop development mode:
 
 ```sh
@@ -105,12 +109,15 @@ Validate and build:
 
 ```sh
 npm test
+npm run lint
 npm run check:release
 npm run build
 npm run tauri -- build -- --locked
 ```
 
 `npm run build` produces frontend assets. The final command creates desktop bundles under `src-tauri/target/release/bundle/`. Builds with signed automatic updates also require signing credentials that match the app's updater public key.
+
+Credential backends are enabled per platform: Windows Credential Manager, macOS Keychain, and Linux keyutils with Secret Service. Linux needs an available Secret Service and session D-Bus at runtime. Releases and desktop regression validation currently target Windows x64.
 
 ## Project structure
 

@@ -979,6 +979,8 @@ export const en = {
   'terminal.resizeHint': 'Drag to resize terminal height',
   'terminal.clear': 'Clear',
   'terminal.openExternal': 'Open in external system terminal',
+  'terminal.desktopOnly': 'Open an external terminal from the desktop app',
+  'terminal.openFailed': 'Unable to open external terminal',
   'terminal.restore': 'Restore',
   'terminal.maximize': 'Maximize',
   'terminal.close': 'Close terminal panel',

@@ -5,6 +5,9 @@ import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { version } from './package.json';
+import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io';
+import { directoryScope } from './scripts/dev-directory-scope';
+import { validateGitArguments } from './scripts/git-policy';
 
 const MAX_BODY = 8 * 1024 * 1024;
 const json = (res: ServerResponse, status: number, data: unknown) => {
@@ -25,7 +28,7 @@ async function body(req: IncomingMessage): Promise<Record<string, any>> {
 }
 async function repoFile(repoPath: string, filePath: string): Promise<string> {
   if (typeof repoPath !== 'string' || typeof filePath !== 'string' || !filePath ||
-      path.isAbsolute(filePath) || filePath.split(/[/\\]/).some((part) => part === '..' || part === '.git')) {
+      path.isAbsolute(filePath) || filePath.split(/[/\\]/).some((part) => part === '..' || part.toLowerCase() === '.git')) {
     throw new Error('Invalid repository file path');
   }
   const root = await fs.realpath(repoPath);
@@ -41,10 +44,11 @@ async function repoFile(repoPath: string, filePath: string): Promise<string> {
   }
   const relative = path.relative(root, resolved);
   if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw new Error('Path outside repository');
+  if (relative.split(path.sep).some(part => part.toLowerCase() === '.git')) throw new Error('Invalid repository file path');
   return resolved;
 }
 export function gitApiPlugin(): Plugin {
-  let ignoreWrites: Promise<unknown> = Promise.resolve();
+  const allowedPath = directoryScope();
   return {
     name: 'git-api-plugin',
     configureServer(server) {
@@ -61,14 +65,7 @@ export function gitApiPlugin(): Plugin {
         try {
           if (url.pathname === '/fs/list-dirs' && req.method === 'GET') {
             const requested = url.searchParams.get('path');
-            if (!requested && process.platform === 'win32') {
-              const directories = (await Promise.all('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(async (letter) => {
-                const drive = `${letter}:/`;
-                try { await fs.access(drive); return { name: `${letter}:`, path: drive, hasGit: false }; } catch { return null; }
-              }))).filter(Boolean);
-              json(res, 200, { currentPath: '', parentPath: null, hasGit: false, directories }); return;
-            }
-            const root = await fs.realpath(requested || process.cwd());
+            const root = await allowedPath(requested || process.cwd());
             const entries = await fs.readdir(root, { withFileTypes: true });
             const hasGit = async (folder: string) => fs.access(path.join(folder, '.git')).then(() => true, () => false);
             const directories = await Promise.all(entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map(async (entry) => {
@@ -80,6 +77,23 @@ export function gitApiPlugin(): Plugin {
           }
           if (req.method !== 'POST') { json(res, 405, { error: 'Method not allowed' }); return; }
           const data = await body(req);
+          // Scope filesystem requests before dispatch; resolve links and nonexistent descendants.
+          if (data.repoPath !== undefined) data.repoPath = await allowedPath(data.repoPath);
+          if (url.pathname === '/git') {
+            if (!Array.isArray(data.args) || !data.args.every((value: unknown) => typeof value === 'string')) throw new Error('Invalid Git command');
+            const { command, index } = validateGitArguments(data.args);
+            data.cwd = await allowedPath(data.cwd || process.cwd());
+            if (command === 'clone') {
+              const separator = data.args.indexOf('--');
+              if (separator < 0 || data.args.length !== separator + 3) throw new Error('Clone requires an explicit destination');
+              await allowedPath(data.args[data.args.length - 1]);
+            }
+            if (command === 'worktree' && data.args[index + 1] === 'add') {
+              await allowedPath(data.args[data.args.indexOf('--') + 1]);
+            }
+          }
+          if (url.pathname === '/fs/exists') data.path = await allowedPath(path.resolve(data.cwd || process.cwd(), data.path));
+          if (url.pathname === '/fs/validate-path') data.path = await allowedPath(data.path);
           if (url.pathname === '/ai/completion') {
             // Local development relay: same origin only, no credential persistence or redirects.
             const target = new URL(data.url);
@@ -124,7 +138,7 @@ export function gitApiPlugin(): Plugin {
           }
           if (url.pathname === '/fs/ignore-file') {
             if (typeof data.gitBinary !== 'string' || !/^git(?:\.exe)?$/i.test(path.basename(data.gitBinary))) throw new Error('Invalid Git executable');
-            const operation = ignoreWrites.catch(() => {}).then(async () => {
+            const operation = withFileWrite(async () => {
               let resolved: string;
               if (data.scope === 'shared') resolved = await repoFile(data.repoPath, '.gitignore');
               else if (data.scope === 'local') {
@@ -138,7 +152,7 @@ export function gitApiPlugin(): Plugin {
                 });
               } else throw new Error('Invalid ignore scope');
               let actual = '', exists = true;
-              try { actual = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await fs.readFile(resolved)); }
+              try { actual = await readText(resolved); }
               catch (error: any) { if (error.code !== 'ENOENT') throw error; exists = false; }
               if (data.remove === true) {
                 if (data.expectedContent !== actual) throw new Error('Ignore rules changed on disk; reload before saving');
@@ -148,13 +162,12 @@ export function gitApiPlugin(): Plugin {
               if (data.content !== undefined) {
                 if (typeof data.content !== 'string' || data.expectedContent !== actual) throw new Error('Ignore rules changed on disk; reload before saving');
                 await fs.mkdir(path.dirname(resolved), { recursive: true });
-                await fs.writeFile(resolved, data.content, 'utf8');
+                await atomicWrite(resolved, data.content, data.expectedContent);
                 actual = data.content;
                 exists = true;
               }
               return { content: actual, exists };
             });
-            ignoreWrites = operation;
             json(res, 200, await operation); return;
           }
           if (url.pathname === '/git') {
@@ -172,7 +185,7 @@ export function gitApiPlugin(): Plugin {
               return;
             }
             const child = spawn(gitBinary, ['-c', 'core.quotepath=false', ...args], {
-              cwd, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' },
+              cwd, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never', GIT_ALLOW_PROTOCOL: 'https:http:ssh:git:file' },
             });
             let stdout = '', stderr = '', size = 0, finished = false;
             const finish = (status: number, value: unknown) => {
@@ -226,18 +239,15 @@ export function gitApiPlugin(): Plugin {
           if (url.pathname === '/fs/read-file' || url.pathname === '/fs/write-file') {
             const resolved = await repoFile(data.repoPath, data.filePath);
             if (url.pathname === '/fs/read-file') {
-              const bytes = await fs.readFile(resolved).catch((error) => {
-                if (data.allowMissing === true && error.code === 'ENOENT') return Buffer.alloc(0);
+              const content = await readText(resolved).catch((error) => {
+                if (data.allowMissing === true && error.code === 'ENOENT') return '';
                 throw error;
               });
-              const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
               json(res, 200, { content });
             } else {
               if (typeof data.content !== 'string') throw new Error('Invalid file content');
-              if (data.expectedContent !== undefined && await fs.readFile(resolved, 'utf8') !== data.expectedContent) {
-                json(res, 409, { error: 'File changed on disk; reload before saving' }); return;
-              }
-              await fs.writeFile(resolved, data.content, 'utf8'); json(res, 200, { success: true });
+              await withFileWrite(() => atomicWrite(resolved, data.content, data.expectedContent));
+              json(res, 200, { success: true });
             }
             return;
           }
@@ -261,7 +271,11 @@ if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encodin
             const finish = (status: number, value: unknown) => { if (!finished) { finished = true; json(res, status, value); } };
             child.stdout.on('data', (chunk) => { output += chunk.toString('utf8'); });
             child.on('error', (error) => finish(500, { error: error.message }));
-            child.on('close', () => finish(200, { path: output.trim() || null })); return;
+            child.on('close', () => {
+              const selected = output.trim();
+              if (!selected) { finish(200, { path: null }); return; }
+              void allowedPath(selected).then(selected => finish(200, { path: selected }), error => finish(403, { error: error.message }));
+            }); return;
           }
           if (url.pathname === '/github/device-code' || url.pathname === '/github/device-token') {
             const token = url.pathname.endsWith('device-token');
@@ -273,7 +287,7 @@ if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encodin
             json(res, response.status, await response.json()); return;
           }
           json(res, 404, { error: 'Unknown API endpoint' });
-        } catch (error: any) { json(res, 400, { error: error.message }); }
+        } catch (error: any) { json(res, /changed on disk/.test(error.message) ? 409 : 400, { error: error.message }); }
       });
     },
   };

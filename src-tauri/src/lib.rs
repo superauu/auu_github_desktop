@@ -1,9 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::process::{Command, Stdio};
-use std::io::{Read, Write};
+#[cfg(target_os = "windows")]
+use std::process::Command;
 use std::path::{Path, PathBuf, Component};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+mod file_io;
+mod git_process;
+use git_process::{run_git, run_git_bytes, GitCommandResult};
+mod repository_access;
+mod git_policy;
+use file_io::{atomic_write, read_bytes, read_text, FILE_WRITES, MAX_FILE_BYTES};
 
 /// 去除 Windows canonicalize 返回的 \\?\ 前缀（含 UNC 形式）。
 /// 前端会把路径中的反斜杠统一成正斜杠，而 "//?/E:/" 形式 Win32 不识别，
@@ -19,73 +25,23 @@ fn normalize_display_path(p: &std::path::Path) -> String {
     s
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct GitCommandResult {
-    pub exit_code: i32,
-    pub stdout: String,
-    pub stderr: String,
-}
-
-fn stop_process(child: &mut std::process::Child) {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        let _ = Command::new("taskkill.exe").args(["/PID", &child.id().to_string(), "/T", "/F"])
-            .creation_flags(0x08000000).stdout(Stdio::null()).stderr(Stdio::null()).status();
-    }
-    let _ = child.kill();
-    let _ = child.wait();
-}
-
-fn collect_output<R: Read + Send + 'static>(reader: R) -> std::sync::mpsc::Receiver<Result<Vec<u8>, String>> {
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let result = reader.take(32 * 1024 * 1024 + 1).read_to_end(&mut bytes)
-            .map_err(|e| e.to_string()).and_then(|_| {
-                if bytes.len() > 32 * 1024 * 1024 { Err("Git output too large".into()) } else { Ok(bytes) }
-            });
-        let _ = sender.send(result);
-    });
-    receiver
-}
-
-fn run_git(args: Vec<String>, cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
-    let binary = git_binary.filter(|value| !value.trim().is_empty()).unwrap_or_else(|| "git".into());
-    let name = Path::new(&binary).file_name().and_then(|name| name.to_str()).unwrap_or("").to_lowercase();
-    if name != "git" && name != "git.exe" { return Err("Expected a Git executable".into()); }
-    let mut command = Command::new(&binary);
-    command.args(args).current_dir(cwd).env("GIT_TERMINAL_PROMPT", "0").env("GCM_INTERACTIVE", "Never")
-        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    #[cfg(target_os = "windows")]
-    { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
-    let mut child = command.spawn().map_err(|e| format!("Unable to start Git: {}", e))?;
-    let stdout = collect_output(child.stdout.take().ok_or("Missing stdout")?);
-    let stderr = collect_output(child.stderr.take().ok_or("Missing stderr")?);
-    let mut input = child.stdin.take().ok_or("Missing stdin")?;
-    let writer = std::thread::spawn(move || {
-        if let Some(content) = stdin { input.write_all(content.as_bytes()).map_err(|e| e.to_string())?; }
-        Ok::<(), String>(())
-    });
-    let deadline = Instant::now() + Duration::from_secs(15 * 60);
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(25)),
-            Ok(None) => { stop_process(&mut child); return Err("Git command timed out".into()); }
-            Err(error) => { stop_process(&mut child); return Err(error.to_string()); }
-        }
-    };
-    let stdout = stdout.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())??;
-    let stderr = stderr.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())??;
-    if status.success() { writer.join().map_err(|_| "Git input writer failed")??; }
-    Ok(GitCommandResult { exit_code: status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&stdout).into_owned(), stderr: String::from_utf8_lossy(&stderr).into_owned() })
-}
-
 #[tauri::command]
-async fn execute_git(args: Vec<String>, cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
+async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
+    git_policy::validate(&args)?;
+    if args != ["--version"] && args != ["-c", "core.quotepath=false", "--version"] {
+        let command = git_policy::command(&args)?;
+        if command == "clone" {
+            let separator = args.iter().position(|value| value == "--").ok_or("Clone requires an explicit destination")?;
+            if args.len() != separator + 3 { return Err("Invalid clone arguments".into()); }
+            repository_access::require(&args[separator + 2])?;
+            cwd = std::env::current_dir().map_err(|error| error.to_string())?.to_string_lossy().into_owned();
+        } else { repository_access::require(&cwd)?; }
+        if command == "worktree" && args.iter().position(|value| value == command)
+            .and_then(|index| args.get(index + 1)).is_some_and(|value| value == "add") {
+            let separator = args.iter().position(|value| value == "--").ok_or("Worktree requires an explicit destination")?;
+            repository_access::require(args.get(separator + 1).ok_or("Missing worktree destination")?)?;
+        }
+    }
     tauri::async_runtime::spawn_blocking(move || run_git(args, cwd, git_binary, stdin)).await.map_err(|e| e.to_string())?
 }
 
@@ -96,7 +52,7 @@ fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
         Component::Normal(name) => name.to_string_lossy().eq_ignore_ascii_case(".git"),
         _ => false,
     }) { return Err("Invalid repository file path".into()); }
-    let root = fs::canonicalize(repo_path).map_err(|e| e.to_string())?;
+    let root = repository_access::require(&repo_path)?;
     let candidate = root.join(relative);
     let mut ancestor = candidate.as_path();
     while !ancestor.exists() { ancestor = ancestor.parent().ok_or("Missing parent directory")?; }
@@ -104,12 +60,16 @@ fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
     let canonical = fs::canonicalize(ancestor).map_err(|e| e.to_string())?;
     let resolved = if suffix.as_os_str().is_empty() { canonical } else { canonical.join(suffix) };
     if !resolved.starts_with(&root) { return Err("Path outside repository".into()); }
+    if resolved.strip_prefix(&root).map_err(|e| e.to_string())?.components()
+        .any(|part| matches!(part, Component::Normal(name) if name.to_string_lossy().eq_ignore_ascii_case(".git"))) {
+        return Err("Invalid repository file path".into());
+    }
     Ok(resolved)
 }
 
 #[tauri::command(async)]
 fn read_file_content(repo_path: String, file_path: String, allow_missing: Option<bool>) -> Result<String, String> {
-    match fs::read_to_string(repo_file(repo_path, file_path)?) {
+    match read_text(&repo_file(repo_path, file_path)?) {
         Ok(content) => Ok(content),
         Err(error) if allow_missing == Some(true) && error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
         Err(error) => Err(error.to_string()),
@@ -127,22 +87,18 @@ fn read_git_image(repo_path: String, file_path: String, revision: String, git_bi
             Err(error) => return Err(error.to_string()),
             _ => (),
         }
-        fs::read(path).map_err(|e| e.to_string())?
+        read_bytes(&path, MAX_FILE_BYTES).map_err(|e| e.to_string())?
     } else {
         if revision != "INDEX" && !(matches!(revision.len(), 40 | 64) && revision.bytes().all(|b| b.is_ascii_hexdigit())) { return Err("Invalid image revision".into()); }
         let binary = git_binary.unwrap_or_else(|| "git".into());
         let name = Path::new(&binary).file_name().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
         if name != "git" && name != "git.exe" { return Err("Invalid Git executable".into()); }
         let spec = format!("{}:{}", if revision == "INDEX" { "" } else { &revision }, file_path.replace('\\', "/"));
-        let size = run_git(vec!["cat-file".into(), "-s".into(), spec.clone()], repo_path.clone(), Some(binary.clone()), None)?;
+        let size = run_git_bytes(vec!["cat-file".into(), "-s".into(), spec.clone()], repo_path.clone(), Some(binary.clone()), None, Duration::from_secs(15))?;
         if size.exit_code != 0 { return Ok(None); }
-        if size.stdout.trim().parse::<u64>().map_err(|e| e.to_string())? > 8 * 1024 * 1024 { return Err("Image exceeds 8 MiB".into()); }
-        let mut command = Command::new(binary);
-        command.args(["cat-file", "blob", &spec]).current_dir(repo_path);
-        #[cfg(target_os = "windows")]
-        { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
-        let result = command.output().map_err(|e| e.to_string())?;
-        if !result.status.success() { return Err(String::from_utf8_lossy(&result.stderr).into_owned()); }
+        if String::from_utf8_lossy(&size.stdout).trim().parse::<u64>().map_err(|e| e.to_string())? > 8 * 1024 * 1024 { return Err("Image exceeds 8 MiB".into()); }
+        let result = run_git_bytes(vec!["cat-file".into(), "blob".into(), spec], repo_path, Some(binary), None, Duration::from_secs(15))?;
+        if result.exit_code != 0 { return Err(String::from_utf8_lossy(&result.stderr).into_owned()); }
         result.stdout
     };
     if bytes.len() > 8 * 1024 * 1024 { return Err("Image exceeds 8 MiB".into()); }
@@ -157,8 +113,8 @@ fn read_git_image(repo_path: String, file_path: String, revision: String, git_bi
 // Only these two Git-owned destinations are exposed, including linked worktree excludes.
 #[tauri::command(async)]
 fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, content: Option<String>, expected_content: Option<String>, remove: Option<bool>) -> Result<serde_json::Value, String> {
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _guard = LOCK.lock().map_err(|e| e.to_string())?;
+    repository_access::require(&repo_path)?;
+    let _guard = FILE_WRITES.lock().map_err(|e| e.to_string())?;
     let path = match scope.as_str() {
         "shared" => repo_file(repo_path.clone(), ".gitignore".into())?,
         "local" => {
@@ -169,7 +125,7 @@ fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, con
         _ => return Err("Invalid ignore scope".into()),
     };
     let exists = path.exists();
-    let actual = match fs::read_to_string(&path) {
+    let actual = match read_text(&path) {
         Ok(value) => value,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(error.to_string()),
@@ -181,19 +137,34 @@ fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, con
     } else if let Some(content) = content {
         if expected_content.as_ref() != Some(&actual) { return Err("Ignore rules changed on disk; reload before saving".into()); }
         if let Some(parent) = path.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
-        fs::write(path, &content).map_err(|e| e.to_string())?;
+        atomic_write(&path, &content, expected_content.as_deref())?;
         Ok(serde_json::json!({ "content": content, "exists": true }))
     } else { Ok(serde_json::json!({ "content": actual, "exists": exists })) }
 }
 
 #[tauri::command(async)]
 fn write_file_content(repo_path: String, file_path: String, content: String, expected_content: Option<String>) -> Result<(), String> {
+    let _guard = FILE_WRITES.lock().map_err(|e| e.to_string())?;
     let path = repo_file(repo_path, file_path)?;
-    if let Some(expected) = expected_content {
-        let actual = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        if actual != expected { return Err("File changed on disk; reload before saving".into()); }
+    atomic_write(&path, &content, expected_content.as_deref())
+}
+
+#[tauri::command(async)]
+fn open_terminal(repo_path: String) -> Result<(), String> {
+    let directory = repository_access::require(&repo_path)?;
+    if !directory.is_dir() { return Err("Repository directory is unavailable".into()); }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let powershell = PathBuf::from(std::env::var_os("SystemRoot").ok_or("Missing Windows directory")?)
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+        Command::new(powershell).args(["-NoLogo", "-NoProfile", "-NoExit"])
+            .current_dir(directory).creation_flags(0x00000010)
+            .spawn().map_err(|error| format!("Unable to open terminal: {error}"))?;
+        Ok(())
     }
-    fs::write(path, content).map_err(|e| e.to_string())
+    #[cfg(not(target_os = "windows"))]
+    { let _ = directory; Err("Opening an external terminal is currently supported on Windows only".into()) }
 }
 
 #[tauri::command(async)]
@@ -360,7 +331,7 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
             }
         }
     }
-    directories.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    directories.sort_by_key(|entry| entry.name.to_lowercase());
 
     Ok(ListDirsResult {
         current_path: normalize_display_path(&canonical),
@@ -370,7 +341,7 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
     })
 }
 
-        // ===== GitHub Token 系统凭据管理器（Windows Credential Manager） =====
+// GitHub tokens use the platform's native credential store.
 // 优先走 keyring；无对应条目时返回 Ok(None)，不视为错误
 fn github_token_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new("auugit", "github_token").map_err(|e| e.to_string())
@@ -438,6 +409,9 @@ pub fn run() {
             get_github_token,
             delete_github_token,
             execute_git,
+            open_terminal,
+            repository_access::authorize_repository,
+            repository_access::pick_repository_folder,
             path_exists,
             request_ai_completion,
             get_github_job_logs,

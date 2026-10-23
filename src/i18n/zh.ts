@@ -992,6 +992,8 @@ export const zh = {
   'terminal.resizeHint': '拖动调整终端高度',
   'terminal.clear': '清屏 (Clear)',
   'terminal.openExternal': '在独立外部系统终端中打开',
+  'terminal.desktopOnly': '请在桌面应用中打开外部终端',
+  'terminal.openFailed': '无法打开外部终端',
   'terminal.restore': '还原',
   'terminal.maximize': '最大化',
   'terminal.close': '关闭终端面板',

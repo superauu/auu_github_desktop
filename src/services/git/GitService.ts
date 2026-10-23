@@ -32,6 +32,7 @@ import {
 import { tNow } from '@/i18n';
 import { parseGitHubRemote } from './remoteIdentity';
 import { DiffCache } from './DiffCache';
+import { authorizeRepository } from '@/services/fs/RepositoryAccess';
 
 export class GitService implements IGitService {
   private readonly diffCache = new DiffCache();
@@ -51,6 +52,7 @@ export class GitService implements IGitService {
 
   async openRepository(path: string, snapshot?: GitStatusResult): Promise<RepositoryInfo> {
     const normalizedPath = path.trim().replace(/\\/g, '/');
+    await authorizeRepository(normalizedPath);
     // Validate repository by running git rev-parse
     await executeGit(['rev-parse', '--git-dir'], normalizedPath);
 
@@ -77,16 +79,18 @@ export class GitService implements IGitService {
 
   async initRepository(path: string): Promise<void> {
     const normalizedPath = path.trim().replace(/\\/g, '/');
+    await authorizeRepository(normalizedPath);
     await executeGit(['init', '-b', 'main'], normalizedPath);
   }
 
   async cloneRepository(url: string, targetPath: string, branch?: string): Promise<void> {
     const normalizedTarget = targetPath.trim().replace(/\\/g, '/');
+    await authorizeRepository(normalizedTarget);
     const args = ['clone'];
     if (branch) {
       args.push('-b', branch);
     }
-    args.push(url.trim(), normalizedTarget);
+    args.push('--', url.trim(), normalizedTarget);
     // 克隆目标是绝对路径，工作目录使用当前目录即可（浏览器环境没有 process 对象）
     await executeGit(args, '.');
   }
@@ -170,6 +174,7 @@ export class GitService implements IGitService {
   async createWorktree(repoPath: string, path: string, branch: string, newBranch?: string): Promise<void> {
     if (!path.trim() || /[\0\r\n]/.test(path) || !/^(?:[a-z]:[/\\]|[/\\])/i.test(path)) throw new Error(tNow('worktree.invalidPath'));
     if (!branch || branch.startsWith('-')) throw new Error(tNow('worktree.invalidBranch'));
+    await authorizeRepository(path);
     const args = ['worktree', 'add'];
     if (newBranch !== undefined) {
       if (!newBranch || newBranch.startsWith('-')) throw new Error(tNow('worktree.invalidBranch'));
@@ -524,7 +529,7 @@ export class GitService implements IGitService {
   ): Promise<{ files: GitFileChange[]; patchText: string }> {
     const range = `${base}...${head}`;
 
-    let files: GitFileChange[] = [];
+    let files: GitFileChange[];
     try {
       const res = await executeGit(['diff', '--name-status', range], repoPath);
       files = res.stdout
@@ -547,7 +552,7 @@ export class GitService implements IGitService {
       files = [];
     }
 
-    let patchText = '';
+    let patchText: string;
     try {
       const res = await executeGit(['diff', '--no-color', range], repoPath);
       patchText = res.stdout.slice(0, maxPatchChars);
@@ -565,63 +570,51 @@ export class GitService implements IGitService {
     isUntracked?: boolean,
     ignoreWhitespace = false
   ): Promise<ParsedDiffLine[]> {
-    try {
-      if (isUntracked) {
-        const nullDev = navigator.userAgent.includes('Windows') ? 'nul' : '/dev/null';
-        const res = await executeGit(['diff', '--no-index', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--', nullDev, filePath], repoPath);
-        return this.diffCache.parse(JSON.stringify([repoPath, filePath, 'untracked', ignoreWhitespace]), res.stdout);
-      }
-
-      const args = ['diff', '--no-color'];
-      if (ignoreWhitespace) args.push('-w');
-      if (staged) {
-        args.push('--staged');
-      }
-      args.push('--', filePath);
-
-      const res = await executeGit(args, repoPath);
-      return this.diffCache.parse(JSON.stringify([repoPath, filePath, !!staged, ignoreWhitespace]), res.stdout);
-    } catch (err: any) {
-      throw err;
+    if (isUntracked) {
+      const nullDev = navigator.userAgent.includes('Windows') ? 'nul' : '/dev/null';
+      const res = await executeGit(['diff', '--no-index', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--', nullDev, filePath], repoPath);
+      return this.diffCache.parse(JSON.stringify([repoPath, filePath, 'untracked', ignoreWhitespace]), res.stdout);
     }
+
+    const args = ['diff', '--no-color'];
+    if (ignoreWhitespace) args.push('-w');
+    if (staged) {
+      args.push('--staged');
+    }
+    args.push('--', filePath);
+
+    const res = await executeGit(args, repoPath);
+    return this.diffCache.parse(JSON.stringify([repoPath, filePath, !!staged, ignoreWhitespace]), res.stdout);
   }
 
   async getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]> {
-    try {
-      const res = await executeGit(
-        ['show', '--format=', '--name-status', '--first-parent', '--diff-merges=first-parent', commitHash, '--'],
-        repoPath
+    const res = await executeGit(
+      ['show', '--format=', '--name-status', '--first-parent', '--diff-merges=first-parent', commitHash, '--'],
+      repoPath
+    );
+    const lines = res.stdout.split(/\r?\n/).filter(Boolean);
+    return lines.map((line) => {
+      const parts = line.split(/\t+/);
+      const statusCode = parts[0]?.charAt(0) || 'M';
+      // For renames (R), use the new path (last column) instead of old path
+      const filePath = unquoteGitPath(
+        (statusCode === 'R' ? parts[parts.length - 1] : parts[1]) || parts[0]?.slice(1).trim() || ''
       );
-      const lines = res.stdout.split(/\r?\n/).filter(Boolean);
-      return lines.map((line) => {
-        const parts = line.split(/\t+/);
-        const statusCode = parts[0]?.charAt(0) || 'M';
-        // For renames (R), use the new path (last column) instead of old path
-        const filePath = unquoteGitPath(
-          (statusCode === 'R' ? parts[parts.length - 1] : parts[1]) || parts[0]?.slice(1).trim() || ''
-        );
-        let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
-        if (statusCode === 'A') status = 'added';
-        else if (statusCode === 'D') status = 'deleted';
-        else if (statusCode === 'R') status = 'renamed';
-        return {
-          path: filePath,
-          status,
-          staged: false,
-        };
-      });
-    } catch (err) {
-      throw err;
-    }
+      let status: 'modified' | 'added' | 'deleted' | 'renamed' = 'modified';
+      if (statusCode === 'A') status = 'added';
+      else if (statusCode === 'D') status = 'deleted';
+      else if (statusCode === 'R') status = 'renamed';
+      return {
+        path: filePath,
+        status,
+        staged: false,
+      };
+    });
   }
 
   async getCommitFileDiff(repoPath: string, commitHash: string, filePath: string, ignoreWhitespace = false): Promise<ParsedDiffLine[]> {
-    try {
-      const res = await executeGit(['show', '--format=', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--first-parent', '--diff-merges=first-parent', commitHash, '--', filePath], repoPath);
-      return parseDiffOutput(res.stdout);
-    } catch (err) {
-      throw err;
-    }
+    const res = await executeGit(['show', '--format=', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--first-parent', '--diff-merges=first-parent', commitHash, '--', filePath], repoPath);
+    return parseDiffOutput(res.stdout);
   }
 
   async blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]> {
@@ -739,7 +732,7 @@ export class GitService implements IGitService {
     if (options?.message?.trim()) {
       args.push('-m', options.message.trim());
     }
-    args.push(branch);
+    args.push('--end-of-options', branch);
     const res = await executeGit(args, repoPath);
     return res.stdout || res.stderr;
   }
@@ -749,7 +742,7 @@ export class GitService implements IGitService {
   }
 
   async rebase(repoPath: string, upstream: string): Promise<string> {
-    const res = await executeGit(['rebase', upstream], repoPath);
+    const res = await executeGit(['rebase', '--end-of-options', upstream], repoPath);
     return res.stdout || res.stderr;
   }
 
@@ -787,17 +780,13 @@ export class GitService implements IGitService {
   }
 
   async openTerminal(repoPath: string): Promise<void> {
-    try {
-      // 优先尝试 Tauri Shell 唤起 Windows PowerShell
-      const { Command } = await import('@tauri-apps/plugin-shell');
-      // Escape single quotes for PowerShell by doubling them
-      const safePath = repoPath.replace(/'/g, "''");
-      const cmd = Command.create('powershell', ['-NoExit', '-Command', `Set-Location -Path '${safePath}'`]);
-      await cmd.spawn();
-    } catch {
-      // 在纯网页/Dev模式下降级复制路径并提示
-      navigator.clipboard.writeText(repoPath);
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      try { await invoke('open_terminal', { repoPath }); }
+      catch (error) { throw error instanceof Error ? error : new Error(String(error)); }
+      return;
     }
+    throw new Error(tNow('terminal.desktopOnly'));
   }
 
   async fetchAndCheckoutPR(

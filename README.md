@@ -77,7 +77,7 @@ Release 中的 `auugit.exe` 是独立可执行文件。需要自动升级时，�
 
 准备以下环境：
 
-- Node.js 20 或更高版本及 npm。
+- Node.js 20.19+、22.13+ 或 24+ 及 npm。
 - Git。
 - 构建桌面端时需要 Rust stable，以及对应平台的 [Tauri 开发依赖](https://v2.tauri.app/start/prerequisites/)。Windows 需要 Microsoft C++ Build Tools 和 WebView2。
 
@@ -95,6 +95,10 @@ npm run dev
 
 打开 `http://localhost:5173`。开发服务器包含访问本机仓库的接口，请仅在本机使用。Git 操作会作用于你选择的真实仓库。
 
+开发接口默认只允许访问本项目目录及其子目录。需要访问其他仓库时，在启动前配置 `AUUGIT_DEV_ROOTS`；多个目录使用系统路径分隔符（Windows 为分号）分隔，例如 PowerShell：`$env:AUUGIT_DEV_ROOTS='E:\code\auu_github_desktop;E:\repos'`。目录范围也会检查符号链接和新建目录的已有父目录。
+
+桌面应用通过原生目录选择器记录授权路径；手工输入或恢复旧版本保存的路径时，首次访问需要确认，后续启动会记住选择。文本编辑与忽略规则文件限 8 MiB；保存会检查原内容并原子替换，应用内写入串行执行。外部程序在最后一次检查与替换之间修改文件的极短窗口仍然存在。
+
 启动桌面开发模式：
 
 ```sh
@@ -105,12 +109,15 @@ npm run tauri -- dev
 
 ```sh
 npm test
+npm run lint
 npm run check:release
 npm run build
 npm run tauri -- build -- --locked
 ```
 
 `npm run build` 生成前端文件；桌面安装包通过最后一条命令生成，位于 `src-tauri/target/release/bundle/`。带自动更新签名的构建还需要匹配应用公钥的签名私钥配置。
+
+凭据存储按平台启用：Windows Credential Manager、macOS Keychain、Linux keyutils 与 Secret Service。Linux 运行时需要可用的 Secret Service 和会话 D-Bus。当前发布和桌面回归验证仍以 Windows x64 为准。
 
 ## 项目结构
 
