@@ -11,6 +11,7 @@ import {
 import { useI18n } from '@/i18n';
 import { useToastStore, ToastItem } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import { ErrorNotice } from './ErrorNotice';
 
 export const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useToastStore();
@@ -69,12 +70,12 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
           <div className="font-semibold text-foreground text-xs leading-tight">
             {toast.title}
           </div>
-          {toast.description && (
+          {toast.type === 'error' && toast.description ? <ErrorNotice error={toast.description} compact /> : toast.description && (
             <div className="text-[12px] text-muted-foreground leading-relaxed break-words">
               {toast.description}
             </div>
           )}
-          {actionError && <p role="alert" className="break-words text-destructive">{actionError}</p>}
+          {actionError && <div role="alert"><ErrorNotice error={actionError} compact /></div>}
         </div>
       </div>
 

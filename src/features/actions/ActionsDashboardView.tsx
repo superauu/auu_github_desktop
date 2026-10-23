@@ -28,6 +28,9 @@ import { JobLogsViewerModal } from './JobLogsViewerModal';
 import { WorkflowDispatchDialog } from './WorkflowDispatchDialog';
 import { WorkflowYamlViewerModal } from './WorkflowYamlViewerModal';
 import { cn } from '@/utils/cn';
+import { keyboardRowProps } from '@/utils/keyboardNavigation';
+import { workflowStatus } from '@/utils/workflowStatus';
+import { ErrorNotice } from '@/components/ui/ErrorNotice';
 
 interface ActionsDashboardViewProps {
   onOpenAuthDialog?: () => void;
@@ -47,6 +50,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     selectRun,
     refreshActions,
     isRefreshingActions,
+    isLoadingRuns,
+    isLoadingJobs,
     openJobLogs,
     openWorkflowYaml,
     openDispatchModal,
@@ -59,18 +64,20 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     error,
   } = useGitHubStore();
   const { t } = useI18n();
+  const selectedRunStatus = selectedRun ? workflowStatus(selectedRun.status, selectedRun.conclusion) : null;
 
   const getStatusIcon = (conclusion: string | null, status: string) => {
+    const result = workflowStatus(status, conclusion);
     if (status === 'in_progress') {
-      return <RotateCw className="h-3.5 w-3.5 text-amber-400 animate-spin shrink-0" />;
+      return <RotateCw className="h-3.5 w-3.5 text-git-tag animate-spin shrink-0" />;
     }
-    if (conclusion === 'success') {
-      return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />;
+    if (result.variant === 'success') {
+      return <CheckCircle2 className="h-3.5 w-3.5 text-git-added shrink-0" />;
     }
-    if (conclusion === 'failure') {
-      return <XCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />;
+    if (result.variant === 'destructive') {
+      return <XCircle className="h-3.5 w-3.5 text-git-deleted shrink-0" />;
     }
-    if (conclusion === 'cancelled') {
+    if (conclusion === 'cancelled' || conclusion === 'skipped') {
       return <Ban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
     }
     return <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
@@ -90,7 +97,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           )}
           {isAuthenticated && user && (
             <Badge variant="success" className="h-4 text-[10px] gap-1 font-normal">
-              <ShieldCheck className="h-2.5 w-2.5 text-emerald-400" />
+              <ShieldCheck className="h-2.5 w-2.5 text-git-added" />
               <span>{t('actions.connectedAs')} @{user.login}</span>
             </Badge>
           )}
@@ -121,7 +128,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
         </div>
       </div>
 
-      {error && <div role="alert" className="px-4 py-2 text-xs text-destructive border-b border-border">{error}</div>}
+      {error && <div role="alert" className="px-4 py-2 border-b border-border"><ErrorNotice error={error} /></div>}
 
       {/* Main 2-Column Split: Workflows List (Left) + Runs & Jobs Explorer (Right) */}
       <div className="flex-1 flex overflow-hidden">
@@ -135,7 +142,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           </div>
 
           <ScrollArea className="flex-1 p-1.5">
-            <div className="space-y-1">
+            <div className="space-y-1" role="list" data-keyboard-list aria-label={t('actions.workflows')}>
               <button
                 onClick={() => selectWorkflow(null)}
                 className={cn(
@@ -154,6 +161,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
               {workflows.map((wf) => (
                 <div
                   key={wf.id}
+                  {...keyboardRowProps(wf.name)}
+                  aria-current={selectedWorkflow?.id === wf.id ? 'true' : undefined}
                   onClick={() => selectWorkflow(wf)}
                   className={cn(
                     "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center justify-between transition-colors group cursor-pointer",
@@ -168,7 +177,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                   </div>
 
                   {/* Actions buttons on hover */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -236,7 +245,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                           variant="outline"
                           size="xs"
                           onClick={() => rerunWorkflowRun(selectedRun.id, true)}
-                          className="h-5 px-2 text-[11px] gap-1 text-amber-400 hover:text-amber-300"
+                          className="h-5 px-2 text-[11px] gap-1 text-git-tag hover:text-git-tag"
                         >
                           <RotateCcw className="h-2.5 w-2.5" />
                           <span>{t('actions.rerunFailed')}</span>
@@ -258,13 +267,17 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             </div>
 
             <ScrollArea className="flex-1">
-              <div className="divide-y divide-border/50">
+              <div className="divide-y divide-border/50" role="list" data-keyboard-list aria-label={t('actions.runHistory')} aria-busy={isRefreshingActions || isLoadingRuns}>
+                {(isLoadingRuns || (isRefreshingActions && !workflowRuns.length)) && <p role="status" className="p-4 text-xs text-muted-foreground">{t('ui.actions.loading')}</p>}
+                {!isLoadingRuns && !isRefreshingActions && !error && !workflowRuns.length && <p className="p-4 text-xs text-muted-foreground">{t('ui.actions.empty')}</p>}
                 {workflowRuns.map((run) => {
                   const isSelected = selectedRun?.id === run.id;
 
                   return (
                     <div
                       key={run.id}
+                      {...keyboardRowProps(`${run.name} #${run.run_number} · ${t(workflowStatus(run.status, run.conclusion).key)}`)}
+                      aria-current={isSelected ? 'true' : undefined}
                       onClick={() => selectRun(run)}
                       className={cn(
                         "p-2.5 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors group",
@@ -274,7 +287,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                       )}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {getStatusIcon(run.conclusion, run.status)}
+                        <span title={t(workflowStatus(run.status, run.conclusion).key)}>{getStatusIcon(run.conclusion, run.status)}</span>
                         <div className="min-w-0 space-y-0.5">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-foreground group-hover:text-primary transition-colors">
@@ -295,7 +308,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
 
                       <div className="flex items-center gap-3 shrink-0 text-[12px] text-muted-foreground font-mono">
                         <div className="flex items-center gap-1">
-                          <GitBranch className="h-3 w-3 text-indigo-400" />
+                          <GitBranch className="h-3 w-3 text-git-branch" />
                           <span>{run.head_branch}</span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -308,7 +321,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                             <span>{Math.round(run.duration_ms / 1000)}s</span>
                           </div>
                         )}
-                        <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
                       </div>
                     </div>
                   );
@@ -329,23 +342,19 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
               {selectedRun && (
                 <div className="flex items-center gap-2">
                   <Badge
-                    variant={selectedRun.conclusion === 'success' ? 'success' : selectedRun.status === 'in_progress' ? 'warning' : 'destructive'}
+                    variant={selectedRunStatus!.variant}
                     className="h-4 text-[10px]"
                   >
-                    {selectedRun.status === 'in_progress'
-                      ? t('actions.building')
-                      : selectedRun.conclusion === 'success'
-                      ? t('actions.passed')
-                      : t('actions.failed')}
+                    {t(selectedRunStatus!.key)}
                   </Badge>
                 </div>
               )}
             </div>
 
             <ScrollArea className="flex-1 p-3">
-              {selectedRunJobs.length === 0 ? (
+              {isLoadingJobs ? <p role="status" className="py-12 text-center text-xs text-muted-foreground">{t('ui.actions.jobsLoading')}</p> : selectedRunJobs.length === 0 ? (
                 <div className="py-12 text-center text-xs text-muted-foreground">
-                  {t('actions.noJobs')}
+                  {t(selectedRun ? 'actions.noJobs' : 'actions.pickRun')}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -374,9 +383,9 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                             >
                               <div className="flex items-center gap-1.5 truncate">
                                 {step.conclusion === 'success' ? (
-                                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400 shrink-0" />
+                                  <CheckCircle2 className="h-2.5 w-2.5 text-git-added shrink-0" />
                                 ) : step.conclusion === 'failure' ? (
-                                  <XCircle className="h-2.5 w-2.5 text-rose-400 shrink-0" />
+                                  <XCircle className="h-2.5 w-2.5 text-git-deleted shrink-0" />
                                 ) : (
                                   <Clock className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                                 )}
@@ -394,7 +403,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                           variant="ghost"
                           size="xs"
                           onClick={() => openJobLogs(job.id, job.name)}
-                          className="h-6 px-2 text-[11px] gap-1 font-mono hover:text-emerald-400"
+                          className="h-6 px-2 text-[11px] gap-1 font-mono hover:text-git-added"
                         >
                           <Terminal className="h-3 w-3" />
                           <span>{t('actions.viewLogs')}</span>

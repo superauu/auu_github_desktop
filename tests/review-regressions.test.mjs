@@ -308,6 +308,25 @@ test('pushing an explicit source branch uses its own tracking and supports a ren
   assert.equal(git(repo, 'branch', '--show-current').trim(), 'untracked-current');
 });
 
+test('a successful push stays successful when remembering its remote fails because configuration is locked', async () => {
+  const { repo, origin } = await remoteFixture();
+  git(repo, 'commit', '--allow-empty', '-m', 'Published despite preference lock');
+  const store = app.useRepoStore;
+  store.getState().setCurrentRepo(info(repo)); await store.getState().refreshAll();
+  app.useToastStore.setState({ toasts: [] });
+  const lock = path.join(repo, '.git', 'config.lock');
+  await fs.writeFile(lock, 'test-owned configuration lock');
+  try {
+    await store.getState().push('origin', 'main', { setUpstream: false, rememberRemote: true });
+    assert.equal(git(origin, 'rev-parse', 'refs/heads/main'), git(repo, 'rev-parse', 'HEAD'));
+    assert.equal(store.getState().errorMessage, null);
+    assert.equal(store.getState().isLoading, false);
+    const warning = app.useToastStore.getState().toasts.find(toast => toast.type === 'warning' && /推送已成功|Push succeeded/.test(toast.title));
+    assert.ok(warning); assert.match(warning.description, /lock config file|config.*lock/);
+    assert.equal(spawnSync('git', ['config', '--get', 'branch.main.pushRemote'], { cwd: repo }).status, 1);
+  } finally { await fs.unlink(lock); store.getState().setCurrentRepo(null); }
+});
+
 test('publishing a new branch can leave tracking unset or explicitly establish a different-named upstream', async () => {
   const { repo, origin } = await remoteFixture(); git(repo, 'switch', '-c', 'fresh');
   await app.gitService.push(repo, 'origin', 'fresh', { setUpstream: false });

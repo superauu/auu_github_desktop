@@ -266,7 +266,7 @@ export class GitHubService {
   async createPullRequest(
     owner: string,
     repo: string,
-    params: { title: string; head: string; base: string; body?: string; draft?: boolean }
+    params: { title: string; head: string; headRepo?: string; base: string; body?: string; draft?: boolean }
   ): Promise<GitHubPullRequest> {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
       method: 'POST',
@@ -277,6 +277,7 @@ export class GitHubService {
       body: JSON.stringify({
         title: params.title,
         head: params.head,
+        ...(params.headRepo ? { head_repo: params.headRepo } : {}),
         base: params.base,
         body: params.body || '',
         draft: params.draft ?? false,

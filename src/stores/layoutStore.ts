@@ -10,6 +10,7 @@ export interface LayoutState {
   prListWidth: number;
   isEmbeddedTerminalOpen: boolean;
   navigationPinned: boolean;
+  inspectorPresentation: 'auto' | 'inline' | 'drawer';
 
   // 调节动作
   setLeftSidebarWidth: (width: number) => void;
@@ -20,6 +21,7 @@ export interface LayoutState {
   toggleEmbeddedTerminal: () => void;
   setEmbeddedTerminalOpen: (open: boolean) => void;
   setNavigationPinned: (pinned: boolean) => void;
+  setInspectorPresentation: (presentation: LayoutState['inspectorPresentation']) => void;
 
   // 恢复默认布局
   resetLayout: () => void;
@@ -33,6 +35,7 @@ export const DEFAULT_LAYOUT = {
   prListWidth: 320,
   isEmbeddedTerminalOpen: false,
   navigationPinned: true,
+  inspectorPresentation: 'auto' as const,
 };
 
 export const useLayoutStore = create<LayoutState>()(
@@ -62,6 +65,7 @@ export const useLayoutStore = create<LayoutState>()(
         set({ isEmbeddedTerminalOpen: open }),
 
       setNavigationPinned: (navigationPinned: boolean) => set({ navigationPinned }),
+      setInspectorPresentation: (inspectorPresentation) => set({ inspectorPresentation }),
 
       resetLayout: () => set(DEFAULT_LAYOUT),
     }),

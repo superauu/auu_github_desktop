@@ -12,15 +12,15 @@ const subscribe = (notify: () => void) => {
 /** Keep room for a file list, a readable diff, and the commit editor. */
 export function useWorkspaceLayout() {
   const width = useSyncExternalStore(subscribe, () => window.innerWidth);
-  const { leftSidebarWidth, rightPaneWidth, changesFileListWidth, navigationPinned } = useLayoutStore();
+  const { leftSidebarWidth, rightPaneWidth, changesFileListWidth, navigationPinned, inspectorPresentation } = useLayoutStore();
   const { activeTab, currentRepo, isLeftSidebarCollapsed, isRightPaneCollapsed } = useRepoStore(useShallow(state => ({ activeTab: state.activeTab, currentRepo: state.currentRepo, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed })));
   const navigationOverlay = !navigationPinned;
-  // A pinned navigation takes priority over keeping the inspector inline.
-  const inspectorOverlay = width < (navigationPinned && !isLeftSidebarCollapsed ? 1480 : 1240);
+  const inspectorOverlay = inspectorPresentation === 'drawer' || (inspectorPresentation !== 'inline' && width < 1200);
+  const inlineInspector = !inspectorOverlay && !isRightPaneCollapsed && !!currentRepo && ['history', 'changes'].includes(activeTab);
   const panels = fitWorkspacePanels(width, { left: leftSidebarWidth, right: rightPaneWidth, files: changesFileListWidth }, {
     left: !navigationOverlay && !isLeftSidebarCollapsed,
-    right: !inspectorOverlay && !isRightPaneCollapsed && !!currentRepo && ['history', 'changes'].includes(activeTab),
+    right: inlineInspector,
     files: !!currentRepo && activeTab === 'changes',
-  });
+  }, inlineInspector && navigationPinned && !isLeftSidebarCollapsed && width < 1480 ? 500 : 640);
   return { navigationOverlay, inspectorOverlay, width, panels };
 }

@@ -1,3 +1,4 @@
+import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { pushFromUi, remoteTagFromUi } from '@/services/git/RemoteActions';
 import { gitService } from '@/services/git/GitService';
 import { useShallow } from 'zustand/react/shallow';
@@ -65,7 +66,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     selectAndLocateBranch,
     tags,
     stashes,
-    commits,
     isLeftSidebarCollapsed,
     checkoutBranch,
     deleteBranch,
@@ -75,9 +75,9 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     stashPop,
     stashApply,
     stashDrop,
-  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, commits: state.commits, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
 
-  const { pullRequests } = useGitHubStore();
+  const { pullRequests, selectPR } = useGitHubStore();
   const { panels } = useWorkspaceLayout();
   const { navigationPinned, setNavigationPinned } = useLayoutStore();
 
@@ -204,7 +204,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       {
         id: 'checkout',
         label: isCurrent ? `${t('sidebar.ctx.checkedOut')} (${branch.name})` : branch.worktreePath ? `${t('worktree.open')} (${branch.name})` : `${t('sidebar.ctx.checkout')} (${branch.name})`,
-        icon: <GitBranchIcon className="h-3.5 w-3.5 text-indigo-400" />,
+        icon: <GitBranchIcon className="h-3.5 w-3.5 text-git-branch" />,
         disabled: isCurrent,
         onClick: async () => {
           try {
@@ -218,7 +218,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       {
         id: 'merge',
         label: `${t('sidebar.ctx.mergeIntoCurrent')} ${branch.name} → ${currentBranchName || t('sidebar.currentBranch')}...`,
-        icon: <GitMerge className="h-3.5 w-3.5 text-indigo-400" />,
+        icon: <GitMerge className="h-3.5 w-3.5 text-git-branch" />,
         disabled: isCurrent,
         onClick: () => {
           setMergeTargetBranch(branch.name);
@@ -248,7 +248,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       {
         id: 'push',
         label: `${t('sidebar.ctx.pushToRemote')} ${branch.name}…`,
-        icon: <UploadCloud className="h-3.5 w-3.5 text-sky-400" />,
+        icon: <UploadCloud className="h-3.5 w-3.5 text-git-renamed" />,
         onClick: async () => {
           try {
             if (!await pushFromUi(branch.name)) return;
@@ -324,7 +324,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       {
         id: 'merge-remote',
         label: `${t('sidebar.ctx.mergeIntoCurrent')} ${branch.name} → ${currentBranchName || t('sidebar.currentBranch')}...`,
-        icon: <GitMerge className="h-3.5 w-3.5 text-indigo-400" />,
+        icon: <GitMerge className="h-3.5 w-3.5 text-git-branch" />,
         onClick: () => {
           setMergeTargetBranch(branch.name);
           setMergeModalOpen(true);
@@ -420,7 +420,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       {
         id: 'push-tag',
         label: t('sidebar.ctx.pushTag'),
-        icon: <UploadCloud className="h-3.5 w-3.5 text-sky-400" />,
+        icon: <UploadCloud className="h-3.5 w-3.5 text-git-renamed" />,
         onClick: async () => {
           try {
             if (!await remoteTagFromUi('tag', tag.name)) return;
@@ -721,7 +721,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             <GitPullRequest
               className={cn(
                 "h-3.5 w-3.5",
-                activeTab === 'pullRequests' ? "text-sky-400" : "text-muted-foreground"
+                activeTab === 'pullRequests' ? "text-git-renamed" : "text-muted-foreground"
               )}
             />
             <span>{t('sidebar.pullRequests')}</span>
@@ -759,7 +759,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       <div className="px-2 pt-2 pb-1.5 border-b border-border/40 flex items-center justify-between">
         <div className="flex items-center bg-secondary/60 rounded-lg p-0.5 border border-border/40 w-full">
           <button
-            onClick={() => setSidebarMode('list')}
+            aria-pressed={sidebarMode === 'list'} onClick={() => setSidebarMode('list')}
             className={cn(
               "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-all",
               sidebarMode === 'list'
@@ -771,7 +771,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             <span>{t('sidebar.mode.list')}</span>
           </button>
           <button
-            onClick={() => setSidebarMode('agents')}
+            aria-pressed={sidebarMode === 'agents'} onClick={() => setSidebarMode('agents')}
             className={cn(
               "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-all",
               sidebarMode === 'agents'
@@ -779,18 +779,18 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Sparkles className="h-3 w-3 text-indigo-400" />
+            <Sparkles className="h-3 w-3 text-git-branch" />
             <span>{t('sidebar.mode.agents')}</span>
           </button>
         </div>
       </div>
 
-      <button disabled={!currentRepo} onClick={() => setRecoveryOpen(true)} className="mx-2 my-1.5 rounded-md border border-border px-3 py-2 text-xs text-left hover:bg-accent">{t('recovery.title')}</button>
       {sidebarMode === 'agents' ? (
         /* GitKraken-style AI Agents Assistant Panel */
         <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+          <button disabled={!currentRepo} onClick={() => setRecoveryOpen(true)} className="w-full rounded-md border border-border px-3 py-2 text-xs text-left hover:bg-accent">{t('recovery.title')}</button>
           <div className="p-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-xs">
+            <div className="flex items-center gap-1.5 text-git-branch font-semibold text-xs">
               <Bot className="h-4 w-4" />
               <span>{t('sidebar.gitAiAgent')}</span>
             </div>
@@ -826,25 +826,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       ) : (
         /* List Mode: Filter Input + Tree Navigator */
         <>
-          {/* GitKraken-style Commit View Count Indicator */}
-          <div className="px-2.5 py-1.5 bg-secondary/50 dark:bg-[#101013] border-b border-border/50 flex items-center justify-between text-[12px]">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="text-foreground/90 font-medium">{t('sidebar.viewing')}</span>
-              <Badge variant="outline" className="h-4 px-1.5 text-[12px] font-mono border-primary/40 text-primary">
-                {commits.length || 50}
-              </Badge>
-              <span className="text-[12px] opacity-70">{t('sidebar.commits')}</span>
-            </div>
-            <button
-              onClick={() => setHealthModalOpen(true)}
-              className="text-[12px] text-sky-800 dark:text-cyan-400 hover:text-sky-900 dark:hover:text-cyan-300 hover:underline flex items-center gap-1"
-              title={t('sidebar.healthDiagnose')}
-            >
-              <Sparkles className="h-2.5 w-2.5" />
-              <span>{t('sidebar.diagnose')}</span>
-            </button>
-          </div>
-
           {/* Quick Filter Box (Ctrl+Alt+F) */}
           <div className="px-2 py-1.5 border-b border-border/40">
             <div className="relative">
@@ -853,13 +834,13 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 ref={searchInputRef}
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder={t('sidebar.filterPlaceholder')}
+                aria-label={t('sidebar.filterPlaceholder')} placeholder={t('sidebar.filterPlaceholder')}
                 className="h-7 pl-6 pr-6 text-[12px] bg-secondary/30 border-border/50 focus-visible:ring-1"
               />
               {searchFilter && (
                 <button
-                  onClick={() => setSearchFilter('')}
-                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                  aria-label={t('ui.clearSearch')} onClick={() => setSearchFilter('')}
+                  className="absolute right-0 top-0 h-7 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -869,26 +850,25 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
           {/* Scrollable Tree Navigator (LOCAL, REMOTE, TAGS, STASHES) */}
           <ScrollArea className="flex-1 px-1.5 py-2">
-            <div className="space-y-3">
+            <div className="space-y-3" role="list" data-keyboard-list aria-label={t('sidebar.mode.list')}>
               {/* LOCAL Branches Section */}
               <div>
                 <div
-                  onClick={() => toggleSection('localBranches')}
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
                 >
-                  <div className="flex items-center gap-1">
+                  <button type="button" aria-expanded={expandedSections.localBranches} onClick={() => toggleSection('localBranches')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.localBranches ? (
                       <ChevronDown className="h-3 w-3" />
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
                     <span>{t('sidebar.local')} ({localGrouped.totalCount})</span>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-5 px-1 hover:text-indigo-400 hover:bg-indigo-500/10 text-muted-foreground"
+                      className="h-6 w-6 p-0 hover:text-git-branch hover:bg-indigo-500/10 text-muted-foreground"
                       title={t('sidebar.mergeBranchTitle')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -901,7 +881,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-5 px-1 hover:text-amber-400 hover:bg-amber-500/10 text-muted-foreground"
+                      className="h-6 w-6 p-0 hover:text-git-tag hover:bg-amber-500/10 text-muted-foreground"
                       title={t('sidebar.rebaseBranchTitle')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -914,7 +894,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-5 px-1 hover:text-primary hover:bg-primary/10 text-muted-foreground"
+                      className="h-6 w-6 p-0 hover:text-primary hover:bg-primary/10 text-muted-foreground"
                       title={t('sidebar.newBranchTitle')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -933,9 +913,9 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                       const isFolderOpen = folderExpanded[folderName] !== false; // 默认展开
                       return (
                         <div key={folderName} className="space-y-0.5">
-                          <div
+                          <button type="button" aria-expanded={isFolderOpen}
                             onClick={() => toggleFolder(folderName)}
-                            className="flex items-center justify-between px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 cursor-pointer font-medium"
+                            className="w-full flex items-center justify-between px-2 py-1 min-h-7 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 font-medium"
                           >
                             <div className="flex items-center gap-1.5">
                               {isFolderOpen ? (
@@ -948,7 +928,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono opacity-70">
                               {folderBranches.length}
                             </Badge>
-                          </div>
+                          </button>
 
                            {/* Nested Branches inside folder */}
                           {isFolderOpen && (
@@ -960,6 +940,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                 return (
                                   <div
                                     key={branch.name}
+                                    {...keyboardRowProps(branch.name)}
                                     draggable={true}
                                     onDragStart={(e) => handleDragStart(e, branch)}
                                     onDragOver={(e) => handleDragOver(e, branch)}
@@ -1010,7 +991,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                             setMergeTargetBranch(branch.name);
                                             setMergeModalOpen(true);
                                           }}
-                                          className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
+                                          className="p-1 hover:text-git-branch rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                                           title={`${t('sidebar.ctx.mergeIntoCurrent')} ${branch.name}`}
                                         >
                                           <GitMerge className="h-2.5 w-2.5" />
@@ -1033,6 +1014,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                       return (
                         <div
                           key={branch.name}
+                                    {...keyboardRowProps(branch.name)}
                           draggable={true}
                           onDragStart={(e) => handleDragStart(e, branch)}
                           onDragOver={(e) => handleDragOver(e, branch)}
@@ -1084,7 +1066,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                     setMergeTargetBranch(branch.name);
                                     setMergeModalOpen(true);
                                   }}
-                                  className="p-1 hover:text-indigo-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
+                                  className="p-1 hover:text-git-branch rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                                   title={`${t('sidebar.ctx.mergeIntoCurrent')} ${branch.name}`}
                                 >
                                   <GitMerge className="h-2.5 w-2.5" />
@@ -1095,7 +1077,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                     setRebaseUpstreamBranch(branch.name);
                                     setRebaseModalOpen(true);
                                   }}
-                                  className="p-1 hover:text-amber-400 rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
+                                  className="p-1 hover:text-git-tag rounded hover:bg-accent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                                   title={`${t('sidebar.rebaseOnto')} ${branch.name}`}
                                 >
                                   <GitPullRequest className="h-2.5 w-2.5" />
@@ -1119,17 +1101,16 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* REMOTE Branches Section */}
               <div>
                 <div
-                  onClick={() => toggleSection('remoteBranches')}
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
                 >
-                  <div className="flex items-center gap-1">
+                  <button type="button" aria-expanded={expandedSections.remoteBranches} onClick={() => toggleSection('remoteBranches')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.remoteBranches ? (
                       <ChevronDown className="h-3 w-3" />
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
                     <span>{t('sidebar.remote')} ({remoteGrouped.totalCount})</span>
-                  </div>
+                  </button>
                 </div>
 
                 {expandedSections.remoteBranches && (
@@ -1141,6 +1122,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                       return (
                         <div
                           key={branch.name}
+                                    {...keyboardRowProps(branch.name)}
                           draggable={true}
                           onDragStart={(e) => handleDragStart(e, branch)}
                           onDragOver={(e) => handleDragOver(e, branch)}
@@ -1171,7 +1153,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                             title={t('sidebar.ctx.checkoutToLocal')}
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -1203,6 +1185,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           return (
                             <div
                               key={branch.name}
+                                    {...keyboardRowProps(branch.name)}
                               draggable={true}
                               onDragStart={(e) => handleDragStart(e, branch)}
                               onDragOver={(e) => handleDragOver(e, branch)}
@@ -1233,7 +1216,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                                className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                                 title={t('sidebar.ctx.checkoutToLocal')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -1265,21 +1248,20 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* PULL REQUESTS Section */}
               <div>
                 <div
-                  onClick={() => toggleSection('pullRequests')}
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
                 >
-                  <div className="flex items-center gap-1">
+                  <button type="button" aria-expanded={expandedSections.pullRequests} onClick={() => toggleSection('pullRequests')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.pullRequests ? (
                       <ChevronDown className="h-3 w-3" />
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
                     <span>{t('sidebar.pullRequests')} ({pullRequests.length})</span>
-                  </div>
+                  </button>
                   <Button
                     variant="ghost"
                     size="xs"
-                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                     title={t('sidebar.viewAllPrs')}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1299,13 +1281,14 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                       pullRequests.map((pr) => (
                         <div
                           key={pr.id}
+                          {...keyboardRowProps(`#${pr.number} ${pr.title}`)}
                           onClick={() => {
-                            setActiveTab('pullRequests');
+                            selectPR(pr); setActiveTab('pullRequests'); onNavigate?.();
                           }}
                           className="px-2 py-1 rounded-md text-xs hover:bg-accent/50 cursor-pointer flex items-center justify-between text-muted-foreground hover:text-foreground"
                         >
                           <div className="flex items-center gap-1.5 truncate">
-                            <GitPullRequest className="h-3 w-3 text-sky-400 shrink-0" />
+                            <GitPullRequest className="h-3 w-3 text-git-renamed shrink-0" />
                             <span className="truncate">#{pr.number} {pr.title}</span>
                           </div>
                         </div>
@@ -1318,23 +1301,22 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* TAGS Section */}
               <div>
                 <div
-                  onClick={() => toggleSection('tags')}
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
                 >
-                  <div className="flex items-center gap-1">
+                  <button type="button" aria-expanded={expandedSections.tags} onClick={() => toggleSection('tags')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.tags ? (
                       <ChevronDown className="h-3 w-3" />
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
                     <span>{t('sidebar.tags')} ({filteredTags.length})</span>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                     {tags.length > 0 && (
                       <Button
                         variant="ghost"
                         size="xs"
-                        className="h-4 w-4 p-0 hover:text-git-added"
+                        className="h-7 w-7 p-0 hover:text-git-added"
                         title={t('sidebar.pushAllTags')}
                         onClick={async (e) => {
                           e.stopPropagation();
@@ -1352,7 +1334,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-4 w-4 p-0 hover:text-primary"
+                      className="h-7 w-7 p-0 hover:text-primary"
                       title={t('sidebar.newTag')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1375,14 +1357,14 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Input
                       value={tagNameInput}
                       onChange={(e) => setTagNameInput(e.target.value)}
-                      placeholder={t('sidebar.tagNamePlaceholder')}
+                      aria-label={t('sidebar.tagNamePlaceholder')} placeholder={t('sidebar.tagNamePlaceholder')}
                       className="h-6 text-[12px] font-mono"
                       autoFocus
                     />
                     <Input
                       value={tagMessageInput}
                       onChange={(e) => setTagMessageInput(e.target.value)}
-                      placeholder={t('sidebar.tagAnnotationPlaceholder')}
+                      aria-label={t('sidebar.tagAnnotationPlaceholder')} placeholder={t('sidebar.tagAnnotationPlaceholder')}
                       className="h-6 text-[12px]"
                     />
                     <Button type="submit" size="xs" className="w-full h-5 text-[12px]">
@@ -1396,6 +1378,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     {filteredTags.map((tag) => (
                       <div
                         key={tag.name}
+                        {...keyboardRowProps(tag.name)}
+                        onClick={() => void selectAndLocateBranch(`refs/tags/${tag.name}`)}
                         onContextMenu={(e) => handleTagContextMenu(e, tag)}
                         className="flex items-center justify-between px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 cursor-pointer transition-colors group"
                         title={`${t('sidebar.viewTag')}: ${tag.name} (${t('sidebar.rightClickForActions')})`}
@@ -1411,7 +1395,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted"
+                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted"
                             title={t('sidebar.deleteTagTitle')}
                             onClick={(e) => handleDeleteTag(tag.name, e)}
                           >
@@ -1432,21 +1416,20 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* STASHES Section */}
               <div>
                 <div
-                  onClick={() => toggleSection('stashes')}
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase cursor-pointer hover:text-foreground group"
+                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
                 >
-                  <div className="flex items-center gap-1">
+                  <button type="button" aria-expanded={expandedSections.stashes} onClick={() => toggleSection('stashes')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.stashes ? (
                       <ChevronDown className="h-3 w-3" />
                     ) : (
                       <ChevronRight className="h-3 w-3" />
                     )}
                     <span>{t('sidebar.stashes')} ({stashes.length})</span>
-                  </div>
+                  </button>
                   <Button
                     variant="ghost"
                     size="xs"
-                    className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                     onClick={(e) => {
                       e.stopPropagation();
                       setNewStashOpen(!newStashOpen);
@@ -1481,7 +1464,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Input
                       value={stashMessageInput}
                       onChange={(e) => setStashMessageInput(e.target.value)}
-                      placeholder={t('sidebar.stashNotePlaceholder')}
+                      aria-label={t('sidebar.stashNotePlaceholder')} placeholder={t('sidebar.stashNotePlaceholder')}
                       className="h-6 text-[12px]"
                       autoFocus
                     />
@@ -1496,6 +1479,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     {stashes.map((stash) => (
                       <div
                         key={stash.index}
+                        {...keyboardRowProps(stash.message)}
                         onContextMenu={(e) => handleStashContextMenu(e, stash)}
                         onClick={() => setPreviewStash(stash)}
                         className="flex items-center justify-between px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 cursor-pointer transition-colors group"
@@ -1509,7 +1493,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 px-1 text-[12px] hover:text-git-added"
+                            className="min-h-7 px-2 text-[12px] hover:text-git-added"
                             title={t('sidebar.popHere')}
                             onClick={async () => {
                               try {
@@ -1525,7 +1509,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="h-4 w-4 p-0 hover:text-git-deleted"
+                            className="h-7 w-7 p-0 hover:text-git-deleted"
                             title={t('sidebar.dropTitle')}
                             onClick={async () => {
                               try {

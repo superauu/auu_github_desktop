@@ -119,7 +119,7 @@ export const RemotesManager: React.FC = () => {
             onClick={load}
             disabled={isLoading}
             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-            title={t('pr.refreshTitle')}
+            title={t('ui.remotes.refresh')}
           >
             <RefreshCw className={isLoading ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
           </Button>
@@ -163,14 +163,14 @@ export const RemotesManager: React.FC = () => {
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder={t('settings.remotes.namePlaceholder')}
+            aria-label={t('settings.remotes.namePlaceholder')} placeholder={t('settings.remotes.namePlaceholder')}
             className="h-7 text-[12px] font-mono"
             autoFocus
           />
           <Input
             value={newUrl}
             onChange={(e) => setNewUrl(e.target.value)}
-            placeholder={t('settings.remotes.urlPlaceholder')}
+            aria-label={t('settings.remotes.urlPlaceholder')} placeholder={t('settings.remotes.urlPlaceholder')}
             className="h-7 text-[12px] font-mono"
           />
           <div className="flex items-center justify-end gap-1.5">
@@ -214,7 +214,7 @@ export const RemotesManager: React.FC = () => {
                     variant="ghost"
                     size="xs"
                     onClick={() => handleSaveUrl(r.name)}
-                    className="h-6 w-6 p-0 hover:text-emerald-400 shrink-0"
+                    className="h-6 w-6 p-0 hover:text-git-added shrink-0"
                     title={t('settings.remotes.save')}
                   >
                     <Check className="h-3 w-3" />
@@ -236,7 +236,7 @@ export const RemotesManager: React.FC = () => {
                     <div className="font-mono text-[11px] text-muted-foreground truncate" title={r.fetchUrl}>{t('remote.pullFrom')}: {r.fetchUrl}</div>
                     <div className="font-mono text-[11px] text-muted-foreground truncate" title={r.pushUrl}>{t('remote.pushTo')}: {r.pushUrl || r.fetchUrl}</div>
                   </div>
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
                     <Button variant="ghost" size="xs" title={t('remote.prune')} onClick={async () => {
                       const path = repoPath;
                       try {
@@ -261,7 +261,7 @@ export const RemotesManager: React.FC = () => {
                       variant="ghost"
                       size="xs"
                       onClick={() => handleRemove(r.name)}
-                      className="h-6 w-6 p-0 hover:text-rose-400"
+                      className="h-6 w-6 p-0 hover:text-git-deleted"
                       title={t('settings.remotes.remove')}
                     >
                       <Trash2 className="h-3 w-3" />

@@ -314,7 +314,7 @@ export const CommitHistoryView: React.FC = () => {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('history.searchPlaceholder')}
+              aria-label={t('history.searchPlaceholder')} placeholder={t('history.searchPlaceholder')}
               className="h-7 pl-7 text-[12px] bg-secondary/30"
             />
           </div>

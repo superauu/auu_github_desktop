@@ -1,3 +1,5 @@
+import { uiReviewEn } from './uiReview';
+import { commitBatchEn } from './commitBatch';
 import { remoteEn } from './remote';
 import { workflowEn } from './workflow';
 import { resilienceEn } from './resilience';
@@ -7,6 +9,8 @@ import { optimizationEn } from './optimization';
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  ...commitBatchEn,
+  ...uiReviewEn,
   ...remoteEn,
   'layout.pinNavigation': 'Pin left navigation',
   'layout.unpinNavigation': 'Unpin and hide navigation',
@@ -606,8 +610,8 @@ export const en = {
 
   'diff.unified': 'Unified',
   'diff.split': 'Split',
-  'sidebar.mode.list': 'List',
-  'sidebar.mode.agents': "Tools",
+  'sidebar.mode.list': 'Branches',
+  'sidebar.mode.agents': 'Repository tools',
 
 
   'history.title': 'History & Git Graph',

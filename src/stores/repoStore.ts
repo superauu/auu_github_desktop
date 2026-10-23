@@ -1,3 +1,4 @@
+import { toast } from '@/stores/toastStore';
 import type { PushOptions } from '@/services/git/types';
 import { create } from 'zustand';
 import {
@@ -594,7 +595,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
           pushedSha = null;
         }
 
-        await gitService.push(currentRepo.path, remote, branch, options);
+        const pushed = await gitService.push(currentRepo.path, remote, branch, options);
+        if (pushed?.preferenceError) toast.warning(tNow('remote.preferenceNotSaved'), pushed.preferenceError);
         if (!isCurrent(currentRepo.path, epoch)) return;
         await get().refreshAll();
         set({ isLoading: false });

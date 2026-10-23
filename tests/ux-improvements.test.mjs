@@ -55,6 +55,168 @@ const remoteContext = {
 const remoteRepo = { id: 'remote-ui', path: '/remote-ui', name: 'remote-ui', currentBranch: 'main', lastOpenedAt: 0 };
 const remoteSubmit = renderer => renderer.root.findAllByType('button').at(-1);
 
+function prFixture({ head = 'topic', owner = 'team', repo = 'project', remote = 'upstream', sourceOwner = 'alice', sourceRepo = 'project' } = {}) {
+  const originals = {
+    context: app.gitService.getPushContext, defaultBranch: app.githubService.getRepositoryDefaultBranch,
+    create: app.githubService.createPullRequest, refresh: app.useGitHubStore.getState().loadPullRequests,
+  };
+  const repository = { ...remoteRepo, path: '/pr-ui', currentBranch: head, gitHubRemote: remote, gitHubOwner: owner, gitHubRepo: repo };
+  const context = { ...remoteContext, branch: head, targetBranch: head, remote: 'origin', remotes: [
+    { name: 'origin', fetchUrl: `https://github.com/${sourceOwner}/${sourceRepo}.git`, pushUrl: `https://github.com/${sourceOwner}/${sourceRepo}.git` },
+    { name: 'upstream', fetchUrl: 'https://github.com/team/project.git', pushUrl: 'https://github.com/team/project.git' },
+  ] };
+  app.useRepoStore.setState({ currentRepo: repository, status: null, commits: [{ subject: 'Test PR', body: '' }], branches: [
+    { name: head, isCurrent: true, isRemote: false },
+    { name: 'origin/master', isCurrent: false, isRemote: true, remoteName: 'origin', remoteBranch: 'master' },
+    { name: 'upstream/main', isCurrent: false, isRemote: true, remoteName: 'upstream', remoteBranch: 'main' },
+  ] });
+  const requests = [], closed = [];
+  app.useGitHubStore.setState({ currentOwner: owner, currentRepoName: repo, pullRequests: [], loadPullRequests: async () => {} });
+  app.gitService.getPushContext = async () => context;
+  app.githubService.getRepositoryDefaultBranch = async targetOwner => targetOwner === 'alice' ? 'master' : 'main';
+  app.githubService.createPullRequest = async (...args) => { requests.push(args); return { number: 7, html_url: 'https://example.invalid/pr/7' }; };
+  const props = { open: true, onOpenChange: open => closed.push(open) };
+  return { repository, context, requests, closed, props, cleanup() {
+    app.gitService.getPushContext = originals.context; app.githubService.getRepositoryDefaultBranch = originals.defaultBranch;
+    app.githubService.createPullRequest = originals.create;
+    app.useGitHubStore.setState({ currentOwner: null, currentRepoName: null, loadPullRequests: originals.refresh });
+    app.useRepoStore.setState({ currentRepo: null });
+  } };
+}
+
+const prBase = renderer => renderer.root.findAllByType('select')[1];
+const submitPR = renderer => renderer.root.findByType('form').props.onSubmit({ preventDefault() {} });
+
+test('cross-fork PRs namespace their source and allow the same branch name in different repositories', async () => {
+  const fixture = prFixture({ head: 'main' }); let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
+    assert.equal(submitButton(renderer).props.disabled, false);
+    await act(async () => submitPR(renderer));
+    assert.equal(fixture.requests.length, 1);
+    assert.equal(fixture.requests[0][0], 'team');
+    assert.equal(fixture.requests[0][2].head, 'alice:main');
+    assert.equal(fixture.requests[0][2].headRepo, 'project');
+    assert.equal(fixture.requests[0][2].base, 'main');
+  } finally { await act(async () => renderer?.unmount()); fixture.cleanup(); }
+});
+
+test('PR source selection supports renamed published branches and same-organization forks', async () => {
+  const fixture = prFixture({ head: 'topic/local', sourceOwner: 'team', sourceRepo: 'project-fork' }); let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
+    await act(async () => renderer.root.findByProps({ 'aria-label': '来源仓库中的分支' }).props.onChange({ target: { value: 'review/published' } }));
+    await act(async () => submitPR(renderer));
+    assert.equal(fixture.requests[0][2].head, 'team:review/published');
+    assert.equal(fixture.requests[0][2].headRepo, 'project-fork');
+  } finally { await act(async () => renderer?.unmount()); fixture.cleanup(); }
+});
+
+test('same-repository PRs use an unqualified head and reject the identical target branch', async () => {
+  const fixture = prFixture({ head: 'main', sourceOwner: 'team' }); let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
+    assert.ok(renderer.root.findAllByType('button').some(button => button.props.onClick && button.props.type === 'button' && button.props.title));
+    assert.equal(submitButton(renderer).props.disabled, true);
+    await act(async () => submitPR(renderer)); assert.equal(fixture.requests.length, 0);
+    await act(async () => renderer.root.findByProps({ 'aria-label': '来源仓库中的分支' }).props.onChange({ target: { value: 'topic' } }));
+    await act(async () => submitPR(renderer));
+    assert.equal(fixture.requests[0][2].head, 'topic'); assert.equal(fixture.requests[0][2].headRepo, undefined);
+  } finally { await act(async () => renderer?.unmount()); fixture.cleanup(); }
+});
+
+test('Commit and Push reports a preference warning alongside push success without reporting a push failure', async () => {
+  const methods = ['getStatus', 'commit', 'getBranchCommitHash', 'push', 'getPushContext'];
+  const originals = Object.fromEntries(methods.map(name => [name, app.gitService[name]]));
+  const refreshStatus = app.useRepoStore.getState().refreshStatus;
+  const status = { currentBranch: 'main', ahead: 0, behind: 0, isClean: false, staged: [{ path: 'a.txt', status: 'modified', staged: true }], unstaged: [], untracked: [] };
+  app.useRepoStore.setState({ currentRepo: remoteRepo, status, refreshStatus: async () => {} });
+  app.useToastStore.setState({ toasts: [] });
+  let pushed = 0, renderer;
+  app.gitService.getStatus = async () => status;
+  app.gitService.commit = async () => 'committed';
+  app.gitService.getBranchCommitHash = async () => 'new-sha';
+  app.gitService.push = async () => { pushed++; return { preferenceError: 'config is locked' }; };
+  app.gitService.getPushContext = async () => remoteContext;
+  const noop = () => {};
+  const draftState = { title: 'Commit', body: '', busy: false, setBusy: noop, operation: { current: false }, scopeSignature: { current: '' }, setTitle: noop, setBody: noop, amend: false, setAmend: noop, amendCommit: null, setAmendCommit: noop, origin: null, setOrigin: noop };
+  try {
+    await act(async () => { renderer = create(React.createElement(app.CommitComposer, { draftState, onOpenAiSettings: noop })); });
+    await act(async () => {
+      renderer.root.findAllByType('button').find(button => button.props.className.includes('w-full h-9')).props.onClick();
+      app.useRemoteDialogStore.getState().settle({ remote: 'origin', branch: 'main', targetBranch: 'main', setUpstream: false, rememberRemote: true });
+    });
+    assert.equal(pushed, 1);
+    const toasts = app.useToastStore.getState().toasts;
+    assert.ok(toasts.some(toast => toast.type === 'warning' && /推送已成功|Push succeeded/.test(toast.title)));
+    assert.ok(toasts.some(toast => toast.type === 'success' && /推送|Push/.test(toast.title)));
+    assert.ok(!toasts.some(toast => toast.type === 'error'));
+  } finally {
+    await act(async () => renderer?.unmount());
+    Object.assign(app.gitService, originals);
+    app.useRepoStore.setState({ currentRepo: null, refreshStatus });
+    app.useRemoteDialogStore.getState().settle(null);
+  }
+});
+
+test('reopening PR creation after changing the collaboration remote resets the submitted base', async () => {
+  const fixture = prFixture({ owner: 'alice', remote: 'origin' }); let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
+    assert.equal(prBase(renderer).props.value, 'master');
+    await act(async () => renderer.update(React.createElement(app.CreatePullRequestModal, { ...fixture.props, open: false })));
+    await act(async () => {
+      app.useRepoStore.setState({ currentRepo: { ...fixture.repository, gitHubRemote: 'upstream', gitHubOwner: 'team' } });
+      app.useGitHubStore.setState({ currentOwner: 'team' });
+      renderer.update(React.createElement(app.CreatePullRequestModal, fixture.props));
+    });
+    assert.equal(prBase(renderer).props.value, 'main');
+    assert.deepEqual(prBase(renderer).findAllByType('option').map(option => option.props.value), ['main']);
+    await act(async () => submitPR(renderer)); assert.equal(fixture.requests[0][2].base, 'main');
+  } finally { await act(async () => renderer?.unmount()); fixture.cleanup(); }
+});
+
+test('late PR base responses and completed submissions cannot overwrite a different target session', async () => {
+  const fixture = prFixture({ owner: 'alice', remote: 'origin' }); const oldDefault = deferred(); let renderer;
+  app.githubService.getRepositoryDefaultBranch = owner => owner === 'alice' ? oldDefault.promise : Promise.resolve('main');
+  try {
+    await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
+    assert.equal(submitButton(renderer).props.disabled, true);
+    await act(async () => {
+      app.useRepoStore.setState({ currentRepo: { ...fixture.repository, gitHubRemote: 'upstream', gitHubOwner: 'team' } });
+      app.useGitHubStore.setState({ currentOwner: 'team' });
+    });
+    await act(async () => oldDefault.resolve('master'));
+    assert.equal(prBase(renderer).props.value, 'main');
+    const creation = deferred(); app.githubService.createPullRequest = () => creation.promise;
+    let submission;
+    await act(async () => { submission = submitPR(renderer); });
+    await act(async () => {
+      app.useRepoStore.setState({ currentRepo: { ...fixture.repository, gitHubRemote: 'origin' } });
+      app.useGitHubStore.setState({ currentOwner: 'alice' });
+    });
+    await act(async () => { creation.resolve({ number: 7, html_url: 'https://example.invalid/pr/7' }); await submission; });
+    assert.deepEqual(fixture.closed, []); assert.equal(prBase(renderer).props.value, 'master');
+  } finally { await act(async () => renderer?.unmount()); fixture.cleanup(); }
+});
+
+test('GitHub PR requests include head_repo for a cross-repository source and retain specific validation errors', async () => {
+  const fixture = prFixture(); let renderer;
+  try {
+    app.githubService.createPullRequest = async () => { throw Error('Validation Failed: source branch does not exist'); };
+    await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
+    await act(async () => submitPR(renderer));
+    assert.match(JSON.stringify(renderer.toJSON()), /source branch does not exist/);
+    // Exercise the real transport separately below; no GitHub request leaves this test.
+  } finally { await act(async () => renderer?.unmount()); fixture.cleanup(); }
+  let sent;
+  globalThis.fetch = async (_url, init) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ number: 7 })); };
+  try {
+    await app.githubService.createPullRequest('team', 'project', { title: 'PR', head: 'team:topic', headRepo: 'project-fork', base: 'main' });
+    assert.equal(sent.head, 'team:topic'); assert.equal(sent.head_repo, 'project-fork');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('all branch push entry points share a cancellable chooser and keep push preference separate from pull tracking', async () => {
   const originalContext = app.gitService.getPushContext, originalPush = app.useRepoStore.getState().push;
   const calls = []; let renderer;
@@ -146,7 +308,7 @@ test('push CI observation follows the actual destination repository and never tu
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ux-'));
   const bundle = path.join(tmp, 'ux.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/PushChecks'; export * from './src/stores/remoteDialogStore'; export * from './src/services/git/RemoteActions'; export { RemoteOperationDialog } from './src/features/git/RemoteOperationDialog'; export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
+  await build({ stdin: { contents: `export { CommitComposer } from './src/components/layout/CommitComposer'; export { CreatePullRequestModal } from './src/features/pr/CreatePullRequestModal'; export { useToastStore } from './src/stores/toastStore'; export * from './src/services/git/PushChecks'; export * from './src/stores/remoteDialogStore'; export * from './src/services/git/RemoteActions'; export { RemoteOperationDialog } from './src/features/git/RemoteOperationDialog'; export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
     plugins: [{ name: 'headless-modal', setup(build) { build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' })); } }],
   });

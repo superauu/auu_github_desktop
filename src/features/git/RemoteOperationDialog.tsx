@@ -7,6 +7,7 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useI18n } from '@/i18n';
+import { ErrorNotice } from '@/components/ui/ErrorNotice';
 
 export function RemoteOperationDialog() {
   const pending = useRemoteDialogStore(state => state.pending);
@@ -21,6 +22,7 @@ export function RemoteOperationDialog() {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
     if (pending && (pending.repoPath !== repoPath || pending.currentBranch !== currentBranch)) settle(null);
@@ -28,7 +30,7 @@ export function RemoteOperationDialog() {
 
   useEffect(() => {
     let active = true;
-    setContext(null); setError(''); setRemote(''); setRemember(false); setTracking(false);
+    setContext(null); setError(''); setRemote(''); setRemember(false); setTracking(false); setAdvancedOpen(false);
     if (!pending) return;
     const load = async () => {
       if (pending.action === 'branch') return gitService.getPushContext(pending.repoPath, pending.branch);
@@ -40,6 +42,7 @@ export function RemoteOperationDialog() {
       if (!active) return;
       setContext(value); setRemote(value.remote || ''); setTarget(value.targetBranch);
       setTracking(pending.action === 'branch' && !value.upstream);
+      setAdvancedOpen(pending.action === 'branch' && !value.upstream);
     }).catch(reason => { if (active) setError(reason?.message || t('remote.loadFailed')); });
     return () => { active = false; };
   }, [pending, attempt, t]);
@@ -55,7 +58,7 @@ export function RemoteOperationDialog() {
       <h2 className="text-base font-semibold">{title}</h2>
       <p className="text-xs text-muted-foreground break-all">{pending.repoPath}</p>
       {!context && !error && <p role="status">{t('remote.loading')}</p>}
-      {error && <div role="alert"><p className="text-destructive break-words">{error}</p><Button variant="outline" onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
+      {error && <div role="alert"><ErrorNotice error={error} /><Button variant="outline" onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
       {context && <>
         {!context.remotes.length && <p role="alert">{t('remote.empty')}</p>}
         <p className="text-sm break-all">{t('remote.source')}: <strong>{source}</strong></p>
@@ -72,8 +75,13 @@ export function RemoteOperationDialog() {
         {pending.action === 'branch' && <>
           <label className="block text-sm space-y-1"><span>{t('remote.targetBranch')}</span><Input value={target} onChange={event => setTarget(event.target.value)} /></label>
           <p className="text-xs text-muted-foreground break-all">{t('remote.upstream')}: {context.upstream || t('remote.noUpstream')}</p>
-          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t('remote.remember')}</label>
-          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={tracking} onChange={event => setTracking(event.target.checked)} />{t('remote.setUpstream')}</label>
+          <details className="rounded-lg border border-border p-3" open={advancedOpen} onToggle={event => setAdvancedOpen(event.currentTarget.open)}>
+            <summary className="cursor-pointer text-sm min-h-7">{t('ui.advanced')}</summary>
+            <div className="pt-2 space-y-2">
+              <label className="flex items-start gap-2 py-1 text-sm"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t('remote.remember')}</label>
+              <label className="flex items-start gap-2 py-1 text-sm"><input type="checkbox" checked={tracking} onChange={event => setTracking(event.target.checked)} />{t('remote.setUpstream')}</label>
+            </div>
+          </details>
         </>}
         {pending.forceWithLease && <p role="alert" className="text-sm text-amber-500">{t('remote.force')}</p>}
         {deletion && <p className="text-sm text-destructive">{t('remote.deleteTagWarning')}</p>}

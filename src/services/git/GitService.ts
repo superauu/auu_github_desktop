@@ -3,6 +3,7 @@ import {
   GitBranch,
   PushContext,
   PushOptions,
+  PushResult,
   GitCommit,
   GitFileChange,
   GitWorktree,
@@ -426,7 +427,7 @@ export class GitService implements IGitService {
     return { branch, remotes, remote, targetBranch, upstream };
   }
 
-  async push(repoPath: string, remote?: string, branch?: string, options?: PushOptions): Promise<void> {
+  async push(repoPath: string, remote?: string, branch?: string, options?: PushOptions): Promise<PushResult> {
     const context = await this.getPushContext(repoPath, branch);
     const destination = remote || context.remote;
     if (!destination) throw new Error(tNow('remote.choose'));
@@ -439,7 +440,11 @@ export class GitService implements IGitService {
     if (options?.setUpstream ?? !context.upstream) args.push('--set-upstream');
     args.push(destination, `refs/heads/${context.branch}:refs/heads/${target}`);
     await executeGit(args, repoPath);
-    if (options?.rememberRemote) await executeGit(['config', '--local', `branch.${context.branch}.pushRemote`, destination], repoPath);
+    if (options?.rememberRemote) {
+      try { await executeGit(['config', '--local', `branch.${context.branch}.pushRemote`, destination], repoPath); }
+      catch (error) { return { preferenceError: error instanceof Error ? error.message : String(error) }; }
+    }
+    return {};
   }
 
   async pull(repoPath: string, rebase?: boolean): Promise<void> {

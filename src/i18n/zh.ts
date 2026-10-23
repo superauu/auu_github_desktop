@@ -1,3 +1,5 @@
+import { uiReviewZh } from './uiReview';
+import { commitBatchZh } from './commitBatch';
 import { remoteZh } from './remote';
 import { workflowZh } from './workflow';
 import { resilienceZh } from './resilience';
@@ -7,6 +9,8 @@ import { optimizationZh } from './optimization';
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
  */
 export const zh = {
+  ...commitBatchZh,
+  ...uiReviewZh,
   ...remoteZh,
   'layout.pinNavigation': '固定左侧导航',
   'layout.unpinNavigation': '取消固定并收起导航',
@@ -568,8 +572,8 @@ export const zh = {
   'sidebar.currentBranch': '当前分支',
   'diff.unified': '统一视图',
   'diff.split': '分栏视图',
-  'sidebar.mode.list': '列表',
-  'sidebar.mode.agents': "快捷工具",
+  'sidebar.mode.list': '分支',
+  'sidebar.mode.agents': '仓库工具',
 
 
   'header.fetchQuietDone': '远程更新获取完成',

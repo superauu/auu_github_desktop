@@ -16,6 +16,7 @@ import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { FilePath } from '@/components/ui/FilePath';
+import { AiCommitBatchDialog } from '@/features/git/AiCommitBatchDialog';
 
 export function useComposerDraft(repoPath?: string, branch?: string) {
   const [busy, setBusy] = useState(false);
@@ -43,6 +44,8 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<GenerationResult | null>(null);
   const [scopeOpen, setScopeOpen] = useState(false);
+  const [batchContext, setBatchContext] = useState<{ path: string; branch: string } | null>(null);
+  useEffect(() => { setBatchContext(null); }, [currentRepo?.path, status?.currentBranch]);
   const generation = useRef(0);
   const draft = useRef('');
   draft.current = title + (body.trim() ? `\n\n${body}` : '');
@@ -120,7 +123,8 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
       if (andPush) {
         try {
           const hash = await gitService.getBranchCommitHash(path, 'HEAD');
-          await gitService.push(path, pushTarget!.remote, pushTarget!.branch, pushTarget!);
+          const pushed = await gitService.push(path, pushTarget!.remote, pushTarget!.branch, pushTarget!);
+          if (pushed?.preferenceError) toast.warning(t('remote.preferenceNotSaved'), pushed.preferenceError);
           if (hash) await watchPushedCommit(path, pushTarget!.remote, pushTarget!.branch, hash, () => useRepoStore.getState().currentRepo?.path === path);
           toast.success(t('rightPane.pushSuccess'));
         } catch (error: any) { toast.error(t('rightPane.pushFailed'), error?.message); }
@@ -135,7 +139,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   const disabled = busy || generating || !title.trim() || (!scope.files.length && !amend);
   const actionLabel = amend ? t('rightPane.commitAmend') : scope.stageAll ? t('rightPane.stageAllCommit') : t('rightPane.commit');
   return <div className="h-full min-h-0 flex flex-col text-[13px]" onKeyDown={(event) => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !disabled) { event.preventDefault(); void submit(); }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !batchContext && !disabled) { event.preventDefault(); void submit(); }
   }}>
     <section className="mx-4 mt-4 shrink-0 rounded-lg border border-border bg-muted/30 p-3 space-y-1" aria-label={t('composer.scope')}>
       <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4 text-muted-foreground" />{t('composer.scope')}</span><span>{t('composer.included').replace('{n}', String(scope.files.length))}</span></div>
@@ -169,6 +173,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     </div>}
     </div>
     <div className="shrink-0 space-y-2 border-t border-border p-4 bg-card">
+      <Button variant="outline" className="w-full min-h-9" disabled={busy || generating || amend || !currentRepo || !status || !(status.staged.length + status.unstaged.length + status.untracked.length)} title={t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => currentRepo && status && setBatchContext({ path: currentRepo.path, branch: status.currentBranch })}><Sparkles className="h-4 w-4 text-primary" />{t('batch.button')}</Button>
       <Button disabled={disabled} className="w-full h-10" onClick={() => void submit()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="truncate">{actionLabel}{scope.files.length ? ` (${scope.files.length})` : ''}</span></Button>
       <Button disabled={disabled} variant="outline" className="w-full h-9" onClick={() => void submit(true)}><Send className="h-4 w-4" />{t(amend ? 'composer.amendPush' : scope.stageAll ? 'rightPane.stageAllCommitPush' : 'rightPane.commitPush')}</Button>
       <p className="text-[12px] text-muted-foreground text-center">Ctrl / ⌘ + Enter</p>
@@ -181,5 +186,6 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
         <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPreview(null)}>{t('composer.keepDraft')}</Button><Button onClick={() => { setMessage(preview.message); setOrigin(preview); setPreview(null); }}>{t(draft.current.trim() ? 'composer.replaceDraft' : 'composer.useMessage')}</Button></div>
       </div>
     </ModalSurface>}
+    {batchContext && batchContext.path === currentRepo?.path && batchContext.branch === status?.currentBranch && <AiCommitBatchDialog key={`${batchContext.path}:${batchContext.branch}`} repoPath={batchContext.path} branch={batchContext.branch} onClose={() => setBatchContext(null)} onOpenAiSettings={onOpenAiSettings} />}
   </div>;
 }

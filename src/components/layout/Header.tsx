@@ -1,3 +1,5 @@
+import { keyboardRowProps } from '@/utils/keyboardNavigation';
+import * as Popover from '@radix-ui/react-popover';
 import { pushFromUi } from '@/services/git/RemoteActions';
 import { gitService } from '@/services/git/GitService';
 import { useShallow } from 'zustand/react/shallow';
@@ -268,12 +270,13 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="h-4 w-[1px] bg-border/60 mx-1 shrink-0" />
 
             {/* Repo Tabs Container */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5" role="list" data-keyboard-list>
               {openTabs.map((repo) => {
                 const isActive = currentRepo?.path === repo.path;
                 return (
                   <div
                     key={repo.path}
+                    {...keyboardRowProps(repo.name)}
                     onClick={() => switchTab(repo.path)}
                     className={cn(
                       "h-6 px-2.5 rounded-t-md border-t border-x flex items-center gap-1.5 cursor-pointer text-xs transition-all group shrink-0 select-none",
@@ -338,7 +341,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={cycleTheme}
                   aria-label={t('header.toggleThemeTooltip')}
                 >
-                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-git-tag" /> : <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />}
+                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-git-tag" /> : <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-git-branch" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">{t('header.toggleThemeTooltip')}</TooltipContent>
@@ -407,14 +410,11 @@ export const Header: React.FC<HeaderProps> = ({
             </Tooltip>
 
             {/* Quick Switcher: repository: auu_saas > branch: main */}
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
               {/* Repository Selector Dropdown */}
-              <div className="relative">
+              <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); }}>
+                <Popover.Trigger asChild>
                 <button
-                  onClick={() => {
-                    setShowRepoMenu(!showRepoMenu);
-                    setShowBranchMenu(false);
-                  }}
                   className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.repository')}</span>
@@ -422,13 +422,12 @@ export const Header: React.FC<HeaderProps> = ({
                     {currentRepo ? currentRepo.name : t('common.notOpen')}
                   </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
-                </button>
+                </button></Popover.Trigger>
 
                 {/* Repo Dropdown Menu */}
                 {showRepoMenu && (
-                  <div
-                    className="absolute left-0 top-full mt-1 w-64 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
-                    onMouseLeave={() => setShowRepoMenu(false)}
+                  <Popover.Portal><Popover.Content align="start" sideOffset={5} aria-label={t('header.repository')}
+                    className="w-64 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
                   >
                     <div className="px-2 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                       {t('header.repoMenu.current')}
@@ -474,35 +473,31 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       </>
                     )}
-                  </div>
+                  </Popover.Content></Popover.Portal>
                 )}
-              </div>
+              </Popover.Root>
 
               {/* Separator */}
               <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
 
               {/* Branch Selector Dropdown (GitKraken-style real branch switcher) */}
-              <div className="relative">
+              <Popover.Root open={showBranchMenu} onOpenChange={open => { setShowBranchMenu(open); if (open) setShowRepoMenu(false); }}>
+                <Popover.Trigger asChild>
                 <button
-                  onClick={() => {
-                    setShowBranchMenu(!showBranchMenu);
-                    setShowRepoMenu(false);
-                  }}
                   className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.branch')}</span>
                   <Badge variant="outline" className="h-4.5 px-1.5 text-[12px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
-                    <GitBranchIcon className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
+                    <GitBranchIcon className="h-2.5 w-2.5 text-git-branch shrink-0" />
                     <span className="max-w-[100px] xl:max-w-[140px] truncate">{currentBranchName}</span>
                   </Badge>
                   <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
-                </button>
+                </button></Popover.Trigger>
 
                 {/* Branch Dropdown Menu */}
                 {showBranchMenu && (
-                  <div
-                    className="absolute left-0 top-full mt-1 w-72 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
-                    onMouseLeave={() => setShowBranchMenu(false)}
+                  <Popover.Portal><Popover.Content align="start" sideOffset={5} aria-label={t('header.branch')}
+                    className="w-72 rounded-xl border border-border bg-popover/95 p-1.5 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 backdrop-blur-xl"
                   >
                     {/* Search Input */}
                     <div className="relative mb-1.5 px-1 pt-0.5">
@@ -510,14 +505,14 @@ export const Header: React.FC<HeaderProps> = ({
                       <input
                         value={branchFilter}
                         onChange={(e) => setBranchFilter(e.target.value)}
-                        placeholder={t('header.branchMenu.searchPlaceholder')}
+                        placeholder={t('header.branchMenu.searchPlaceholder')} aria-label={t('header.branchMenu.searchPlaceholder')}
                         className="w-full h-7 pl-7 pr-6 text-xs bg-secondary/40 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                         autoFocus
                       />
                       {branchFilter && (
                         <button
-                          onClick={() => setBranchFilter('')}
-                          className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                          aria-label={t('ui.clearSearch')} onClick={() => setBranchFilter('')}
+                          className="absolute right-1 top-0.5 h-7 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -593,9 +588,9 @@ export const Header: React.FC<HeaderProps> = ({
                         <span>{t('header.createBranchShort')}</span>
                       </button>
                     </div>
-                  </div>
+                  </Popover.Content></Popover.Portal>
                 )}
-              </div>
+              </Popover.Root>
             </div>
           </div>
 

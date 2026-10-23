@@ -104,6 +104,10 @@ interface GitHubState {
 
   isLoading: boolean;
   isRefreshingActions: boolean;
+  isLoadingPullRequests: boolean;
+  pullRequestsError: string | null;
+  isLoadingRuns: boolean;
+  isLoadingJobs: boolean;
   error: string | null;
 
   // Actions
@@ -148,6 +152,7 @@ const emptyRepo = {
   commitChecks: {}, pullRequests: [], selectedPR: null,
   activeJobLogs: null, activeWorkflowYaml: null, isLogsModalOpen: false, isYamlModalOpen: false,
   isDispatchModalOpen: false, dispatchTargetWorkflow: null, isLoading: false, isRefreshingActions: false, error: null,
+  isLoadingPullRequests: false, pullRequestsError: null, isLoadingRuns: false, isLoadingJobs: false,
 };
 
 export const useGitHubStore = create<GitHubState>((set, get) => {
@@ -225,22 +230,16 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         get().clearRepo(); set({ currentOwner: owner, currentRepoName: repo });
       }
       const valid = ticket('repo');
-      const prsValid = ticket('prs');
       set({ isLoading: true, error: null });
       await Promise.all([
         get().refreshActions(),
+        get().loadPullRequests(),
         (async () => {
-          const [details, prs] = await Promise.allSettled([
-            githubService.getRepository(owner, repo), githubService.getPullRequests(owner, repo, get().prFilterState),
-          ]);
-          if (!valid()) return;
-          const failure = details.status === 'rejected' ? details.reason
-            : prsValid() && prs.status === 'rejected' ? prs.reason : null;
-          set({ isLoading: false,
-            ...(failure && !get().error ? { error: String(failure?.message || failure) } : {}),
-            ...(details.status === 'fulfilled' ? { repoDetails: details.value } : {}),
-            ...(prsValid() && prs.status === 'fulfilled' ? { pullRequests: prs.value, selectedPR: prs.value.find((pr) => pr.id === get().selectedPR?.id) || prs.value[0] || null } : {}),
-          });
+          try {
+            const details = await githubService.getRepository(owner, repo);
+            if (valid()) set({ repoDetails: details });
+          } catch (error: any) { if (valid()) set({ error: String(error?.message || error) }); }
+          finally { if (valid()) set({ isLoading: false }); }
         })(),
       ]);
     },
@@ -258,41 +257,45 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         );
         const runs = await githubService.getWorkflowRuns(owner, repo, selectedWorkflow?.id);
         if (!valid()) return;
-        set({ workflowRuns: runs });
+        set({ workflowRuns: runs, isLoadingRuns: false });
         if (jobsValid()) {
           const previous = get().selectedRun;
           const selectedRun = runs.find((run) => run.id === previous?.id)
             || (previous ? await githubService.getWorkflowRun(owner, repo, previous.id) : runs[0] || null);
           if (!valid() || !jobsValid()) return;
-          set({ selectedRun, selectedRunJobs: [] });
+          set({ selectedRun, selectedRunJobs: [], isLoadingJobs: !!selectedRun });
           const jobs = selectedRun ? await githubService.getRunJobs(owner, repo, selectedRun.id) : [];
           if (valid() && jobsValid()) set({ selectedRunJobs: jobs });
         }
         await workflowsRequest;
       } catch (error: any) { if (valid()) set({ error: String(error?.message || error) }); }
-      finally { if (valid()) set({ isRefreshingActions: false }); }
+      finally { if (valid()) set({ isRefreshingActions: false }); if (jobsValid()) set({ isLoadingJobs: false }); }
     },
     selectWorkflow: async (workflow) => {
       const valid = ticket('runs'); ticket('jobs'); ticket('repo');
-      set({ isLoading: false, isRefreshingActions: false, error: null, selectedWorkflow: workflow, workflowRuns: [], selectedRun: null, selectedRunJobs: [] });
+      set({ isLoading: false, isRefreshingActions: false, isLoadingRuns: false, isLoadingJobs: false, error: null, selectedWorkflow: workflow, workflowRuns: [], selectedRun: null, selectedRunJobs: [] });
       const { currentOwner: owner, currentRepoName: repo } = get();
       if (!owner || !repo) return;
+      set({ isLoadingRuns: true });
       try {
         const runs = await githubService.getWorkflowRuns(owner, repo, workflow?.id);
         if (!valid()) return;
-        set({ workflowRuns: runs });
+        set({ workflowRuns: runs, isLoadingRuns: false });
         await get().selectRun(runs[0] || null);
       } catch (error: any) { if (valid()) set({ error: error.message }); }
+      finally { if (valid()) set({ isLoadingRuns: false }); }
     },
     selectRun: async (run) => {
       const valid = ticket('jobs'); ticket('repo');
-      set({ isLoading: false, selectedRun: run, selectedRunJobs: [] });
+      set({ isLoading: false, isLoadingJobs: false, selectedRun: run, selectedRunJobs: [] });
       const { currentOwner: owner, currentRepoName: repo } = get();
       if (!run || !owner || !repo) return;
+      set({ isLoadingJobs: true });
       try {
         const jobs = await githubService.getRunJobs(owner, repo, run.id);
         if (valid()) set({ selectedRunJobs: jobs });
       } catch (error: any) { if (valid()) set({ error: error.message }); }
+      finally { if (valid()) set({ isLoadingJobs: false }); }
     },
     fetchCommitChecks: async (sha) => {
       const { currentOwner: owner, currentRepoName: repo } = get();
@@ -376,10 +379,12 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       const valid = ticket('prs');
       const { currentOwner: owner, currentRepoName: repo, prFilterState } = get();
       if (!owner || !repo) return;
+      set({ isLoadingPullRequests: true, pullRequestsError: null });
       try {
         const prs = await githubService.getPullRequests(owner, repo, prFilterState);
         if (valid()) set({ pullRequests: prs, selectedPR: prs.find((pr) => pr.id === get().selectedPR?.id) || prs[0] || null });
-      } catch (error: any) { if (valid()) set({ error: error.message }); }
+      } catch (error: any) { if (valid()) set({ pullRequestsError: String(error?.message || error) }); }
+      finally { if (valid()) set({ isLoadingPullRequests: false }); }
     },
     selectPR: (pr) => set({ selectedPR: pr }),
     setPRFilterState: (filter) => {

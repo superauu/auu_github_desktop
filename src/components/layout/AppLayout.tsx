@@ -4,6 +4,7 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RemoteOperationDialog } from '@/features/git/RemoteOperationDialog';
 import { pushFromUi } from '@/services/git/RemoteActions';
+import { useRemoteDialogStore } from '@/stores/remoteDialogStore';
 import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { LeftSidebar } from './LeftSidebar';
@@ -33,7 +34,7 @@ import { toast } from '@/stores/toastStore';
 export const AppLayout: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai'>('appearance');
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git'>('appearance');
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { navigationOverlay, inspectorOverlay, panels } = useWorkspaceLayout();
@@ -58,6 +59,17 @@ export const AppLayout: React.FC = () => {
   useEffect(() => { setNavigationOpen(false); }, [navigationPinned]);
   useEffect(() => { setInspectorOpen(false); }, [currentRepo?.path]);
   useEffect(() => { if (!['changes', 'history'].includes(activeTab)) setInspectorOpen(false); }, [activeTab]);
+
+  useEffect(() => {
+    const openSettings = (event: Event) => {
+      if ((event as CustomEvent).detail !== 'git') return;
+      useRemoteDialogStore.getState().settle(null);
+      setCommandPaletteOpen(false); setInspectorOpen(false);
+      setSettingsTab('git'); setSettingsOpen(true);
+    };
+    window.addEventListener('auugit:open-settings', openSettings);
+    return () => window.removeEventListener('auugit:open-settings', openSettings);
+  }, []);
 
   const isTypingTarget = (target: EventTarget | null): boolean => {
     const el = target as HTMLElement | null;

@@ -50,7 +50,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onOpenGitHubAuth,
 }) => {
   const { theme, setTheme } = useThemeStore();
-  const { resetLayout, navigationPinned, setNavigationPinned } = useLayoutStore();
+  const { resetLayout, navigationPinned, setNavigationPinned, inspectorPresentation, setInspectorPresentation } = useLayoutStore();
   const { user, isAuthenticated, logout } = useGitHubStore();
   const {
     gitCliPath,
@@ -170,7 +170,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
             <div className="pt-2 space-y-0.5">
               <button
-                onClick={() => setActiveTab('appearance')}
+                aria-current={activeTab === 'appearance' ? 'page' : undefined} onClick={() => setActiveTab('appearance')}
                 className={cn(
                   "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
                   activeTab === 'appearance'
@@ -183,7 +183,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </button>
 
               <button
-                onClick={() => setActiveTab('git')}
+                aria-current={activeTab === 'git' ? 'page' : undefined} onClick={() => setActiveTab('git')}
                 className={cn(
                   "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
                   activeTab === 'git'
@@ -196,7 +196,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </button>
 
               <button
-                onClick={() => setActiveTab('ai')}
+                aria-current={activeTab === 'ai' ? 'page' : undefined} onClick={() => setActiveTab('ai')}
                 className={cn(
                   "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
                   activeTab === 'ai'
@@ -209,7 +209,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </button>
 
               <button
-                onClick={() => setActiveTab('github')}
+                aria-current={activeTab === 'github' ? 'page' : undefined} onClick={() => setActiveTab('github')}
                 className={cn(
                   "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
                   activeTab === 'github'
@@ -222,7 +222,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </button>
 
               <button
-                onClick={() => setActiveTab('shortcuts')}
+                aria-current={activeTab === 'shortcuts' ? 'page' : undefined} onClick={() => setActiveTab('shortcuts')}
                 className={cn(
                   "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
                   activeTab === 'shortcuts'
@@ -278,6 +278,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     ].map((item) => (
                       <button
                         key={item.id}
+                        aria-pressed={theme === item.id}
                         onClick={() => setTheme(item.id as ThemeMode)}
                         className={cn(
                           "p-3 rounded-lg border text-left transition-all relative",
@@ -296,7 +297,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   </div>
                 </div>
 
-                <CursorThemePicker />
+                <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-xs font-medium">{t('settings.cursor.label')}</summary><div className="pt-3"><CursorThemePicker /></div></details>
 
                 <div className="pt-2 border-t border-border">
                   <label className="flex items-center justify-between gap-4 py-2 cursor-pointer">
@@ -309,16 +310,25 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       if (event.target.checked) useRepoStore.setState({ isLeftSidebarCollapsed: false });
                     }} className="shrink-0 h-4 w-4 accent-primary" />
                   </label>
+                  <label className="block py-2 space-y-2 text-xs">
+                    <span className="font-medium">{t('ui.inspector.label')}</span>
+                    <select className="w-full h-9 rounded-md border border-input bg-background px-2" value={inspectorPresentation} onChange={event => setInspectorPresentation(event.target.value as typeof inspectorPresentation)}>
+                      <option value="auto">{t('ui.inspector.auto')}</option>
+                      <option value="inline">{t('ui.inspector.inline')}</option>
+                      <option value="drawer">{t('ui.inspector.drawer')}</option>
+                    </select>
+                    <span className="block text-muted-foreground">{t('ui.inspector.desc')}</span>
+                  </label>
                   <div className="flex items-center justify-between py-2">
                     <div>
                       <div className="font-medium text-foreground flex items-center gap-1.5">
                         <Languages className="h-3.5 w-3.5 text-primary" />
-                        <span>{t('settings.appearance.languageLabel')}</span>
+                        <label htmlFor="interface-language">{t('settings.appearance.languageLabel')}</label>
                       </div>
                       <div className="text-[12px] text-muted-foreground">{t('settings.appearance.languageDesc')}</div>
                     </div>
                     <select
-                      value={lang}
+                      id="interface-language" value={lang}
                       onChange={(e) => setLang(e.target.value as Language)}
                       className="h-8 w-32 rounded-md border border-input bg-transparent px-2 text-xs cursor-pointer"
                     >
@@ -331,12 +341,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 <div className="pt-2 border-t border-border">
                   <div className="flex items-center justify-between py-2">
                     <div>
-                      <div className="font-medium text-foreground">{t('settings.appearance.compact')}</div>
+                      <label htmlFor="compact-mode" className="font-medium text-foreground cursor-pointer">{t('settings.appearance.compact')}</label>
                       <div className="text-[12px] text-muted-foreground">{t('settings.appearance.compactDesc')}</div>
                     </div>
                     <input
                       type="checkbox"
-                      checked={compactMode}
+                      id="compact-mode" checked={compactMode}
                       onChange={(e) => {
                         setCompactMode(e.target.checked);
                         toast.info(e.target.checked ? t('settings.appearance.compactOn') : t('settings.appearance.compactOff'));
@@ -378,12 +388,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {activeTab === 'git' && (
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-medium text-foreground block mb-1">
+                  <label htmlFor="git-cli-path" className="text-xs font-medium text-foreground block mb-1">
                     {t('settings.git.cliPathLabel')}
                   </label>
                   <div className="flex items-center gap-2">
                     <Input
-                      value={gitCliPath}
+                      id="git-cli-path" value={gitCliPath}
                       onChange={(e) => setGitCliPath(e.target.value)}
                       placeholder={t('settings.git.cliPathPlaceholder')}
                       className="font-mono text-xs"
@@ -408,11 +418,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 </div>
 
                 <div className="pt-2 border-t border-border">
-                  <label className="text-xs font-medium text-foreground block mb-1">
+                  <label htmlFor="auto-fetch-interval" className="text-xs font-medium text-foreground block mb-1">
                     {t('settings.git.autoFetchLabel')}
                   </label>
                   <select
-                    value={autoFetchInterval}
+                    id="auto-fetch-interval" value={autoFetchInterval}
                     onChange={(e) => {
                       const val = e.target.value as any;
                       setAutoFetchInterval(val);

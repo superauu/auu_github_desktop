@@ -67,7 +67,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             <div className="flex items-center gap-2 rounded-lg border border-input px-3 focus-within:border-ring focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring">
               <Search className="h-4 w-4 text-muted-foreground shrink-0" />
               <Command.Input
-                placeholder={t('palette.placeholder')}
+                aria-label={t('palette.placeholder')} placeholder={t('palette.placeholder')}
                 className="h-10 min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground"
                 autoFocus
               />

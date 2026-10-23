@@ -41,6 +41,12 @@ export const remoteZh = {
   'remote.savedUnavailable': '上次打开的仓库目录已不存在，请重新打开仓库。',
   'remote.restoreFailed': '暂时无法恢复上次的仓库，请重新打开或稍后重试。',
   'remote.directoryUnavailable': '仓库目录不存在或无法访问：{path}。请重新打开有效的仓库。',
+  'remote.preferenceNotSaved': '推送已成功，但默认推送远程未能保存。',
+  'remote.prSourceRepo': 'PR 来源仓库',
+  'remote.prSourceBranch': '来源仓库中的分支',
+  'remote.prSourceMissing': '请选择已推送分支所在的 GitHub 仓库，并填写远程分支名。',
+  'remote.prSourceLoading': '正在读取来源仓库…',
+  'remote.prSourceHint': '请选择分支实际发布到的仓库；跨 fork 时会自动带上所属账号。',
 };
 
 export const remoteEn: Record<keyof typeof remoteZh, string> = {
@@ -86,4 +92,10 @@ export const remoteEn: Record<keyof typeof remoteZh, string> = {
   'remote.savedUnavailable': 'The previous repository directory no longer exists. Open a repository again.',
   'remote.restoreFailed': 'Could not restore the previous repository. Open it again or retry later.',
   'remote.directoryUnavailable': 'Repository directory is missing or unavailable: {path}. Open a valid repository again.',
+  'remote.preferenceNotSaved': 'Push succeeded, but the default push remote could not be saved.',
+  'remote.prSourceRepo': 'PR source repository',
+  'remote.prSourceBranch': 'Branch in the source repository',
+  'remote.prSourceMissing': 'Choose the GitHub repository where the branch was pushed and enter its remote branch name.',
+  'remote.prSourceLoading': 'Reading source repository…',
+  'remote.prSourceHint': 'Choose the repository where the branch is published. Cross-fork requests include its owner automatically.',
 };

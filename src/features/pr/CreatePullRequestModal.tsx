@@ -8,10 +8,25 @@ import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { githubService } from '@/services/github/GitHubService';
+import { gitService } from '@/services/git/GitService';
+import { parseGitHubRemote } from '@/services/git/remoteIdentity';
+import type { PushContext } from '@/services/git/types';
 import { aiCommitService } from '@/services/ai/AiCommitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/stores/toastStore';
+
+const sourceRepositories = (context: PushContext | null) => (context?.remotes || []).flatMap(remote => {
+  const seen = new Set<string>();
+  return (remote.pushUrl || remote.fetchUrl).split('\n').flatMap(url => {
+    const identity = parseGitHubRemote(url);
+    if (!identity) return [];
+    const id = JSON.stringify([remote.name, identity.owner.toLowerCase(), identity.repo.toLowerCase()]);
+    if (seen.has(id)) return [];
+    seen.add(id);
+    return [{ id, remote: remote.name, ...identity }];
+  });
+});
 
 interface CreatePullRequestModalProps {
   open: boolean;
@@ -35,138 +50,158 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
 
   const [headBranch, setHeadBranch] = useState(currentBranch);
   const [baseBranch, setBaseBranch] = useState('');
+  const [defaultBase, setDefaultBase] = useState('');
+  const [baseFor, setBaseFor] = useState('');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingBase, setLoadingBase] = useState(false);
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [sourceContext, setSourceContext] = useState<PushContext | null>(null);
+  const [sourceFor, setSourceFor] = useState('');
+  const [sourceId, setSourceId] = useState('');
+  const [publishedBranch, setPublishedBranch] = useState('');
+  const [sourceError, setSourceError] = useState('');
+  const [sourceAttempt, setSourceAttempt] = useState(0);
 
+  const targetKey = JSON.stringify([currentRepo?.path, currentRepo?.gitHubRemote, currentOwner, currentRepoName]);
+  const sourceKey = JSON.stringify([targetKey, headBranch]);
+  const session = useRef(0);
   const descriptionRequest = useRef(0);
-  useEffect(() => { descriptionRequest.current++; setIsGeneratingDesc(false); }, [open, currentRepo?.path, headBranch, baseBranch]);
+  useEffect(() => { descriptionRequest.current++; setIsGeneratingDesc(false); }, [open, targetKey, headBranch, baseBranch]);
 
-  // 每次打开时重置：源分支默认当前分支，标题预填最新提交主题，异步取仓库默认分支作为目标
+  // Reset the draft only on opening or changing its target, never on a background refresh.
   useEffect(() => {
+    session.current++;
+    setIsSubmitting(false);
     if (!open) return;
     setHeadBranch(currentBranch);
     setTitle(commits[0]?.subject || '');
     setBody(commits[0]?.body || '');
     setError(null);
-    if (currentOwner && currentRepoName) {
-      setLoadingBase(true);
-      githubService
-        .getRepositoryDefaultBranch(currentOwner, currentRepoName)
-        .then((def) => setBaseBranch((prev) => prev || def))
-        .catch(() => {
-          // 未登录/网络受限时取不到默认分支：优先 master，其次列表第一个远程分支
-          setBaseBranch((prev) => {
-            if (prev) return prev;
-            const candidates = Array.from(
-              new Set(
-                branches
-                  .filter((b) => b.isRemote && b.remoteName === currentRepo?.gitHubRemote)
-                  .map((b) => b.remoteBranch || b.name.slice(b.name.indexOf('/') + 1))
-                  .filter((n) => n && n !== 'HEAD')
-              )
-            );
-            return candidates.includes('master') ? 'master' : candidates[0] || 'main';
-          });
-        })
-        .finally(() => setLoadingBase(false));
-    }
+    // The values above intentionally snapshot the draft at the start of this session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, targetKey]);
 
-  if (!open) return null;
+  useEffect(() => {
+    let active = true;
+    setBaseBranch(''); setDefaultBase(''); setBaseFor(''); setLoadingBase(false);
+    if (!open || !currentOwner || !currentRepoName) return;
+    setLoadingBase(true);
+    const candidates = branches.filter(branch => branch.isRemote && branch.remoteName === currentRepo?.gitHubRemote)
+      .map(branch => branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1));
+    void githubService.getRepositoryDefaultBranch(currentOwner, currentRepoName)
+      .then(value => { if (active) { setBaseBranch(value); setDefaultBase(value); setBaseFor(targetKey); } })
+      .catch(() => {
+        if (!active) return;
+        const fallback = candidates.includes('main') ? 'main' : candidates.includes('master') ? 'master' : candidates[0] || '';
+        setBaseBranch(fallback); setDefaultBase(fallback); setBaseFor(targetKey);
+      })
+      .finally(() => { if (active) setLoadingBase(false); });
+    return () => { active = false; };
+    // Branches are a snapshot for the fallback; refreshing refs must not overwrite a chosen base.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, targetKey]);
 
-  // Target branches belong to the selected collaboration remote.
-  const localBranchNames = branches.filter((b) => !b.isRemote).map((b) => b.name);
-  const remoteBranchNames = Array.from(
-    new Set(
-      branches
-        .filter((b) => b.isRemote && b.remoteName === currentRepo?.gitHubRemote)
-        .map((b) => b.remoteBranch || b.name.slice(b.name.indexOf('/') + 1))
-        .filter((n) => n && n !== 'HEAD')
-    )
-  );
+  useEffect(() => {
+    let active = true;
+    setSourceContext(null); setSourceFor(''); setSourceId(''); setPublishedBranch(''); setSourceError('');
+    if (!open || !currentRepo || !headBranch) return;
+    void gitService.getPushContext(currentRepo.path, headBranch).then(context => {
+      if (!active) return;
+      const options = sourceRepositories(context);
+      const preferred = options.filter(option => option.remote === context.remote);
+      const selected = preferred.length === 1 ? preferred[0] : !context.remote && options.length === 1 ? options[0] : undefined;
+      setSourceContext(context); setSourceFor(sourceKey); setSourceId(selected?.id || '');
+      setPublishedBranch(selected?.remote === context.remote ? context.targetBranch : headBranch);
+    }).catch(reason => { if (active) setSourceError(reason?.message || t('remote.loadFailed')); });
+    return () => { active = false; };
+    // sourceKey includes the target identity and local branch; old replies are discarded above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sourceKey, sourceAttempt, t]);
+
+  const sources = sourceFor === sourceKey ? sourceRepositories(sourceContext) : [];
+  const source = sources.find(option => option.id === sourceId);
+  const localBranchNames = branches.filter(branch => !branch.isRemote).map(branch => branch.name);
+  const remoteBranchNames = Array.from(new Set([
+    ...branches.filter(branch => branch.isRemote && branch.remoteName === currentRepo?.gitHubRemote)
+      .map(branch => branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1)),
+    ...(baseFor === targetKey && defaultBase ? [defaultBase] : []),
+  ])).filter(name => name && name !== 'HEAD');
+  const sameRepository = !!source && source.owner.toLowerCase() === currentOwner?.toLowerCase() && source.repo.toLowerCase() === currentRepoName?.toLowerCase();
+  const sameBranch = sameRepository && publishedBranch.trim() === baseBranch;
+  const ready = !!source && sourceFor === sourceKey && baseFor === targetKey && !loadingBase && !!publishedBranch.trim() && remoteBranchNames.includes(baseBranch);
+  const isCurrentTarget = () => {
+    const repo = useRepoStore.getState().currentRepo;
+    const github = useGitHubStore.getState();
+    return JSON.stringify([repo?.path, repo?.gitHubRemote, github.currentOwner, github.currentRepoName]) === targetKey;
+  };
 
   const handleGenerateDesc = async () => {
-    if (!currentRepo || !headBranch || !baseBranch) return;
+    if (!currentRepo || !headBranch || !baseBranch || !ready) return;
     const request = ++descriptionRequest.current;
+    const currentSession = session.current;
     setIsGeneratingDesc(true);
     try {
       const generated = await aiCommitService.generatePRDescriptionResult({
         repoPath: currentRepo.path,
         base: currentRepo.gitHubRemote ? `refs/remotes/${currentRepo.gitHubRemote}/${baseBranch}` : baseBranch,
-        head: headBranch,
+        head: `refs/heads/${headBranch}`,
         aiConfig,
       });
-      if (request !== descriptionRequest.current || useRepoStore.getState().currentRepo?.path !== currentRepo.path) return;
+      if (request !== descriptionRequest.current || currentSession !== session.current || !isCurrentTarget()) return;
       if (generated.fallback) toast.warning(t('composer.fallbackTitle'), t('composer.fallbackDesc'));
-      if (await confirmAction({ title: t('composer.preview'), description: generated.source === 'llm' ? `AI · ${generated.model}` : t(generated.fallback ? 'composer.localFallback' : 'composer.localRules'), detail: generated.message, confirmLabel: t('composer.useMessage'), danger: false }) && request === descriptionRequest.current) setBody(generated.message);
+      if (await confirmAction({ title: t('composer.preview'), description: generated.source === 'llm' ? `AI · ${generated.model}` : t(generated.fallback ? 'composer.localFallback' : 'composer.localRules'), detail: generated.message, confirmLabel: t('composer.useMessage'), danger: false }) && request === descriptionRequest.current && currentSession === session.current && isCurrentTarget()) setBody(generated.message);
     } catch (err: any) {
-      toast.error(t('pr.aiGenerateFailed'), err?.message);
+      if (currentSession === session.current && isCurrentTarget()) toast.error(t('pr.aiGenerateFailed'), err?.message);
     } finally {
       if (request === descriptionRequest.current) setIsGeneratingDesc(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentOwner || !currentRepoName) {
-      setError(t('pr.needLogin'));
-      return;
-    }
-    if (!title.trim()) {
-      setError(t('pr.titleEmpty'));
-      return;
-    }
-    if (!headBranch || !baseBranch) {
-      setError(t('pr.branchMissing'));
-      return;
-    }
-    if (headBranch === baseBranch) {
-      setError(t('pr.sameBranch'));
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSubmitting) return;
+    if (!currentOwner || !currentRepoName) { setError(t('pr.needLogin')); return; }
+    if (!title.trim()) { setError(t('pr.titleEmpty')); return; }
+    if (!ready || !source) { setError(t('remote.prSourceMissing')); return; }
+    if (sameBranch) { setError(t('pr.sameBranch')); return; }
+    if (!isCurrentTarget()) { setError(t('remote.changed')); return; }
+    const currentSession = session.current;
+    setIsSubmitting(true); setError(null);
     try {
       const created = await githubService.createPullRequest(currentOwner, currentRepoName, {
         title: title.trim(),
-        head: headBranch,
+        head: sameRepository ? publishedBranch.trim() : `${source.owner}:${publishedBranch.trim()}`,
+        ...(!sameRepository ? { headRepo: source.repo } : {}),
         base: baseBranch,
         body: body.trim(),
       });
-      toast.success(
-        t('pr.created').replace('{n}', String(created.number)),
-        created.html_url
-      );
+      if (currentSession !== session.current || !isCurrentTarget()) return;
+      toast.success(t('pr.created').replace('{n}', String(created.number)), created.html_url);
       await loadPullRequests();
-      // 列表刷新后选中新 PR
-      const fresh = useGitHubStore.getState().pullRequests.find((p) => p.number === created.number);
+      if (currentSession !== session.current || !isCurrentTarget()) return;
+      const fresh = useGitHubStore.getState().pullRequests.find(pr => pr.number === created.number);
       if (fresh) selectPR(fresh);
       onOpenChange(false);
     } catch (err: any) {
-      const msg: string = err?.message || t('pr.createFailed');
-      // GitHub 对“两分支无差异”返回 422 Validation Failed，给出可读提示
-      if (/validation|no commits|422/i.test(msg)) {
-        setError(t('pr.noCommitsDiff'));
-      } else {
-        setError(msg);
-      }
+      if (currentSession !== session.current || !isCurrentTarget()) return;
+      const message: string = err?.message || t('pr.createFailed');
+      setError(/no commits between/i.test(message) ? t('pr.noCommitsDiff') : message);
     } finally {
-      setIsSubmitting(false);
+      if (currentSession === session.current) setIsSubmitting(false);
     }
   };
+
+  if (!open) return null;
 
   return (
     <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isSubmitting} label={t('pr.createTitle')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -186,6 +221,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             variant="ghost"
             size="xs"
             onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
@@ -197,10 +233,11 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1 block">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                {t('pr.sourceBranch')}
+                {t('remote.source')}
               </span>
               <select
                 value={headBranch}
+                disabled={isSubmitting}
                 onChange={(e) => setHeadBranch(e.target.value)}
                 className="w-full h-8 rounded-lg border border-input bg-background/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               >
@@ -219,7 +256,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               <select
                 value={baseBranch}
                 onChange={(e) => setBaseBranch(e.target.value)}
-                disabled={loadingBase}
+                disabled={loadingBase || isSubmitting || baseFor !== targetKey}
                 className="w-full h-8 rounded-lg border border-input bg-background/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
               >
                 {loadingBase ? (
@@ -234,6 +271,25 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               </select>
             </label>
           </div>
+
+          <label className="block space-y-1 text-xs">
+            <span>{t('remote.prSourceRepo')}</span>
+            <select aria-label={t('remote.prSourceRepo')} value={sourceId} disabled={isSubmitting || sourceFor !== sourceKey} className="w-full rounded-lg border border-input bg-background p-2 text-xs" onChange={event => {
+              const selected = sources.find(option => option.id === event.target.value);
+              setSourceId(event.target.value);
+              setPublishedBranch(selected?.remote === sourceContext?.remote ? sourceContext!.targetBranch : headBranch);
+            }}>
+              <option value="">{sourceFor !== sourceKey && !sourceError ? t('remote.prSourceLoading') : t('remote.select')}</option>
+              {sources.map(option => <option key={option.id} value={option.id}>{option.remote} — {option.owner}/{option.repo}</option>)}
+            </select>
+            <p className="text-muted-foreground">{t('remote.prSourceHint')}</p>
+          </label>
+          {sourceError && <div role="alert" className="text-xs text-destructive">{sourceError} <Button type="button" variant="outline" size="xs" onClick={() => setSourceAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
+          <label className="block space-y-1 text-xs">
+            <span>{t('remote.prSourceBranch')}</span>
+            <Input aria-label={t('remote.prSourceBranch')} value={publishedBranch} disabled={isSubmitting || sourceFor !== sourceKey} onChange={event => setPublishedBranch(event.target.value)} />
+          </label>
+          {source && baseBranch && baseFor === targetKey && <p className="rounded-lg bg-muted p-2 text-xs break-all">{source.owner}/{source.repo}:{publishedBranch} → {currentOwner}/{currentRepoName}:{baseBranch}</p>}
 
           {/* Title */}
           <label className="space-y-1 block">
@@ -257,8 +313,9 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               <Button
                 variant="outline"
                 size="xs"
+                type="button"
                 onClick={handleGenerateDesc}
-                disabled={isGeneratingDesc || !headBranch || !baseBranch || headBranch === baseBranch}
+                disabled={isGeneratingDesc || isSubmitting || !ready || sameBranch}
                 className="h-5 px-1.5 text-[11px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
                 title={t('pr.aiGenerateTitle')}
               >
@@ -288,6 +345,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               variant="ghost"
               size="xs"
               onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
               className="h-7 text-xs text-muted-foreground hover:text-foreground"
             >
               {t('common.cancel')}
@@ -295,7 +353,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             <Button
               type="submit"
               size="xs"
-              disabled={isSubmitting || loadingBase}
+              disabled={isSubmitting || !ready || sameBranch}
               className="h-7 text-xs gap-1.5 btn-neon dark:btn-neon"
             >
               {isSubmitting ? (

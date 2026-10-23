@@ -1,0 +1,178 @@
+import { before, after, test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import React from 'react';
+import { create, act } from 'react-test-renderer';
+
+const root = process.cwd(), saved = new Map();
+globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
+let app, tmp;
+const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+const pr = (id, title) => ({ id, number: id, title, state: 'open', head: { ref: `topic-${id}`, sha: `sha-${id}` }, base: { ref: 'main' }, user: { login: 'reviewer' }, labels: [], body: '', html_url: `https://example.invalid/pr/${id}` });
+
+before(async () => {
+  tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ui-review-'));
+  const bundle = path.join(tmp, 'review.cjs');
+  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
+    build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
+    build.onLoad({ filter: /scroll-area\.tsx$/ }, () => ({ contents: 'import React from "react"; export function ScrollArea({ children }) { return <div>{children}</div>; }', loader: 'jsx' }));
+  } }] });
+  app = createRequire(import.meta.url)(bundle);
+});
+after(async () => {
+  app?.useGitHubStore.getState().clearRepo(); delete globalThis.window;
+  if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-ui-review-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 });
+});
+
+test('PR requests keep the newest loading state and isolate failures from Actions', async () => {
+  const store = app.useGitHubStore, original = app.githubService.getPullRequests;
+  const first = deferred(), second = deferred(); let calls = 0;
+  store.getState().clearRepo(); store.setState({ currentOwner: 'team', currentRepoName: 'repo', error: 'actions error' });
+  app.githubService.getPullRequests = () => ++calls === 1 ? first.promise : second.promise;
+  try {
+    const a = store.getState().loadPullRequests();
+    assert.equal(store.getState().isLoadingPullRequests, true);
+    const b = store.getState().loadPullRequests();
+    first.resolve([pr(1, 'Stale')]); await a;
+    assert.equal(store.getState().isLoadingPullRequests, true);
+    assert.deepEqual(store.getState().pullRequests, []);
+    second.reject(Error('HTTP 503')); await b;
+    assert.equal(store.getState().isLoadingPullRequests, false);
+    assert.equal(store.getState().pullRequestsError, 'HTTP 503');
+    assert.equal(store.getState().error, 'actions error');
+    app.githubService.getPullRequests = async () => [pr(2, 'Fresh')];
+    const c = store.getState().loadPullRequests();
+    assert.equal(store.getState().pullRequestsError, null); await c;
+    assert.equal(store.getState().selectedPR.id, 2);
+  } finally { app.githubService.getPullRequests = original; store.getState().clearRepo(); }
+});
+
+test('changing PR status while loading rejects stale results and repository switches clear loading', async () => {
+  const store = app.useGitHubStore, original = app.githubService.getPullRequests;
+  const pending = [deferred(), deferred()]; let calls = 0;
+  store.setState({ currentOwner: 'team', currentRepoName: 'repo', prFilterState: 'open' });
+  app.githubService.getPullRequests = () => pending[calls++].promise;
+  try {
+    const first = store.getState().loadPullRequests(); store.getState().setPRFilterState('closed');
+    pending[0].resolve([pr(1, 'Open')]); await first;
+    assert.equal(store.getState().isLoadingPullRequests, true);
+    assert.equal(store.getState().selectedPR, null);
+    store.getState().clearRepo(); pending[1].resolve([pr(2, 'Old repo')]);
+    await new Promise(setImmediate);
+    assert.equal(store.getState().isLoadingPullRequests, false);
+    assert.deepEqual(store.getState().pullRequests, []);
+  } finally { app.githubService.getPullRequests = original; store.getState().clearRepo(); }
+});
+
+test('PR search selects details from visible results and removes stale management actions on no match', async () => {
+  const store = app.useGitHubStore, first = pr(1, 'First change'), second = pr(2, 'Second change');
+  const originalReviews = app.githubService.getPullRequestReviews, originalChecks = app.githubService.getCommitChecks;
+  app.githubService.getPullRequestReviews = async () => []; app.githubService.getCommitChecks = async () => [];
+  store.setState({ currentOwner: 'team', currentRepoName: 'repo', pullRequests: [first, second], selectedPR: first, prFilterState: 'open' });
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.PullRequestsView)); });
+    const search = renderer.root.findAllByType('input').find(input => input.props.placeholder);
+    await act(async () => search.props.onChange({ target: { value: 'Second' } }));
+    assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /First change/);
+    assert.match(JSON.stringify(renderer.toJSON()), /Second change/);
+    await act(async () => search.props.onChange({ target: { value: 'No matching PR' } }));
+    assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /Second change/);
+    assert.equal(renderer.root.findAllByType('select').length, 0, 'merge controls must disappear with stale details');
+    assert.equal(store.getState().selectedPR.id, 1, 'search must not mutate stored selection');
+  } finally { await act(async () => renderer?.unmount()); app.githubService.getPullRequestReviews = originalReviews; app.githubService.getCommitChecks = originalChecks; store.getState().clearRepo(); }
+});
+
+test('PR loading does not render an empty result and refresh cannot be submitted repeatedly', async () => {
+  const store = app.useGitHubStore; store.setState({ currentOwner: 'team', currentRepoName: 'repo', pullRequests: [], selectedPR: null, isLoadingPullRequests: true });
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.PullRequestsView)); });
+    assert.match(JSON.stringify(renderer.toJSON()), /正在加载拉取请求/);
+    assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /当前没有拉取请求|未找到符合条件/);
+    assert.equal(renderer.root.findAllByType('button').find(b => b.props['aria-busy']).props.disabled, true);
+  } finally { await act(async () => renderer?.unmount()); store.getState().clearRepo(); }
+});
+
+test('queued, waiting, cancelled, skipped, neutral and unknown workflow results are never failures', () => {
+  for (const [status, conclusion] of [['queued', null], ['waiting', null], ['pending', null], ['completed', 'cancelled'], ['completed', 'skipped'], ['completed', 'neutral'], ['completed', null]]) {
+    const result = app.workflowStatus(status, conclusion);
+    assert.notEqual(result.variant, 'destructive'); assert.notEqual(result.key, 'actions.failed');
+  }
+  assert.equal(app.workflowStatus('completed', 'failure').variant, 'destructive');
+  assert.equal(app.workflowStatus('completed', 'timed_out').key, 'ui.actions.timedOut');
+  assert.equal(app.workflowStatus('completed', 'success').variant, 'success');
+});
+
+test('row activation ignores nested controls, moves within its list and supports keyboard context menus', () => {
+  let activated = 0, focused = 0, dispatched;
+  const next = { getClientRects: () => [1], focus: () => focused++ };
+  const row = { click: () => activated++, getClientRects: () => [1], closest: () => ({ querySelectorAll: () => [row, next] }), getBoundingClientRect: () => ({ left: 10, top: 20, height: 30 }), dispatchEvent: event => { dispatched = event; } };
+  const event = key => ({ key, target: row, currentTarget: row, preventDefault() {} });
+  app.handleRowKeyDown(event('Enter')); app.handleRowKeyDown({ ...event(' '), target: {} });
+  assert.equal(activated, 1);
+  app.handleRowKeyDown(event('ArrowDown')); assert.equal(focused, 1);
+  const original = globalThis.MouseEvent; globalThis.MouseEvent = class { constructor(type, options) { this.type = type; Object.assign(this, options); } };
+  try { app.handleRowKeyDown({ ...event('F10'), shiftKey: true }); assert.equal(dispatched.type, 'contextmenu'); assert.equal(dispatched.clientY, 35); }
+  finally { if (original) globalThis.MouseEvent = original; else delete globalThis.MouseEvent; }
+});
+
+test('laptop layout keeps the inspector inline and honors explicit drawer and inline choices', async () => {
+  globalThis.window = { innerWidth: 1280, addEventListener() {}, removeEventListener() {} };
+  app.useLayoutStore.getState().resetLayout(); app.useRepoStore.setState({ currentRepo: { path: '/repo' }, activeTab: 'changes', isLeftSidebarCollapsed: false, isRightPaneCollapsed: false });
+  let result, renderer;
+  function Probe() { result = app.useWorkspaceLayout(); return null; }
+  try {
+    await act(async () => { renderer = create(React.createElement(Probe)); });
+    assert.equal(result.inspectorOverlay, false);
+    assert.ok(result.panels.right >= 220);
+    assert.ok(result.panels.left >= 200); assert.ok(result.panels.files >= 220);
+    assert.ok(1280 - result.panels.left - result.panels.right - result.panels.files - 18 >= 500);
+    await act(async () => app.useLayoutStore.getState().setInspectorPresentation('drawer'));
+    assert.equal(result.inspectorOverlay, true);
+    window.innerWidth = 900;
+    await act(async () => app.useLayoutStore.getState().setInspectorPresentation('inline'));
+    assert.equal(result.inspectorOverlay, false);
+    assert.ok(900 - result.panels.left - result.panels.right - result.panels.files - 18 >= 320);
+  } finally { await act(async () => renderer?.unmount()); app.useLayoutStore.getState().resetLayout(); app.useRepoStore.setState({ currentRepo: null }); delete globalThis.window; }
+});
+
+test('Git diagnostics identify recoverable causes without recommending destructive operations', () => {
+  for (const [message, kind] of [['spawn git ENOENT', 'git'], ['spawn C:\\Missing\\git.exe ENOENT', 'git'], ['not a git repository', 'directory'], ['Authentication failed', 'auth'], ['rejected non-fast-forward', 'rejected'], ['fatal: Unable to create index.lock', 'lock'], ['CONFLICT (content)', 'conflict'], ['Could not resolve host', 'network']]) assert.equal(app.errorGuidance(message), kind);
+  assert.equal(app.errorGuidance('unrecognized response'), 'generic');
+});
+
+test('workflow loading finishes before jobs and an older job response cannot end a newer loading state', async () => {
+  const store = app.useGitHubStore, originalRuns = app.githubService.getWorkflowRuns, originalJobs = app.githubService.getRunJobs;
+  const oldJobs = deferred(), newJobs = deferred(); let calls = 0;
+  store.getState().clearRepo(); store.setState({ currentOwner: 'team', currentRepoName: 'repo' });
+  app.githubService.getWorkflowRuns = async () => [{ id: 1 }];
+  app.githubService.getRunJobs = () => ++calls === 1 ? oldJobs.promise : newJobs.promise;
+  try {
+    const first = store.getState().selectWorkflow({ id: 1 });
+    await new Promise(setImmediate);
+    assert.equal(store.getState().isLoadingRuns, false); assert.equal(store.getState().isLoadingJobs, true);
+    const second = store.getState().selectRun({ id: 2 });
+    oldJobs.resolve([{ id: 'old' }]); await first;
+    assert.equal(store.getState().isLoadingJobs, true); assert.deepEqual(store.getState().selectedRunJobs, []);
+    newJobs.resolve([{ id: 'new' }]); await second;
+    assert.equal(store.getState().isLoadingJobs, false); assert.equal(store.getState().selectedRunJobs[0].id, 'new');
+  } finally { app.githubService.getWorkflowRuns = originalRuns; app.githubService.getRunJobs = originalJobs; store.getState().clearRepo(); }
+});
+
+
+test('Git error feedback keeps diagnostics available and opens the relevant settings panel', async () => {
+  let event, renderer;
+  globalThis.window = { dispatchEvent: value => { event = value; } };
+  try {
+    await act(async () => { renderer = create(React.createElement(app.ErrorNotice, { error: 'spawn git ENOENT' })); });
+    assert.match(JSON.stringify(renderer.toJSON()), /找不到 Git 执行程序/);
+    assert.match(JSON.stringify(renderer.toJSON()), /spawn git ENOENT/);
+    assert.notEqual(renderer.root.findByType('details').props.open, true);
+    renderer.root.findByType('button').props.onClick();
+    assert.equal(event.type, 'auugit:open-settings'); assert.equal(event.detail, 'git');
+  } finally { await act(async () => renderer?.unmount()); delete globalThis.window; }
+});

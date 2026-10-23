@@ -1,3 +1,4 @@
+import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { useShallow } from 'zustand/react/shallow';
 import React from 'react';
 import {
@@ -114,10 +115,11 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
               </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-card/30 divide-y divide-border/60 overflow-hidden shadow-sm">
+            <div className="rounded-xl border border-border bg-card/30 divide-y divide-border/60 overflow-hidden shadow-sm" role="list" data-keyboard-list>
               {recentRepos.map((repo) => (
                 <div
                   key={repo.path}
+                  {...keyboardRowProps(`${repo.name} ${repo.path}`)}
                   onClick={() => setCurrentRepo(repo)}
                   className="p-3 flex items-center justify-between hover:bg-accent/40 cursor-pointer transition-colors group"
                 >

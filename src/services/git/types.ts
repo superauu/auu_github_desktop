@@ -90,6 +90,10 @@ export interface PushOptions {
   rememberRemote?: boolean;
 }
 
+export interface PushResult {
+  preferenceError?: string;
+}
+
 export interface PushContext {
   branch: string;
   remotes: GitRemote[];
@@ -165,7 +169,7 @@ export interface IGitService {
   unstageAll(repoPath: string): Promise<void>;
   discardChanges(repoPath: string, filePath: string): Promise<void>;
   commit(repoPath: string, message: string, amend?: boolean): Promise<string>;
-  push(repoPath: string, remote?: string, branch?: string, options?: PushOptions): Promise<void>;
+  push(repoPath: string, remote?: string, branch?: string, options?: PushOptions): Promise<PushResult>;
   getPushContext(repoPath: string, branch?: string): Promise<PushContext>;
   pull(repoPath: string, rebase?: boolean): Promise<void>;
   fetch(repoPath: string, remote?: string, prune?: boolean): Promise<void>;

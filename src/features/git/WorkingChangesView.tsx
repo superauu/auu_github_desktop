@@ -1,3 +1,4 @@
+import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { ImageDiffView } from './ImageDiffView';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import { stageSelectedLines } from '@/services/git/LineStagingService';
@@ -598,7 +599,7 @@ export const WorkingChangesView: React.FC = () => {
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
+                        <div className="hidden items-center gap-1 group-hover:flex group-focus-within:flex shrink-0">
                           {file.status === 'conflicted' ? (
                             <>
                               <Button
@@ -828,7 +829,7 @@ export const WorkingChangesView: React.FC = () => {
           </div>
 
           {activeFile && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 w-full">
               {/* Content Mode: Diff / Blame / File History */}
               <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
                 <button
@@ -1048,7 +1049,7 @@ export const WorkingChangesView: React.FC = () => {
         ) : (
           /* Diff Content View */
           <div id={diffId} style={{ fontSize: diffFontSize }} className={cn("flex-1 overflow-auto font-mono leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text", wrap && "diff-wrap")}>
-            {currentRepo && activeFile && isImagePath(activeFile.path) ? <ImageDiffView key={`${activeFile.path}-${activeFile.staged}-${status?.headOid}`} repoPath={currentRepo.path} path={activeFile.path} beforePath={activeFile.oldPath} before={activeFile.status === 'untracked' || (activeFile.staged && activeFile.status === 'added') ? 'EMPTY' : activeFile.staged ? (/^[0-9a-f]{40,64}$/.test(status?.headOid || '') ? status!.headOid! : 'EMPTY') : 'INDEX'} after={activeFile.staged ? 'INDEX' : 'WORKTREE'} /> : fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><p className="text-destructive break-words">{fileDiffError}</p><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
+            {currentRepo && activeFile && isImagePath(activeFile.path) ? <ImageDiffView key={`${activeFile.path}-${activeFile.staged}-${status?.headOid}`} repoPath={currentRepo.path} path={activeFile.path} beforePath={activeFile.oldPath} before={activeFile.status === 'untracked' || (activeFile.staged && activeFile.status === 'added') ? 'EMPTY' : activeFile.staged ? (/^[0-9a-f]{40,64}$/.test(status?.headOid || '') ? status!.headOid! : 'EMPTY') : 'INDEX'} after={activeFile.staged ? 'INDEX' : 'WORKTREE'} /> : fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><ErrorNotice error={fileDiffError} /><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
                 <div className="text-xs">

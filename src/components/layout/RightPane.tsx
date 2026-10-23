@@ -1,3 +1,4 @@
+import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
@@ -88,7 +89,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
       {overlay && <Button variant="ghost" size="icon" aria-label={t('common.close')} onClick={onClose}><X className="h-4 w-4" /></Button>}
     </header>
     <div className={activeTab === 'changes' ? 'flex-1 min-h-0 overflow-hidden text-[13px]' : 'flex-1 min-h-0 overflow-y-auto p-4 text-[13px]'}>
-      {errorMessage && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-destructive break-words">{errorMessage}</p>}
+      {errorMessage && <div role="alert" className="m-3 rounded-lg border border-destructive/30 p-3"><ErrorNotice error={errorMessage} /></div>}
       {errorMessage && <AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'error', message: errorMessage }} onOpenSettings={onOpenAiSettings} />}
       <div hidden={activeTab !== 'changes'} className="h-full"><CommitComposer draftState={draft} onOpenAiSettings={onOpenAiSettings} /></div>
       {activeTab === 'history' && (selectedCommit ? <div className="space-y-4">
@@ -107,7 +108,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
             <Button variant="ghost" size="icon" aria-label={t('rightPane.toggleSort')} onClick={() => setAscending(!ascending)}>{ascending ? '↑' : '↓'}</Button>
             <Button variant="ghost" size="icon" aria-label={t(tree ? 'rightPane.pathView' : 'rightPane.treeView')} aria-pressed={tree} onClick={() => setTree(!tree)}>{tree ? <List className="h-4 w-4" /> : <Network className="h-4 w-4" />}</Button>
           </div></div>
-          {loading ? <p role="status" className="text-muted-foreground">{t('common.loading')}</p> : filesError ? <div role="alert"><p className="text-destructive break-words">{filesError}</p><Button variant="outline" onClick={() => setReload(value => value + 1)}>{t('composer.retry')}</Button></div> : tree ? Object.entries(groups).map(([directory, group]) => <details key={directory} open><summary className="cursor-pointer text-[12px] text-muted-foreground py-2 break-all">{directory} ({group.length})</summary>{group.map(fileButton)}</details>) : sortedFiles.map(fileButton)}
+          {loading ? <p role="status" className="text-muted-foreground">{t('common.loading')}</p> : filesError ? <div role="alert"><ErrorNotice error={filesError} /><Button variant="outline" onClick={() => setReload(value => value + 1)}>{t('composer.retry')}</Button></div> : tree ? Object.entries(groups).map(([directory, group]) => <details key={directory} open><summary className="cursor-pointer text-[12px] text-muted-foreground py-2 break-all">{directory} ({group.length})</summary>{group.map(fileButton)}</details>) : sortedFiles.map(fileButton)}
         </section>
         <section className="border-t border-border pt-3 space-y-2"><h3 className="text-[12px] text-muted-foreground">{t('rightPane.githubChecks')}</h3>
           {!checks.length ? <p className="text-[12px] text-muted-foreground">{t('rightPane.noChecks')}</p> : checks.map(check => {
