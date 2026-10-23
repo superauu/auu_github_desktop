@@ -71,7 +71,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [ignoreRepoPath, setIgnoreRepoPath] = useState<string | null>(null);
   const [worktreesRepoPath, setWorktreesRepoPath] = useState<string | null>(null);
-  const [pushDestination, setPushDestination] = useState('');
+  const [pushTarget, setPushTarget] = useState<{ remote: string; targetBranch: string } | null>(null);
+  const pushDestination = pushTarget ? `${pushTarget.remote}/${pushTarget.targetBranch}` : '';
   const {
     currentRepo,
     status,
@@ -104,9 +105,9 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
   useEffect(() => {
     let active = true;
-    setPushDestination('');
+    setPushTarget(null);
     if (currentRepo && status?.currentBranch) void gitService.getPushContext(currentRepo.path, status.currentBranch)
-      .then(context => { if (active && context.remote) setPushDestination(`${context.remote}/${context.targetBranch}`); }).catch(() => {});
+      .then(context => { if (active && context.remote) setPushTarget({ remote: context.remote, targetBranch: context.targetBranch }); }).catch(() => {});
     return () => { active = false; };
   }, [currentRepo?.path, status?.currentBranch, status?.trackingBranch, branches]);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
@@ -597,7 +598,7 @@ export const Header: React.FC<HeaderProps> = ({
           {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button variant="ghost" onClick={handleFetch} title={t('header.fetchAll')}><RefreshCw className="h-4 w-4" /><span className="hidden lg:inline">{t('composer.fetch')}</span></Button>
             <Button variant="outline" onClick={handlePull} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}><ArrowDownToLine className="h-4 w-4" />{t('header.pull')}{behindCount > 0 && <span className="font-mono">{behindCount}</span>}</Button>
-            <Button variant={aheadCount > 0 && status?.trackingBranch === pushDestination ? 'secondary' : 'ghost'} onClick={() => void handlePush()} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}><ArrowUpToLine className="h-4 w-4" /><span className="max-w-44 truncate">{pushDestination ? `${t('header.push')} → ${pushDestination}` : t('header.push')}</span></Button>
+            <Button variant={aheadCount > 0 && status?.trackingBranch === pushDestination ? 'secondary' : 'ghost'} onClick={() => void handlePush()} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}><ArrowUpToLine className="h-4 w-4" /><span className="max-w-28 truncate">{pushTarget ? `${t('header.push')} → ${pushTarget.remote}` : t('header.push')}</span></Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
