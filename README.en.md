@@ -25,6 +25,10 @@ AI helps explain changes, draft descriptions, and suggest resolutions. The app d
 
 Manual GitHub Actions runs load the workflow definition from the selected branch and show required inputs, defaults, and choices. Environment inputs accept an environment name configured in the repository. Failed loads can be retried without submitting inputs from a previous branch.
 
+Push operations let you choose a remote and destination branch, with the repository address and push direction shown before proceeding. Defaults follow branch `pushRemote`, repository `remote.pushDefault`, and tracking configuration. Remembering a push remote and changing the tracking branch are separate choices. Commit and Push asks for a destination before creating the commit; cancelling leaves the draft intact. Tag pushes and remote tag deletion also support remote selection.
+
+Remote branch context menus can delete a branch on the selected server while retaining local branches. The toolbar fetches all remotes; repository actions and remote settings offer fetch with pruning of stale remote references. Remote settings also let you select the GitHub remote used for PRs and Actions independently. Ahead/behind counts compare with the tracking branch shown in the status bar.
+
 Git writes show the current operation, elapsed time, and queue count in the status bar. Cancel queued skips tasks that have not started; the running operation continues. If a main view fails to render, retry it or copy diagnostics. Save any text you are editing before reloading the entire window.
 
 Recovery points can be named when created, renamed later, or deleted. Names live in repository-local configuration and are shared across linked worktrees; an empty name uses the default label. Deleting a point removes only that point, leaving branches and working files unchanged. Git may eventually prune commits no longer retained by any reference.

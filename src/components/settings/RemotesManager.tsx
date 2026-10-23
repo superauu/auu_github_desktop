@@ -5,6 +5,7 @@ import { Plus, Trash2, RefreshCw, Check, X } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { gitService } from '@/services/git/GitService';
+import { parseGitHubRemote } from '@/services/git/remoteIdentity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/stores/toastStore';
@@ -20,6 +21,10 @@ export const RemotesManager: React.FC = () => {
   const { currentRepo, refreshAll } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, refreshAll: state.refreshAll })));
 
   const [remotes, setRemotes] = useState<RemoteEntry[]>([]);
+  const [githubRemote, setGithubRemote] = useState('auto');
+  const [loadError, setLoadError] = useState('');
+  const [savingBinding, setSavingBinding] = useState(false);
+  const loadGeneration = React.useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -31,19 +36,26 @@ export const RemotesManager: React.FC = () => {
 
   const load = React.useCallback(async () => {
     if (!repoPath) return;
+    const generation = ++loadGeneration.current;
     setIsLoading(true);
+    setLoadError('');
     try {
-      const list = await gitService.listRemotes(repoPath);
+      const [list, preference] = await Promise.all([gitService.listRemotes(repoPath), gitService.getGitHubRemotePreference(repoPath)]);
+      if (generation !== loadGeneration.current) return;
       setRemotes(list);
-    } catch {
-      setRemotes([]);
+      setGithubRemote(preference);
+    } catch (error: any) {
+      if (generation !== loadGeneration.current) return;
+      setLoadError(error?.message || t('remote.loadFailed'));
     } finally {
-      setIsLoading(false);
+      if (generation === loadGeneration.current) setIsLoading(false);
     }
-  }, [repoPath]);
+  }, [repoPath, t]);
 
   useEffect(() => {
+    setRemotes([]); setLoadError('');
     load();
+    return () => { loadGeneration.current++; };
   }, [load]);
 
   if (!repoPath) return null;
@@ -123,6 +135,28 @@ export const RemotesManager: React.FC = () => {
         </div>
       </div>
 
+      {loadError && <p role="alert" className="text-xs text-destructive break-all">{loadError}</p>}
+      <label className="block text-xs space-y-1">
+        <span>{t('remote.github')}</span>
+        <select className="w-full rounded-md border border-input bg-background p-2" value={githubRemote} disabled={isLoading || savingBinding || !!loadError} onChange={async event => {
+          const remote = event.target.value;
+          const path = repoPath;
+          setSavingBinding(true);
+          try {
+            await gitService.setGitHubRemote(path, remote);
+            if (useRepoStore.getState().currentRepo?.path !== path) return;
+            setGithubRemote(remote);
+            await refreshAll();
+            toast.success(t('remote.githubSaved'));
+          } catch (error: any) { toast.error(t('remote.loadFailed'), error?.message); }
+          finally { setSavingBinding(false); }
+        }}>
+          <option value="auto">{t('remote.automatic')}</option>
+          {githubRemote !== 'auto' && !remotes.some(remote => remote.name === githubRemote && parseGitHubRemote(remote.fetchUrl)) && <option value={githubRemote} disabled>{githubRemote} — {t('remote.invalid')}</option>}
+          {remotes.filter(remote => parseGitHubRemote(remote.fetchUrl)).map(remote => <option key={remote.name} value={remote.name}>{remote.name} — {remote.fetchUrl}</option>)}
+        </select>
+      </label>
+
       {/* Add form */}
       {adding && (
         <div className="p-2 rounded-lg border border-border/70 bg-accent/40 space-y-1.5">
@@ -157,7 +191,7 @@ export const RemotesManager: React.FC = () => {
       )}
 
       {/* Remote list */}
-      {remotes.length === 0 && !isLoading ? (
+      {remotes.length === 0 && !isLoading && !loadError ? (
         <div className="text-[12px] text-muted-foreground/60 italic">
           {t('settings.remotes.empty')}
         </div>
@@ -199,11 +233,18 @@ export const RemotesManager: React.FC = () => {
                 <>
                   <div className="min-w-0 flex-1">
                     <span className="font-mono font-semibold text-foreground">{r.name}</span>
-                    <div className="font-mono text-[11px] text-muted-foreground truncate" title={r.fetchUrl}>
-                      {r.fetchUrl || r.pushUrl}
-                    </div>
+                    <div className="font-mono text-[11px] text-muted-foreground truncate" title={r.fetchUrl}>{t('remote.pullFrom')}: {r.fetchUrl}</div>
+                    <div className="font-mono text-[11px] text-muted-foreground truncate" title={r.pushUrl}>{t('remote.pushTo')}: {r.pushUrl || r.fetchUrl}</div>
                   </div>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 shrink-0">
+                    <Button variant="ghost" size="xs" title={t('remote.prune')} onClick={async () => {
+                      const path = repoPath;
+                      try {
+                        await gitService.fetch(path, r.name, true);
+                        if (useRepoStore.getState().currentRepo?.path === path) await refreshAll();
+                        toast.success(t('remote.pruneDone'), r.name);
+                      } catch (error: any) { toast.error(t('header.fetchFailed'), error?.message); }
+                    }}><RefreshCw className="h-3 w-3" /></Button>
                     <Button
                       variant="ghost"
                       size="xs"

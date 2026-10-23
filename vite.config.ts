@@ -162,6 +162,15 @@ export function gitApiPlugin(): Plugin {
             if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string') ||
                 typeof gitBinary !== 'string' || !/^git(?:\.exe)?$/i.test(path.basename(gitBinary)) ||
                 (stdin !== undefined && typeof stdin !== 'string')) throw new Error('Invalid Git command');
+            if (typeof cwd !== 'string') throw new Error('Invalid Git working directory');
+            const directory = await fs.stat(cwd).catch((error) => {
+              if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
+              throw error;
+            });
+            if (!directory?.isDirectory()) {
+              json(res, 400, { exitCode: -1, stdout: '', stderr: `Repository directory is unavailable: ${cwd}`, errorCode: 'REPOSITORY_DIRECTORY_UNAVAILABLE' });
+              return;
+            }
             const child = spawn(gitBinary, ['-c', 'core.quotepath=false', ...args], {
               cwd, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' },
             });

@@ -64,8 +64,8 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             const candidates = Array.from(
               new Set(
                 branches
-                  .filter((b) => b.isRemote)
-                  .map((b) => b.name.replace(/^origin\//, ''))
+                  .filter((b) => b.isRemote && b.remoteName === currentRepo?.gitHubRemote)
+                  .map((b) => b.remoteBranch || b.name.slice(b.name.indexOf('/') + 1))
                   .filter((n) => n && n !== 'HEAD')
               )
             );
@@ -79,13 +79,13 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
 
   if (!open) return null;
 
-  // 目标分支可选远程分支（去掉 origin/ 前缀并过滤 HEAD 别名）；源分支可选本地分支
+  // Target branches belong to the selected collaboration remote.
   const localBranchNames = branches.filter((b) => !b.isRemote).map((b) => b.name);
   const remoteBranchNames = Array.from(
     new Set(
       branches
-        .filter((b) => b.isRemote)
-        .map((b) => b.name.replace(/^origin\//, ''))
+        .filter((b) => b.isRemote && b.remoteName === currentRepo?.gitHubRemote)
+        .map((b) => b.remoteBranch || b.name.slice(b.name.indexOf('/') + 1))
         .filter((n) => n && n !== 'HEAD')
     )
   );
@@ -97,7 +97,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     try {
       const generated = await aiCommitService.generatePRDescriptionResult({
         repoPath: currentRepo.path,
-        base: baseBranch,
+        base: currentRepo.gitHubRemote ? `refs/remotes/${currentRepo.gitHubRemote}/${baseBranch}` : baseBranch,
         head: headBranch,
         aiConfig,
       });

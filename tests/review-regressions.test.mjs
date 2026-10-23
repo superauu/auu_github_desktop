@@ -35,7 +35,7 @@ function stub(target, replacements) { const originals = Object.fromEntries(Objec
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-'));
   const bundle = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export * from './src/services/git/IgnoreService'; export * from './src/services/git/worktrees'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export * from './src/services/git/RepositorySession'; export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export * from './src/services/git/IgnoreService'; export * from './src/services/git/worktrees'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -219,6 +219,171 @@ test('successful push clears loading state', async () => {
   const restore = stub(app.gitService, { push: async () => {} });
   try { await app.useRepoStore.getState().push(); assert.equal(app.useRepoStore.getState().isLoading, false); }
   finally { restore(); app.useRepoStore.getState().setCurrentRepo(null); }
+});
+
+test('startup rejects a removed saved repository before scheduling Git reads and preserves unrelated tabs', async () => {
+  const store = app.useRepoStore; store.getState().setCurrentRepo(null);
+  const missing = info(path.join(tmp, 'removed-session-repository')), other = info('/unrelated-repository');
+  store.setState({ openTabs: [missing, other] });
+  localStorage.setItem('auu_git_last_active_repo', JSON.stringify(missing));
+  let reads = 0; const restore = stub(app.gitService, { openRepository: async () => { reads++; throw Error('should not read'); } });
+  try {
+    await app.restoreSavedRepository();
+    assert.equal(reads, 0); assert.equal(store.getState().currentRepo, null);
+    assert.equal(localStorage.getItem('auu_git_last_active_repo'), null);
+    assert.deepEqual(store.getState().openTabs.map(tab => tab.path), [other.path]);
+  } finally { restore(); store.setState({ openTabs: [] }); }
+});
+
+test('startup keeps a saved repository when directory validation is temporarily unavailable', async () => {
+  const store = app.useRepoStore; store.getState().setCurrentRepo(null);
+  const saved = JSON.stringify(info('/temporarily-unavailable'));
+  localStorage.setItem('auu_git_last_active_repo', saved);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw Error('backend offline'); };
+  try {
+    await app.restoreSavedRepository();
+    assert.equal(localStorage.getItem('auu_git_last_active_repo'), saved);
+    assert.equal(store.getState().currentRepo, null);
+  } finally { globalThis.fetch = originalFetch; localStorage.removeItem('auu_git_last_active_repo'); }
+});
+
+test('a cancelled startup restore cannot replace a repository the user opens later', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a'), 'a'); await commit(repo);
+  const store = app.useRepoStore; store.getState().setCurrentRepo(null);
+  localStorage.setItem('auu_git_last_active_repo', JSON.stringify(info(repo)));
+  const waiting = deferred(); let opened = false, cancelled = false;
+  const restore = stub(app.gitService, { openRepository: async () => { opened = true; return waiting.promise; } });
+  try {
+    const pending = app.restoreSavedRepository(() => cancelled);
+    await eventually(() => opened); cancelled = true;
+    const chosen = info('/user-selected-repository'); store.setState({ currentRepo: chosen });
+    waiting.resolve(info(repo)); await pending;
+    assert.equal(store.getState().currentRepo.path, chosen.path);
+  } finally { restore(); store.getState().setCurrentRepo(null); }
+});
+
+test('missing repository directories produce a specific error rather than a misleading missing Git executable error', async () => {
+  const missing = path.join(tmp, 'removed-git-directory');
+  const response = await globalThis.fetch('/api/git', { method: 'POST', headers, body: JSON.stringify({ args: ['status'], cwd: missing }) });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).errorCode, 'REPOSITORY_DIRECTORY_UNAVAILABLE');
+  await assert.rejects(app.gitService.getStatus(missing), error => /目录|directory/i.test(error.message) && !/ENOENT|HTTP 500/.test(error.message));
+});
+
+async function remoteFixture() {
+  const repo = await repository(); await fs.writeFile(file(repo, 'base.txt'), 'base'); await commit(repo);
+  const origin = path.join(tmp, `origin ${repoIndex}.git`), upstream = path.join(tmp, `upstream ${repoIndex}.git`);
+  git(root, 'init', '--bare', origin); git(root, 'init', '--bare', upstream);
+  git(repo, 'remote', 'add', 'origin', origin); git(repo, 'remote', 'add', 'upstream', upstream);
+  git(repo, 'push', '-u', 'upstream', 'main');
+  return { repo, origin, upstream };
+}
+
+test('push honors branch pushRemote, repository pushDefault and tracking remote, including URLs with spaces', async () => {
+  const { repo, origin, upstream } = await remoteFixture();
+  let context = await app.gitService.getPushContext(repo);
+  assert.equal(context.remote, 'upstream'); assert.equal(context.upstream, 'upstream/main');
+  git(repo, 'config', 'remote.pushDefault', 'origin');
+  assert.equal((await app.gitService.getPushContext(repo)).remote, 'origin');
+  git(repo, 'config', 'branch.main.pushRemote', 'upstream');
+  assert.equal((await app.gitService.getPushContext(repo)).remote, 'upstream');
+  git(repo, 'config', '--unset', 'branch.main.pushRemote');
+  await app.gitService.push(repo);
+  assert.equal(git(origin, 'rev-parse', 'refs/heads/main'), git(repo, 'rev-parse', 'HEAD'));
+  assert.equal(git(repo, 'rev-parse', '--abbrev-ref', '@{u}').trim(), 'upstream/main');
+  assert.equal(git(upstream, 'rev-parse', 'main'), git(repo, 'rev-parse', 'HEAD'));
+});
+
+test('pushing an explicit source branch uses its own tracking and supports a renamed destination without changing pull source', async () => {
+  const { repo, origin } = await remoteFixture();
+  git(repo, 'branch', 'topic/path');
+  git(repo, 'config', 'branch.topic/path.remote', 'upstream'); git(repo, 'config', 'branch.topic/path.merge', 'refs/heads/main');
+  git(repo, 'switch', '-c', 'untracked-current');
+  await app.gitService.push(repo, 'origin', 'topic/path', { targetBranch: 'published/topic', setUpstream: false, rememberRemote: true });
+  assert.equal(git(origin, 'rev-parse', 'refs/heads/published/topic'), git(repo, 'rev-parse', 'refs/heads/topic/path'));
+  assert.equal(git(repo, 'config', 'branch.topic/path.remote').trim(), 'upstream');
+  assert.equal(git(repo, 'config', 'branch.topic/path.merge').trim(), 'refs/heads/main');
+  assert.equal(git(repo, 'config', 'branch.topic/path.pushRemote').trim(), 'origin');
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'untracked-current');
+});
+
+test('publishing a new branch can leave tracking unset or explicitly establish a different-named upstream', async () => {
+  const { repo, origin } = await remoteFixture(); git(repo, 'switch', '-c', 'fresh');
+  await app.gitService.push(repo, 'origin', 'fresh', { setUpstream: false });
+  assert.equal(spawnSync('git', ['config', '--get', 'branch.fresh.remote'], { cwd: repo }).status, 1);
+  await app.gitService.push(repo, 'origin', 'fresh', { setUpstream: true, targetBranch: 'review/fresh' });
+  assert.equal(git(repo, 'rev-parse', '--abbrev-ref', '@{u}').trim(), 'origin/review/fresh');
+  assert.equal(git(origin, 'rev-parse', 'refs/heads/review/fresh'), git(repo, 'rev-parse', 'HEAD'));
+});
+
+test('fetch all updates multiple remotes and prune removes stale tracking refs while retaining local branches', async () => {
+  const { repo, origin, upstream } = await remoteFixture();
+  git(repo, 'push', 'origin', 'main:refs/heads/origin-only'); git(repo, 'push', 'upstream', 'main:refs/heads/upstream-only');
+  git(repo, 'update-ref', '-d', 'refs/remotes/origin/origin-only'); git(repo, 'update-ref', '-d', 'refs/remotes/upstream/upstream-only');
+  await app.gitService.fetch(repo);
+  assert.equal(git(repo, 'rev-parse', 'origin/origin-only'), git(repo, 'rev-parse', 'upstream/upstream-only'));
+  git(repo, 'branch', 'keep-local', 'origin/origin-only'); git(origin, 'update-ref', '-d', 'refs/heads/origin-only');
+  await app.gitService.fetch(repo, 'origin', true);
+  assert.equal(spawnSync('git', ['show-ref', '--verify', '--quiet', 'refs/remotes/origin/origin-only'], { cwd: repo }).status, 1);
+  assert.equal(git(repo, 'rev-parse', 'keep-local'), git(upstream, 'rev-parse', 'main'));
+});
+
+test('remote branch deletion targets only the selected server branch, preserving same-named tags, other remotes and local branches', async () => {
+  const { repo, origin, upstream } = await remoteFixture();
+  git(repo, 'branch', 'feature/topic'); git(repo, 'tag', 'feature/topic');
+  for (const name of ['origin', 'upstream']) git(repo, 'push', name, 'refs/heads/feature/topic:refs/heads/feature/topic', 'refs/tags/feature/topic');
+  await app.gitService.deleteRemoteBranch(repo, 'upstream', 'feature/topic');
+  assert.equal(spawnSync('git', ['show-ref', '--verify', '--quiet', 'refs/heads/feature/topic'], { cwd: upstream }).status, 1);
+  assert.equal(git(upstream, 'rev-parse', 'refs/tags/feature/topic'), git(origin, 'rev-parse', 'refs/heads/feature/topic'));
+  assert.equal(git(repo, 'rev-parse', 'refs/heads/feature/topic'), git(repo, 'rev-parse', 'HEAD'));
+  await assert.rejects(app.gitService.deleteRemoteBranch(repo, '--all', 'main'));
+  await assert.rejects(app.gitService.deleteRemoteBranch(repo, 'origin', 'bad..branch'));
+  await app.gitService.deleteRemoteTag(repo, 'feature/topic', 'origin');
+  assert.equal(git(origin, 'rev-parse', 'refs/heads/feature/topic'), git(repo, 'rev-parse', 'HEAD'));
+});
+
+test('non-origin checkout uses the exact remote and refuses an existing local branch tracking another remote', async () => {
+  const { repo } = await remoteFixture();
+  git(repo, 'push', 'upstream', 'main:refs/heads/feature/nested');
+  await app.gitService.checkoutBranch(repo, 'refs/remotes/upstream/feature/nested');
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'feature/nested');
+  assert.equal(git(repo, 'rev-parse', '--abbrev-ref', '@{u}').trim(), 'upstream/feature/nested');
+  git(repo, 'switch', 'main'); git(repo, 'push', 'origin', 'main:refs/heads/feature/nested');
+  await assert.rejects(app.gitService.checkoutBranch(repo, 'refs/remotes/origin/feature/nested'), /跟踪|track/);
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+  assert.equal(git(repo, 'for-each-ref', '--format=%(upstream)', 'refs/heads/feature/nested').trim(), 'refs/remotes/upstream/feature/nested');
+  git(repo, 'branch', 'upstream/missing');
+  await assert.rejects(app.gitService.checkoutBranch(repo, 'refs/remotes/upstream/missing'));
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+});
+
+test('a sole non-origin remote can publish branches and tags, and ambiguous remotes require a selection', async () => {
+  const { repo, upstream } = await remoteFixture();
+  git(repo, 'remote', 'remove', 'origin'); git(repo, 'branch', '--unset-upstream', 'main');
+  await app.gitService.push(repo); assert.equal(git(repo, 'rev-parse', '--abbrev-ref', '@{u}').trim(), 'upstream/main');
+  git(repo, 'tag', 'release/test'); await app.gitService.pushTag(repo, 'release/test');
+  assert.equal(git(upstream, 'rev-parse', 'refs/tags/release/test'), git(repo, 'rev-parse', 'HEAD'));
+  git(repo, 'remote', 'add', 'other', upstream); git(repo, 'branch', '--unset-upstream', 'main');
+  assert.equal((await app.gitService.getPushContext(repo)).remote, undefined);
+  await assert.rejects(app.gitService.push(repo), /选择|Choose/);
+});
+
+test('GitHub collaboration binding can select upstream independently of push settings and clears a removed binding', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a'), 'a'); await commit(repo);
+  git(repo, 'remote', 'add', 'origin', 'git@github.com:fork/project.git');
+  git(repo, 'remote', 'add', 'upstream', 'https://github.com/team/project.git');
+  git(repo, 'config', 'remote.pushDefault', 'origin');
+  assert.equal(await app.gitService.getGitHubRemotePreference(repo), 'auto');
+  await app.gitService.setGitHubRemote(repo, 'upstream');
+  assert.equal(await app.gitService.getGitHubRemotePreference(repo), 'upstream');
+  const opened = await app.gitService.openRepository(repo);
+  assert.equal(opened.gitHubOwner, 'team'); assert.equal(opened.gitHubRemote, 'upstream');
+  assert.equal((await app.gitService.getPushContext(repo)).remote, 'origin');
+  git(repo, 'remote', 'remove', 'upstream');
+  assert.equal((await app.gitService.openRepository(repo)).isGitHubRepo, false);
+  await app.gitService.setGitHubRemote(repo, 'auto');
+  assert.equal((await app.gitService.openRepository(repo)).gitHubOwner, 'fork');
 });
 
 test('AI key vault initialization waits for an in-flight key save', async () => {
@@ -810,7 +975,7 @@ test('selecting an occupied branch opens its worktree and preserves dirty files 
   const repo=await repository();await fs.writeFile(file(repo,'base.txt'),'base\n');await commit(repo);
   const linked=path.join(tmp,`switch-worktree-${repoIndex}`);await app.gitService.createWorktree(repo,linked,'HEAD','feature/worktree');
   await fs.writeFile(file(repo,'base.txt'),'main dirty\n');await fs.writeFile(file(linked,'base.txt'),'linked dirty\n');
-  git(repo,'remote','add','origin','https://example.invalid/repository.git');git(repo,'update-ref','refs/remotes/origin/feature/worktree','HEAD');
+  git(repo,'remote','add','origin','https://example.invalid/repository.git');git(repo,'update-ref','refs/remotes/origin/feature/worktree','HEAD');git(repo,'branch','--set-upstream-to=origin/feature/worktree','feature/worktree');
   const store=app.useRepoStore;store.getState().setCurrentRepo(info(repo));await store.getState().refreshAll();
   try {
     await assert.rejects(store.getState().checkoutBranch('feature/worktree',{openWorktree:false}),/worktree|Worktree/);

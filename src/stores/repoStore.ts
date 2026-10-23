@@ -1,3 +1,4 @@
+import type { PushOptions } from '@/services/git/types';
 import { create } from 'zustand';
 import {
   GitBranch,
@@ -11,6 +12,7 @@ import {
   RepoOperationState,
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
+import { watchPushedCommit } from '@/services/git/PushChecks';
 import { sameWorktreePath } from '@/services/git/worktrees';
 import { tNow } from '@/i18n';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
@@ -78,7 +80,7 @@ interface RepoState {
   loadMoreCommits: () => Promise<void>;
   fetchRemote: () => Promise<void>;
   pull: (rebase?: boolean) => Promise<void>;
-  push: (remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }) => Promise<void>;
+  push: (remote?: string, branch?: string, options?: PushOptions) => Promise<void>;
   loadFileDiff: (file: GitFileChange, commitHash?: string, background?: boolean) => Promise<void>;
   stageFile: (filePath: string) => Promise<void>;
   unstageFile: (filePath: string) => Promise<void>;
@@ -381,7 +383,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       checkingExternal.add(epoch);
       try {
         const [status, refs, remoteUrl] = await Promise.all([
-          gitService.getStatus(repo.path), gitService.getRefsFingerprint(repo.path), gitService.getOriginUrl(repo.path),
+          gitService.getStatus(repo.path), gitService.getRefsFingerprint(repo.path), gitService.getGitHubBinding(repo.path).then(binding => binding?.fetchUrl),
         ]);
         if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
         if (refsFingerprint !== refs || status.headOid !== get().status?.headOid || status.currentBranch !== repo.currentBranch || remoteUrl !== repo.remoteUrl) {
@@ -450,13 +452,13 @@ export const useRepoStore = create<RepoState>((set, get) => {
           currentBranch: detectedBranch || currentRepo.currentBranch || 'main',
         };
 
-        // Re-read origin even when cached, so remote edits/removals cannot retain an old binding.
+        // Re-read the collaboration binding so remote edits/removals cannot retain an old repository.
         const detected = await gitService.openRepository(activeRepo.path, status);
         const resolvedRefs = await nextRefs;
         if (!valid()) return;
         refsFingerprint = resolvedRefs;
         activeRepo = { ...activeRepo, remoteUrl: detected.remoteUrl,
-          isGitHubRepo: detected.isGitHubRepo, gitHubOwner: detected.gitHubOwner, gitHubRepo: detected.gitHubRepo };
+          isGitHubRepo: detected.isGitHubRepo, gitHubOwner: detected.gitHubOwner, gitHubRepo: detected.gitHubRepo, gitHubRemote: detected.gitHubRemote };
 
         // Persist updated repo to localStorage
         try {
@@ -577,7 +579,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    push: async (remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }) => {
+    push: async (remote?: string, branch?: string, options?: PushOptions) => {
       const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
@@ -587,17 +589,17 @@ export const useRepoStore = create<RepoState>((set, get) => {
         // 记录推送前本地 HEAD，成功后交给 GitHub 监听 CI 结果
         let pushedSha: string | null = null;
         try {
-          pushedSha = await gitService.getBranchCommitHash(currentRepo.path, 'HEAD');
+          pushedSha = await gitService.getBranchCommitHash(currentRepo.path, branch ? `refs/heads/${branch}` : 'HEAD');
         } catch {
           pushedSha = null;
         }
 
         await gitService.push(currentRepo.path, remote, branch, options);
         if (!isCurrent(currentRepo.path, epoch)) return;
-        await get().refreshStatus();
+        await get().refreshAll();
         set({ isLoading: false });
         if (pushedSha) {
-          useGitHubStore.getState().watchPushChecks(pushedSha);
+          await watchPushedCommit(currentRepo.path, remote, branch, pushedSha, () => isCurrent(currentRepo.path, epoch));
         }
       } catch (err: any) {
         set({ errorMessage: err.message, isLoading: false });

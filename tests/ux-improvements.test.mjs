@@ -45,10 +45,108 @@ const openDialog = async () => {
 };
 const submitButton = renderer => renderer.root.findAllByType('button').find(b => b.props.type === 'submit');
 
+const remoteContext = {
+  branch: 'topic/path', remote: 'origin', targetBranch: 'topic/path', upstream: 'upstream/main',
+  remotes: [
+    { name: 'origin', fetchUrl: 'https://example.invalid/fork.git', pushUrl: 'ssh://example.invalid/fork.git' },
+    { name: 'upstream', fetchUrl: 'https://example.invalid/team.git', pushUrl: 'ssh://example.invalid/team.git' },
+  ],
+};
+const remoteRepo = { id: 'remote-ui', path: '/remote-ui', name: 'remote-ui', currentBranch: 'main', lastOpenedAt: 0 };
+const remoteSubmit = renderer => renderer.root.findAllByType('button').at(-1);
+
+test('all branch push entry points share a cancellable chooser and keep push preference separate from pull tracking', async () => {
+  const originalContext = app.gitService.getPushContext, originalPush = app.useRepoStore.getState().push;
+  const calls = []; let renderer;
+  app.gitService.getPushContext = async () => remoteContext;
+  app.useRepoStore.setState({ currentRepo: remoteRepo, status: null, push: async (...args) => { calls.push(args); } });
+  try {
+    let cancelled;
+    await act(async () => { renderer = create(React.createElement(app.RemoteOperationDialog)); cancelled = app.pushFromUi('topic/path'); });
+    assert.equal(renderer.root.findByType('select').props.value, 'origin');
+    assert.equal(renderer.root.findAllByType('input').filter(input => input.props.type === 'checkbox')[1].props.checked, false);
+    await act(async () => renderer.root.findAllByType('button').at(-2).props.onClick());
+    assert.equal(await cancelled, false); assert.deepEqual(calls, []);
+    let accepted;
+    await act(async () => { accepted = app.pushFromUi('topic/path'); });
+    await act(async () => renderer.root.findByType('select').props.onChange({ target: { value: 'upstream' } }));
+    await act(async () => renderer.root.findAllByType('input').find(input => input.props.type !== 'checkbox').props.onChange({ target: { value: 'review/topic' } }));
+    await act(async () => renderer.root.findAllByType('input').filter(input => input.props.type === 'checkbox')[0].props.onChange({ target: { checked: true } }));
+    await act(async () => remoteSubmit(renderer).props.onClick());
+    assert.equal(await accepted, true);
+    assert.equal(calls.length, 1); assert.equal(calls[0][0], 'upstream'); assert.equal(calls[0][1], 'topic/path');
+    assert.equal(calls[0][2].targetBranch, 'review/topic'); assert.equal(calls[0][2].rememberRemote, true); assert.equal(calls[0][2].setUpstream, false);
+  } finally {
+    await act(async () => { renderer?.unmount(); app.useRemoteDialogStore.getState().settle(null); });
+    app.gitService.getPushContext = originalContext; app.useRepoStore.setState({ push: originalPush, currentRepo: null });
+  }
+});
+
+test('changing repositories cancels pending remote selection and late configuration responses are ignored', async () => {
+  const original = app.gitService.getPushContext; const waiting = deferred(); let renderer;
+  app.gitService.getPushContext = () => waiting.promise;
+  app.useRepoStore.setState({ currentRepo: remoteRepo, status: null });
+  try {
+    let result;
+    await act(async () => { renderer = create(React.createElement(app.RemoteOperationDialog)); result = app.pushFromUi(); });
+    assert.equal(remoteSubmit(renderer).props.disabled, true);
+    await act(async () => app.useRepoStore.setState({ currentRepo: { ...remoteRepo, path: '/another' } }));
+    assert.equal(await result, false);
+    await act(async () => waiting.resolve(remoteContext));
+    assert.equal(renderer.toJSON(), null);
+  } finally {
+    await act(async () => { renderer?.unmount(); app.useRemoteDialogStore.getState().settle(null); });
+    app.gitService.getPushContext = original; app.useRepoStore.setState({ currentRepo: null });
+  }
+});
+
+test('remote configuration failures support retry and force push always shows its destination before proceeding', async () => {
+  const original = app.gitService.getPushContext; let attempts = 0, renderer;
+  app.gitService.getPushContext = async () => { if (++attempts === 1) throw Error('remote config unavailable'); return remoteContext; };
+  app.useRepoStore.setState({ currentRepo: remoteRepo, status: null });
+  try {
+    let result;
+    await act(async () => { renderer = create(React.createElement(app.RemoteOperationDialog)); result = app.chooseRemoteTarget(remoteRepo.path, 'topic/path', true); });
+    assert.match(JSON.stringify(renderer.toJSON()), /remote config unavailable/); assert.equal(remoteSubmit(renderer).props.disabled, true);
+    await act(async () => renderer.root.findAllByType('button')[0].props.onClick());
+    assert.equal(attempts, 2); assert.equal(remoteSubmit(renderer).props.disabled, false);
+    assert.match(JSON.stringify(renderer.toJSON()), /ssh:\/\/example.invalid\/fork.git/);
+    assert.equal(renderer.root.findAllByProps({ role: 'alert' }).length, 1);
+    await act(async () => remoteSubmit(renderer).props.onClick());
+    assert.equal((await result).forceWithLease, true);
+  } finally {
+    await act(async () => { renderer?.unmount(); app.useRemoteDialogStore.getState().settle(null); });
+    app.gitService.getPushContext = original; app.useRepoStore.setState({ currentRepo: null });
+  }
+});
+
+test('push CI observation follows the actual destination repository and never turns a completed push into a failure', async () => {
+  const original = app.gitService.getPushContext, watch = app.useGitHubStore.getState().watchPushChecks;
+  const seen = [];
+  app.gitService.getPushContext = async () => ({ ...remoteContext, remotes: [
+    { name: 'origin', fetchUrl: 'https://github.com/fork/project.git', pushUrl: 'https://github.com/fork/project.git' },
+    { name: 'upstream', fetchUrl: 'https://github.com/team/project.git', pushUrl: 'https://github.com/team/project.git' },
+  ] });
+  app.useGitHubStore.setState({ currentOwner: 'team', currentRepoName: 'project', watchPushChecks: sha => seen.push(sha) });
+  try {
+    await app.watchPushedCommit('/repo', 'origin', 'topic/path', 'fork-sha', () => true);
+    assert.deepEqual(seen, []);
+    await app.watchPushedCommit('/repo', 'upstream', 'topic/path', 'team-sha', () => true);
+    assert.deepEqual(seen, ['team-sha']);
+    await app.watchPushedCommit('/repo', 'upstream', 'topic/path', 'stale-sha', () => false);
+    assert.deepEqual(seen, ['team-sha']);
+    app.gitService.getPushContext = async () => { throw Error('metadata unavailable'); };
+    await app.watchPushedCommit('/repo', 'upstream', 'topic/path', 'succeeded-sha', () => true);
+  } finally {
+    app.gitService.getPushContext = original;
+    app.useGitHubStore.setState({ currentOwner: null, currentRepoName: null, watchPushChecks: watch });
+  }
+});
+
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ux-'));
   const bundle = path.join(tmp, 'ux.cjs');
-  await build({ stdin: { contents: `export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
+  await build({ stdin: { contents: `export * from './src/services/git/PushChecks'; export * from './src/stores/remoteDialogStore'; export * from './src/services/git/RemoteActions'; export { RemoteOperationDialog } from './src/features/git/RemoteOperationDialog'; export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
     plugins: [{ name: 'headless-modal', setup(build) { build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' })); } }],
   });

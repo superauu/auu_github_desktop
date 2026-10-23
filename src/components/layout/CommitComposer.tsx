@@ -1,10 +1,11 @@
+import { chooseRemoteTarget } from '@/services/git/RemoteActions';
+import { watchPushedCommit } from '@/services/git/PushChecks';
 import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceSessionStore, draftKey, EMPTY_DRAFT } from '@/stores/workspaceSessionStore';
 import { Check, FileText, Loader2, Send, Settings, Sparkles } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { useGitHubStore } from '@/stores/githubStore';
 import { confirmAction } from '@/stores/confirmStore';
 import { gitService } from '@/services/git/GitService';
 import { getCommitScope } from '@/services/git/commitScope';
@@ -100,6 +101,8 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     const path = currentRepo.path;
     const message = draft.current.trim();
     try {
+      const pushTarget = andPush ? await chooseRemoteTarget(path) : null;
+      if (andPush && !pushTarget) return;
       const latestStatus = await gitService.getStatus(path);
       const latestScope = getCommitScope(latestStatus, amend);
       if (useRepoStore.getState().currentRepo?.path !== path) return;
@@ -117,8 +120,8 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
       if (andPush) {
         try {
           const hash = await gitService.getBranchCommitHash(path, 'HEAD');
-          await gitService.push(path);
-          if (hash && useRepoStore.getState().currentRepo?.path === path) useGitHubStore.getState().watchPushChecks(hash);
+          await gitService.push(path, pushTarget!.remote, pushTarget!.branch, pushTarget!);
+          if (hash) await watchPushedCommit(path, pushTarget!.remote, pushTarget!.branch, hash, () => useRepoStore.getState().currentRepo?.path === path);
           toast.success(t('rightPane.pushSuccess'));
         } catch (error: any) { toast.error(t('rightPane.pushFailed'), error?.message); }
       }

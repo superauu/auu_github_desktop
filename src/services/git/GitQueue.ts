@@ -63,6 +63,8 @@ export function serializeGitWrite<T>(repoPath: string, run: () => Promise<T>, co
 
 export function isReadOnlyGitCommand(args: string[]): boolean {
   const [command, ...options] = args;
+  if (command === 'check-ref-format') return true;
+  if (command === 'symbolic-ref') return options.filter(option => !option.startsWith('-')).length === 1 && !options.some(option => ['-d', '--delete'].includes(option));
   if (command === 'worktree') return options[0] === 'list';
   if (['status', 'log', 'show', 'diff', 'rev-parse', 'for-each-ref', 'ls-files', 'ls-tree', 'cat-file', 'blame', 'check-ignore', '--version', 'help'].includes(command)) return true;
   if (command === 'branch') return options.some(option => ['--list', '--show-current', '-a', '-r', '-v', '-vv'].includes(option)) && !options.some(option => ['-d', '-D', '-m', '-M', '-f', '--delete', '--move', '--force'].includes(option));

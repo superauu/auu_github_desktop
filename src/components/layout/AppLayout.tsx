@@ -2,6 +2,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { RemoteOperationDialog } from '@/features/git/RemoteOperationDialog';
+import { pushFromUi } from '@/services/git/RemoteActions';
 import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { LeftSidebar } from './LeftSidebar';
@@ -48,7 +50,7 @@ export const AppLayout: React.FC = () => {
     toggleEmbeddedTerminal,
     navigationPinned,
   } = useLayoutStore();
-  const { isLeftSidebarCollapsed, isRightPaneCollapsed, activeTab, toggleLeftSidebar, toggleRightPane, currentRepo, fetchRemote, pull, push, setActiveTab, checkExternalChanges } = useRepoStore(useShallow(state => ({ isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, activeTab: state.activeTab, toggleLeftSidebar: state.toggleLeftSidebar, toggleRightPane: state.toggleRightPane, currentRepo: state.currentRepo, fetchRemote: state.fetchRemote, pull: state.pull, push: state.push, setActiveTab: state.setActiveTab, checkExternalChanges: state.checkExternalChanges })));
+  const { isLeftSidebarCollapsed, isRightPaneCollapsed, activeTab, toggleLeftSidebar, toggleRightPane, currentRepo, fetchRemote, pull, setActiveTab, checkExternalChanges } = useRepoStore(useShallow(state => ({ isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, activeTab: state.activeTab, toggleLeftSidebar: state.toggleLeftSidebar, toggleRightPane: state.toggleRightPane, currentRepo: state.currentRepo, fetchRemote: state.fetchRemote, pull: state.pull, setActiveTab: state.setActiveTab, checkExternalChanges: state.checkExternalChanges })));
   const { compactMode, autoFetchInterval } = useSettingsStore();
   const { t } = useI18n();
 
@@ -112,7 +114,7 @@ export const AppLayout: React.FC = () => {
       }
       if (mod && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
-        push().catch(() => {});
+        pushFromUi().catch(error => toast.error(t('header.pushFailed'), error?.message));
         return;
       }
 
@@ -125,7 +127,7 @@ export const AppLayout: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleEmbeddedTerminal, fetchRemote, pull, push, setActiveTab]);
+  }, [toggleEmbeddedTerminal, fetchRemote, pull, setActiveTab]);
 
   // Apply compact mode on mount
   // 启动后静默检查应用更新（仅桌面端）
@@ -282,6 +284,7 @@ export const AppLayout: React.FC = () => {
       {/* Global Floating Toast Notifications */}
       <ToastContainer />
       <ConfirmDialog />
+      <RemoteOperationDialog />
 
       {/* Keyboard Shortcut Cheat Sheet (?) */}
       <ShortcutCheatSheet open={cheatSheetOpen} onOpenChange={setCheatSheetOpen} />

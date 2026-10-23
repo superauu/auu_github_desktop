@@ -1,3 +1,4 @@
+import { remoteZh } from './remote';
 import { workflowZh } from './workflow';
 import { resilienceZh } from './resilience';
 import { optimizationZh } from './optimization';
@@ -6,6 +7,7 @@ import { optimizationZh } from './optimization';
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
  */
 export const zh = {
+  ...remoteZh,
   'layout.pinNavigation': '固定左侧导航',
   'layout.unpinNavigation': '取消固定并收起导航',
   'layout.pinNavigationDesc': '保持导航常驻并记住选择；关闭后立即收起，可从左上角临时打开。',
@@ -181,7 +183,7 @@ export const zh = {
   'header.pullTooltip': '从远程拉取最新提交 (git pull)',
   'header.pullMenu': 'Pull (git pull)',
   'header.pullRebase': 'Pull with Rebase',
-  'header.fetchAll': 'Fetch All (git fetch)',
+  'header.fetchAll': '获取所有远程仓库 (git fetch --all)',
   'header.pushTooltip': '推送本地提交至远程 (git push)',
   'header.branchTooltip': '创建新分支 (git branch)',
   'header.stashTooltip': '贮藏当前未提交改动 (git stash)',

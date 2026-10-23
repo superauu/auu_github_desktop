@@ -1,6 +1,8 @@
 import {
   GitBlameLine,
   GitBranch,
+  PushContext,
+  PushOptions,
   GitCommit,
   GitFileChange,
   GitWorktree,
@@ -27,6 +29,7 @@ import {
   parseBlamePorcelain,
 } from './PorcelainParser';
 import { tNow } from '@/i18n';
+import { parseGitHubRemote } from './remoteIdentity';
 import { DiffCache } from './DiffCache';
 
 export class GitService implements IGitService {
@@ -53,31 +56,9 @@ export class GitService implements IGitService {
     const status = snapshot || await this.getStatus(normalizedPath);
     const name = normalizedPath.split(/[/\\]/).filter(Boolean).pop() || 'repository';
 
-    let remoteUrl: string | undefined = undefined;
-    try {
-      const remoteRes = await executeGit(['remote', 'get-url', 'origin'], normalizedPath);
-      if (remoteRes.stdout.trim()) {
-        remoteUrl = remoteRes.stdout.trim();
-      }
-    } catch {
-      // origin remote might not exist
-    }
-
-    let isGitHubRepo = false;
-    let gitHubOwner: string | undefined = undefined;
-    let gitHubRepo: string | undefined = undefined;
-
-    if (remoteUrl) {
-      // Support https://github.com/owner/repo(.git) and git@github.com:owner/repo(.git)
-      const httpsMatch = remoteUrl.match(/^(?:https?:\/\/|ssh:\/\/(?:[^@/]+@)?)github\.com\/([^/]+)\/(.+?)(?:\.git)?\/?$/i);
-      const sshMatch = remoteUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/i);
-      const match = httpsMatch || sshMatch;
-      if (match) {
-        isGitHubRepo = true;
-        gitHubOwner = match[1];
-        gitHubRepo = match[2];
-      }
-    }
+    const binding = await this.getGitHubBinding(normalizedPath);
+    const remoteUrl = binding?.fetchUrl;
+    const identity = remoteUrl ? parseGitHubRemote(remoteUrl) : undefined;
 
     return {
       id: String(Date.now()),
@@ -86,9 +67,10 @@ export class GitService implements IGitService {
       currentBranch: status.currentBranch || 'main',
       lastOpenedAt: Date.now(),
       remoteUrl,
-      isGitHubRepo,
-      gitHubOwner,
-      gitHubRepo,
+      isGitHubRepo: !!identity,
+      gitHubOwner: identity?.owner,
+      gitHubRepo: identity?.repo,
+      gitHubRemote: identity ? binding?.name : undefined,
     };
   }
 
@@ -122,14 +104,39 @@ export class GitService implements IGitService {
     catch { return undefined; }
   }
 
+  async getGitHubBinding(repoPath: string) {
+    const [remotes, configured] = await Promise.all([this.listRemotes(repoPath), this.getGitHubRemotePreference(repoPath)]);
+    if (configured && configured !== 'auto') return remotes.find(item => item.name === configured);
+    const origin = remotes.find(item => item.name === 'origin');
+    const github = remotes.filter(item => parseGitHubRemote(item.fetchUrl));
+    return origin || (github.length === 1 ? github[0] : undefined);
+  }
+
+  async getGitHubRemotePreference(repoPath: string): Promise<string> {
+    return await this.configValue(repoPath, 'auugit.githubRemote') || 'auto';
+  }
+
+  async setGitHubRemote(repoPath: string, remote: string): Promise<void> {
+    if (remote !== 'auto') {
+      const selected = (await this.listRemotes(repoPath)).find(item => item.name === remote);
+      if (!selected || !parseGitHubRemote(selected.fetchUrl)) throw new Error(tNow('remote.invalid'));
+    }
+    await executeGit(['config', '--local', 'auugit.githubRemote', remote], repoPath);
+  }
+
   async getBranches(repoPath: string): Promise<GitBranch[]> {
     try {
-      const [res, worktrees] = await Promise.all([
-        executeGit(['branch', '-a', '-v', '--no-abbrev', '--no-color'], repoPath), this.getWorktrees(repoPath),
+      const [res, worktrees, remotes] = await Promise.all([
+        executeGit(['branch', '-a', '-v', '--no-abbrev', '--no-color'], repoPath), this.getWorktrees(repoPath), this.listRemotes(repoPath),
       ]);
-      return parseGitBranches(res.stdout).map(branch => ({ ...branch,
-        worktreePath: branch.isRemote ? undefined : worktrees.find(tree => tree.branch === `refs/heads/${branch.name}`)?.path,
-      }));
+      const sortedRemotes = [...remotes].sort((a, b) => b.name.length - a.name.length);
+      return parseGitBranches(res.stdout).map(branch => {
+        const remote = branch.isRemote ? sortedRemotes.find(item => branch.name.startsWith(`${item.name}/`)) : undefined;
+        return {
+          ...branch, remoteName: remote?.name, remoteBranch: remote ? branch.name.slice(remote.name.length + 1) : undefined,
+          worktreePath: branch.isRemote ? undefined : worktrees.find(tree => tree.branch === `refs/heads/${branch.name}`)?.path,
+        };
+      });
     } catch {
       return [];
     }
@@ -140,16 +147,20 @@ export class GitService implements IGitService {
   }
 
   async getBranchWorktree(repoPath: string, name: string): Promise<GitWorktree | undefined> {
-    const target = name.trim().replace(/^remotes\//, '');
+    const explicitRemote = name.startsWith('refs/remotes/');
+    const target = name.trim().replace(/^(?:refs\/)?remotes\//, '');
     const trees = await this.getWorktrees(repoPath);
-    const direct = trees.find(tree => tree.branch === `refs/heads/${target}`);
+    const direct = !explicitRemote ? trees.find(tree => tree.branch === `refs/heads/${target}`) : undefined;
     if (direct || trees.length < 2) return direct;
     const hasRef = async (ref: string) => {
       try { await executeGit(['show-ref', '--verify', '--quiet', ref], repoPath); return true; }
       catch (error) { if (error instanceof GitExecutionError && error.exitCode === 1) return false; throw error; }
     };
-    if (!await hasRef(`refs/heads/${target}`) && await hasRef(`refs/remotes/${target}`)) {
-      const localName = target.slice(target.indexOf('/') + 1);
+    if ((explicitRemote || !await hasRef(`refs/heads/${target}`)) && await hasRef(`refs/remotes/${target}`)) {
+      const owner = (await this.listRemotes(repoPath)).sort((a, b) => b.name.length - a.name.length).find(item => target.startsWith(`${item.name}/`));
+      const localName = target.slice(owner ? owner.name.length + 1 : target.indexOf('/') + 1);
+      const upstream = (await executeGit(['for-each-ref', '--format=%(upstream)', `refs/heads/${localName}`], repoPath)).stdout.trim();
+      if (await hasRef(`refs/heads/${localName}`) && upstream !== `refs/remotes/${target}`) throw new Error(tNow('remote.checkoutConflict').replace('{branch}', localName).replace('{remote}', target));
       return trees.find(tree => tree.branch === `refs/heads/${localName}`);
     }
     return undefined;
@@ -389,59 +400,72 @@ export class GitService implements IGitService {
     return res.stdout;
   }
 
-  async push(
-    repoPath: string,
-    remote: string = 'origin',
-    branch?: string,
-    options?: { setUpstream?: boolean; forceWithLease?: boolean }
-  ): Promise<void> {
+  private async configValue(repoPath: string, key: string): Promise<string | undefined> {
+    try { return (await executeGit(['config', '--get', key], repoPath)).stdout.trim() || undefined; }
+    catch (error) { if (error instanceof GitExecutionError && error.exitCode === 1) return undefined; throw error; }
+  }
+
+  async getPushContext(repoPath: string, source?: string): Promise<PushContext> {
+    const branch = source || (await executeGit(['symbolic-ref', '--quiet', '--short', 'HEAD'], repoPath)).stdout.trim();
+    if (!branch || branch === 'HEAD' || branch.startsWith('-')) throw new Error(tNow('remote.detached'));
+    await executeGit(['check-ref-format', `refs/heads/${branch}`], repoPath);
+    const [remotes, branchRemote, pushRemote, defaultRemote, pushDefault, upstreamResult] = await Promise.all([
+      this.listRemotes(repoPath), this.configValue(repoPath, `branch.${branch}.remote`),
+      this.configValue(repoPath, `branch.${branch}.pushRemote`), this.configValue(repoPath, 'remote.pushDefault'),
+      this.configValue(repoPath, 'push.default'),
+      executeGit(['for-each-ref', '--format=%(upstream)%00%(upstream:remoteref)', `refs/heads/${branch}`], repoPath),
+    ]);
+    const [upstreamRef, upstreamRemoteRef] = upstreamResult.stdout.trim().split('\0');
+    const upstream = upstreamRef?.replace(/^refs\/remotes\//, '') || undefined;
+    const configured = pushRemote || defaultRemote || branchRemote;
+    const remote = configured
+      ? remotes.find(item => item.name === configured)?.name
+      : remotes.find(item => item.name === 'origin')?.name || (remotes.length === 1 ? remotes[0].name : undefined);
+    const targetBranch = remote === branchRemote && pushDefault !== 'current' && upstreamRemoteRef?.startsWith('refs/heads/')
+      ? upstreamRemoteRef.slice('refs/heads/'.length) : branch;
+    return { branch, remotes, remote, targetBranch, upstream };
+  }
+
+  async push(repoPath: string, remote?: string, branch?: string, options?: PushOptions): Promise<void> {
+    const context = await this.getPushContext(repoPath, branch);
+    const destination = remote || context.remote;
+    if (!destination) throw new Error(tNow('remote.choose'));
+    await this.requireRemote(repoPath, destination);
+    const target = options?.targetBranch || (destination === context.remote ? context.targetBranch : context.branch);
+    await executeGit(['check-ref-format', `refs/heads/${target}`], repoPath);
     const args = ['push'];
-    if (options?.forceWithLease) {
-      // 只在远程引用未被他人在此期间更新时覆盖，比裸 --force 安全
-      args.push('--force-with-lease');
-    }
-
-    // 分支没有上游时自动补 -u：首推即可建立跟踪关系，后续 pull/状态对比不再失效。
-    // 注意 `git push -u origin` 缺省 refspec 时仍会因无上游而失败，必须显式带上分支名
-    let setUpstream = options?.setUpstream ?? false;
-    let refspec = branch;
-    if (!setUpstream) {
-      try {
-        await executeGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], repoPath);
-      } catch {
-        setUpstream = true;
-      }
-    }
-    if (setUpstream && !refspec) {
-      try {
-        const headRes = await executeGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath);
-        const head = headRes.stdout.trim();
-        if (head && head !== 'HEAD') {
-          refspec = head;
-        } else {
-          setUpstream = false; // 游离 HEAD 无法建立上游
-        }
-      } catch {
-        setUpstream = false;
-      }
-    }
-    if (setUpstream) {
-      args.push('-u');
-    }
-
-    args.push(remote);
-    if (refspec) {
-      args.push(refspec);
-    }
+    if (options?.forceWithLease) args.push('--force-with-lease');
+    // Inspect the source branch, and preserve an explicit choice to leave tracking unchanged.
+    if (options?.setUpstream ?? !context.upstream) args.push('--set-upstream');
+    args.push(destination, `refs/heads/${context.branch}:refs/heads/${target}`);
     await executeGit(args, repoPath);
+    if (options?.rememberRemote) await executeGit(['config', '--local', `branch.${context.branch}.pushRemote`, destination], repoPath);
   }
 
   async pull(repoPath: string, rebase?: boolean): Promise<void> {
     await executeGit(rebase ? ['pull', '--rebase'] : ['pull'], repoPath);
   }
 
-  async fetch(repoPath: string): Promise<void> {
-    await executeGit(['fetch'], repoPath);
+  async fetch(repoPath: string, remote?: string, prune = false): Promise<void> {
+    if (remote) await this.requireRemote(repoPath, remote);
+    await executeGit(['fetch', ...(prune ? ['--prune'] : []), ...(remote ? [remote] : ['--all'])], repoPath);
+  }
+
+  private async requireRemote(repoPath: string, remote: string): Promise<void> {
+    if (!remote || remote.startsWith('-') || !(await this.listRemotes(repoPath)).some(item => item.name === remote)) {
+      throw new Error(tNow('remote.invalid'));
+    }
+  }
+
+  private async hasRef(repoPath: string, ref: string): Promise<boolean> {
+    try { await executeGit(['show-ref', '--verify', '--quiet', ref], repoPath); return true; }
+    catch (error) { if (error instanceof GitExecutionError && error.exitCode === 1) return false; throw error; }
+  }
+
+  async deleteRemoteBranch(repoPath: string, remote: string, branch: string): Promise<void> {
+    await this.requireRemote(repoPath, remote);
+    await executeGit(['check-ref-format', `refs/heads/${branch}`], repoPath);
+    await executeGit(['push', remote, '--delete', `refs/heads/${branch}`], repoPath);
   }
 
   async createBranch(repoPath: string, name: string, startPoint?: string): Promise<void> {
@@ -453,17 +477,22 @@ export class GitService implements IGitService {
   }
 
   async checkoutBranch(repoPath: string, name: string): Promise<void> {
-    const target = name.trim().replace(/^remotes\//, '');
+    const explicitRemote = name.startsWith('refs/remotes/');
+    const target = name.trim().replace(/^(?:refs\/)?remotes\//, '');
     if (!target || target.startsWith('-')) throw new Error('Invalid branch name');
-    const local = await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${target}`], repoPath)
-      .then(() => true, () => false);
-    const remote = !local && await executeGit(['show-ref', '--verify', '--quiet', `refs/remotes/${target}`], repoPath)
-      .then(() => true, () => false);
+    const local = !explicitRemote && await this.hasRef(repoPath, `refs/heads/${target}`);
+    const remote = !local && await this.hasRef(repoPath, `refs/remotes/${target}`);
+    if (explicitRemote && !remote) throw new Error(tNow('remote.invalid'));
     if (remote) {
-      const shortName = target.slice(target.indexOf('/') + 1);
-      const exists = await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${shortName}`], repoPath)
-        .then(() => true, () => false);
-      await executeGit(exists ? ['switch', shortName] : ['switch', '--track', '-c', shortName, target], repoPath);
+      const remotes = await this.listRemotes(repoPath);
+      const owner = remotes.sort((a, b) => b.name.length - a.name.length).find(item => target.startsWith(`${item.name}/`));
+      const shortName = owner ? target.slice(owner.name.length + 1) : target.slice(target.indexOf('/') + 1);
+      const exists = await this.hasRef(repoPath, `refs/heads/${shortName}`);
+      if (exists) {
+        const upstream = (await executeGit(['for-each-ref', '--format=%(upstream)', `refs/heads/${shortName}`], repoPath)).stdout.trim();
+        if (upstream !== `refs/remotes/${target}`) throw new Error(tNow('remote.checkoutConflict').replace('{branch}', shortName).replace('{remote}', target));
+      }
+      await executeGit(exists ? ['switch', shortName] : ['switch', '--track', '-c', shortName, `refs/remotes/${target}`], repoPath);
     } else {
       await executeGit(['checkout', target], repoPath);
     }
@@ -631,27 +660,45 @@ export class GitService implements IGitService {
     await executeGit(['tag', '-d', name], repoPath);
   }
 
-  async pushTag(repoPath: string, name: string, remote: string = 'origin'): Promise<void> {
-    await executeGit(['push', remote, `refs/tags/${name}`], repoPath);
+  private async tagRemote(repoPath: string, remote?: string): Promise<string> {
+    if (remote) { await this.requireRemote(repoPath, remote); return remote; }
+    let branch: string | undefined;
+    try { branch = (await executeGit(['symbolic-ref', '--quiet', '--short', 'HEAD'], repoPath)).stdout.trim(); }
+    catch (error) { if (!(error instanceof GitExecutionError && error.exitCode === 1)) throw error; }
+    const remotes = await this.listRemotes(repoPath);
+    const configured = (branch && await this.configValue(repoPath, `branch.${branch}.pushRemote`))
+      || await this.configValue(repoPath, 'remote.pushDefault') || (branch && await this.configValue(repoPath, `branch.${branch}.remote`));
+    const destination = configured || remotes.find(item => item.name === 'origin')?.name || (remotes.length === 1 ? remotes[0].name : undefined);
+    if (!destination) throw new Error(tNow('remote.choose'));
+    await this.requireRemote(repoPath, destination);
+    return destination;
   }
 
-  async pushAllTags(repoPath: string, remote: string = 'origin'): Promise<void> {
-    await executeGit(['push', remote, '--tags'], repoPath);
+  async pushTag(repoPath: string, name: string, remote?: string): Promise<void> {
+    const destination = await this.tagRemote(repoPath, remote);
+    await executeGit(['check-ref-format', `refs/tags/${name}`], repoPath);
+    await executeGit(['push', destination, `refs/tags/${name}:refs/tags/${name}`], repoPath);
   }
 
-  async deleteRemoteTag(repoPath: string, name: string, remote: string = 'origin'): Promise<void> {
-    await executeGit(['push', remote, `--delete`, name], repoPath);
+  async pushAllTags(repoPath: string, remote?: string): Promise<void> {
+    await executeGit(['push', await this.tagRemote(repoPath, remote), '--tags'], repoPath);
+  }
+
+  async deleteRemoteTag(repoPath: string, name: string, remote?: string): Promise<void> {
+    const destination = await this.tagRemote(repoPath, remote);
+    await executeGit(['check-ref-format', `refs/tags/${name}`], repoPath);
+    await executeGit(['push', destination, '--delete', `refs/tags/${name}`], repoPath);
   }
 
   async listRemotes(repoPath: string): Promise<{ name: string; fetchUrl: string; pushUrl: string }[]> {
     const res = await executeGit(['remote', '-v'], repoPath);
     const map = new Map<string, { name: string; fetchUrl: string; pushUrl: string }>();
     for (const line of res.stdout.split(/\r?\n/)) {
-      const m = line.match(/^(\S+)\t(\S+) \((fetch|push)\)$/);
+      const m = line.match(/^(\S+)\t(.+) \((fetch|push)\)$/);
       if (!m) continue;
       const entry = map.get(m[1]) || { name: m[1], fetchUrl: '', pushUrl: '' };
-      if (m[3] === 'fetch') entry.fetchUrl = m[2];
-      else entry.pushUrl = m[2];
+      if (m[3] === 'fetch') entry.fetchUrl ||= m[2];
+      else entry.pushUrl = entry.pushUrl ? `${entry.pushUrl}\n${m[2]}` : m[2];
       map.set(m[1], entry);
     }
     return [...map.values()];
@@ -749,7 +796,9 @@ export class GitService implements IGitService {
     const targetBranch = customBranchName || `pr-${prNumber}`;
     if (!Number.isInteger(prNumber) || prNumber <= 0) throw new Error('Invalid pull request number');
     await executeGit(['check-ref-format', '--branch', targetBranch], repoPath);
-    await executeGit(['fetch', 'origin', `refs/pull/${prNumber}/head`], repoPath);
+    const binding = await this.getGitHubBinding(repoPath);
+    if (!binding) throw new Error(tNow('remote.choose'));
+    await executeGit(['fetch', binding.name, `refs/pull/${prNumber}/head`], repoPath);
     const exists = await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${targetBranch}`], repoPath)
       .then(() => true, () => false);
     if (exists) {

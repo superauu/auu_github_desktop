@@ -123,6 +123,12 @@ async function executeGitNow(args: string[], cwd: string, stdin?: string): Promi
     }
 
     if (!res.ok) {
+      try {
+        const error = JSON.parse(rawText);
+        if (error.errorCode === 'REPOSITORY_DIRECTORY_UNAVAILABLE') {
+          throw new GitExecutionError(`git ${args.join(' ')}`, -1, '', tNow('remote.directoryUnavailable').replace('{path}', cwd));
+        }
+      } catch (error) { if (error instanceof GitExecutionError) throw error; }
       throw new Error(`HTTP ${res.status}: ${rawText}`);
     }
 

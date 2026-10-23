@@ -1,3 +1,4 @@
+import { pushFromUi } from '@/services/git/RemoteActions';
 import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React from 'react';
@@ -43,12 +44,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     setActiveTab,
     fetchRemote,
     pull,
-    push,
     branches,
     tags,
     checkoutBranch,
     selectAndLocateBranch,
-  } = useRepoStore(useShallow(state => ({ setActiveTab: state.setActiveTab, fetchRemote: state.fetchRemote, pull: state.pull, push: state.push, branches: state.branches, tags: state.tags, checkoutBranch: state.checkoutBranch, selectAndLocateBranch: state.selectAndLocateBranch })));
+  } = useRepoStore(useShallow(state => ({ setActiveTab: state.setActiveTab, fetchRemote: state.fetchRemote, pull: state.pull, branches: state.branches, tags: state.tags, checkoutBranch: state.checkoutBranch, selectAndLocateBranch: state.selectAndLocateBranch })));
   const { setTheme } = useThemeStore();
   const { t } = useI18n();
 
@@ -174,9 +174,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               <Command.Item
                 onSelect={async () => {
                   onOpenChange(false);
-                  toast.info(t('header.pushing'));
                   try {
-                    await push();
+                    if (!await pushFromUi()) return;
                     toast.success(t('header.pushed'));
                   } catch (err: any) {
                     toast.error(t('header.pushFailed'), err.message);

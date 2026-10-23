@@ -52,7 +52,7 @@ export async function pickFolderNative(): Promise<string | null> {
   }
 }
 
-export async function validateDirectoryPath(path: string): Promise<DirectoryValidationResult> {
+export async function validateDirectoryPath(path: string, strict = false): Promise<DirectoryValidationResult> {
   if (!path || !path.trim()) {
     return { exists: false, isDirectory: false, isGitRepo: false };
   }
@@ -63,6 +63,7 @@ export async function validateDirectoryPath(path: string): Promise<DirectoryVali
       const result = await invoke<DirectoryValidationResult>('validate_directory', { path: path.trim() });
       return result;
     } catch (e) {
+      if (strict) throw e;
       console.warn('Tauri validate_directory failed, fallback to HTTP:', e);
     }
   }
@@ -73,13 +74,14 @@ export async function validateDirectoryPath(path: string): Promise<DirectoryVali
       headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
       body: JSON.stringify({ path: path.trim() }),
     });
-    if (!res.ok) return { exists: false, isDirectory: false, isGitRepo: false };
+    if (!res.ok) throw new Error(tNow('err.dirNoBackend'));
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      return { exists: false, isDirectory: false, isGitRepo: false };
+      throw new Error(tNow('err.dirNoBackend'));
     }
     return await res.json();
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return { exists: false, isDirectory: false, isGitRepo: false };
   }
 }

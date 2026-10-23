@@ -1,3 +1,4 @@
+import { remoteEn } from './remote';
 import { workflowEn } from './workflow';
 import { resilienceEn } from './resilience';
 import { optimizationEn } from './optimization';
@@ -6,6 +7,7 @@ import { optimizationEn } from './optimization';
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  ...remoteEn,
   'layout.pinNavigation': 'Pin left navigation',
   'layout.unpinNavigation': 'Unpin and hide navigation',
   'layout.pinNavigationDesc': 'Keep navigation visible and remember this choice. Turn off to hide it immediately; use the top-left button to open it temporarily.',
@@ -181,7 +183,7 @@ export const en = {
   'header.pullTooltip': 'Fetch latest commits from remote (git pull)',
   'header.pullMenu': 'Pull (git pull)',
   'header.pullRebase': 'Pull with Rebase',
-  'header.fetchAll': 'Fetch All (git fetch)',
+  'header.fetchAll': 'Fetch all remotes (git fetch --all)',
   'header.pushTooltip': 'Push local commits to remote (git push)',
   'header.branchTooltip': 'Create new branch (git branch)',
   'header.stashTooltip': 'Stash uncommitted changes (git stash)',

@@ -1,6 +1,7 @@
+import { pushFromUi } from '@/services/git/RemoteActions';
+import { gitService } from '@/services/git/GitService';
 import { useShallow } from 'zustand/react/shallow';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { confirmAction } from '@/stores/confirmStore';
 import React, { useEffect, useState } from 'react';
 import {
   GitBranch as GitBranchIcon,
@@ -68,6 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [ignoreRepoPath, setIgnoreRepoPath] = useState<string | null>(null);
   const [worktreesRepoPath, setWorktreesRepoPath] = useState<string | null>(null);
+  const [pushDestination, setPushDestination] = useState('');
   const {
     currentRepo,
     status,
@@ -81,7 +83,6 @@ export const Header: React.FC<HeaderProps> = ({
     fetchRemote,
     refreshAll,
     pull,
-    push,
     undoLastCommit,
     redoStack,
     redoLastCommit,
@@ -92,13 +93,20 @@ export const Header: React.FC<HeaderProps> = ({
     stashes,
     branches,
     checkoutBranch,
-  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo, openTabs: state.openTabs, closeTab: state.closeTab, switchTab: state.switchTab, fetchRemote: state.fetchRemote, refreshAll: state.refreshAll, pull: state.pull, push: state.push, undoLastCommit: state.undoLastCommit, redoStack: state.redoStack, redoLastCommit: state.redoLastCommit, commits: state.commits, stashPush: state.stashPush, stashPop: state.stashPop, activeTab: state.activeTab, stashes: state.stashes, branches: state.branches, checkoutBranch: state.checkoutBranch })));
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo, openTabs: state.openTabs, closeTab: state.closeTab, switchTab: state.switchTab, fetchRemote: state.fetchRemote, refreshAll: state.refreshAll, pull: state.pull, undoLastCommit: state.undoLastCommit, redoStack: state.redoStack, redoLastCommit: state.redoLastCommit, commits: state.commits, stashPush: state.stashPush, stashPop: state.stashPop, activeTab: state.activeTab, stashes: state.stashes, branches: state.branches, checkoutBranch: state.checkoutBranch })));
 
   const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
   const { resolvedTheme, setTheme } = useThemeStore();
   const { user, isAuthenticated } = useGitHubStore();
   const { t } = useI18n();
   useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
+  useEffect(() => {
+    let active = true;
+    setPushDestination('');
+    if (currentRepo && status?.currentBranch) void gitService.getPushContext(currentRepo.path, status.currentBranch)
+      .then(context => { if (active && context.remote) setPushDestination(`${context.remote}/${context.targetBranch}`); }).catch(() => {});
+    return () => { active = false; };
+  }, [currentRepo?.path, status?.currentBranch, status?.trackingBranch, branches]);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');
@@ -137,9 +145,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handlePush = async () => {
-    toast.info(t('header.pushing'));
     try {
-      await push();
+      if (!await pushFromUi()) return;
       toast.success(t('header.pushed'));
     } catch (err: any) {
       toast.error(t('header.pushFailed'), err.message);
@@ -147,10 +154,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleForcePush = async () => {
-    if (!await confirmAction({ title: t('header.forcePush'), description: t('header.forcePushConfirm') })) return;
-    toast.info(t('header.pushing'));
     try {
-      await push(undefined, undefined, { forceWithLease: true });
+      if (!await pushFromUi(undefined, true)) return;
       toast.success(t('header.pushed'));
     } catch (err: any) {
       toast.error(t('header.pushFailed'), err.message);
@@ -596,8 +601,8 @@ export const Header: React.FC<HeaderProps> = ({
 
           {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button variant="ghost" onClick={handleFetch} title={t('header.fetchAll')}><RefreshCw className="h-4 w-4" /><span className="hidden lg:inline">{t('composer.fetch')}</span></Button>
-            <Button variant="outline" onClick={handlePull} title={t('header.pullTooltip')}><ArrowDownToLine className="h-4 w-4" />{t('header.pull')}{behindCount > 0 && <span className="font-mono">{behindCount}</span>}</Button>
-            <Button variant={aheadCount > 0 ? 'secondary' : 'ghost'} onClick={handlePush} title={t('header.pushTooltip')}><ArrowUpToLine className="h-4 w-4" />{t('header.push')}{aheadCount > 0 && <span className="font-mono">{aheadCount}</span>}</Button>
+            <Button variant="outline" onClick={handlePull} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}><ArrowDownToLine className="h-4 w-4" />{t('header.pull')}{behindCount > 0 && <span className="font-mono">{behindCount}</span>}</Button>
+            <Button variant={aheadCount > 0 && status?.trackingBranch === pushDestination ? 'secondary' : 'ghost'} onClick={handlePush} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}><ArrowUpToLine className="h-4 w-4" /><span className="max-w-44 truncate">{pushDestination ? `${t('header.push')} → ${pushDestination}` : t('header.push')}…</span></Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
@@ -606,6 +611,11 @@ export const Header: React.FC<HeaderProps> = ({
                 <DropdownMenu.Item className="menu-item" disabled={isRefreshing} onSelect={() => void handleRefresh()}><RefreshCw className="h-4 w-4" />{t('header.refresh')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => void handleOpenTerminal()}><Terminal className="h-4 w-4" />{t('header.terminal')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => setIgnoreRepoPath(currentRepo.path)}><Shield className="h-4 w-4" />{t('ignore.manage')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={async () => {
+                  const path = currentRepo.path;
+                  try { await gitService.fetch(path, undefined, true); if (useRepoStore.getState().currentRepo?.path === path) await refreshAll(); toast.success(t('remote.pruneDone')); }
+                  catch (error: any) { toast.error(t('header.fetchFailed'), error?.message); }
+                }}><RefreshCw className="h-4 w-4" />{t('remote.prune')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => setWorktreesRepoPath(currentRepo.path)}><FolderGit2 className="h-4 w-4" />{t('worktree.title')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 border-t border-border" />
                 <DropdownMenu.Item className="menu-item" disabled={isStashing || !hasChanges} onSelect={() => void handleQuickStash()}><Archive className="h-4 w-4" />{t('header.stash')}</DropdownMenu.Item>

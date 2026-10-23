@@ -1,3 +1,5 @@
+import { pushFromUi, remoteTagFromUi } from '@/services/git/RemoteActions';
+import { gitService } from '@/services/git/GitService';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { useLayoutStore } from '@/stores/layoutStore';
@@ -65,20 +67,15 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     stashes,
     commits,
     isLeftSidebarCollapsed,
-    createBranch,
     checkoutBranch,
     deleteBranch,
     createTag,
     deleteTag,
-    pushTag,
-    pushAllTags,
-    deleteRemoteTag,
-    push,
     stashPush,
     stashPop,
     stashApply,
     stashDrop,
-  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, commits: state.commits, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, createBranch: state.createBranch, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, pushTag: state.pushTag, pushAllTags: state.pushAllTags, deleteRemoteTag: state.deleteRemoteTag, push: state.push, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, commits: state.commits, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
 
   const { pullRequests } = useGitHubStore();
   const { panels } = useWorkspaceLayout();
@@ -250,12 +247,11 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       },
       {
         id: 'push',
-        label: `${t('sidebar.ctx.pushToRemote')} (git push origin ${branch.name})...`,
+        label: `${t('sidebar.ctx.pushToRemote')} ${branch.name}…`,
         icon: <UploadCloud className="h-3.5 w-3.5 text-sky-400" />,
         onClick: async () => {
-          toast.info(`${t('sidebar.ctx.pushingBranch')} ${branch.name}...`);
           try {
-            await push('origin', branch.name);
+            if (!await pushFromUi(branch.name)) return;
             toast.success(`${branch.name} ${t('sidebar.ctx.pushBranchDone')}`);
           } catch (err: any) {
             toast.error(t('sidebar.ctx.pushBranchFailed'), err?.message);
@@ -304,7 +300,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     e.preventDefault();
     e.stopPropagation();
 
-    const localName = branch.name.replace(/^origin\//, '');
+    const localName = branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1);
     const currentBranchName =
       branches.find((b) => b.isCurrent)?.name ||
       status?.currentBranch ||
@@ -318,15 +314,10 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         icon: <ArrowDownToLine className="h-3.5 w-3.5 text-primary" />,
         onClick: async () => {
           try {
-            await checkoutBranch(localName);
+            await checkoutBranch(`refs/remotes/${branch.name}`);
             toast.success(`${t('sidebar.ctx.remoteCheckedOut')}: ${localName}`);
-          } catch {
-            try {
-              await createBranch(localName, branch.name, true);
-              toast.success(`${t('sidebar.ctx.remoteCheckedOutTracked')}: ${localName}`);
-            } catch (err: any) {
-              toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
-            }
+          } catch (err: any) {
+            toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
           }
         },
       },
@@ -365,6 +356,27 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         onClick: () => {
           navigator.clipboard.writeText(branch.name);
           toast.info(t('sidebar.ctx.branchCopied'), branch.name);
+        },
+      },
+      { separator: true, id: 'remote-delete-separator' },
+      {
+        id: 'delete-remote-branch',
+        label: t('remote.deleteBranch'),
+        icon: <Trash2 className="h-3.5 w-3.5 text-destructive" />,
+        danger: true,
+        onClick: async () => {
+          const repoPath = currentRepo?.path;
+          if (!repoPath) return;
+          try {
+            const remotes = await gitService.listRemotes(repoPath);
+            const remote = remotes.sort((a, b) => b.name.length - a.name.length).find(item => branch.name.startsWith(`${item.name}/`));
+            if (!remote) throw new Error(t('remote.invalid'));
+            const name = branch.name.slice(remote.name.length + 1);
+            if (!await confirmAction({ title: t('remote.deleteBranch'), description: t('remote.deleteWarning'), detail: `${remote.name}/${name}\n${remote.pushUrl || remote.fetchUrl}`, danger: true })) return;
+            await gitService.deleteRemoteBranch(repoPath, remote.name, name);
+            if (useRepoStore.getState().currentRepo?.path === repoPath) await useRepoStore.getState().refreshAll();
+            toast.success(t('remote.deleted'), branch.name);
+          } catch (error: any) { toast.error(t('remote.deleteFailed'), error?.message); }
         },
       },
     ];
@@ -411,7 +423,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         icon: <UploadCloud className="h-3.5 w-3.5 text-sky-400" />,
         onClick: async () => {
           try {
-            await pushTag(tag.name);
+            if (!await remoteTagFromUi('tag', tag.name)) return;
             toast.success(`${t('sidebar.ctx.tagPushed')}: ${tag.name}`);
           } catch (err: any) {
             toast.error(t('sidebar.ctx.tagPushFailed'), err?.message);
@@ -450,13 +462,11 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         icon: <Trash2 className="h-3.5 w-3.5 text-rose-500" />,
         danger: true,
         onClick: async () => {
-          if (await confirmAction({ title: t('sidebar.ctx.deleteRemoteTag'), description: t('composer.deleteRemoteTagWarning'), detail: tag.name })) {
-            try {
-              await deleteRemoteTag(tag.name);
-              toast.success(`${t('sidebar.ctx.remoteTagDeleted')}: ${tag.name}`);
-            } catch (err: any) {
-              toast.error(t('sidebar.ctx.deleteRemoteTagFailed'), err?.message);
-            }
+          try {
+            if (!await remoteTagFromUi('deleteTag', tag.name)) return;
+            toast.success(`${t('sidebar.ctx.remoteTagDeleted')}: ${tag.name}`);
+          } catch (err: any) {
+            toast.error(t('sidebar.ctx.deleteRemoteTagFailed'), err?.message);
           }
         },
       },
@@ -1125,7 +1135,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 {expandedSections.remoteBranches && (
                   <div className="mt-0.5 space-y-0.5 pl-1">
                     {remoteGrouped.rootBranches.map((branch) => {
-                      const localName = branch.name.replace(/^origin\//, '');
+                      const localName = branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1);
                       const isSelected = selectedBranch === branch.name;
 
                       return (
@@ -1166,15 +1176,10 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
-                                await checkoutBranch(localName);
+                                await checkoutBranch(`refs/remotes/${branch.name}`);
                                 toast.success(`${t('sidebar.ctx.remoteCheckedOut')}: ${localName}`);
-                              } catch {
-                                try {
-                                  await createBranch(localName, branch.name, true);
-                                  toast.success(`${t('sidebar.ctx.remoteCheckedOutTracked')}: ${localName}`);
-                                } catch (err: any) {
-                                  toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
-                                }
+                              } catch (err: any) {
+                                toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
                               }
                             }}
                           >
@@ -1192,7 +1197,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           <span>{folderName}/</span>
                         </div>
                         {folderBranches.map((branch) => {
-                          const localName = branch.name.replace(/^origin\//, '');
+                          const localName = branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1);
                           const isSelected = selectedBranch === branch.name;
 
                           return (
@@ -1233,15 +1238,10 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   try {
-                                    await checkoutBranch(localName);
+                                    await checkoutBranch(`refs/remotes/${branch.name}`);
                                     toast.success(`${t('sidebar.ctx.remoteCheckedOut')}: ${localName}`);
-                                  } catch {
-                                    try {
-                                      await createBranch(localName, branch.name, true);
-                                      toast.success(`${t('sidebar.ctx.remoteCheckedOutTracked')}: ${localName}`);
-                                    } catch (err: any) {
-                                      toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
-                                    }
+                                  } catch (err: any) {
+                                    toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
                                   }
                                 }}
                               >
@@ -1339,8 +1339,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            toast.info(t('sidebar.pushingAllTags'));
-                            await pushAllTags();
+                            if (!await remoteTagFromUi('tags')) return;
                             toast.success(t('sidebar.pushedAllTags'));
                           } catch (err: any) {
                             toast.error(t('sidebar.pushAllTagsFailed'), err.message);

@@ -67,12 +67,35 @@ export interface GitBranch {
   isCurrent: boolean;
   isRemote: boolean;
   upstream?: string;
+  remoteName?: string;
+  remoteBranch?: string;
   worktreePath?: string;
   lastCommit?: {
     hash: string;
     message: string;
     date: string;
   };
+}
+
+export interface GitRemote {
+  name: string;
+  fetchUrl: string;
+  pushUrl: string;
+}
+
+export interface PushOptions {
+  setUpstream?: boolean;
+  forceWithLease?: boolean;
+  targetBranch?: string;
+  rememberRemote?: boolean;
+}
+
+export interface PushContext {
+  branch: string;
+  remotes: GitRemote[];
+  remote?: string;
+  targetBranch: string;
+  upstream?: string;
 }
 
 export interface GitWorktree {
@@ -115,6 +138,7 @@ export interface RepositoryInfo {
   isGitHubRepo?: boolean;
   gitHubOwner?: string;
   gitHubRepo?: string;
+  gitHubRemote?: string;
 }
 
 export interface IGitService {
@@ -141,9 +165,11 @@ export interface IGitService {
   unstageAll(repoPath: string): Promise<void>;
   discardChanges(repoPath: string, filePath: string): Promise<void>;
   commit(repoPath: string, message: string, amend?: boolean): Promise<string>;
-  push(repoPath: string, remote?: string, branch?: string, options?: { setUpstream?: boolean; forceWithLease?: boolean }): Promise<void>;
+  push(repoPath: string, remote?: string, branch?: string, options?: PushOptions): Promise<void>;
+  getPushContext(repoPath: string, branch?: string): Promise<PushContext>;
   pull(repoPath: string, rebase?: boolean): Promise<void>;
-  fetch(repoPath: string): Promise<void>;
+  fetch(repoPath: string, remote?: string, prune?: boolean): Promise<void>;
+  deleteRemoteBranch(repoPath: string, remote: string, branch: string): Promise<void>;
   listRemotes(repoPath: string): Promise<{ name: string; fetchUrl: string; pushUrl: string }[]>;
   addRemote(repoPath: string, name: string, url: string): Promise<void>;
   removeRemote(repoPath: string, name: string): Promise<void>;
