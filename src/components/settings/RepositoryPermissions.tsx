@@ -29,7 +29,10 @@ export function RepositoryPermissions() {
       const remaining = current.openTabs.filter(tab => !revoked.has(tab.path));
       saveRepositoryState(OPEN_TABS_KEY, remaining);
       useRepoStore.setState({ openTabs: remaining });
-      if (current.currentRepo && revoked.has(current.currentRepo.path)) current.setCurrentRepo(remaining[0] || null);
+      if (current.currentRepo && revoked.has(current.currentRepo.path)) {
+        await current.setCurrentRepo(null);
+        if (remaining[0]) await useRepoStore.getState().setCurrentRepo(remaining[0]);
+      }
       setPaths(previous => previous.filter(value => value !== path));
       toast.success(t('permissions.revoked'));
     } catch (error) { toast.error(t('permissions.failed'), String(error)); }

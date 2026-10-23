@@ -36,7 +36,7 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
         <Button variant="ghost" size="icon" aria-label={t('rightPane.closePreview')} onClick={onClose}><X className="h-4 w-4" /></Button>
       </header>
       <DiffTools query={query} onQueryChange={setQuery} contents={contents} targetId={diffId} onReload={onReload} />
-      <div id={diffId} style={{ fontSize: diffFontSize }} className={cn('flex-1 min-h-0 overflow-auto font-mono leading-6 select-text', wrap && 'diff-wrap')} role="region" tabIndex={0} aria-label={t('changes.viewDiff')}>
+      <div id={diffId} data-text-context style={{ fontSize: diffFontSize }} className={cn('flex-1 min-h-0 overflow-auto font-mono leading-6 select-text', wrap && 'diff-wrap')} role="region" tabIndex={0} aria-label={t('changes.viewDiff')}>
         {loading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : error ? <p role="alert" className="p-6 text-destructive">{error}</p> : !lines.length ? <p className="p-6 text-muted-foreground">{t('rightPane.noTextDiff')}</p> : split ?
           <div className="min-w-[800px]"><VirtualRows items={rows} renderRow={(row, index) => row.isHeader ? <div key={index} className="diff-line-header px-3 whitespace-pre">{row.headerContent}</div> : <div key={index} className="grid grid-cols-2">
             {[row.left, row.right].map((side, sideIndex) => <div key={sideIndex} className={cn('flex min-w-0 border-r border-border', lineClass(side?.type))}><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{side?.lineNo}</span><span data-diff-content className="whitespace-pre overflow-x-auto px-2">{highlightDiff(side?.content || '', query)}</span></div>)}

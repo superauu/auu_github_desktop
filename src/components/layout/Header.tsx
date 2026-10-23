@@ -1,3 +1,4 @@
+import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import * as Popover from '@radix-ui/react-popover';
 import { pushFromUi } from '@/services/git/RemoteActions';
@@ -467,10 +468,9 @@ export const Header: React.FC<HeaderProps> = ({
                           {recentRepos.map((repo) => (
                             <button
                               key={repo.path}
-                              onClick={() => {
-                                setCurrentRepo(repo);
+                              onClick={async () => {
                                 setShowRepoMenu(false);
-                                toast.success(`${t('header.repoMenu.switchedToast')}: ${repo.name}`);
+                                if (await setCurrentRepo(repo)) toast.success(`${t('header.repoMenu.switchedToast')}: ${repo.name}`);
                               }}
                               className="w-full text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between"
                             >
@@ -551,7 +551,7 @@ export const Header: React.FC<HeaderProps> = ({
                                   await checkoutBranch(branch.name);
                                   toast.success(t('header.switchedToBranch'), branch.name);
                                 } catch (err: any) {
-                                  toast.error(t('header.switchBranchFailed'), err?.message);
+                                  if (!isRepositoryAccessCancelled(err)) toast.error(t('header.switchBranchFailed'), err?.message);
                                 } finally {
                                   setShowBranchMenu(false);
                                 }

@@ -29,6 +29,7 @@ import {
 import { InAppFolderBrowser } from './InAppFolderBrowser';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 
 interface RepositoryDialogProps {
   open: boolean;
@@ -109,11 +110,12 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
     setIsProcessing(true);
     try {
       const repoInfo = await gitService.openRepository(targetPath);
-      setCurrentRepo(repoInfo);
+      if (!await setCurrentRepo(repoInfo)) return;
       addRecentRepo(repoInfo);
       toast.success(t('repo.opened'), repoInfo.name);
       onOpenChange(false);
     } catch (err: any) {
+      if (isRepositoryAccessCancelled(err)) return;
       toast.error(t('repo.openFailed'), err.message || t('repo.openFailedDesc'));
     } finally {
       setIsProcessing(false);
@@ -132,7 +134,6 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
     }
 
     setIsProcessing(true);
-    toast.info(t('repo.cloning'), t('repo.cloningDesc'));
 
     try {
       await gitService.cloneRepository(
@@ -141,11 +142,12 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
         branchName.trim() || undefined
       );
       const repoInfo = await gitService.openRepository(cloneTargetPath.trim());
-      setCurrentRepo(repoInfo);
+      if (!await setCurrentRepo(repoInfo)) return;
       addRecentRepo(repoInfo);
       toast.success(t('repo.cloned'), repoInfo.name);
       onOpenChange(false);
     } catch (err: any) {
+      if (isRepositoryAccessCancelled(err)) return;
       toast.error(t('repo.cloneFailed'), err.message);
     } finally {
       setIsProcessing(false);
@@ -163,11 +165,12 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
     try {
       await gitService.initRepository(repoPath.trim());
       const repoInfo = await gitService.openRepository(repoPath.trim());
-      setCurrentRepo(repoInfo);
+      if (!await setCurrentRepo(repoInfo)) return;
       addRecentRepo(repoInfo);
       toast.success(t('repo.inited'), repoInfo.name);
       onOpenChange(false);
     } catch (err: any) {
+      if (isRepositoryAccessCancelled(err)) return;
       toast.error(t('repo.initFailed'), err.message);
     } finally {
       setIsProcessing(false);

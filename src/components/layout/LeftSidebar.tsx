@@ -1,3 +1,4 @@
+import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { pushFromUi, remoteTagFromUi } from '@/services/git/RemoteActions';
 import { gitService } from '@/services/git/GitService';
@@ -211,7 +212,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             await checkoutBranch(branch.name);
             toast.success(t('header.switchedToBranch'), branch.name);
           } catch (err: any) {
-            toast.error(t('sidebar.ctx.switchFailed'), err?.message);
+            if (!isRepositoryAccessCancelled(err)) toast.error(t('sidebar.ctx.switchFailed'), err?.message);
           }
         },
       },
@@ -317,7 +318,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             await checkoutBranch(`refs/remotes/${branch.name}`);
             toast.success(`${t('sidebar.ctx.remoteCheckedOut')}: ${localName}`);
           } catch (err: any) {
-            toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
+            if (!isRepositoryAccessCancelled(err)) toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
           }
         },
       },
@@ -404,7 +405,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             await checkoutBranch(tag.name);
             toast.success(`${t('sidebar.ctx.tagCheckedOut')}: ${tag.name}`);
           } catch (err: any) {
-            toast.error(t('sidebar.ctx.tagCheckoutFailed'), err?.message);
+            if (!isRepositoryAccessCancelled(err)) toast.error(t('sidebar.ctx.tagCheckoutFailed'), err?.message);
           }
         },
       },
@@ -1165,7 +1166,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                 await checkoutBranch(`refs/remotes/${branch.name}`);
                                 toast.success(`${t('sidebar.ctx.remoteCheckedOut')}: ${localName}`);
                               } catch (err: any) {
-                                toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
+                                if (!isRepositoryAccessCancelled(err)) toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
                               }
                             }}
                           >
@@ -1228,7 +1229,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                     await checkoutBranch(`refs/remotes/${branch.name}`);
                                     toast.success(`${t('sidebar.ctx.remoteCheckedOut')}: ${localName}`);
                                   } catch (err: any) {
-                                    toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
+                                    if (!isRepositoryAccessCancelled(err)) toast.error(t('sidebar.ctx.remoteCheckoutFailed'), err.message);
                                   }
                                 }}
                               >

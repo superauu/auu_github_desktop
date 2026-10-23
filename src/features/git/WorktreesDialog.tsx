@@ -8,6 +8,7 @@ import { sameWorktreePath } from '@/services/git/worktrees';
 import type { GitWorktree } from '@/services/git/types';
 import { useRepoStore } from '@/stores/repoStore';
 import { toast } from '@/stores/toastStore';
+import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 
 export function WorktreesDialog({ repoPath, onClose }: { repoPath: string; onClose: () => void }) {
   const { t } = useI18n();
@@ -40,7 +41,7 @@ export function WorktreesDialog({ repoPath, onClose }: { repoPath: string; onClo
     const repo = await gitService.openRepository(path);
     if (useRepoStore.getState().currentRepo?.path !== repoPath) return;
     useRepoStore.getState().addRecentRepo(repo);
-    useRepoStore.getState().setCurrentRepo(repo);
+    if (!await useRepoStore.getState().setCurrentRepo(repo)) return;
     onClose();
   };
   const create = async () => {
@@ -50,7 +51,7 @@ export function WorktreesDialog({ repoPath, onClose }: { repoPath: string; onClo
       toast.success(t('worktree.created'), targetPath);
       if (openAfter) await openTree(targetPath);
       else { setRevision(value => value + 1); await useRepoStore.getState().refreshAll(); }
-    } catch (error: any) { setError(String(error?.message || error)); }
+    } catch (error: any) { if (!isRepositoryAccessCancelled(error)) setError(String(error?.message || error)); }
     finally { setBusy(false); }
   };
   const fieldClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
@@ -68,7 +69,7 @@ export function WorktreesDialog({ repoPath, onClose }: { repoPath: string; onClo
             {tree.locked && <p className="text-amber-500">{t('worktree.locked')}{typeof tree.locked === 'string' ? `: ${tree.locked}` : ''}</p>}
             {tree.prunable && <p className="text-amber-500">{t('worktree.unavailable')}</p>}
           </div>
-          <Button size="sm" variant="outline" disabled={busy || !!tree.bare || !!tree.prunable || sameWorktreePath(tree.path, repoPath)} onClick={async () => { setBusy(true); setError(''); try { await openTree(tree.path); } catch (error: any) { setError(String(error?.message || error)); } finally { setBusy(false); } }}>{t('worktree.open')}</Button>
+          <Button size="sm" variant="outline" disabled={busy || !!tree.bare || !!tree.prunable || sameWorktreePath(tree.path, repoPath)} onClick={async () => { setBusy(true); setError(''); try { await openTree(tree.path); } catch (error: any) { if (!isRepositoryAccessCancelled(error)) setError(String(error?.message || error)); } finally { setBusy(false); } }}>{t('worktree.open')}</Button>
         </li>)}</ul>
         <h3 className="text-sm font-medium border-t border-border pt-4">{t('worktree.create')}</h3>
         <label className="block text-sm space-y-1"><span>{t('worktree.branchMode')}</span><select className={fieldClass} disabled={busy} value={newMode ? 'new' : 'existing'} onChange={event => { setNewMode(event.target.value === 'new'); if (!existingBranch) setExistingBranch(freeBranches[0]?.name || ''); }}><option value="new">{t('worktree.newBranch')}</option><option value="existing">{t('worktree.useExisting')}</option></select></label>

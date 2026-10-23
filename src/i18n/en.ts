@@ -9,6 +9,16 @@ import { optimizationEn } from './optimization';
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  'textMenu.title': 'Text actions',
+  'textMenu.undo': 'Undo',
+  'textMenu.redo': 'Redo',
+  'textMenu.cut': 'Cut',
+  'textMenu.copy': 'Copy',
+  'textMenu.copyContent': 'Copy displayed content',
+  'textMenu.paste': 'Paste',
+  'textMenu.selectAll': 'Select all',
+  'textMenu.selectContent': 'Select displayed content',
+  'textMenu.failed': 'Text action failed. Try the keyboard shortcut.',
   'window.controls': 'Window controls',
   'window.minimize': 'Minimize window',
   'window.maximize': 'Maximize window',
@@ -1307,6 +1317,7 @@ export const en = {
   'explain.requestFailed': 'Model request failed (HTTP {status}). Check AI settings and try again.',
   'recovery.op.rewrite': 'Before history rewrite',
   'permissions.title': 'Authorized folders',
+  'permissions.cancelled': 'Repository access was cancelled',
   'permissions.description': 'First access requires approval. Revoking access closes the repository; opening it again requires approval.',
   'permissions.empty': 'No authorized folders',
   'permissions.revoke': 'Revoke access',

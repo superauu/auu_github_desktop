@@ -8,6 +8,7 @@ mod file_io;
 mod git_process;
 use git_process::{run_git, run_git_bytes, GitCommandResult};
 mod repository_access;
+mod repository_dialog;
 mod git_policy;
 mod git_binary;
 use file_io::{atomic_write, read_bytes, read_text, FILE_WRITES, MAX_FILE_BYTES};

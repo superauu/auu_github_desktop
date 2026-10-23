@@ -31,6 +31,7 @@ import { UpdateDialog } from './UpdateDialog';
 import { gitService } from '@/services/git/GitService';
 import { toast } from '@/stores/toastStore';
 import { useWindowChrome } from '@/hooks/useWindowChrome';
+import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 
 export const AppLayout: React.FC = () => {
   const windowChrome = useWindowChrome();
@@ -204,10 +205,10 @@ export const AppLayout: React.FC = () => {
     try {
       if (useRepoStore.getState().currentRepo?.path !== path) {
         const repo = await gitService.openRepository(path);
-        useRepoStore.getState().setCurrentRepo(repo);
+        if (!await useRepoStore.getState().setCurrentRepo(repo)) return;
       }
       setHistoryOpen(false); setRecoveryPath(path);
-    } catch (error) { toast.error(t('operationLog.recoveryFailed'), error instanceof Error ? error.message : String(error)); }
+    } catch (error) { if (!isRepositoryAccessCancelled(error)) toast.error(t('operationLog.recoveryFailed'), error instanceof Error ? error.message : String(error)); }
   };
 
   return (

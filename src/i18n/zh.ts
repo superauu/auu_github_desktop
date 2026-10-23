@@ -9,6 +9,16 @@ import { optimizationZh } from './optimization';
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
  */
 export const zh = {
+  'textMenu.title': '文本操作',
+  'textMenu.undo': '撤销',
+  'textMenu.redo': '重做',
+  'textMenu.cut': '剪切',
+  'textMenu.copy': '复制',
+  'textMenu.copyContent': '复制当前显示内容',
+  'textMenu.paste': '粘贴',
+  'textMenu.selectAll': '全选',
+  'textMenu.selectContent': '全选当前显示内容',
+  'textMenu.failed': '文本操作未完成，请尝试使用键盘快捷键',
   'window.controls': '窗口控制',
   'window.minimize': '最小化窗口',
   'window.maximize': '最大化窗口',
@@ -1323,6 +1333,7 @@ export const zh = {
   'explain.requestFailed': '模型请求失败（HTTP {status}），请检查 AI 设置后重试。',
   'recovery.op.rewrite': '提交整理前',
   'permissions.title': '已授权的文件夹',
+  'permissions.cancelled': '已取消仓库访问授权',
   'permissions.description': '首次访问需要确认。撤销授权会关闭对应仓库，下次打开时重新确认。',
   'permissions.empty': '暂无已授权的文件夹',
   'permissions.revoke': '撤销授权',

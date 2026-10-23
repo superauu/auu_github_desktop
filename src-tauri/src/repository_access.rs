@@ -156,7 +156,11 @@ fn grant(app: &tauri::AppHandle, path: PathBuf) -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-pub fn authorize_repository(app: tauri::AppHandle, path: String) -> Result<(), String> {
+pub fn authorize_repository(
+    app: tauri::AppHandle,
+    path: String,
+    language: Option<String>,
+) -> Result<(), String> {
     let resolved = resolve(Path::new(&path))?;
     if resolved.exists() && !resolved.is_dir() {
         return Err("Expected a repository directory".into());
@@ -169,27 +173,35 @@ pub fn authorize_repository(app: tauri::AppHandle, path: String) -> Result<(), S
     {
         return Ok(());
     }
+    let text = crate::repository_dialog::text(language.as_deref());
     let accepted = app
         .dialog()
         .message(format!(
-            "Allow AuuGit to access this repository directory?\n\n{}",
+            "{}\n\n{}",
+            text.message,
             crate::normalize_display_path(&resolved)
         ))
-        .title("AuuGit — Repository access")
-        .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel)
+        .title(text.title)
+        .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom(
+            text.allow.into(),
+            text.cancel.into(),
+        ))
         .blocking_show();
     if !accepted {
-        return Err("Repository access was cancelled".into());
+        return Err(crate::repository_dialog::ACCESS_CANCELLED.into());
     }
     grant(&app, resolved)
 }
 
 #[tauri::command(async)]
-pub fn pick_repository_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+pub fn pick_repository_folder(
+    app: tauri::AppHandle,
+    language: Option<String>,
+) -> Result<Option<String>, String> {
     let Some(selected) = app
         .dialog()
         .file()
-        .set_title("Select a repository directory")
+        .set_title(crate::repository_dialog::text(language.as_deref()).picker_title)
         .blocking_pick_folder()
     else {
         return Ok(None);

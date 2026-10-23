@@ -22,7 +22,7 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { LAST_ACTIVE_REPO_KEY, OPEN_TABS_KEY, RECENT_REPOS_KEY, loadRepositoryList, saveRepositoryState } from './repositoryStorage';
-import { authorizeRepository } from '@/services/fs/RepositoryAccess';
+import { authorizeRepository, isRepositoryAccessCancelled, RepositoryAccessCancelledError } from '@/services/fs/RepositoryAccess';
 
 export type MainNavTab = 'changes' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests';
 
@@ -35,6 +35,7 @@ export interface RedoItem {
 
 export interface RepoState {
   currentRepo: RepositoryInfo | null;
+  openingRepoPath: string | null;
   recentRepos: RepositoryInfo[];
   activeTab: MainNavTab;
   status: GitStatusResult | null;
@@ -58,7 +59,7 @@ export interface RepoState {
   scrollToCommitHash: string | null;
 
   // Actions
-  setCurrentRepo: (repo: RepositoryInfo | null) => void;
+  setCurrentRepo: (repo: RepositoryInfo | null) => Promise<boolean>;
   setActiveTab: (tab: MainNavTab) => void;
   setStatus: (status: GitStatusResult | null) => void;
   setSelectedFile: (file: GitFileChange | null) => void;
@@ -138,6 +139,9 @@ export interface RepoState {
 }
 
 
+let repoOpenId = 0;
+export const getRepositorySelectionRevision = () => repoOpenId;
+
 export const useRepoStore = create<RepoState>((set, get) => {
   let repoEpoch = 0;
   let refreshId = 0;
@@ -166,6 +170,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
   return {
     currentRepo: null,
     recentRepos: initialRecent,
+    openingRepoPath: null,
     activeTab: 'changes',
     status: null,
     selectedFile: null,
@@ -194,7 +199,20 @@ export const useRepoStore = create<RepoState>((set, get) => {
       isAllResolved: false,
     },
 
-    setCurrentRepo: (repo) => {
+    setCurrentRepo: async (repo) => {
+      const openId = ++repoOpenId;
+      if (repo && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        set({ openingRepoPath: repo.path });
+        try { await authorizeRepository(repo.path); }
+        catch (error) {
+          if (openId === repoOpenId) {
+            set({ openingRepoPath: null });
+            if (!isRepositoryAccessCancelled(error)) toast.error(tNow('permissions.failed'), error instanceof Error ? error.message : String(error));
+          }
+          return false;
+        }
+      }
+      if (openId !== repoOpenId) return false;
       repoEpoch++; refreshId++; diffId++;
       refsFingerprint = null;
       useGitHubStore.getState().clearRepo();
@@ -206,6 +224,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         saveRepositoryState(OPEN_TABS_KEY, newTabs);
         return {
           currentRepo: repo,
+          openingRepoPath: null,
           status: null, commits: [], branches: [], tags: [], stashes: [],
           errorMessage: null, isLoading: false,
           selectedBranch: null, scrollToCommitHash: null, commitsLimit: 100, commitsLoadedAll: false,
@@ -224,14 +243,19 @@ export const useRepoStore = create<RepoState>((set, get) => {
       } else {
         saveRepositoryState(LAST_ACTIVE_REPO_KEY, null);
       }
+      return true;
     },
 
     closeTab: (path: string) => {
+      if (get().openingRepoPath === path) { repoOpenId++; set({ openingRepoPath: null }); }
       const remaining = get().openTabs.filter((tab) => tab.path !== path);
       saveRepositoryState(OPEN_TABS_KEY, remaining);
       const wasActive = get().currentRepo?.path === path;
       set({ openTabs: remaining });
-      if (wasActive) get().setCurrentRepo(remaining[0] || null);
+      if (wasActive) {
+        void get().setCurrentRepo(null);
+        if (remaining[0]) void get().setCurrentRepo(remaining[0]);
+      }
     },
 
     switchTab: (path: string) => {
@@ -777,7 +801,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           const repo = await gitService.openRepository(worktree.path);
           if (!isCurrent(currentRepo.path, epoch)) return;
           get().addRecentRepo(repo);
-          get().setCurrentRepo(repo);
+          if (!await get().setCurrentRepo(repo)) throw new RepositoryAccessCancelledError();
           await get().refreshAll();
           return;
         }
@@ -811,7 +835,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
         await get().refreshAll();
       } catch (err: any) {
-        set({ errorMessage: err.message });
+        if (!isRepositoryAccessCancelled(err)) set({ errorMessage: err.message });
         throw err;
       }
     },

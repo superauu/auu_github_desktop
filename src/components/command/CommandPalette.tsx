@@ -1,3 +1,4 @@
+import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 import { pushFromUi } from '@/services/git/RemoteActions';
 import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
@@ -211,7 +212,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         checkoutBranch(b.name)
                           .then(() => toast.success(`${t('header.switchedToBranch')}: ${b.name}`))
                           .catch((err: any) =>
-                            toast.error(`${t('header.switchBranchFailed')}: ${b.name}`, err?.message)
+                            !isRepositoryAccessCancelled(err) && toast.error(`${t('header.switchBranchFailed')}: ${b.name}`, err?.message)
                           );
                       }
                       onOpenChange(false);

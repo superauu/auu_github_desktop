@@ -204,6 +204,7 @@ test('revoking repository access closes all aliases together and keeps other rep
     calls.push({ command, args });
     if (command === 'list_repository_permissions') return [primary.path, other.path];
     if (command === 'revoke_repository_permission') return [primary.path, alias.path];
+    if (command === 'authorize_repository' && args.path === other.path) return;
     throw new Error('Unexpected native command');
   } } };
   app.useRepoStore.setState({ currentRepo: alias, openTabs: [primary, alias, other], refreshAll: async () => {} });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
@@ -148,7 +148,15 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
           <label className="block text-xs space-y-1"><span>{t('batch.subject')}</span><input className="w-full h-9 px-3 border border-input bg-background rounded-md text-sm" value={group.title} disabled={writing} maxLength={120} onChange={event => setGroups(previous => previous.map((value, i) => i === index ? { ...value, title: event.target.value } : value))} /></label>
           <label className="block text-xs space-y-1"><span>{t('batch.body')}</span><textarea className="w-full min-h-20 p-3 border border-input bg-background rounded-md text-sm" value={group.body} disabled={writing} maxLength={6000} onChange={event => setGroups(previous => previous.map((value, i) => i === index ? { ...value, body: event.target.value } : value))} /></label>
           {group.reason && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{t('batch.reason')}：{group.reason}</p>}
-          <ul className="space-y-2">{group.files.map(path => <li key={path} className="flex flex-wrap items-center gap-2 justify-between"><div className="min-w-0 flex-1"><FilePath path={path} /></div><select className="max-w-56 min-h-8 border border-input rounded-md bg-background px-2 text-xs" disabled={writing} aria-label={`${t('batch.move')}: ${path}`} value={index} onChange={event => moveFile(path, Number(event.target.value))}>{groups.map((candidate, i) => <option key={i} value={i}>{i + 1}. {candidate.title}</option>)}</select></li>)}</ul>
+          <ul className="space-y-2">{group.files.map(path => <li key={path} className="flex flex-wrap items-center gap-2 justify-between">
+            <div className="min-w-0 flex-[1_1_10rem]"><FilePath path={path} /></div>
+            <div className="relative w-56 max-w-full min-w-0 shrink-0">
+              <select className="w-full min-w-0 h-8 appearance-none truncate border border-input rounded-md bg-background pl-3 pr-8 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40" disabled={writing} aria-label={`${t('batch.move')}: ${path}`} title={`${index + 1}. ${group.title}`} value={index} onChange={event => moveFile(path, Number(event.target.value))}>
+                {groups.map((candidate, i) => <option key={i} value={i}>{i + 1}. {candidate.title}</option>)}
+              </select>
+              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            </div>
+          </li>)}</ul>
         </section>)}
         {phase === 'review' && <Button variant="outline" disabled={groups.length >= 12} onClick={() => setGroups(previous => [...previous, { title: t('batch.newTitle'), body: '', reason: '', files: [] }])}><Plus className="h-4 w-4" />{t('batch.add')}</Button>}
         {phase === 'review' && !valid && <p role="alert" className="text-sm text-git-tag">{t('batch.empty')}</p>}

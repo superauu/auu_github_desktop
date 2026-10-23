@@ -1,5 +1,6 @@
 import { tNow } from '@/i18n';
 import { listRepositoryPermissions } from './RepositoryAccess';
+import { useSettingsStore } from '@/stores/settingsStore';
 export interface DirectoryValidationResult {
   exists: boolean;
   isDirectory: boolean;
@@ -26,7 +27,7 @@ export async function pickFolderNative(): Promise<string | null> {
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   if (isTauri) {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<string | null>('pick_repository_folder');
+    return invoke<string | null>('pick_repository_folder', { language: useSettingsStore.getState().language });
   }
 
   try {

@@ -4,6 +4,7 @@ import { restoreSavedRepository } from '@/services/git/RepositorySession';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { AppTextContextMenu } from '@/components/ui/AppTextContextMenu';
 
 export const App: React.FC = () => {
   const { initTheme } = useThemeStore();
@@ -22,6 +23,6 @@ export const App: React.FC = () => {
     return () => { cancelled = true; };
   }, [initTheme, initAuth]);
 
-  return <AppLayout />;
+  return <><AppLayout /><AppTextContextMenu /></>;
 };
 

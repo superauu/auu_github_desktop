@@ -1,3 +1,15 @@
+import { tNow } from '@/i18n';
+import { useSettingsStore } from '@/stores/settingsStore';
+
+export class RepositoryAccessCancelledError extends Error {
+  constructor() { super(tNow('permissions.cancelled')); this.name = 'RepositoryAccessCancelledError'; }
+}
+
+export function isRepositoryAccessCancelled(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return error instanceof RepositoryAccessCancelledError || message === 'AUUGIT_REPOSITORY_ACCESS_CANCELLED' || message === 'Repository access was cancelled';
+}
+
 const pending = new Map<string, Promise<void>>();
 const approvedBinaries = new Map<string, Promise<void>>();
 export async function authorizeGitBinary(path: string): Promise<void> {
@@ -31,8 +43,11 @@ export async function authorizeRepository(path: string): Promise<void> {
     if (!request) {
       request = (async () => {
         const { invoke } = await import('@tauri-apps/api/core');
-        try { await invoke('authorize_repository', { path }); }
-        catch (error) { throw error instanceof Error ? error : new Error(String(error)); }
+        try { await invoke('authorize_repository', { path, language: useSettingsStore.getState().language }); }
+        catch (error) {
+          if (isRepositoryAccessCancelled(error)) throw new RepositoryAccessCancelledError();
+          throw error instanceof Error ? error : new Error(String(error));
+        }
       })();
       pending.set(path, request);
     }

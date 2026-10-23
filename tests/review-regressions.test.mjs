@@ -248,6 +248,130 @@ test('startup keeps a saved repository when directory validation is temporarily 
   } finally { globalThis.fetch = originalFetch; localStorage.removeItem('auu_git_last_active_repo'); }
 });
 
+test('denied repository activation preserves the current repository, session and draft without background reads', async () => {
+  const store = app.useRepoStore, previous = store.getState();
+  const current = info('/current-approved'), denied = info('/denied-repository');
+  const oldSaved = values.get('auu_git_last_active_repo');
+  const draftsBefore = app.useWorkspaceSessionStore.getState().drafts;
+  store.setState({ currentRepo: current, openTabs: [current], openingRepoPath: null, status: clean, errorMessage: null });
+  values.set('auu_git_last_active_repo', JSON.stringify(current));
+  app.useWorkspaceSessionStore.getState().updateDraft(app.draftKey(current.path, current.currentBranch), { title: 'Keep my draft' });
+  const draftBefore = JSON.stringify(app.useWorkspaceSessionStore.getState().drafts);
+  const approvals = deferred(), calls = [];
+  const toastCount = app.useToastStore.getState().history.length;
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async (command, args) => {
+    calls.push({ command, args });
+    if (command === 'authorize_repository') { await approvals.promise; throw 'AUUGIT_REPOSITORY_ACCESS_CANCELLED'; }
+    throw Error('Unexpected read before approval');
+  } } };
+  try {
+    const pending = store.getState().setCurrentRepo(denied);
+    assert.equal(store.getState().currentRepo.path, current.path);
+    assert.equal(store.getState().openingRepoPath, denied.path);
+    approvals.resolve(); assert.equal(await pending, false);
+    assert.equal(store.getState().currentRepo.path, current.path);
+    assert.equal(store.getState().status, clean);
+    assert.equal(store.getState().openingRepoPath, null);
+    assert.deepEqual(store.getState().openTabs, [current]);
+    assert.equal(store.getState().errorMessage, null);
+    assert.equal(values.get('auu_git_last_active_repo'), JSON.stringify(current));
+    assert.equal(JSON.stringify(app.useWorkspaceSessionStore.getState().drafts), draftBefore);
+    assert.equal(app.useToastStore.getState().history.length, toastCount);
+    assert.ok(calls.every(call => call.command === 'authorize_repository'));
+  } finally {
+    delete globalThis.window; store.setState(previous, true);
+    app.useWorkspaceSessionStore.setState({ drafts: draftsBefore });
+    if (oldSaved === undefined) values.delete('auu_git_last_active_repo'); else values.set('auu_git_last_active_repo', oldSaved);
+  }
+});
+
+test('declining startup restoration keeps the saved repository available for a deliberate retry', async () => {
+  const store = app.useRepoStore, previous = store.getState(), oldSaved = values.get('auu_git_last_active_repo');
+  const saved = JSON.stringify(info('/declined-startup')), calls = [];
+  store.setState({ currentRepo: null, openingRepoPath: null, openTabs: [], errorMessage: null });
+  values.set('auu_git_last_active_repo', saved);
+  const toastCount = app.useToastStore.getState().history.length;
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async command => { calls.push(command); throw 'AUUGIT_REPOSITORY_ACCESS_CANCELLED'; } } };
+  try {
+    await app.restoreSavedRepository();
+    assert.deepEqual(calls, ['authorize_repository']);
+    assert.equal(store.getState().currentRepo, null);
+    assert.equal(store.getState().errorMessage, null);
+    assert.equal(values.get('auu_git_last_active_repo'), saved);
+    assert.equal(app.useToastStore.getState().history.length, toastCount);
+  } finally {
+    delete globalThis.window; store.setState(previous, true);
+    if (oldSaved === undefined) values.delete('auu_git_last_active_repo'); else values.set('auu_git_last_active_repo', oldSaved);
+  }
+});
+
+test('a denied repository can be approved on retry and only then starts refresh', async () => {
+  const store = app.useRepoStore, previous = store.getState(), oldSaved = values.get('auu_git_last_active_repo');
+  const selected = info('/permission-retry'); let deny = true, refreshes = 0;
+  store.setState({ currentRepo: null, openingRepoPath: null, openTabs: [], refreshAll: async () => { refreshes++; } });
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async command => {
+    assert.equal(command, 'authorize_repository');
+    if (deny) throw 'AUUGIT_REPOSITORY_ACCESS_CANCELLED';
+  } } };
+  try {
+    assert.equal(await store.getState().setCurrentRepo(selected), false);
+    assert.equal(refreshes, 0); assert.equal(store.getState().currentRepo, null);
+    deny = false;
+    assert.equal(await store.getState().setCurrentRepo(selected), true);
+    assert.equal(refreshes, 1); assert.equal(store.getState().currentRepo.path, selected.path);
+    assert.equal(store.getState().openingRepoPath, null);
+    assert.equal(JSON.parse(values.get('auu_git_last_active_repo')).path, selected.path);
+  } finally {
+    delete globalThis.window; store.setState(previous, true);
+    if (oldSaved === undefined) values.delete('auu_git_last_active_repo'); else values.set('auu_git_last_active_repo', oldSaved);
+  }
+});
+
+test('a startup approval cannot reopen an older repository after the user cancels a newer selection', async () => {
+  const store = app.useRepoStore, previous = store.getState(), oldSaved = values.get('auu_git_last_active_repo');
+  const saved = info('/older-startup'), newer = info('/newer-selection'), waiting = deferred(), calls = [];
+  store.setState({ currentRepo: null, openingRepoPath: null, openTabs: [] });
+  values.set('auu_git_last_active_repo', JSON.stringify(saved));
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async (command, args) => {
+    calls.push({ command, args }); assert.equal(command, 'authorize_repository');
+    if (args.path === saved.path) { await waiting.promise; return; }
+    throw 'AUUGIT_REPOSITORY_ACCESS_CANCELLED';
+  } } };
+  try {
+    const startup = app.restoreSavedRepository();
+    await eventually(() => calls.length === 1);
+    assert.equal(await store.getState().setCurrentRepo(newer), false);
+    waiting.resolve(); await startup;
+    assert.equal(calls.length, 2);
+    assert.equal(store.getState().currentRepo, null);
+    assert.equal(store.getState().openingRepoPath, null);
+  } finally {
+    waiting.resolve(); delete globalThis.window; store.setState(previous, true);
+    if (oldSaved === undefined) values.delete('auu_git_last_active_repo'); else values.set('auu_git_last_active_repo', oldSaved);
+  }
+});
+
+test('closing the active tab never leaves a closed repository active when the fallback authorization is denied', async () => {
+  const store = app.useRepoStore, previous = store.getState(), oldSaved = values.get('auu_git_last_active_repo');
+  const current = info('/closing-approved'), fallback = info('/denied-fallback'), waiting = deferred();
+  store.setState({ currentRepo: current, openingRepoPath: null, openTabs: [current, fallback] });
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async command => {
+    assert.equal(command, 'authorize_repository'); await waiting.promise; throw 'AUUGIT_REPOSITORY_ACCESS_CANCELLED';
+  } } };
+  try {
+    store.getState().closeTab(current.path);
+    assert.equal(store.getState().currentRepo, null);
+    assert.equal(store.getState().openingRepoPath, fallback.path);
+    waiting.resolve();
+    await eventually(() => store.getState().openingRepoPath === null);
+    assert.equal(store.getState().currentRepo, null);
+    assert.deepEqual(store.getState().openTabs, [fallback]);
+  } finally {
+    waiting.resolve(); delete globalThis.window; store.setState(previous, true);
+    if (oldSaved === undefined) values.delete('auu_git_last_active_repo'); else values.set('auu_git_last_active_repo', oldSaved);
+  }
+});
+
 test('a cancelled startup restore cannot replace a repository the user opens later', async () => {
   const repo = await repository(); await fs.writeFile(file(repo, 'a'), 'a'); await commit(repo);
   const store = app.useRepoStore; store.getState().setCurrentRepo(null);

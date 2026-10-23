@@ -16,7 +16,7 @@ before(async () => {
   temporary = await fs.mkdtemp(path.join(root, '.test-tmp-security-'));
   outside = await fs.mkdtemp(path.join(os.tmpdir(), 'auugit-outside-'));
   const bundle = path.join(temporary, 'helpers.cjs');
-  await build({ stdin: { contents: `export * from './src/services/fs/RepositoryAccess'; export * from './src/services/fs/DirectoryService'; export * from './scripts/dev-file-io'; export * from './scripts/git-policy'; export * from './src/utils/externalUrl'; export { gitService } from './src/services/git/GitService'; export { gitHubOAuthService } from './src/services/github/GitHubOAuthService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export * from './src/services/fs/RepositoryAccess'; export * from './src/services/fs/DirectoryService'; export * from './scripts/dev-file-io'; export * from './scripts/git-policy'; export * from './src/utils/externalUrl'; export { gitService } from './src/services/git/GitService'; export { useSettingsStore } from './src/stores/settingsStore'; export { gitHubOAuthService } from './src/services/github/GitHubOAuthService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen();
@@ -78,6 +78,52 @@ test('native approval deduplicates concurrent requests and retries after cancell
     assert.equal(calls.filter(call => call.command === 'authorize_git_binary').length, 1);
     denied = false; await app.authorizeGitBinary(binary); await app.authorizeGitBinary(binary); await app.authorizeGitBinary('git');
     assert.equal(calls.filter(call => call.command === 'authorize_git_binary').length, 2);
+  } finally { delete globalThis.window; }
+});
+
+test('repository consent and folder picking use the current app language, with retry after denial', async () => {
+  const calls = [], previousLanguage = app.useSettingsStore.getState().language;
+  let denied = true;
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async (command, args) => {
+    calls.push({ command, args });
+    if (command === 'pick_repository_folder') return null;
+    if (denied) throw 'AUUGIT_REPOSITORY_ACCESS_CANCELLED';
+  } } };
+  try {
+    app.useSettingsStore.setState({ language: 'zh' });
+    const rejected = await Promise.allSettled([app.authorizeRepository(temporary), app.authorizeRepository(temporary)]);
+    assert.equal(calls.length, 1);
+    assert.ok(rejected.every(result => result.status === 'rejected' && app.isRepositoryAccessCancelled(result.reason)));
+    assert.equal(rejected[0].reason.message, '已取消仓库访问授权');
+    assert.equal(calls[0].args.language, 'zh');
+    await app.pickFolderNative(); assert.equal(calls.at(-1).args.language, 'zh');
+    app.useSettingsStore.setState({ language: 'en' });
+    await assert.rejects(app.authorizeRepository(temporary), error => error.message === 'Repository access was cancelled');
+    assert.equal(calls.at(-1).args.language, 'en');
+    denied = false;
+    await app.authorizeRepository(temporary);
+    await app.pickFolderNative(); assert.equal(calls.at(-1).args.language, 'en');
+    assert.equal(app.isRepositoryAccessCancelled('disk failure'), false);
+    assert.equal(app.isRepositoryAccessCancelled('Repository access was cancelled'), true);
+  } finally { app.useSettingsStore.setState({ language: previousLanguage }); delete globalThis.window; }
+});
+
+test('declining consent prevents open, clone, init and worktree Git commands', async () => {
+  const calls = [];
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async (command, args) => {
+    calls.push({ command, args });
+    if (command === 'authorize_repository') throw 'AUUGIT_REPOSITORY_ACCESS_CANCELLED';
+    throw Error('Unexpected native command');
+  } } };
+  try {
+    for (const operation of [
+      () => app.gitService.openRepository(temporary),
+      () => app.gitService.initRepository(temporary),
+      () => app.gitService.cloneRepository('https://example.invalid/repo.git', temporary),
+      () => app.gitService.createWorktree(temporary, path.join(temporary, 'new-tree'), 'main'),
+    ]) await assert.rejects(operation(), app.isRepositoryAccessCancelled);
+    assert.ok(calls.every(call => call.command === 'authorize_repository'));
+    assert.equal(calls.length, 4, 'a cancelled request must never be cached as authorized');
   } finally { delete globalThis.window; }
 });
 

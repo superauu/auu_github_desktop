@@ -19,6 +19,9 @@ interface ContextMenuProps {
   y: number;
   items: ContextMenuItem[];
   onClose: () => void;
+  portalTarget?: HTMLElement;
+  className?: string;
+  label?: string;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -27,6 +30,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   y,
   items,
   onClose,
+  portalTarget = typeof document === 'undefined' ? undefined : document.body,
+  className,
+  label,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -34,7 +40,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const [position, setPosition] = useState({ top: y, left: x });
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !portalTarget) return;
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true }));
@@ -52,7 +58,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       adjustedTop = Math.max(10, window.innerHeight - menuHeight - 12);
     }
 
-    setPosition({ top: adjustedTop, left: adjustedLeft });
+    const rect = portalTarget === document.body ? null : portalTarget.getBoundingClientRect();
+    setPosition({
+      top: adjustedTop - (rect ? rect.top + portalTarget.clientTop - portalTarget.scrollTop : 0),
+      left: adjustedLeft - (rect ? rect.left + portalTarget.clientLeft - portalTarget.scrollLeft : 0),
+    });
 
     const handlePointerDown = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -69,25 +79,27 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
 
     window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
+    // Run before a modal's document listener, so Escape dismisses only the menu.
+    window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('scroll', handleScroll, true);
 
     return () => {
       cancelAnimationFrame(frame);
       if (menuRef.current?.contains(document.activeElement) || document.activeElement === document.body) previousFocus?.focus({ preventScroll: true });
       window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('scroll', handleScroll, true);
     };
-  }, [open, x, y, items.length]);
+  }, [open, x, y, items.length, portalTarget]);
 
-  if (!open || items.length === 0) return null;
+  if (!open || items.length === 0 || !portalTarget) return null;
 
   // Frosted panels establish containing blocks; menus still use viewport coordinates.
   return createPortal(
     <div
       ref={menuRef}
       role="menu"
+      aria-label={label}
       onKeyDown={event => {
         if (event.key === 'Tab') { event.preventDefault(); closeRef.current(); return; }
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -98,7 +110,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         buttons[next]?.focus({ preventScroll: true });
       }}
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      className="glass-dialog fixed z-50 w-56 rounded-xl border border-border/80 p-1 shadow-2xl animate-in fade-in-50 zoom-in-95 select-none"
+      className={cn("glass-dialog fixed z-50 w-56 rounded-xl border border-border/80 p-1 shadow-2xl animate-in fade-in-50 zoom-in-95 select-none", className)}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -154,6 +166,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           );
         })}
       </div>
-    </div>, document.body
+    </div>, portalTarget
   );
 };

@@ -32,7 +32,7 @@ export function FileAttributionContent({ contentMode, diffFontSize, loadingFileD
 
   return contentMode === 'blame' ? (
           /* Blame View */
-          <div style={{ fontSize: diffFontSize }} className="glass-editor flex-1 overflow-auto font-mono leading-relaxed text-foreground select-text">
+          <div data-text-context style={{ fontSize: diffFontSize }} className="glass-editor flex-1 overflow-auto font-mono leading-relaxed text-foreground select-text">
             {loadingFileData ? (
               <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground select-none">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -68,7 +68,7 @@ export function FileAttributionContent({ contentMode, diffFontSize, loadingFileD
                   <div className="w-20 shrink-0 px-1 text-muted-foreground/70 font-mono text-[12px]">
                     {blameDate(bl.authorDateIso)}
                   </div>
-                  <div className="px-2 whitespace-pre font-mono flex-1 overflow-x-auto">
+                  <div data-diff-content className="px-2 whitespace-pre font-mono flex-1 overflow-x-auto">
                     {bl.content}
                   </div>
                 </div>
