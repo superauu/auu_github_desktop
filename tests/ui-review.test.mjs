@@ -16,7 +16,9 @@ const pr = (id, title) => ({ id, number: id, title, state: 'open', head: { ref: 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ui-review-'));
   const bundle = path.join(tmp, 'review.cjs');
-  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export { RightPane } from './src/components/layout/RightPane'; export { EmbeddedTerminalPanel } from './src/components/layout/EmbeddedTerminalPanel'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
+  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export { useWindowChrome } from './src/hooks/useWindowChrome'; export { WindowControls } from './src/components/layout/WindowControls'; export { StatusBar } from './src/components/layout/StatusBar'; export { useToastStore } from './src/stores/toastStore'; export { RightPane } from './src/components/layout/RightPane'; export { EmbeddedTerminalPanel } from './src/components/layout/EmbeddedTerminalPanel'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
+    build.onResolve({ filter: /^@tauri-apps\/api\/window$/ }, () => ({ path: 'window', namespace: 'test-window' }));
+    build.onLoad({ filter: /.*/, namespace: 'test-window' }, () => ({ contents: 'export const getCurrentWindow = () => globalThis.__nativeWindow;' }));
     build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
     build.onLoad({ filter: /scroll-area\.tsx$/ }, () => ({ contents: 'import React from "react"; export function ScrollArea({ children }) { return <div>{children}</div>; }', loader: 'jsx' }));
   } }] });
@@ -215,4 +217,76 @@ test('external terminal is unavailable in web preview and available in the deskt
     if (originalFrame) globalThis.requestAnimationFrame = originalFrame; else delete globalThis.requestAnimationFrame;
     if (originalCancel) globalThis.cancelAnimationFrame = originalCancel; else delete globalThis.cancelAnimationFrame;
   }
+});
+
+test('browser window controls stay inert and the status bar keeps its history action', async () => {
+  globalThis.window = {};
+  let chrome, renderer, historyOpened = 0;
+  function Probe() { chrome = app.useWindowChrome(); return React.createElement(app.WindowControls, { chrome }); }
+  try {
+    await act(async () => { renderer = create(React.createElement(Probe)); });
+    assert.equal(renderer.root.findAllByType('button').length, 3);
+    assert.ok(renderer.root.findAllByType('button').every(button => button.props.disabled));
+    assert.equal(chrome.desktop, false);
+    await act(async () => chrome.perform('close'));
+    await act(async () => renderer.unmount());
+    await act(async () => { renderer = create(React.createElement(app.StatusBar, { onOpenHistory: () => { historyOpened++; } })); });
+    assert.equal(renderer.root.findByType('footer').props['aria-label'], '窗口状态栏');
+    await act(async () => renderer.root.findAllByType('button').find(button => button.props.title === '最近操作').props.onClick());
+    assert.equal(historyOpened, 1);
+  } finally { await act(async () => renderer?.unmount()); delete globalThis.window; }
+});
+
+test('native window controls handle commands, resizing, focus, duplicate clicks and errors', async () => {
+  globalThis.window = { __TAURI_INTERNALS__: {} };
+  let chrome, renderer, resized, focusChanged, maximized = false, minimized = 0, closed = 0, toggled = 0, disposed = 0;
+  const toggleDone = deferred();
+  globalThis.__nativeWindow = {
+    isMaximized: async () => maximized, isFocused: async () => true,
+    onResized: async callback => { resized = callback; return () => { disposed++; }; },
+    onFocusChanged: async callback => { focusChanged = callback; return () => { disposed++; }; },
+    minimize: async () => { minimized++; }, close: async () => { closed++; },
+    toggleMaximize: async () => { toggled++; await toggleDone.promise; maximized = !maximized; },
+  };
+  function Probe() { chrome = app.useWindowChrome(); return React.createElement(app.WindowControls, { chrome }); }
+  try {
+    await act(async () => { renderer = create(React.createElement(Probe)); });
+    await act(async () => { await chrome.perform('minimize'); await chrome.perform('close'); });
+    assert.equal(minimized, 1); assert.equal(closed, 1);
+    let pending;
+    await act(async () => { pending = chrome.perform('toggleMaximize'); });
+    assert.ok(renderer.root.findAllByType('button').every(button => button.props.disabled));
+    await act(async () => chrome.perform('toggleMaximize'));
+    assert.equal(toggled, 1);
+    await act(async () => { toggleDone.resolve(); await pending; });
+    assert.equal(chrome.maximized, true);
+    assert.ok(renderer.root.findByProps({ 'aria-label': '还原窗口' }));
+    await act(async () => { maximized = false; resized(); focusChanged({ payload: false }); });
+    assert.equal(chrome.maximized, false); assert.equal(chrome.focused, false);
+    globalThis.__nativeWindow.minimize = async () => { throw Error('native command rejected'); };
+    await act(async () => chrome.perform('minimize'));
+    assert.equal(chrome.pending, false);
+    assert.match(JSON.stringify(app.useToastStore.getState().toasts), /native command rejected/);
+  } finally { await act(async () => renderer?.unmount()); assert.equal(disposed, 2); delete globalThis.window; delete globalThis.__nativeWindow; }
+});
+
+test('titlebar drag ignores interactive controls and right clicks, and supports double-click maximize', async () => {
+  globalThis.window = { __TAURI_INTERNALS__: {} };
+  let chrome, renderer, dragged = 0, toggled = 0;
+  globalThis.__nativeWindow = {
+    isMaximized: async () => false, isFocused: async () => true,
+    onResized: async () => () => {}, onFocusChanged: async () => () => {},
+    startDragging: async () => { dragged++; }, toggleMaximize: async () => { toggled++; },
+  };
+  function Probe() { chrome = app.useWindowChrome(); return null; }
+  const event = (button, detail, interactive = false) => ({ button, detail, target: { closest: () => interactive ? {} : null } });
+  try {
+    await act(async () => { renderer = create(React.createElement(Probe)); });
+    await act(async () => { chrome.drag(event(2, 1)); chrome.drag(event(0, 1, true)); chrome.drag(event(0, 2, true)); });
+    assert.equal(dragged, 0); assert.equal(toggled, 0);
+    await act(async () => chrome.drag(event(0, 1)));
+    assert.equal(dragged, 1);
+    await act(async () => chrome.drag(event(0, 2)));
+    assert.equal(toggled, 1);
+  } finally { await act(async () => renderer?.unmount()); delete globalThis.window; delete globalThis.__nativeWindow; }
 });

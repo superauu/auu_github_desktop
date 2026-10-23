@@ -48,8 +48,11 @@ import { IgnoreDialog } from '@/features/git/IgnoreDialog';
 import { WorktreesDialog } from '@/features/git/WorktreesDialog';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import type { WindowChrome } from '@/hooks/useWindowChrome';
+import { WindowControls } from './WindowControls';
 
 interface HeaderProps {
+  windowChrome: WindowChrome;
   navigationOverlay: boolean;
   inspectorOverlay: boolean;
   onToggleNavigation: () => void;
@@ -63,6 +66,7 @@ interface HeaderProps {
 const EMPTY_IGNORE_PATHS: string[] = [];
 
 export const Header: React.FC<HeaderProps> = ({
+  windowChrome,
   navigationOverlay, inspectorOverlay, onToggleNavigation, onToggleInspector,
   onOpenCommandPalette,
   onOpenSettings,
@@ -257,12 +261,12 @@ export const Header: React.FC<HeaderProps> = ({
     <TooltipProvider delayDuration={300}>
       <header className="glass-surface glass-header flex flex-col select-none z-30 shrink-0">
         {/* Tier 1: Multi-Repository Workspace Tabs */}
-        <div className="glass-tabbar h-9 border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
+        <div className="glass-tabbar h-10 border-b border-border/50 pl-2 flex items-center justify-between text-xs" onMouseDown={windowChrome.drag}>
           {/* Left: Branding + Open Repo Tabs + Add Tab (+) */}
-          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+          <div className="flex h-full items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {/* Logo */}
             <div className="flex items-center gap-1.5 px-2 mr-1 shrink-0 select-none">
-              <img src="/logo.svg" alt="AuuGit" className="h-4 w-4 rounded drop-shadow-sm" />
+              <img src="/logo.svg" alt="AuuGit" draggable={false} className="h-4 w-4 rounded drop-shadow-sm" />
               <span className="font-display font-bold text-[12px] tracking-[0.14em] bg-gradient-to-r from-cyan-600 to-sky-400 dark:from-cyan-200 dark:to-sky-300 bg-clip-text text-transparent hidden sm:inline-block">
                 AuuGit
               </span>
@@ -333,7 +337,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Right: Theme Toggle, GitHub Auth, Settings */}
-          <div className="flex items-center gap-1 shrink-0 pl-2">
+          <div className="flex items-center gap-1 shrink-0 pl-2 pr-3" data-no-window-drag>
             {/* Theme Toggle */}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -389,6 +393,7 @@ export const Header: React.FC<HeaderProps> = ({
               <TooltipContent side="bottom">{t('header.openSettingsTooltip')}</TooltipContent>
             </Tooltip>
           </div>
+          <WindowControls chrome={windowChrome} />
         </div>
 
         {/* Tier 2: Main Git Action Ribbon & Breadcrumb Toolbar */}

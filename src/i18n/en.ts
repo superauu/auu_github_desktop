@@ -9,6 +9,14 @@ import { optimizationEn } from './optimization';
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  'window.controls': 'Window controls',
+  'window.minimize': 'Minimize window',
+  'window.maximize': 'Maximize window',
+  'window.restore': 'Restore window',
+  'window.close': 'Close window',
+  'window.statusbar': 'Window status bar',
+  'window.desktopOnly': 'Window controls are available in the desktop app',
+  'window.operationFailed': 'Window action failed',
   ...commitBatchEn,
   ...uiReviewEn,
   ...remoteEn,

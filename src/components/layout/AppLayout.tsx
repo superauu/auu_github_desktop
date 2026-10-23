@@ -30,8 +30,10 @@ import { RecoveryCenterDialog } from '@/features/git/RecoveryCenterDialog';
 import { UpdateDialog } from './UpdateDialog';
 import { gitService } from '@/services/git/GitService';
 import { toast } from '@/stores/toastStore';
+import { useWindowChrome } from '@/hooks/useWindowChrome';
 
 export const AppLayout: React.FC = () => {
+  const windowChrome = useWindowChrome();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git'>('appearance');
@@ -209,9 +211,10 @@ export const AppLayout: React.FC = () => {
   };
 
   return (
-    <div className="app-shell h-screen w-screen flex flex-col overflow-hidden text-foreground select-none font-sans">
+    <div className="app-shell h-screen w-screen flex flex-col overflow-hidden text-foreground select-none font-sans" data-window-maximized={windowChrome.maximized} data-window-focused={windowChrome.focused}>
       {/* Top Header & Action Toolbar */}
       <Header
+        windowChrome={windowChrome}
         navigationOverlay={navigationOverlay}
         inspectorOverlay={inspectorOverlay}
         onToggleNavigation={() => navigationOverlay ? setNavigationOpen(!navigationOpen) : toggleLeftSidebar()}

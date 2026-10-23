@@ -28,27 +28,27 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
     '';
 
   return (
-    <footer className="glass-surface glass-statusbar h-6 px-3 flex items-center justify-between text-[12px] text-muted-foreground select-none shrink-0 z-20">
+    <footer aria-label={t('window.statusbar')} className="glass-surface glass-statusbar h-7 px-3 flex items-center justify-between gap-4 text-[12px] text-muted-foreground select-none shrink-0 z-20">
       {/* Left side info */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3 overflow-hidden">
         {currentRepo ? (
           <>
-            <div className="flex items-center gap-1 text-foreground font-medium">
-              <FolderGit2 className="h-3 w-3 text-primary" />
-              <span>{currentRepo.name}</span>
+            <div className="flex min-w-0 items-center gap-1 text-foreground font-medium" title={currentRepo.path}>
+              <FolderGit2 className="h-3 w-3 shrink-0 text-primary" />
+              <span className="max-w-48 truncate">{currentRepo.name}</span>
             </div>
 
             <div className="h-3 w-[1px] bg-border" />
 
-            <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
-              <GitBranchIcon className="h-3 w-3" />
-              <span>{currentBranchName}</span>
+            <div className="flex min-w-0 items-center gap-1 text-foreground/80" title={currentBranchName}>
+              <GitBranchIcon className="h-3 w-3 shrink-0" />
+              <span className="max-w-36 truncate">{currentBranchName}</span>
             </div>
 
             {status && (
               <>
                 <div className="h-3 w-[1px] bg-border" />
-                <div className="flex items-center gap-2 font-mono text-[12px]" title={t('remote.outgoingHint')}>
+                <div className="statusbar-tracking flex shrink-0 items-center gap-2 font-mono text-[12px]" title={t('remote.outgoingHint')}>
                   <span className="max-w-36 truncate">{status.trackingBranch || t('remote.noUpstream')}</span>
                   <span className="text-git-added">↑ {status.ahead}</span>
                   <span className="text-primary">↓ {status.behind}</span>
@@ -62,7 +62,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
       </div>
 
       {/* Right side status */}
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         {updateVersion && <button className="text-primary hover:underline" onClick={openUpdateDialog}>{t(['ready', 'installed'].includes(updatePhase) ? 'updates.downloaded' : 'updates.title')} · v{updateVersion}</button>}
         {onOpenHistory && <button className="flex items-center gap-1 hover:text-foreground" onClick={onOpenHistory} title={t('operationLog.title')}><History className="h-3 w-3" />{t('operationLog.title')}</button>}
         <div className="flex items-center gap-1 text-[12px]" title={waitHint || undefined}>

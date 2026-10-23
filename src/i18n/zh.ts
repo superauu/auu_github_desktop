@@ -9,6 +9,14 @@ import { optimizationZh } from './optimization';
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
  */
 export const zh = {
+  'window.controls': '窗口控制',
+  'window.minimize': '最小化窗口',
+  'window.maximize': '最大化窗口',
+  'window.restore': '还原窗口',
+  'window.close': '关闭窗口',
+  'window.statusbar': '窗口状态栏',
+  'window.desktopOnly': '窗口控制仅桌面版可用',
+  'window.operationFailed': '窗口操作未完成',
   ...commitBatchZh,
   ...uiReviewZh,
   ...remoteZh,

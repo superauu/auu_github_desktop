@@ -17,8 +17,8 @@ export function useWorkspaceLayout() {
   const navigationOverlay = !navigationPinned;
   const inspectorOverlay = inspectorPresentation === 'drawer' || (inspectorPresentation !== 'inline' && width < 1200);
   const inlineInspector = !inspectorOverlay && !isRightPaneCollapsed && !!currentRepo && ['history', 'changes'].includes(activeTab);
-  // Account for the workspace's outer inset and the two wider panel dividers.
-  const panels = fitWorkspacePanels(width - 32, { left: leftSidebarWidth, right: rightPaneWidth, files: changesFileListWidth }, {
+  // Workspace margins plus the extra width of its two panel dividers.
+  const panels = fitWorkspacePanels(width - 28, { left: leftSidebarWidth, right: rightPaneWidth, files: changesFileListWidth }, {
     left: !navigationOverlay && !isLeftSidebarCollapsed,
     right: inlineInspector,
     files: !!currentRepo && activeTab === 'changes',
