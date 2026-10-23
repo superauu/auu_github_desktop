@@ -113,12 +113,12 @@ export default {
       },
       fontFamily: {
         display: [
-          'Orbitron',
-          'Inter',
+          'Orbitron Variable',
+          'Inter Variable',
           'sans-serif',
         ],
         sans: [
-          'Inter',
+          'Inter Variable',
           '-apple-system',
           'BlinkMacSystemFont',
           '"Segoe UI"',
@@ -130,7 +130,7 @@ export default {
           'sans-serif',
         ],
         mono: [
-          '"JetBrains Mono"',
+          '"JetBrains Mono Variable"',
           '"Cascadia Mono"',
           '"Cascadia Code"',
           'ui-monospace',
