@@ -100,6 +100,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
   if (!open) return null;
 
   const repoPath = currentRepo?.path || '';
+  const canOpenExternal = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window && !!repoPath;
 
   // Handle Resize drag
   const handleMouseDownResize = (e: React.MouseEvent) => {
@@ -212,7 +213,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
   return (
     <div
       style={{ height: isMaximized ? '85%' : `${height}px` }}
-      className="border-t border-border/80 bg-slate-50 dark:bg-[#0f0f11] flex flex-col select-none relative z-20 shadow-2xl transition-[height] duration-150 ease-out cyber-terminal-enter shrink-0"
+      className="glass-terminal workspace-divider border-t flex flex-col select-none relative z-20 transition-[height] duration-150 ease-out cyber-terminal-enter shrink-0"
     >
       {/* Top Resize Handle Bar */}
       <div
@@ -224,17 +225,17 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       </div>
 
       {/* Terminal Titlebar (Matching GitKraken >_ Terminal) */}
-      <div className="h-8 px-3 bg-slate-100/90 dark:bg-[#131316] border-b border-border/60 flex items-center justify-between text-xs shrink-0 select-none">
-        <div className="flex items-center gap-2 text-foreground/90 font-mono font-medium">
-          <TerminalIcon className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+      <div className="glass-terminal-header workspace-divider h-8 px-3 border-b flex items-center justify-between text-xs shrink-0 select-none">
+        <div className="min-w-0 flex items-center gap-2 text-foreground/90 font-mono font-medium">
+          <TerminalIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
           <span className="text-[12px] tracking-wide text-foreground">{t('terminal.title')}</span>
-          <span className="text-[11px] text-muted-foreground/60 truncate max-w-[260px] font-sans">
+          <span className="text-[11px] text-muted-foreground truncate max-w-[260px] font-sans">
             {repoPath}
           </span>
         </div>
 
         {/* Window controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <button
             onClick={() => setHistory([])}
             className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/40"
@@ -244,8 +245,10 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
           </button>
           <button
             onClick={openTerminal}
-            className="p-1 rounded text-muted-foreground hover:text-sky-600 dark:hover:text-sky-400 hover:bg-accent/40"
-            title={t('terminal.openExternal')}
+            disabled={!canOpenExternal}
+            aria-label={t('terminal.openExternal')}
+            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-accent/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={t(canOpenExternal ? 'terminal.openExternal' : 'terminal.desktopOnly')}
           >
             <ExternalLink className="h-3 w-3" />
           </button>
@@ -281,7 +284,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
             <pre
               className={cn(
                 "whitespace-pre-wrap pl-4 font-mono text-[12px] leading-relaxed select-text",
-                item.isError ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-foreground/80"
+                item.isError ? "text-git-deleted" : "text-foreground/80"
               )}
             >
               {item.output}
@@ -297,7 +300,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
 
         {/* Command Input Prompt */}
         <form onSubmit={handleExecute} className="flex items-center gap-1.5 pt-1">
-          <span className="text-sky-700 dark:text-sky-400/80 font-semibold select-none shrink-0">
+          <span className="text-primary font-semibold select-none shrink-0">
             {repoPath} &gt;
           </span>
           <input
@@ -309,7 +312,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
             aria-busy={isExecuting}
             aria-label={t('terminal.placeholder')}
             placeholder={t('terminal.placeholder')}
-            className="flex-1 bg-transparent border-none outline-none text-slate-900 dark:text-foreground font-mono text-[12px] p-0 placeholder:text-muted-foreground/50 focus:ring-0"
+            className="min-w-0 flex-1 bg-transparent border-none outline-none text-foreground font-mono text-[12px] p-0 placeholder:text-muted-foreground focus:ring-0"
             autoFocus
           />
         </form>

@@ -408,7 +408,7 @@ export const WorkingChangesView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
+    <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-transparent">
       {/* Top Conflict In-Progress Banner */}
       <ConflictBanner />
       {splitOpen && currentRepo && <CommitSplitDialog repoPath={currentRepo.path} onClose={() => setSplitOpen(false)} />}
@@ -417,7 +417,7 @@ export const WorkingChangesView: React.FC = () => {
         {/* Changes File List Sub-panel */}
         <div
           style={{ width: panels.files }}
-          className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
+          className="glass-file-list border-r border-border flex flex-col shrink-0 h-full overflow-hidden"
         >
           <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
           <div className="flex items-center gap-2">
@@ -778,7 +778,7 @@ export const WorkingChangesView: React.FC = () => {
       {/* Diff Viewer Pane */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">
         {/* Diff Toolbar */}
-        <div className="px-3 py-2 border-b border-border flex flex-wrap gap-2 text-xs bg-card/40 shrink-0">
+        <div className="workspace-divider px-3 py-2 border-b border-border flex flex-wrap gap-2 text-xs bg-card/40 shrink-0">
           <div className="flex items-center gap-2 min-w-0 w-full">
             <span title={activeFile?.path} className="font-mono text-[13px] font-semibold text-foreground truncate">
               {activeFile?.path || t('rightPane.noFileSelected')}
@@ -808,7 +808,7 @@ export const WorkingChangesView: React.FC = () => {
           {activeFile && (
             <div className="flex flex-wrap items-center gap-2 min-w-0 w-full">
               {/* Content Mode: Diff / Blame / File History */}
-              <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
+              <div className="glass-segmented flex items-center">
                 <button
                   aria-pressed={contentMode === 'diff'} onClick={() => setContentMode('diff')}
                   className={cn(
@@ -878,7 +878,7 @@ export const WorkingChangesView: React.FC = () => {
 
               {/* Unified / Split Toggle */}
               {contentMode === 'diff' && (!showResolver || activeFile.status !== 'conflicted') && (
-                <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
+                <div className="glass-segmented flex items-center">
                   <button
                     aria-pressed={diffMode === 'unified'} onClick={() => setDiffMode('unified')}
                     className={cn(
@@ -934,7 +934,7 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
-        {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && <div className="px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
+        {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && <div className="workspace-divider px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
         {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
         {activeFile?.status === 'conflicted' && showResolver ? (
           <InteractiveConflictResolver

@@ -209,7 +209,7 @@ export const AppLayout: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-background text-foreground select-none font-sans">
+    <div className="app-shell h-screen w-screen flex flex-col overflow-hidden text-foreground select-none font-sans">
       {/* Top Header & Action Toolbar */}
       <Header
         navigationOverlay={navigationOverlay}
@@ -223,15 +223,16 @@ export const AppLayout: React.FC = () => {
       />
 
       {/* Main 3-Column Work Area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="app-workspace flex-1 min-h-0 flex overflow-hidden relative">
         {!navigationOverlay && <LeftSidebar />}
         {navigationOverlay && navigationOpen && <ModalSurface label={t('composer.navigation')} onDismiss={() => setNavigationOpen(false)} className="fixed inset-0 z-40 bg-black/35 flex">
-          <div className="h-full w-72 bg-sidebar flex flex-col shadow-2xl border-r border-border">
+          <div className="glass-surface h-full w-72 flex flex-col shadow-2xl border-r border-border">
             <LeftSidebar inDrawer onNavigate={() => setNavigationOpen(false)} />
           </div>
         </ModalSurface>}
         {!navigationOverlay && !isLeftSidebarCollapsed && (
           <ResizeHandle
+            className="glass-resize"
             currentSize={panels.left}
             onSizeChange={setLeftSidebarWidth}
             minSize={160}
@@ -248,6 +249,7 @@ export const AppLayout: React.FC = () => {
         />
         {!inspectorOverlay && !isRightPaneCollapsed && ['changes', 'history'].includes(activeTab) && currentRepo && (
             <ResizeHandle
+              className="glass-resize"
               currentSize={panels.right}
               onSizeChange={setRightPaneWidth}
               minSize={220}

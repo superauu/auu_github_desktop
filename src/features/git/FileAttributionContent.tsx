@@ -32,7 +32,7 @@ export function FileAttributionContent({ contentMode, diffFontSize, loadingFileD
 
   return contentMode === 'blame' ? (
           /* Blame View */
-          <div style={{ fontSize: diffFontSize }} className="flex-1 overflow-auto font-mono leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text">
+          <div style={{ fontSize: diffFontSize }} className="glass-editor flex-1 overflow-auto font-mono leading-relaxed text-foreground select-text">
             {loadingFileData ? (
               <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground select-none">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -77,7 +77,7 @@ export function FileAttributionContent({ contentMode, diffFontSize, loadingFileD
           </div>
         ) : (
           /* File History View */
-          <div className="flex-1 overflow-auto bg-card dark:bg-[#0c0c0e] text-foreground select-none">
+          <div className="glass-editor flex-1 overflow-auto text-foreground select-none">
             {loadingFileData ? (
               <div className="py-24 flex items-center justify-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />

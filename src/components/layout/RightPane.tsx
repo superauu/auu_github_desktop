@@ -83,15 +83,18 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
 
   if (!currentRepo || !['history', 'changes'].includes(activeTab) || (overlay ? !open : isRightPaneCollapsed)) return null;
   const heading = t(activeTab === 'history' ? 'rightPane.commitDetails' : 'rightPane.inspector');
-  const content = <aside style={{ width: overlay ? undefined : panels.right }} className={overlay ? 'w-full max-w-md h-full bg-card text-foreground flex flex-col border-l border-border shadow-2xl' : 'h-full flex flex-col border-l border-border bg-card/60 text-foreground shrink-0 overflow-hidden'}>
+  const content = <aside style={{ width: overlay ? undefined : panels.right }} className={overlay ? 'glass-surface glass-inspector w-full max-w-md h-full text-foreground flex flex-col shadow-2xl' : 'glass-surface glass-inspector h-full flex flex-col text-foreground shrink-0 overflow-hidden'}>
     <header className="h-12 px-4 flex items-center justify-between border-b border-border shrink-0">
       <h2 className="flex items-center gap-2 font-semibold text-[13px]">{activeTab === 'history' ? <GitCommit className="h-4 w-4 text-muted-foreground" /> : <Layers className="h-4 w-4 text-muted-foreground" />}{heading}</h2>
       {overlay && <Button variant="ghost" size="icon" aria-label={t('common.close')} onClick={onClose}><X className="h-4 w-4" /></Button>}
     </header>
-    <div className={activeTab === 'changes' ? 'flex-1 min-h-0 overflow-hidden text-[13px]' : 'flex-1 min-h-0 overflow-y-auto p-4 text-[13px]'}>
-      {errorMessage && <div role="alert" className="m-3 rounded-lg border border-destructive/30 p-3"><ErrorNotice error={errorMessage} /></div>}
-      {errorMessage && <AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'error', message: errorMessage }} onOpenSettings={onOpenAiSettings} />}
-      <div hidden={activeTab !== 'changes'} className="h-full"><CommitComposer draftState={draft} onOpenAiSettings={onOpenAiSettings} /></div>
+    <div className={activeTab === 'changes' ? 'flex flex-col flex-1 min-h-0 overflow-hidden text-[13px]' : 'flex-1 min-h-0 overflow-y-auto p-4 text-[13px]'}>
+      {errorMessage && <div role="alert" className="inspector-error relative m-3 mb-0 max-h-36 shrink-0 overflow-y-auto rounded-lg border border-destructive/30 p-3">
+        <button type="button" aria-label={t('ui.dismissError')} onClick={() => useRepoStore.getState().setError(null)} className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+        <div className="pr-6"><ErrorNotice error={errorMessage} compact /></div>
+        <div className="mt-2"><AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'error', message: errorMessage }} onOpenSettings={onOpenAiSettings} /></div>
+      </div>}
+      <div hidden={activeTab !== 'changes'} className="min-h-0 flex-1"><CommitComposer draftState={draft} onOpenAiSettings={onOpenAiSettings} /></div>
       {activeTab === 'history' && (selectedCommit ? <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
           <button className="font-mono text-primary min-h-8 flex items-center gap-2" title={t('rightPane.copyHashTitle')} onClick={async () => { try { await navigator.clipboard.writeText(selectedCommit.hash); toast.success(t('rightPane.copyHash')); } catch { toast.error(t('rightPane.operationFailed')); } }}>{selectedCommit.shortHash}<Copy className="h-3.5 w-3.5" /></button>

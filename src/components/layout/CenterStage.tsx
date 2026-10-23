@@ -52,7 +52,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
   };
 
   return (
-    <div className="flex-1 min-w-0 h-full flex flex-col overflow-hidden relative bg-background">
+    <div className="glass-surface glass-stage flex-1 min-w-0 h-full flex flex-col overflow-hidden relative">
       {/* Upper Main Git Graph / View Area */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {/* key 触发重挂载：切视图时轻微上浮淡入（200ms ease-out），reduced-motion 下自动禁用 */}

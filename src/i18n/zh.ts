@@ -122,9 +122,9 @@ export const zh = {
   'settings.cursor.hand': '点击手形',
   'settings.cursor.previewHint': '图示放大 2 倍；移动鼠标或悬停按钮可体验实际大小。',
   'settings.appearance.theme.dark.name': '深色暗黑 (Dark)',
-  'settings.appearance.theme.dark.desc': '石墨炭灰赛博暗色',
+  'settings.appearance.theme.dark.desc': '黑灰底色与磨砂玻璃',
   'settings.appearance.theme.light.name': '明亮浅色 (Light)',
-  'settings.appearance.theme.light.desc': '清晰素雅浅灰',
+  'settings.appearance.theme.light.desc': '中性浅灰与通透面板',
   'settings.appearance.theme.system.name': '跟随系统 (System)',
   'settings.appearance.theme.system.desc': '自动适配系统外观',
   'settings.appearance.languageLabel': '界面语言 (Language)',
@@ -988,7 +988,8 @@ export const zh = {
 
   // ============ 内嵌终端 ============
   'terminal.banner': 'AuuGit 赛博内嵌终端已就绪，支持 Git 与 Shell 操作。',
-  'terminal.gitOnlyHint': "提示: 原生支持所有 git 命令，例如 'git status', 'git log -n 5', 'git diff' 等",
+  'terminal.gitOnlyHint': "提示：输入 Git 命令执行仓库操作，例如 'git status'、'git log -n 5'、'git diff'",
+  'ui.dismissError': '关闭错误提示',
   'terminal.resizeHint': '拖动调整终端高度',
   'terminal.clear': '清屏 (Clear)',
   'terminal.openExternal': '在独立外部系统终端中打开',

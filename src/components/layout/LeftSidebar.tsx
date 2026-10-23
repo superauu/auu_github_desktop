@@ -639,7 +639,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
   return (
     <aside
       style={{ width: inDrawer ? '100%' : panels.left }}
-      className="border-r border-border/80 bg-sidebar/95 flex flex-col select-none shrink-0 h-full overflow-hidden text-xs"
+      className="glass-surface glass-navigation flex flex-col select-none shrink-0 h-full overflow-hidden text-xs"
     >
       <div className="h-10 px-3 border-b border-border flex items-center justify-between gap-2 shrink-0">
         <h2 className="text-[12px] font-semibold text-muted-foreground">{t('composer.navigation')}</h2>
@@ -660,8 +660,9 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         </div>
       </div>
       {/* Top Primary Navigation (Changes, History, PRs, Actions) */}
-      <div className="p-2 space-y-1 border-b border-border/60">
+      <div className="glass-primary-nav p-2 space-y-1 border-b border-border/60">
         <button
+          aria-current={activeTab === 'changes' ? 'page' : undefined}
           onClick={() => { setActiveTab('changes'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
@@ -689,6 +690,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         </button>
 
         <button
+          aria-current={activeTab === 'history' ? 'page' : undefined}
           onClick={() => { setActiveTab('history'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
@@ -709,6 +711,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         </button>
 
         <button
+          aria-current={activeTab === 'pullRequests' ? 'page' : undefined}
           onClick={() => { setActiveTab('pullRequests'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
@@ -732,6 +735,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         </button>
 
         <button
+          aria-current={activeTab === 'actions' ? 'page' : undefined}
           onClick={() => { setActiveTab('actions'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
@@ -757,7 +761,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
       {/* GitKraken-style [List] [Agents] Pill Switcher */}
       <div className="px-2 pt-2 pb-1.5 border-b border-border/40 flex items-center justify-between">
-        <div className="flex items-center bg-secondary/60 rounded-lg p-0.5 border border-border/40 w-full">
+        <div className="glass-segmented flex items-center w-full">
           <button
             aria-pressed={sidebarMode === 'list'} onClick={() => setSidebarMode('list')}
             className={cn(
@@ -835,7 +839,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 aria-label={t('sidebar.filterPlaceholder')} placeholder={t('sidebar.filterPlaceholder')}
-                className="h-7 pl-6 pr-6 text-[12px] bg-secondary/30 border-border/50 focus-visible:ring-1"
+                className="glass-control h-7 pl-6 pr-6 text-[12px] focus-visible:ring-1"
               />
               {searchFilter && (
                 <button

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/utils/cn';
 
 export interface ContextMenuItem {
@@ -82,7 +83,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
   if (!open || items.length === 0) return null;
 
-  return (
+  // Frosted panels establish containing blocks; menus still use viewport coordinates.
+  return createPortal(
     <div
       ref={menuRef}
       role="menu"
@@ -96,7 +98,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         buttons[next]?.focus({ preventScroll: true });
       }}
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      className="fixed z-50 w-56 rounded-xl border border-border/80 bg-popover/95 p-1 shadow-2xl backdrop-blur-xl animate-in fade-in-50 zoom-in-95 select-none"
+      className="glass-dialog fixed z-50 w-56 rounded-xl border border-border/80 p-1 shadow-2xl animate-in fade-in-50 zoom-in-95 select-none"
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -152,6 +154,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           );
         })}
       </div>
-    </div>
+    </div>, document.body
   );
 };

@@ -16,7 +16,7 @@ const pr = (id, title) => ({ id, number: id, title, state: 'open', head: { ref: 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ui-review-'));
   const bundle = path.join(tmp, 'review.cjs');
-  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
+  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export { RightPane } from './src/components/layout/RightPane'; export { EmbeddedTerminalPanel } from './src/components/layout/EmbeddedTerminalPanel'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
     build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
     build.onLoad({ filter: /scroll-area\.tsx$/ }, () => ({ contents: 'import React from "react"; export function ScrollArea({ children }) { return <div>{children}</div>; }', loader: 'jsx' }));
   } }] });
@@ -175,4 +175,44 @@ test('Git error feedback keeps diagnostics available and opens the relevant sett
     renderer.root.findByType('button').props.onClick();
     assert.equal(event.type, 'auugit:open-settings'); assert.equal(event.detail, 'git');
   } finally { await act(async () => renderer?.unmount()); delete globalThis.window; }
+});
+
+test('dismissing an inspector error preserves the commit draft and commit actions', async () => {
+  const store = app.useRepoStore, previous = store.getState();
+  globalThis.window = { innerWidth: 1412, addEventListener() {}, removeEventListener() {} };
+  store.setState({ currentRepo: { path: '/inspector-error-test', currentBranch: 'main' }, activeTab: 'changes', isRightPaneCollapsed: false, errorMessage: 'fatal: could not read remote' });
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.RightPane, { overlay: false, open: true, onClose() {}, onOpenAiSettings() {} })); });
+    await act(async () => renderer.root.findByProps({ id: 'commit-title' }).props.onChange({ target: { value: 'Keep this draft' } }));
+    assert.equal(renderer.root.findAllByProps({ role: 'alert' }).length, 1);
+    assert.match(JSON.stringify(renderer.toJSON()), /提交变更/);
+    assert.match(JSON.stringify(renderer.toJSON()), /提交并推送/);
+    await act(async () => renderer.root.findByProps({ 'aria-label': '关闭错误提示' }).props.onClick());
+    assert.equal(store.getState().errorMessage, null);
+    assert.equal(renderer.root.findAllByProps({ role: 'alert' }).length, 0);
+    assert.equal(renderer.root.findByProps({ id: 'commit-title' }).props.value, 'Keep this draft');
+  } finally { await act(async () => renderer?.unmount()); store.setState(previous, true); delete globalThis.window; }
+});
+
+test('external terminal is unavailable in web preview and available in the desktop app', async () => {
+  const store = app.useRepoStore, previous = store.getState();
+  const originalFrame = globalThis.requestAnimationFrame, originalCancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = () => 1; globalThis.cancelAnimationFrame = () => {};
+  globalThis.window = {};
+  let renderer, opened = 0;
+  store.setState({ currentRepo: { path: '/terminal-test' }, openTerminal: () => { opened++; } });
+  try {
+    await act(async () => { renderer = create(React.createElement(app.EmbeddedTerminalPanel, { open: true, onClose() {} })); });
+    const external = () => renderer.root.findByProps({ 'aria-label': '在独立外部系统终端中打开' });
+    assert.equal(external().props.disabled, true);
+    await act(async () => { window.__TAURI_INTERNALS__ = {}; renderer.update(React.createElement(app.EmbeddedTerminalPanel, { open: true, onClose() {} })); });
+    assert.equal(external().props.disabled, false);
+    await act(async () => external().props.onClick());
+    assert.equal(opened, 1);
+  } finally {
+    await act(async () => renderer?.unmount()); store.setState(previous, true); delete globalThis.window;
+    if (originalFrame) globalThis.requestAnimationFrame = originalFrame; else delete globalThis.requestAnimationFrame;
+    if (originalCancel) globalThis.cancelAnimationFrame = originalCancel; else delete globalThis.cancelAnimationFrame;
+  }
 });

@@ -23,7 +23,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   initTheme: () => {
-    // 产品进入赛博朋克正式阶段：默认呈现完整霓虹暗色形态
+    // Default to the dark workspace while preserving the user's saved preference.
     try {
       const saved = (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'dark';
       const resolvedTheme = resolveEffectiveTheme(saved);

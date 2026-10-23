@@ -290,7 +290,7 @@ export const CommitHistoryView: React.FC = () => {
     : [];
 
   return (
-    <div className="history-view flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
+    <div className="history-view flex-1 h-full flex flex-col overflow-hidden select-none bg-transparent">
       {/* Top Search & Filter Bar */}
       <div className="min-h-9 px-3 py-1 border-b border-border flex flex-wrap gap-2 items-center justify-between text-xs bg-card/40 shrink-0">
         <div className="flex items-center gap-2">

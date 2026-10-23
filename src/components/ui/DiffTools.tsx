@@ -32,8 +32,8 @@ export function DiffTools({ query, onQueryChange, contents, targetId, onReload }
     document.getElementById(targetId)?.querySelector('[data-virtual-count]')?.dispatchEvent(new CustomEvent('auugit-focus-row', { detail: matches[next] }));
   };
   useEffect(() => { setCursor(0); if (query && matches.length) reveal(0); }, [query, matches]);
-  return <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-border px-3 py-1.5 text-[12px]">
-    <input aria-label={t('diff.search')} placeholder={t('diff.search')} value={query} maxLength={128} onChange={event => onQueryChange(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); reveal(cursor + (event.shiftKey ? -1 : 1)); } }} className="h-7 min-w-24 flex-1 max-w-56 rounded-md border border-input bg-background px-2" />
+  return <div className="workspace-divider shrink-0 flex flex-wrap items-center gap-2 border-b border-border px-3 py-1.5 text-[12px]">
+    <input aria-label={t('diff.search')} placeholder={t('diff.search')} value={query} maxLength={128} onChange={event => onQueryChange(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); reveal(cursor + (event.shiftKey ? -1 : 1)); } }} className="glass-control h-7 min-w-24 flex-1 max-w-56 px-2" />
     {query && <span className="text-muted-foreground">{matches.length ? cursor + 1 : 0}/{matches.length}</span>}
     <Button variant="ghost" size="xs" disabled={!matches.length} aria-label={t('diff.previousMatch')} onClick={() => reveal(cursor - 1)}><ChevronUp className="h-3.5 w-3.5" /></Button>
     <Button variant="ghost" size="xs" disabled={!matches.length} aria-label={t('diff.nextMatch')} onClick={() => reveal(cursor + 1)}><ChevronDown className="h-3.5 w-3.5" /></Button>

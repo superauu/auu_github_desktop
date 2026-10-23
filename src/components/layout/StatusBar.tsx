@@ -28,7 +28,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
     '';
 
   return (
-    <footer className="h-6 border-t border-border bg-card/60 backdrop-blur-md px-3 flex items-center justify-between text-[12px] text-muted-foreground select-none shrink-0 z-20">
+    <footer className="glass-surface glass-statusbar h-6 px-3 flex items-center justify-between text-[12px] text-muted-foreground select-none shrink-0 z-20">
       {/* Left side info */}
       <div className="flex items-center gap-3">
         {currentRepo ? (

@@ -122,9 +122,9 @@ export const en = {
   'settings.cursor.hand': 'Link pointer',
   'settings.cursor.previewHint': 'Images are shown at 2× size. Move the mouse or hover a button to try the actual size.',
   'settings.appearance.theme.dark.name': 'Dark',
-  'settings.appearance.theme.dark.desc': 'Graphite charcoal cyber dark',
+  'settings.appearance.theme.dark.desc': 'Charcoal gray, frosted glass',
   'settings.appearance.theme.light.name': 'Light',
-  'settings.appearance.theme.light.desc': 'Clean elegant light gray',
+  'settings.appearance.theme.light.desc': 'Neutral gray, translucent panels',
   'settings.appearance.theme.system.name': 'System',
   'settings.appearance.theme.system.desc': 'Follow system appearance',
   'settings.appearance.languageLabel': 'Language / 界面语言',
@@ -975,7 +975,8 @@ export const en = {
 
 
   'terminal.banner': 'AuuGit embedded cyber terminal ready for Git & Shell operations.',
-  'terminal.gitOnlyHint': "Tip: all git commands are supported natively, e.g. 'git status', 'git log -n 5', 'git diff'",
+  'terminal.gitOnlyHint': "Tip: run Git commands in this repository, e.g. 'git status', 'git log -n 5', 'git diff'",
+  'ui.dismissError': 'Dismiss error',
   'terminal.resizeHint': 'Drag to resize terminal height',
   'terminal.clear': 'Clear',
   'terminal.openExternal': 'Open in external system terminal',

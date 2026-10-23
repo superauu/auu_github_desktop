@@ -255,9 +255,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className="flex flex-col border-b border-border/80 select-none z-30 shrink-0 bg-background/95 dark:bg-[#121215]/95 backdrop-blur-md">
+      <header className="glass-surface glass-header flex flex-col select-none z-30 shrink-0">
         {/* Tier 1: Multi-Repository Workspace Tabs */}
-        <div className="h-8 bg-card/60 dark:bg-[#0b0b0d] border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
+        <div className="glass-tabbar h-8 border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
           {/* Left: Branding + Open Repo Tabs + Add Tab (+) */}
           <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {/* Logo */}
@@ -281,9 +281,9 @@ export const Header: React.FC<HeaderProps> = ({
                     {...keyboardRowProps(repo.name)}
                     onClick={() => switchTab(repo.path)}
                     className={cn(
-                      "h-6 px-2.5 rounded-t-md border-t border-x flex items-center gap-1.5 cursor-pointer text-xs transition-all group shrink-0 select-none",
+                      "glass-repo-tab h-6 px-2.5 rounded-md border flex items-center gap-1.5 cursor-pointer text-xs transition-all group shrink-0 select-none",
                       isActive
-                        ? "bg-background dark:bg-[#16161a] border-border text-foreground font-semibold shadow-xs border-t-primary"
+                        ? "bg-accent/60 border-border text-foreground font-semibold shadow-xs"
                         : "bg-muted/30 dark:bg-muted/15 border-transparent text-muted-foreground hover:bg-muted/60 dark:hover:bg-muted/30 hover:text-foreground"
                     )}
                     title={repo.path}
@@ -391,7 +391,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Tier 2: Main Git Action Ribbon & Breadcrumb Toolbar */}
-        <div className="h-12 px-3 flex items-center justify-between gap-2 text-xs bg-background/80 ">
+        <div className="glass-actionbar h-12 px-3 flex items-center justify-between gap-2 text-xs">
           {/* Left: Sidebar Toggle + Repo/Branch Dropdowns */}
           <div className="flex items-center gap-2 min-w-0">
             <Tooltip>
@@ -417,7 +417,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); }}>
                 <Popover.Trigger asChild>
                 <button
-                  className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
+                  className="glass-control min-h-7 flex items-center gap-1 px-2 py-1 hover:bg-accent/60 transition-colors text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.repository')}</span>
                   <span className="font-semibold text-foreground text-xs truncate max-w-[100px] xl:max-w-[160px]">
@@ -486,10 +486,10 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showBranchMenu} onOpenChange={open => { setShowBranchMenu(open); if (open) setShowRepoMenu(false); }}>
                 <Popover.Trigger asChild>
                 <button
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-accent/60 transition-colors border border-transparent hover:border-border/60 text-left group"
+                  className="glass-control min-h-7 flex items-center gap-1.5 px-2 py-1 hover:bg-accent/60 transition-colors text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.branch')}</span>
-                  <Badge variant="outline" className="h-4.5 px-1.5 text-[12px] font-mono gap-1 bg-accent/40 text-foreground border-border/70 group-hover:border-primary/40">
+                  <Badge variant="outline" className="h-4.5 px-0 text-[12px] font-mono gap-1 bg-transparent text-foreground border-transparent">
                     <GitBranchIcon className="h-2.5 w-2.5 text-git-branch shrink-0" />
                     <span className="max-w-[100px] xl:max-w-[140px] truncate">{currentBranchName}</span>
                   </Badge>
@@ -612,6 +612,7 @@ export const Header: React.FC<HeaderProps> = ({
             </Button>
             <Button
               variant="outline"
+              data-pending-commits={pushAheadCount > 0}
               className={cn('gap-2 px-3', pushAheadCount > 0 && 'border-primary/25 bg-primary/5 hover:border-primary/40 hover:bg-primary/10')}
               onClick={() => void handlePush()}
               title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}

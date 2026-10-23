@@ -27,7 +27,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
   const { t } = useI18n();
 
   return (
-    <div className="flex-1 h-full flex flex-col items-center justify-center p-6 select-none overflow-y-auto relative cyber-scanlines">
+    <div className="glass-surface glass-stage flex-1 min-w-0 h-full flex flex-col items-center justify-center p-6 select-none overflow-y-auto relative">
       <div className="max-w-xl w-full space-y-8 animate-in fade-in-50 duration-300 relative z-10">
         {/* Hero Section */}
         <div className="text-center space-y-3">
