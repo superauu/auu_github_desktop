@@ -1,3 +1,4 @@
+import { diagnoseRepository } from './RepositoryDiagnostics';
 import {
   GitBlameLine,
   GitBranch,
@@ -13,7 +14,6 @@ import {
   IGitService,
   RepositoryInfo,
   RepoHealthDiagnosis,
-  HealthIssue,
   RepoOperationState,
 } from './types';
 import { executeGit, GitExecutionError } from './GitExecutor';
@@ -33,6 +33,7 @@ import { tNow } from '@/i18n';
 import { parseGitHubRemote } from './remoteIdentity';
 import { DiffCache } from './DiffCache';
 import { authorizeRepository } from '@/services/fs/RepositoryAccess';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 export class GitService implements IGitService {
   private readonly diffCache = new DiffCache();
@@ -813,145 +814,7 @@ export class GitService implements IGitService {
   }
 
   async diagnoseRepository(repoPath: string): Promise<RepoHealthDiagnosis> {
-    const issues: HealthIssue[] = [];
-    let score = 100;
-
-    // 1. Check working tree conflicts
-    try {
-      const statusRes = await executeGit(['status', '--porcelain'], repoPath);
-      const conflictLines = statusRes.stdout
-        .split(/\r?\n/)
-        .filter((l) => /^(UU|AA|DD|DU|UD|AU|UA)/.test(l.trim()));
-
-      if (conflictLines.length > 0) {
-        score -= 40;
-        issues.push({
-          type: 'conflict',
-          level: 'error',
-          title: tNow('diag.issue.conflictTitle').replace('{n}', String(conflictLines.length)),
-          description: tNow('diag.issue.conflictDesc').replace(
-            '{files}',
-            `${conflictLines.map((l) => l.slice(3)).slice(0, 3).join(', ')}${conflictLines.length > 3 ? '…' : ''}`
-          ),
-          actionHint: tNow('diag.issue.conflictHint'),
-        });
-      }
-    } catch {
-      // ignore
-    }
-
-    // 2. Check in-progress operations (Merge, Rebase, Cherry-pick)
-    try {
-      const statusText = await executeGit(['status'], repoPath);
-
-      if (statusText.stdout.includes('rebase in progress') || statusText.stdout.includes('You are currently rebasing')) {
-        score -= 30;
-        issues.push({
-          type: 'in_progress',
-          level: 'error',
-          title: tNow('diag.issue.rebaseTitle'),
-          description: tNow('diag.issue.rebaseDesc'),
-          actionHint: tNow('diag.issue.rebaseHint'),
-        });
-      } else if (statusText.stdout.includes('You have unmerged paths') || statusText.stdout.includes('All conflicts fixed but you are still merging')) {
-        score -= 30;
-        issues.push({
-          type: 'in_progress',
-          level: 'error',
-          title: tNow('diag.issue.mergeTitle'),
-          description: tNow('diag.issue.mergeDesc'),
-          actionHint: tNow('diag.issue.mergeHint'),
-        });
-      }
-    } catch {
-      // ignore
-    }
-
-    // 3. Check detached HEAD
-    try {
-      const status = await this.getStatus(repoPath);
-      if (!status.currentBranch || status.currentBranch === 'HEAD' || status.currentBranch.includes('detached')) {
-        score -= 15;
-        issues.push({
-          type: 'detached',
-          level: 'warning',
-          title: tNow('diag.issue.detachedTitle'),
-          description: tNow('diag.issue.detachedDesc'),
-          actionHint: tNow('diag.issue.detachedHint'),
-        });
-      }
-
-      // 4. Check Ahead / Behind
-      if (status.behind > 0) {
-        score -= 10;
-        issues.push({
-          type: 'behind',
-          level: 'warning',
-          title: tNow('diag.issue.behindTitle').replace('{n}', String(status.behind)),
-          description: tNow('diag.issue.behindDesc'),
-          actionHint: tNow('diag.issue.behindHint'),
-        });
-      }
-
-      if (status.ahead > 0) {
-        score -= 5;
-        issues.push({
-          type: 'unpushed',
-          level: 'info',
-          title: tNow('diag.issue.unpushedTitle').replace('{n}', String(status.ahead)),
-          description: tNow('diag.issue.unpushedDesc'),
-          actionHint: tNow('diag.issue.unpushedHint'),
-        });
-      }
-    } catch {
-      // ignore
-    }
-
-    // 5. Check branches without remote upstream
-    try {
-      const branchRes = await executeGit(['branch', '-vv'], repoPath);
-      const unpushedBranches = branchRes.stdout
-        .split(/\r?\n/)
-        .filter((l) => l.trim() && !l.includes('[origin/') && !l.includes('->'));
-
-      if (unpushedBranches.length > 2) {
-        issues.push({
-          type: 'clean',
-          level: 'info',
-          title: tNow('diag.issue.localOnlyTitle').replace('{n}', String(unpushedBranches.length)),
-          description: tNow('diag.issue.localOnlyDesc'),
-        });
-      }
-    } catch {
-      // ignore
-    }
-
-    score = Math.max(0, Math.min(100, score));
-    const status: 'healthy' | 'warning' | 'danger' =
-      score >= 85 ? 'healthy' : score >= 60 ? 'warning' : 'danger';
-
-    if (issues.length === 0) {
-      issues.push({
-        type: 'clean',
-        level: 'success',
-        title: tNow('diag.issue.cleanTitle'),
-        description: tNow('diag.issue.cleanDesc'),
-      });
-    }
-
-    const summary =
-      status === 'healthy'
-        ? tNow('diag.summary.healthy')
-        : status === 'warning'
-        ? tNow('diag.summary.warning')
-        : tNow('diag.summary.danger');
-
-    return {
-      score,
-      status,
-      issues,
-      summary,
-    };
+    return diagnoseRepository(repoPath, path => this.getStatus(path));
   }
 
   async getRepoOperationState(repoPath: string, snapshot?: GitStatusResult): Promise<RepoOperationState> {
@@ -959,13 +822,13 @@ export class GitService implements IGitService {
     const conflictedFiles = status.unstaged.filter((file) => file.status === 'conflicted').map((file) => file.path);
     // Git's path resolver supports linked worktrees and does not depend on localized status prose.
     const names = ['rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'MERGE_HEAD'];
-    const resolved = (await executeGit(['rev-parse', '--path-format=absolute', ...names.flatMap(name => ['--git-path', name])], repoPath)).stdout.trimEnd().split(/\r?\n/);
-    if (resolved.length !== names.length || resolved.some(path => !path)) throw new Error('Unable to resolve Git operation paths');
     let states: boolean[];
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       const { invoke } = await import('@tauri-apps/api/core');
-      states = await invoke<boolean[]>('paths_exist', { paths: resolved });
+      states = await invoke<boolean[]>('paths_exist', { repoPath, gitBinary: useSettingsStore.getState().gitCliPath?.trim() || 'git' });
     } else {
+      const resolved = (await executeGit(['rev-parse', '--path-format=absolute', ...names.flatMap(name => ['--git-path', name])], repoPath)).stdout.trimEnd().split(/\r?\n/);
+      if (resolved.length !== names.length || resolved.some(path => !path)) throw new Error('Unable to resolve Git operation paths');
       const res = await fetch('/api/fs/exists', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
         body: JSON.stringify({ paths: resolved, cwd: repoPath }),

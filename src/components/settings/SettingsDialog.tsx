@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { requestAiText, type AiProtocol } from '@/services/ai/AiClient';
 import { RemotesManager } from './RemotesManager';
+import { RepositoryPermissions } from './RepositoryPermissions';
 import { CursorThemePicker } from './CursorThemePicker';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, LogOut, Key } from 'lucide-react';
@@ -441,6 +442,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 </div>
 
                 <RemotesManager />
+                <RepositoryPermissions />
               </div>
             )}
 

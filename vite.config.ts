@@ -8,6 +8,7 @@ import { version } from './package.json';
 import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io';
 import { directoryScope } from './scripts/dev-directory-scope';
 import { validateGitArguments } from './scripts/git-policy';
+import { createGitBinaryResolver } from './scripts/git-binary';
 import { AI_REQUEST_TIMEOUT_MS } from './src/services/ai/aiLimits';
 
 const MAX_BODY = 8 * 1024 * 1024;
@@ -50,6 +51,7 @@ async function repoFile(repoPath: string, filePath: string): Promise<string> {
 }
 export function gitApiPlugin(): Plugin {
   const allowedPath = directoryScope();
+  const resolveGitBinary = createGitBinaryResolver();
   return {
     name: 'git-api-plugin',
     configureServer(server) {
@@ -78,6 +80,7 @@ export function gitApiPlugin(): Plugin {
           }
           if (req.method !== 'POST') { json(res, 405, { error: 'Method not allowed' }); return; }
           const data = await body(req);
+          if (['/git', '/git-image', '/fs/ignore-file'].includes(url.pathname)) data.gitBinary = resolveGitBinary(data.gitBinary);
           // Scope filesystem requests before dispatch; resolve links and nonexistent descendants.
           if (data.repoPath !== undefined) data.repoPath = await allowedPath(data.repoPath);
           if (url.pathname === '/git') {

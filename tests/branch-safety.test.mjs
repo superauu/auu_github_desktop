@@ -202,7 +202,7 @@ test('line staging and unstaging preserve unselected changes across multiple hun
   let lines = await app.gitService.getFileDiff(repo, 'a.txt');
   const picked = new Set(lines.flatMap((line, index) => (line.content === '-line 1' || line.content === '+first edit  ') ? [index] : []));
   await app.stageSelectedLines(repo, 'a.txt', lines, picked);
-  assert.match(git(repo, 'show', ':a.txt'), /first edit  /); assert.doesNotMatch(git(repo, 'show', ':a.txt'), /second edit/);
+  assert.match(git(repo, 'show', ':a.txt'), /first edit {2}/); assert.doesNotMatch(git(repo, 'show', ':a.txt'), /second edit/);
   assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), working);
   lines = await app.gitService.getFileDiff(repo, 'a.txt', true);
   await app.stageSelectedLines(repo, 'a.txt', lines, new Set(lines.flatMap((line, i) => line.type === 'add' || line.type === 'delete' ? [i] : [])), true);

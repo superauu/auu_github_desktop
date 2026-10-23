@@ -131,7 +131,7 @@ test('local API blocks foreign/simple requests, survives a failed spawn and supp
   const repo = await repository();
   let res = await nativeFetch(base + '/api/git', { method: 'POST', headers: { ...headers, Origin: 'https://foreign.example.invalid' }, body: JSON.stringify({ args: ['--version'], cwd: repo }) }); assert.equal(res.status, 403);
   res = await nativeFetch(base + '/api/git', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ args: ['--version'] }) }); assert.equal(res.status, 403);
-  res = await nativeFetch(base + '/api/git', { method: 'POST', headers, body: JSON.stringify({ args: ['--version'], gitBinary: path.join(tmp, 'missing', 'git.exe') }) }); assert.equal(res.status, 500);
+  res = await nativeFetch(base + '/api/git', { method: 'POST', headers, body: JSON.stringify({ args: ['--version'], gitBinary: path.join(tmp, 'missing', 'git.exe') }) }); assert.equal(res.status, 400);
   res = await nativeFetch(base + '/api/git', { method: 'POST', headers, body: JSON.stringify({ args: ['--version'], cwd: repo }) }); assert.equal(res.status, 200); assert.equal((await res.json()).exitCode, 0);
   res = await nativeFetch(base + '/api/fs/write-file', { method: 'POST', headers, body: JSON.stringify({ repoPath: repo, filePath: '../escape', content: 'no' }) }); assert.equal(res.status, 400);
 });

@@ -9,6 +9,7 @@ mod git_process;
 use git_process::{run_git, run_git_bytes, GitCommandResult};
 mod repository_access;
 mod git_policy;
+mod git_binary;
 use file_io::{atomic_write, read_bytes, read_text, FILE_WRITES, MAX_FILE_BYTES};
 
 /// 去除 Windows canonicalize 返回的 \\?\ 前缀（含 UNC 形式）。
@@ -159,7 +160,7 @@ fn open_terminal(repo_path: String) -> Result<(), String> {
         let powershell = PathBuf::from(std::env::var_os("SystemRoot").ok_or("Missing Windows directory")?)
             .join("System32/WindowsPowerShell/v1.0/powershell.exe");
         Command::new(powershell).args(["-NoLogo", "-NoProfile", "-NoExit"])
-            .current_dir(directory).creation_flags(0x00000010)
+            .current_dir(normalize_display_path(&directory)).creation_flags(0x00000010)
             .spawn().map_err(|error| format!("Unable to open terminal: {error}"))?;
         Ok(())
     }
@@ -168,11 +169,17 @@ fn open_terminal(repo_path: String) -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-fn path_exists(path: String) -> bool { Path::new(&path).exists() }
-
-#[tauri::command(async)]
-fn paths_exist(paths: Vec<String>) -> Result<Vec<bool>, String> {
-    if paths.len() > 4 { return Err("Too many operation paths".into()); }
+fn paths_exist(repo_path: String, git_binary: Option<String>) -> Result<Vec<bool>, String> {
+    repository_access::require(&repo_path)?;
+    let mut args = vec!["rev-parse".into(), "--path-format=absolute".into()];
+    for name in ["rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "MERGE_HEAD"] {
+        args.extend(["--git-path".into(), name.into()]);
+    }
+    let result = run_git(args, repo_path, git_binary, None)?;
+    let paths: Vec<_> = result.stdout.lines().collect();
+    if result.exit_code != 0 || paths.len() != 4 || paths.iter().any(|path| !Path::new(path).is_absolute()) {
+        return Err("Unable to resolve repository operation paths".into());
+    }
     Ok(paths.iter().map(|path| Path::new(path).exists()).collect())
 }
 
@@ -276,7 +283,8 @@ pub struct ListDirsResult {
 
 #[tauri::command(async)]
 fn validate_directory(path: String) -> Result<DirectoryValidationResult, String> {
-    let p = std::path::Path::new(&path);
+    let resolved = repository_access::require_path(&path)?;
+    let p = resolved.as_path();
     if !p.exists() {
         return Ok(DirectoryValidationResult {
             exists: false,
@@ -311,9 +319,9 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
         _ => std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
     };
 
-    let canonical = target.canonicalize().unwrap_or(target.clone());
+    let canonical = repository_access::require_path(&target.to_string_lossy())?;
     let has_git = canonical.join(".git").exists();
-    let parent_path = canonical.parent().map(normalize_display_path);
+    let parent_path = canonical.parent().filter(|parent| repository_access::require_path(&parent.to_string_lossy()).is_ok()).map(normalize_display_path);
 
     let mut directories = Vec::new();
     if let Ok(entries) = fs::read_dir(&canonical) {
@@ -418,7 +426,9 @@ pub fn run() {
             open_terminal,
             repository_access::authorize_repository,
             repository_access::pick_repository_folder,
-            path_exists,
+            repository_access::list_repository_permissions,
+            repository_access::revoke_repository_permission,
+            git_binary::authorize_git_binary,
             paths_exist,
             request_ai_completion,
             get_github_job_logs,

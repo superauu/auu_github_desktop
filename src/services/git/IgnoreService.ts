@@ -62,6 +62,8 @@ export function appendIgnoreRules(content: string, rules: string[]): string {
 async function ignoreFile(repoPath: string, scope: IgnoreScope, content?: string, expectedContent?: string, remove = false): Promise<{ content: string; exists: boolean }> {
   const args = { repoPath, scope, content, expectedContent, remove, gitBinary: useSettingsStore.getState().gitCliPath?.trim() || 'git' };
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    const { authorizeGitBinary } = await import('@/services/fs/RepositoryAccess');
+    await authorizeGitBinary(args.gitBinary);
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke('ignore_file', args);
   }

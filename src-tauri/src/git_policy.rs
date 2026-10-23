@@ -159,6 +159,33 @@ fn safe_config(args: &[String]) -> bool {
                 .any(|suffix| key.ends_with(suffix)))
 }
 
+fn short_option(name: &str, argument: &str) -> Result<bool, String> {
+    if !argument.starts_with('-') || argument.starts_with("--") {
+        return Ok(false);
+    }
+    let value_flags = match name {
+        "clone" => "boju",
+        "init" => "b",
+        "merge" => "mFXS",
+        "rebase" => "XCS",
+        _ => return Ok(false),
+    };
+    let mut flags = argument[1..].chars().peekable();
+    while let Some(flag) = flags.next() {
+        if (matches!(name, "clone" | "init") && flag == 'c')
+            || (name == "clone" && flag == 'u')
+            || (matches!(name, "merge" | "rebase") && flag == 's')
+            || (name == "rebase" && flag == 'x')
+        {
+            return Err(format!("Unsupported Git option: -{flag}"));
+        }
+        if value_flags.contains(flag) {
+            return Ok(flags.peek().is_none());
+        }
+    }
+    Ok(false)
+}
+
 pub fn validate(args: &[String]) -> Result<(), String> {
     let index = command_index(args)?;
     let name = args[index].as_str();
@@ -177,6 +204,9 @@ pub fn validate(args: &[String]) -> Result<(), String> {
         if argument == "--" || argument == "--end-of-options" {
             break;
         }
+        if short_option(name, argument)? {
+            skip_value = true;
+        }
         let option = argument.split('=').next().unwrap_or(argument);
         let blocked = [
             "--upload-pack",
@@ -190,11 +220,14 @@ pub fn validate(args: &[String]) -> Result<(), String> {
             "--output",
             "--config",
             "--config-env",
+            "--strategy",
         ];
         if (option.starts_with("--")
             && option.len() > 2
             && blocked.iter().any(|blocked| blocked.starts_with(option)))
             || (name == "rebase" && argument.starts_with("-x"))
+            || (matches!(name, "clone" | "init") && argument.starts_with("-c"))
+            || (matches!(name, "merge" | "rebase") && argument.starts_with("-s"))
             || (matches!(name, "push" | "fetch" | "pull" | "clone") && argument.starts_with("-u"))
         {
             return Err(format!("Unsupported Git option: {option}"));
@@ -243,6 +276,22 @@ mod tests {
                 "--get",
             ],
             vec!["-c", "sequence.editor=bad", "rebase", "-i", "HEAD"],
+            vec!["clone", "-c", "core.sshCommand=bad", "--", "url", "target"],
+            vec!["clone", "-ccore.sshCommand=bad", "--", "url", "target"],
+            vec![
+                "clone",
+                "-qnc",
+                "core.sshCommand=bad",
+                "--",
+                "url",
+                "target",
+            ],
+            vec!["init", "-c", "core.sshCommand=bad"],
+            vec!["merge", "-s", "custom", "HEAD"],
+            vec!["merge", "-scustom", "HEAD"],
+            vec!["merge", "-nsfoobar", "HEAD"],
+            vec!["merge", "--strategy=custom", "HEAD"],
+            vec!["rebase", "--str=custom", "HEAD"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }
@@ -255,6 +304,11 @@ mod tests {
             vec!["config", "--local", "branch.main.pushRemote", "origin"],
             vec!["config", "--get", "core.ignorecase"],
             vec!["commit", "-m", "--exec=literal message"],
+            vec!["merge", "--signoff", "--end-of-options", "main"],
+            vec!["clone", "-b", "-c-is-a-branch", "--", "url", "target"],
+            vec!["clone", "-qb", "-c-is-a-branch", "--", "url", "target"],
+            vec!["clone", "-qbbranch-containing-c", "--", "url", "target"],
+            vec!["clone", "--", "-c-is-a-url", "target"],
         ] {
             assert!(validate(&args(&values)).is_ok(), "{values:?}");
         }

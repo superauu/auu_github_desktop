@@ -308,6 +308,8 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                     <Loader2 className="h-3 w-3 animate-spin text-primary" />
                     <span>{t('repo.detecting')}</span>
                   </div>
+                ) : pathValidation?.requiresAuthorization ? (
+                  <span className="text-muted-foreground">{t('permissions.chooseFolder')}</span>
                 ) : pathValidation?.isGitRepo ? (
                   <div className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg text-[12px]">
                     <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />

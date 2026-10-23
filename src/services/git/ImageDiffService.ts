@@ -1,8 +1,10 @@
 import { useSettingsStore } from '@/stores/settingsStore';
+import { authorizeGitBinary } from '@/services/fs/RepositoryAccess';
 export const isImagePath = (path: string) => /\.(png|jpe?g|gif|webp|bmp)$/i.test(path);
 export async function readGitImage(repoPath: string, filePath: string, revision: string): Promise<string | null> {
   const gitBinary = useSettingsStore.getState().gitCliPath || 'git';
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    await authorizeGitBinary(gitBinary);
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke<string | null>('read_git_image', { repoPath, filePath, revision, gitBinary });
   }

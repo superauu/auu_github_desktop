@@ -3,6 +3,7 @@ import { toast } from '@/stores/toastStore';
 import { tNow } from '@/i18n';
 import { validateDirectoryPath } from '@/services/fs/DirectoryService';
 import { gitService } from './GitService';
+import { authorizeRepository } from '@/services/fs/RepositoryAccess';
 
 /** Validate saved paths before exposing a repository or starting background Git reads. */
 export async function restoreSavedRepository(cancelled: () => boolean = () => false): Promise<void> {
@@ -13,6 +14,8 @@ export async function restoreSavedRepository(cancelled: () => boolean = () => fa
   try {
     const candidate = JSON.parse(saved);
     if (typeof candidate?.path !== 'string' || !candidate.path.trim()) return;
+    await authorizeRepository(candidate.path);
+    if (!active()) return;
     const directory = await validateDirectoryPath(candidate.path, true);
     if (!active()) return;
     if (!directory.exists || !directory.isDirectory) {

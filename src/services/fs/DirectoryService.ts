@@ -1,10 +1,12 @@
 import { tNow } from '@/i18n';
+import { listRepositoryPermissions } from './RepositoryAccess';
 export interface DirectoryValidationResult {
   exists: boolean;
   isDirectory: boolean;
   isGitRepo: boolean;
   name?: string;
   fullPath?: string;
+  requiresAuthorization?: boolean;
 }
 
 export interface DirectoryEntry {
@@ -54,7 +56,7 @@ export async function validateDirectoryPath(path: string, strict = false): Promi
       return result;
     } catch (e) {
       if (strict) throw e;
-      console.warn('Tauri validate_directory failed, fallback to HTTP:', e);
+      return { exists: false, isDirectory: false, isGitRepo: false, requiresAuthorization: true };
     }
   }
 
@@ -79,13 +81,10 @@ export async function validateDirectoryPath(path: string, strict = false): Promi
 export async function listDirectories(path?: string): Promise<ListDirsResult> {
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   if (isTauri) {
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke<ListDirsResult>('list_directories', { path: path || null });
-      return result;
-    } catch (e) {
-      console.warn('Tauri list_directories failed, fallback to HTTP:', e);
-    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    const initial = path || (await listRepositoryPermissions())[0];
+    if (!initial) throw new Error(tNow('permissions.chooseFolder'));
+    return invoke<ListDirsResult>('list_directories', { path: initial });
   }
 
   const url = path ? `/api/fs/list-dirs?path=${encodeURIComponent(path)}` : '/api/fs/list-dirs';

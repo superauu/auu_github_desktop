@@ -49,6 +49,82 @@ pub fn require(path: &str) -> Result<PathBuf, String> {
     Ok(resolved)
 }
 
+/// Read-only directory browsing stays inside authorized roots, including resolved links.
+pub fn require_path(path: &str) -> Result<PathBuf, String> {
+    let resolved = resolve(Path::new(path))?;
+    if roots()
+        .lock()
+        .map_err(|error| error.to_string())?
+        .iter()
+        .any(|root| resolved.starts_with(root))
+    {
+        return Ok(resolved);
+    }
+    Err("Select or authorize this directory before browsing it".into())
+}
+
+#[tauri::command(async)]
+pub fn list_repository_permissions(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let _guard = crate::file_io::FILE_WRITES
+        .lock()
+        .map_err(|error| error.to_string())?;
+    let store = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("repository-access.json");
+    let saved: HashSet<PathBuf> = match fs::read(store) {
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| error.to_string())?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => HashSet::new(),
+        Err(error) => return Err(error.to_string()),
+    };
+    let mut paths: Vec<_> = saved
+        .iter()
+        .map(|path| crate::normalize_display_path(path))
+        .collect();
+    paths.sort();
+    *roots().lock().map_err(|error| error.to_string())? = saved;
+    Ok(paths)
+}
+
+#[tauri::command(async)]
+pub fn revoke_repository_permission(
+    app: tauri::AppHandle,
+    path: String,
+    open_paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    if open_paths.len() > 128 {
+        return Err("Too many open repositories".into());
+    }
+    let path = resolve(Path::new(&path))?;
+    let _guard = crate::file_io::FILE_WRITES
+        .lock()
+        .map_err(|error| error.to_string())?;
+    let store = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("repository-access.json");
+    let mut saved: HashSet<PathBuf> = match fs::read(&store) {
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| error.to_string())?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => HashSet::new(),
+        Err(error) => return Err(error.to_string()),
+    };
+    saved.remove(&path);
+    fs::create_dir_all(store.parent().ok_or("Missing application data directory")?)
+        .map_err(|error| error.to_string())?;
+    crate::file_io::atomic_write(
+        &store,
+        &serde_json::to_string(&saved).map_err(|error| error.to_string())?,
+        None,
+    )?;
+    *roots().lock().map_err(|error| error.to_string())? = saved;
+    Ok(open_paths
+        .into_iter()
+        .filter(|candidate| resolve(Path::new(candidate)).is_ok_and(|resolved| resolved == path))
+        .collect())
+}
+
 fn grant(app: &tauri::AppHandle, path: PathBuf) -> Result<(), String> {
     let store = app
         .path()
@@ -71,11 +147,11 @@ fn grant(app: &tauri::AppHandle, path: PathBuf) -> Result<(), String> {
         &serde_json::to_string(&saved).map_err(|error| error.to_string())?,
         None,
     )?;
-    drop(guard);
     roots()
         .lock()
         .map_err(|error| error.to_string())?
         .extend(saved);
+    drop(guard);
     Ok(())
 }
 
@@ -85,20 +161,7 @@ pub fn authorize_repository(app: tauri::AppHandle, path: String) -> Result<(), S
     if resolved.exists() && !resolved.is_dir() {
         return Err("Expected a repository directory".into());
     }
-    let store = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?
-        .join("repository-access.json");
-    // Only native code writes this list. Frontend storage is not an authorization source.
-    if let Ok(bytes) = fs::read(store) {
-        let saved: HashSet<PathBuf> =
-            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-        roots()
-            .lock()
-            .map_err(|error| error.to_string())?
-            .extend(saved);
-    }
+    list_repository_permissions(app.clone())?;
     if roots()
         .lock()
         .map_err(|error| error.to_string())?
@@ -148,10 +211,14 @@ mod tests {
         let resolved = resolve(directory.path()).unwrap();
         roots().lock().unwrap().insert(resolved.clone());
         assert_eq!(require(&path).unwrap(), resolved);
+        assert!(require_path(&directory.path().join("nested").to_string_lossy()).is_ok());
+        assert!(require_path(&directory.path().parent().unwrap().to_string_lossy()).is_err());
         let child = directory.path().join("new").join("repository");
         assert!(require(&child.to_string_lossy()).is_err());
         assert_eq!(resolve(&child).unwrap(), resolved.join("new/repository"));
         assert!(resolve(&directory.path().join("../outside")).is_err());
         roots().lock().unwrap().remove(&resolved);
+        assert!(require(&path).is_err());
+        assert!(require_path(&directory.path().join("nested").to_string_lossy()).is_err());
     }
 }

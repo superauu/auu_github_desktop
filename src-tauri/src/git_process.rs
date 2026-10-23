@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
-use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -62,17 +61,7 @@ pub(crate) fn run_git_bytes(
     stdin: Option<String>,
     timeout: Duration,
 ) -> Result<GitBytesResult, String> {
-    let binary = git_binary
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| "git".into());
-    let name = Path::new(&binary)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    if name != "git" && name != "git.exe" {
-        return Err("Expected a Git executable".into());
-    }
+    let binary = crate::git_binary::resolve(git_binary.as_deref())?;
     let mut command = Command::new(&binary);
     command
         .args(args)

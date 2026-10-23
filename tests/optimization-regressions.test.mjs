@@ -18,7 +18,7 @@ const turn = () => new Promise(setImmediate);
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-optimization-'));
   const bundle = path.join(tmp, 'optimization.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/DiffCache'; export * from './src/services/git/ExternalChangePoller'; export * from './src/services/git/GitQueue'; export * from './src/services/updater/UpdateService'; export { useToastStore } from './src/stores/toastStore'; export { useConfirmStore } from './src/stores/confirmStore'; export { useRepoStore } from './src/stores/repoStore'; export { UpdateDialog } from './src/components/layout/UpdateDialog'; export { OperationHistoryDialog } from './src/components/layout/OperationHistoryDialog'; export { executeGit } from './src/services/git/GitExecutor';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle,
+  await build({ stdin: { contents: `export { RepositoryPermissions } from './src/components/settings/RepositoryPermissions'; export * from './src/services/git/DiffCache'; export * from './src/services/git/ExternalChangePoller'; export * from './src/services/git/GitQueue'; export * from './src/services/updater/UpdateService'; export { useToastStore } from './src/stores/toastStore'; export { useConfirmStore } from './src/stores/confirmStore'; export { useRepoStore } from './src/stores/repoStore'; export { UpdateDialog } from './src/components/layout/UpdateDialog'; export { OperationHistoryDialog } from './src/components/layout/OperationHistoryDialog'; export { executeGit } from './src/services/git/GitExecutor';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle,
     external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [
       { name: 'test-updater', setup(build) {
         build.onResolve({ filter: /^@tauri-apps\/plugin-updater$/ }, () => ({ path: 'updater', namespace: 'test-updater' }));
@@ -195,4 +195,30 @@ test('update dialog renders indeterminate progress without an invented percentag
     act(() => renderer.root.findAllByType('button').find(button => button.children.includes('稍后处理')).props.onClick());
     assert.equal(renderer.toJSON(), null); assert.equal(app.useUpdateStore.getState().phase, 'downloading');
   } finally { act(() => renderer.unmount()); delete globalThis.window; }
+});
+
+test('revoking repository access closes all aliases together and keeps other repositories open', async () => {
+  const before = app.useRepoStore.getState(), calls = [], primary = { path: 'E:/repos/one', name: 'one' }, alias = { path: 'E:/links/one', name: 'alias' }, other = { path: 'E:/repos/two', name: 'two' };
+  let renderer;
+  globalThis.window = { __TAURI_INTERNALS__: { invoke: async (command, args) => {
+    calls.push({ command, args });
+    if (command === 'list_repository_permissions') return [primary.path, other.path];
+    if (command === 'revoke_repository_permission') return [primary.path, alias.path];
+    throw new Error('Unexpected native command');
+  } } };
+  app.useRepoStore.setState({ currentRepo: alias, openTabs: [primary, alias, other], refreshAll: async () => {} });
+  try {
+    await act(async () => { renderer = create(React.createElement(app.RepositoryPermissions)); await turn(); });
+    const button = renderer.root.findAllByType('button').find(item => item.props['aria-label']?.endsWith(primary.path));
+    assert.ok(button);
+    await act(async () => { button.props.onClick(); await turn(); });
+    assert.deepEqual(app.useRepoStore.getState().openTabs.map(repo => repo.path), [other.path]);
+    assert.equal(app.useRepoStore.getState().currentRepo.path, other.path);
+    assert.deepEqual(JSON.parse(saved.get('auu_git_open_tabs')).map(repo => repo.path), [other.path]);
+    assert.deepEqual(calls.find(call => call.command === 'revoke_repository_permission').args, { path: primary.path, openPaths: [primary.path, alias.path, other.path] });
+    assert.equal(renderer.root.findAllByType('button').length, 1);
+  } finally {
+    if (renderer) act(() => renderer.unmount());
+    app.useRepoStore.setState(before, true); delete globalThis.window;
+  }
 });
