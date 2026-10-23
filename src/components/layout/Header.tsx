@@ -257,7 +257,7 @@ export const Header: React.FC<HeaderProps> = ({
     <TooltipProvider delayDuration={300}>
       <header className="glass-surface glass-header flex flex-col select-none z-30 shrink-0">
         {/* Tier 1: Multi-Repository Workspace Tabs */}
-        <div className="glass-tabbar h-8 border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
+        <div className="glass-tabbar h-9 border-b border-border/50 px-2 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
           {/* Left: Branding + Open Repo Tabs + Add Tab (+) */}
           <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {/* Logo */}
@@ -279,21 +279,22 @@ export const Header: React.FC<HeaderProps> = ({
                   <div
                     key={repo.path}
                     {...keyboardRowProps(repo.name)}
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={() => switchTab(repo.path)}
                     className={cn(
-                      "glass-repo-tab h-6 px-2.5 rounded-md border flex items-center gap-1.5 cursor-pointer text-xs transition-all group shrink-0 select-none",
+                      "glass-repo-tab h-7 px-2.5 rounded-lg border flex items-center gap-2 cursor-pointer text-xs group shrink-0 select-none",
                       isActive
-                        ? "bg-accent/60 border-border text-foreground font-semibold shadow-xs"
-                        : "bg-muted/30 dark:bg-muted/15 border-transparent text-muted-foreground hover:bg-muted/60 dark:hover:bg-muted/30 hover:text-foreground"
+                        ? "text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                     title={repo.path}
                   >
-                    <FolderGit2 className={cn("h-3 w-3 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-                    <span className="truncate max-w-[130px] text-[12px]">{repo.name}</span>
+                    <FolderGit2 className={cn("h-3.5 w-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                    <span className="truncate max-w-[160px] text-[12px]">{repo.name}</span>
                     {repo.currentBranch && (
                       <span className={cn(
-                        "text-[12px] font-mono px-1 py-0.2 rounded hidden sm:inline-block truncate max-w-[70px]",
-                        isActive ? "bg-primary/10 text-primary font-medium" : "bg-muted text-muted-foreground"
+                        "glass-tab-branch text-[11px] leading-4 font-mono px-1.5 rounded hidden sm:inline-block truncate max-w-[80px]",
+                        isActive ? "text-primary font-medium" : "text-muted-foreground"
                       )}>
                         {repo.currentBranch}
                       </span>
@@ -304,12 +305,12 @@ export const Header: React.FC<HeaderProps> = ({
                         closeTab(repo.path);
                       }}
                       className={cn(
-                        "p-0.5 rounded hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-all ml-0.5",
+                        "h-4 w-4 flex items-center justify-center rounded hover:bg-accent hover:text-foreground text-muted-foreground transition-colors",
                         isActive ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                       )}
                       title={t('header.closeRepoTab')}
                     >
-                      <X className="h-2.5 w-2.5" />
+                      <X className="h-3 w-3" />
                     </button>
                   </div>
                 );
@@ -417,7 +418,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); }}>
                 <Popover.Trigger asChild>
                 <button
-                  className="glass-control min-h-7 flex items-center gap-1 px-2 py-1 hover:bg-accent/60 transition-colors text-left group"
+                  className="glass-control h-8 min-w-0 flex items-center gap-1.5 px-2.5 py-0 leading-none hover:bg-accent/60 transition-colors text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.repository')}</span>
                   <span className="font-semibold text-foreground text-xs truncate max-w-[100px] xl:max-w-[160px]">
@@ -486,13 +487,13 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showBranchMenu} onOpenChange={open => { setShowBranchMenu(open); if (open) setShowRepoMenu(false); }}>
                 <Popover.Trigger asChild>
                 <button
-                  className="glass-control min-h-7 flex items-center gap-1.5 px-2 py-1 hover:bg-accent/60 transition-colors text-left group"
+                  className="glass-control h-8 min-w-0 flex items-center gap-1.5 px-2.5 py-0 leading-none hover:bg-accent/60 transition-colors text-left group"
                 >
                   <span className="text-[12px] text-muted-foreground font-mono">{t('header.branch')}</span>
-                  <Badge variant="outline" className="h-4.5 px-0 text-[12px] font-mono gap-1 bg-transparent text-foreground border-transparent">
+                  <span className="inline-flex min-w-0 items-center gap-1 text-[12px] font-semibold font-mono text-foreground">
                     <GitBranchIcon className="h-2.5 w-2.5 text-git-branch shrink-0" />
                     <span className="max-w-[100px] xl:max-w-[140px] truncate">{currentBranchName}</span>
-                  </Badge>
+                  </span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
                 </button></Popover.Trigger>
 
