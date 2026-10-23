@@ -305,6 +305,10 @@ test('pushing an explicit source branch uses its own tracking and supports a ren
   assert.equal(git(repo, 'config', 'branch.topic/path.remote').trim(), 'upstream');
   assert.equal(git(repo, 'config', 'branch.topic/path.merge').trim(), 'refs/heads/main');
   assert.equal(git(repo, 'config', 'branch.topic/path.pushRemote').trim(), 'origin');
+  assert.equal((await app.gitService.getPushContext(repo, 'topic/path')).pushRemote, 'origin');
+  await app.gitService.push(repo, 'origin', 'topic/path', { setUpstream: false, rememberRemote: false });
+  assert.equal((await app.gitService.getPushContext(repo, 'topic/path')).pushRemote, undefined);
+  assert.equal(git(repo, 'config', 'branch.topic/path.remote').trim(), 'upstream');
   assert.equal(git(repo, 'branch', '--show-current').trim(), 'untracked-current');
 });
 
@@ -333,6 +337,11 @@ test('publishing a new branch can leave tracking unset or explicitly establish a
   assert.equal(spawnSync('git', ['config', '--get', 'branch.fresh.remote'], { cwd: repo }).status, 1);
   await app.gitService.push(repo, 'origin', 'fresh', { setUpstream: true, targetBranch: 'review/fresh' });
   assert.equal(git(repo, 'rev-parse', '--abbrev-ref', '@{u}').trim(), 'origin/review/fresh');
+  await app.gitService.push(repo, 'origin', 'fresh', { setUpstream: false, unsetUpstream: true, targetBranch: 'review/fresh' });
+  assert.equal((await app.gitService.getPushContext(repo, 'fresh')).upstream, undefined);
+  await app.gitService.push(repo, 'origin', 'fresh', { setUpstream: true, rememberRemote: true, targetBranch: 'review/fresh' });
+  const remembered = await app.gitService.getPushContext(repo, 'fresh');
+  assert.equal(remembered.upstream, 'origin/review/fresh'); assert.equal(remembered.pushRemote, 'origin');
   assert.equal(git(origin, 'rev-parse', 'refs/heads/review/fresh'), git(repo, 'rev-parse', 'HEAD'));
 });
 

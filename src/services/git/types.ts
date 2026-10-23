@@ -85,6 +85,7 @@ export interface GitRemote {
 
 export interface PushOptions {
   setUpstream?: boolean;
+  unsetUpstream?: boolean;
   forceWithLease?: boolean;
   targetBranch?: string;
   rememberRemote?: boolean;
@@ -98,6 +99,7 @@ export interface PushContext {
   branch: string;
   remotes: GitRemote[];
   remote?: string;
+  pushRemote?: string;
   targetBranch: string;
   upstream?: string;
 }

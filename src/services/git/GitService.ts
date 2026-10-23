@@ -424,7 +424,7 @@ export class GitService implements IGitService {
       : remotes.find(item => item.name === 'origin')?.name || (remotes.length === 1 ? remotes[0].name : undefined);
     const targetBranch = remote === branchRemote && pushDefault !== 'current' && upstreamRemoteRef?.startsWith('refs/heads/')
       ? upstreamRemoteRef.slice('refs/heads/'.length) : branch;
-    return { branch, remotes, remote, targetBranch, upstream };
+    return { branch, remotes, remote, targetBranch, upstream, pushRemote };
   }
 
   async push(repoPath: string, remote?: string, branch?: string, options?: PushOptions): Promise<PushResult> {
@@ -437,14 +437,21 @@ export class GitService implements IGitService {
     const args = ['push'];
     if (options?.forceWithLease) args.push('--force-with-lease');
     // Inspect the source branch, and preserve an explicit choice to leave tracking unchanged.
-    if (options?.setUpstream ?? !context.upstream) args.push('--set-upstream');
+    if ((options?.setUpstream ?? !context.upstream) && context.upstream !== `${destination}/${target}`) args.push('--set-upstream');
     args.push(destination, `refs/heads/${context.branch}:refs/heads/${target}`);
     await executeGit(args, repoPath);
-    if (options?.rememberRemote) {
-      try { await executeGit(['config', '--local', `branch.${context.branch}.pushRemote`, destination], repoPath); }
-      catch (error) { return { preferenceError: error instanceof Error ? error.message : String(error) }; }
+    const preferenceErrors: string[] = [];
+    if (options?.unsetUpstream && context.upstream === `${destination}/${target}` && !options.setUpstream) {
+      try { await executeGit(['branch', '--unset-upstream', context.branch], repoPath); }
+      catch (error) { preferenceErrors.push(error instanceof Error ? error.message : String(error)); }
     }
-    return {};
+    if (options?.rememberRemote || (options?.rememberRemote === false && context.pushRemote === destination)) {
+      try { await executeGit(options.rememberRemote
+        ? ['config', '--local', `branch.${context.branch}.pushRemote`, destination]
+        : ['config', '--local', '--unset-all', `branch.${context.branch}.pushRemote`], repoPath); }
+      catch (error) { preferenceErrors.push(error instanceof Error ? error.message : String(error)); }
+    }
+    return preferenceErrors.length ? { preferenceError: preferenceErrors.join('\n') } : {};
   }
 
   async pull(repoPath: string, rebase?: boolean): Promise<void> {

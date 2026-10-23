@@ -144,6 +144,7 @@ test('Commit and Push reports a preference warning alongside push success withou
     await act(async () => { renderer = create(React.createElement(app.CommitComposer, { draftState, onOpenAiSettings: noop })); });
     await act(async () => {
       renderer.root.findAllByType('button').find(button => button.props.className.includes('w-full h-9')).props.onClick();
+      await Promise.resolve();
       app.useRemoteDialogStore.getState().settle({ remote: 'origin', branch: 'main', targetBranch: 'main', setUpstream: false, rememberRemote: true });
     });
     assert.equal(pushed, 1);
@@ -251,15 +252,87 @@ test('changing repositories cancels pending remote selection and late configurat
   try {
     let result;
     await act(async () => { renderer = create(React.createElement(app.RemoteOperationDialog)); result = app.pushFromUi(); });
-    assert.equal(remoteSubmit(renderer).props.disabled, true);
+    assert.equal(app.useRemoteDialogStore.getState().pending, null);
     await act(async () => app.useRepoStore.setState({ currentRepo: { ...remoteRepo, path: '/another' } }));
-    assert.equal(await result, false);
     await act(async () => waiting.resolve(remoteContext));
+    assert.equal(await result, false);
     assert.equal(renderer.toJSON(), null);
   } finally {
     await act(async () => { renderer?.unmount(); app.useRemoteDialogStore.getState().settle(null); });
     app.gitService.getPushContext = original; app.useRepoStore.setState({ currentRepo: null });
   }
+});
+
+test('single-remote pushes skip selection while explicit destinations and force pushes still confirm', async () => {
+  const original = app.gitService.getPushContext;
+  const context = { ...remoteContext, remotes: [remoteContext.remotes[0]], upstream: 'origin/review/topic', targetBranch: 'review/topic' };
+  app.gitService.getPushContext = async () => context;
+  app.useRepoStore.setState({ currentRepo: remoteRepo, status: null });
+  let renderer;
+  try {
+    assert.deepEqual(await app.chooseRemoteTarget(remoteRepo.path, 'topic/path'), { remote: 'origin', branch: 'topic/path', targetBranch: 'review/topic', setUpstream: false });
+    assert.equal(app.useRemoteDialogStore.getState().pending, null);
+    context.upstream = undefined;
+    assert.equal((await app.chooseRemoteTarget(remoteRepo.path, 'topic/path')).setUpstream, true);
+    let choice;
+    await act(async () => { renderer = create(React.createElement(app.RemoteOperationDialog)); choice = app.chooseRemoteTarget(remoteRepo.path, 'topic/path', false, 'branch', undefined, true); });
+    assert.equal(renderer.root.findByType('select').props.value, 'origin');
+    await act(async () => app.useRemoteDialogStore.getState().settle(null)); assert.equal(await choice, null);
+    await act(async () => { choice = app.chooseRemoteTarget(remoteRepo.path, 'topic/path', true); });
+    assert.equal(remoteSubmit(renderer).props.disabled, false);
+    await act(async () => remoteSubmit(renderer).props.onClick()); assert.equal((await choice).forceWithLease, true);
+  } finally { await act(async () => { renderer?.unmount(); app.useRemoteDialogStore.getState().settle(null); }); app.gitService.getPushContext = original; app.useRepoStore.setState({ currentRepo: null }); }
+});
+
+test('remote defaults and existing tracking are restored on reopen and follow the selected destination', async () => {
+  const original = app.gitService.getPushContext;
+  app.gitService.getPushContext = async () => ({ ...remoteContext, pushRemote: 'origin', upstream: 'origin/topic/path' });
+  app.useRepoStore.setState({ currentRepo: remoteRepo, status: null });
+  const checks = renderer => renderer.root.findAllByType('input').filter(input => input.props.type === 'checkbox').map(input => input.props.checked);
+  let renderer, choice;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.RemoteOperationDialog)); choice = app.chooseRemoteTarget(remoteRepo.path, 'topic/path'); });
+    assert.deepEqual(checks(renderer), [true, true]);
+    await act(async () => renderer.root.findByType('select').props.onChange({ target: { value: 'upstream' } }));
+    assert.deepEqual(checks(renderer), [false, false]);
+    await act(async () => renderer.root.findByType('select').props.onChange({ target: { value: 'origin' } }));
+    assert.deepEqual(checks(renderer), [true, true]);
+    await act(async () => app.useRemoteDialogStore.getState().settle(null)); await choice;
+    await act(async () => { choice = app.chooseRemoteTarget(remoteRepo.path, 'topic/path'); });
+    assert.deepEqual(checks(renderer), [true, true]);
+    await act(async () => renderer.root.findAllByType('input').filter(input => input.props.type === 'checkbox')[1].props.onChange({ target: { checked: false } }));
+    await act(async () => remoteSubmit(renderer).props.onClick());
+    const selection = await choice; assert.equal(selection.rememberRemote, true); assert.equal(selection.unsetUpstream, true); assert.equal(selection.setUpstream, false);
+  } finally { await act(async () => { renderer?.unmount(); app.useRemoteDialogStore.getState().settle(null); }); app.gitService.getPushContext = original; app.useRepoStore.setState({ currentRepo: null }); }
+});
+
+test('Git activity recognizes subcommands after global options and restarts the phase timer', async () => {
+  assert.equal(app.getGitCommand(['--literal-pathspecs', 'commit', '-m', 'message']), 'commit');
+  assert.equal(app.getGitCommand(['-c', 'core.quotepath=false', '--literal-pathspecs', 'add', '--all']), 'add');
+  assert.equal(app.isReadOnlyGitCommand(['--literal-pathspecs', 'diff', 'HEAD']), true);
+  assert.equal(app.isReadOnlyGitCommand(['--literal-pathspecs', 'commit', '--only']), false);
+  const gate = deferred();
+  const running = app.serializeGitWrite('phase/repo', () => gate.promise, 'transaction');
+  await Promise.resolve();
+  const startedAt = app.getGitWriteActivity('phase/repo').startedAt;
+  await new Promise(resolve => setTimeout(resolve, 10));
+  app.updateGitWriteCommand('phase/repo', 'commit');
+  const commit = app.getGitWriteActivity('phase/repo');
+  assert.equal(commit.command, 'commit'); assert.equal(commit.startedAt, startedAt); assert.ok(commit.phaseStartedAt > startedAt);
+  gate.resolve(); await running; assert.equal(app.getGitWriteActivity('phase/repo'), null);
+});
+
+test('repeated clicks during a direct push never enqueue another push', async () => {
+  const originalContext = app.gitService.getPushContext, originalPush = app.useRepoStore.getState().push;
+  const gate = deferred(); let pushes = 0;
+  app.gitService.getPushContext = async () => ({ ...remoteContext, remotes: [remoteContext.remotes[0]] });
+  app.useRepoStore.setState({ currentRepo: remoteRepo, status: null, push: async () => { pushes++; await gate.promise; } });
+  try {
+    const first = app.pushFromUi(); await Promise.resolve();
+    assert.equal(await app.pushFromUi(), false); assert.equal(pushes, 1);
+    gate.resolve(); assert.equal(await first, true);
+    assert.equal(await app.pushFromUi(), true); assert.equal(pushes, 2);
+  } finally { gate.resolve(); app.gitService.getPushContext = originalContext; app.useRepoStore.setState({ currentRepo: null, push: originalPush }); }
 });
 
 test('remote configuration failures support retry and force push always shows its destination before proceeding', async () => {

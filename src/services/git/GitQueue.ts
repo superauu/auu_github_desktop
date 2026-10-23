@@ -7,8 +7,8 @@ export const getPendingGitWrites = (path: string) => pending.get(repoKey(path)) 
 export const getTotalPendingGitWrites = () => [...pending.values()].reduce((total, count) => total + count, 0);
 export class GitQueueCancelledError extends Error {}
 
-interface Task { command: string; startedAt: number | null; cancelled: string | null }
-export interface GitWriteActivity { command: string; startedAt: number | null; queued: number }
+interface Task { command: string; startedAt: number | null; phaseStartedAt: number | null; cancelled: string | null }
+export interface GitWriteActivity { command: string; startedAt: number | null; phaseStartedAt: number | null; queued: number }
 const tasks = new Map<string, Set<Task>>();
 const activity = new Map<string, GitWriteActivity>();
 export const getGitWriteActivity = (path: string) => activity.get(repoKey(path)) ?? null;
@@ -17,7 +17,7 @@ function publish(key: string) {
   const running = live.find(task => task.startedAt !== null);
   if (live.length) {
     pending.set(key, live.length);
-    activity.set(key, { command: running?.command || live[0].command, startedAt: running?.startedAt ?? null,
+    activity.set(key, { command: running?.command || live[0].command, startedAt: running?.startedAt ?? null, phaseStartedAt: running?.phaseStartedAt ?? null,
       queued: live.length - (running ? 1 : 0) });
   } else { pending.delete(key); activity.delete(key); }
   listeners.forEach(notify => notify());
@@ -34,20 +34,20 @@ export function cancelQueuedGitWrites(path: string, message: string): void {
 export function updateGitWriteCommand(path: string, command: string): void {
   const key = repoKey(path);
   const task = [...(tasks.get(key) || [])].find(task => task.startedAt !== null && task.cancelled === null);
-  if (task && task.command !== command) { task.command = command; publish(key); }
+  if (task) { task.command = command; task.phaseStartedAt = Date.now(); publish(key); }
 }
 
 /** Git index/ref writes serialize per repository; reads remain concurrent. */
 export function serializeGitWrite<T>(repoPath: string, run: () => Promise<T>, command = 'transaction'): Promise<T> {
   const key = repoKey(repoPath);
-  const task: Task = { command, startedAt: null, cancelled: null };
+  const task: Task = { command, startedAt: null, phaseStartedAt: null, cancelled: null };
   if (!tasks.has(key)) tasks.set(key, new Set());
   tasks.get(key)!.add(task);
   publish(key);
   const next = (queues.get(key) || Promise.resolve()).then(async () => {
     try {
       if (task.cancelled !== null) throw new GitQueueCancelledError(task.cancelled);
-      task.startedAt = Date.now(); publish(key);
+      task.startedAt = Date.now(); task.phaseStartedAt = task.startedAt; publish(key);
       return await run();
     } finally {
       tasks.get(key)?.delete(task);
@@ -61,8 +61,19 @@ export function serializeGitWrite<T>(repoPath: string, run: () => Promise<T>, co
   return next;
 }
 
+function commandArgs(args: string[]): string[] {
+  let index = 0;
+  while (index < args.length) {
+    if (['-c', '-C', '--git-dir', '--work-tree', '--namespace', '--config-env'].includes(args[index])) { index += 2; continue; }
+    if (/^--(literal-pathspecs|no-literal-pathspecs|no-optional-locks|no-pager|paginate)$/.test(args[index]) || /^--(git-dir|work-tree|namespace|config-env)=/.test(args[index])) { index++; continue; }
+    break;
+  }
+  return args.slice(index);
+}
+export const getGitCommand = (args: string[]) => commandArgs(args)[0] || 'transaction';
+
 export function isReadOnlyGitCommand(args: string[]): boolean {
-  const [command, ...options] = args;
+  const [command, ...options] = commandArgs(args);
   if (command === 'check-ref-format') return true;
   if (command === 'symbolic-ref') return options.filter(option => !option.startsWith('-')).length === 1 && !options.some(option => ['-d', '--delete'].includes(option));
   if (command === 'worktree') return options[0] === 'list';

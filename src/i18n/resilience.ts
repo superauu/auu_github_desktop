@@ -28,7 +28,9 @@ export const resilienceZh = {
   'activity.command.pull': '正在拉取',
   'activity.command.push': '正在推送',
   'activity.command.clone': '正在克隆',
-  'activity.command.commit': '正在提交',
+  'activity.command.commit': '正在提交（含仓库检查与签名）',
+  'activity.commitHint': 'Git 提交仍未返回，可能正在运行仓库检查或等待签名。当前阶段耗时较长，不会自动重复提交。',
+  'activity.pushHint': '正在等待 Git 推送返回，耗时与网络、对象大小及服务器检查有关，与提交分组数量不直接对应。',
   'activity.command.add': '正在暂存',
   'activity.command.reset': '正在重置',
   'activity.command.restore': '正在还原',
@@ -46,6 +48,10 @@ export const resilienceZh = {
   'activity.command.status': '正在检查工作区',
   'activity.command.rev-parse': '正在检查提交位置',
   'activity.command.diff': '正在检查差异',
+  'activity.command.hash-object': '正在校验文件内容',
+  'activity.command.ls-files': '正在检查暂存区',
+  'activity.command.write-tree': '正在保存暂存区快照',
+  'activity.command.ls-tree': '正在检查暂存区快照',
 };
 
 export const resilienceEn: Record<keyof typeof resilienceZh, string> = {
@@ -78,7 +84,9 @@ export const resilienceEn: Record<keyof typeof resilienceZh, string> = {
   'activity.command.pull': 'Pulling',
   'activity.command.push': 'Pushing',
   'activity.command.clone': 'Cloning',
-  'activity.command.commit': 'Committing',
+  'activity.command.commit': 'Committing (including checks and signing)',
+  'activity.commitHint': 'Git has not returned yet. Repository checks or signing may still be running. This stage is taking longer; no commit will be retried automatically.',
+  'activity.pushHint': 'Waiting for Git push. Duration depends on the network, object sizes and server checks, rather than the number of commit groups.',
   'activity.command.add': 'Staging',
   'activity.command.reset': 'Resetting',
   'activity.command.restore': 'Restoring',
@@ -96,4 +104,8 @@ export const resilienceEn: Record<keyof typeof resilienceZh, string> = {
   'activity.command.status': 'Checking working tree',
   'activity.command.rev-parse': 'Checking commit position',
   'activity.command.diff': 'Checking changes',
+  'activity.command.hash-object': 'Verifying file contents',
+  'activity.command.ls-files': 'Checking staging',
+  'activity.command.write-tree': 'Saving index snapshot',
+  'activity.command.ls-tree': 'Checking index snapshot',
 };

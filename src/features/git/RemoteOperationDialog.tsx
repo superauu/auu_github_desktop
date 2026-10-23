@@ -33,7 +33,7 @@ export function RemoteOperationDialog() {
     setContext(null); setError(''); setRemote(''); setRemember(false); setTracking(false); setAdvancedOpen(false);
     if (!pending) return;
     const load = async () => {
-      if (pending.action === 'branch') return gitService.getPushContext(pending.repoPath, pending.branch);
+      if (pending.action === 'branch') return attempt === 0 && pending.context ? pending.context : gitService.getPushContext(pending.repoPath, pending.branch);
       // Tags can be pushed even in detached HEAD state.
       const remotes = await gitService.listRemotes(pending.repoPath);
       return { remotes, branch: '', targetBranch: '', remote: remotes.length === 1 ? remotes[0].name : undefined };
@@ -41,7 +41,8 @@ export function RemoteOperationDialog() {
     void load().then(value => {
       if (!active) return;
       setContext(value); setRemote(value.remote || ''); setTarget(value.targetBranch);
-      setTracking(pending.action === 'branch' && !value.upstream);
+      setRemember(!!value.pushRemote && value.pushRemote === value.remote);
+      setTracking(pending.action === 'branch' && (!value.upstream || value.upstream === `${value.remote}/${value.targetBranch}`));
       setAdvancedOpen(pending.action === 'branch' && !value.upstream);
     }).catch(reason => { if (active) setError(reason?.message || t('remote.loadFailed')); });
     return () => { active = false; };
@@ -66,6 +67,8 @@ export function RemoteOperationDialog() {
           <select className="w-full rounded-md border border-input bg-background p-2" value={remote} onChange={event => {
             const next = event.target.value; setRemote(next);
             setTarget(next === context.remote ? context.targetBranch : context.branch);
+            setRemember(context.pushRemote === next);
+            setTracking(!context.upstream || context.upstream === `${next}/${next === context.remote ? context.targetBranch : context.branch}`);
           }}>
             <option value="">{t('remote.select')}</option>
             {context.remotes.map(item => <option key={item.name} value={item.name}>{item.name} — {item.pushUrl || item.fetchUrl}</option>)}
@@ -73,11 +76,12 @@ export function RemoteOperationDialog() {
         </label>
         {selected && <p className="text-xs text-muted-foreground break-all">{selected.pushUrl || selected.fetchUrl}</p>}
         {pending.action === 'branch' && <>
-          <label className="block text-sm space-y-1"><span>{t('remote.targetBranch')}</span><Input value={target} onChange={event => setTarget(event.target.value)} /></label>
+          <label className="block text-sm space-y-1"><span>{t('remote.targetBranch')}</span><Input value={target} onChange={event => { setTarget(event.target.value); setTracking(!context.upstream || context.upstream === `${remote}/${event.target.value}`); }} /></label>
           <p className="text-xs text-muted-foreground break-all">{t('remote.upstream')}: {context.upstream || t('remote.noUpstream')}</p>
           <details className="rounded-lg border border-border p-3" open={advancedOpen} onToggle={event => setAdvancedOpen(event.currentTarget.open)}>
             <summary className="cursor-pointer text-sm min-h-7">{t('ui.advanced')}</summary>
             <div className="pt-2 space-y-2">
+              <p className="text-xs text-muted-foreground">{t('remote.saveOptionsHint')}</p>
               <label className="flex items-start gap-2 py-1 text-sm"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />{t('remote.remember')}</label>
               <label className="flex items-start gap-2 py-1 text-sm"><input type="checkbox" checked={tracking} onChange={event => setTracking(event.target.checked)} />{t('remote.setUpstream')}</label>
             </div>
@@ -91,7 +95,7 @@ export function RemoteOperationDialog() {
         <Button variant="outline" onClick={() => settle(null)}>{t('remote.cancel')}</Button>
         <Button variant={deletion ? 'destructive' : 'default'} disabled={!selected || (pending.action === 'branch' && !target.trim())} onClick={() => {
           if (!context || !selected) return;
-          settle({ remote, branch: context.branch, targetBranch: target.trim(), setUpstream: tracking, rememberRemote: remember, forceWithLease: pending.forceWithLease });
+          settle({ remote, branch: context.branch, targetBranch: target.trim(), setUpstream: tracking, unsetUpstream: !tracking && context.upstream === `${remote}/${target.trim()}`, rememberRemote: remember, forceWithLease: pending.forceWithLease });
         }}>{deletion ? t('remote.deleteTag') : t('remote.push')}</Button>
       </footer>
     </div>

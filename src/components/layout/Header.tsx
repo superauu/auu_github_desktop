@@ -146,9 +146,9 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  const handlePush = async () => {
+  const handlePush = async (alwaysChoose = false) => {
     try {
-      if (!await pushFromUi()) return;
+      if (!await pushFromUi(undefined, false, alwaysChoose)) return;
       toast.success(t('header.pushed'));
     } catch (err: any) {
       toast.error(t('header.pushFailed'), err.message);
@@ -597,7 +597,7 @@ export const Header: React.FC<HeaderProps> = ({
           {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button variant="ghost" onClick={handleFetch} title={t('header.fetchAll')}><RefreshCw className="h-4 w-4" /><span className="hidden lg:inline">{t('composer.fetch')}</span></Button>
             <Button variant="outline" onClick={handlePull} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}><ArrowDownToLine className="h-4 w-4" />{t('header.pull')}{behindCount > 0 && <span className="font-mono">{behindCount}</span>}</Button>
-            <Button variant={aheadCount > 0 && status?.trackingBranch === pushDestination ? 'secondary' : 'ghost'} onClick={handlePush} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}><ArrowUpToLine className="h-4 w-4" /><span className="max-w-44 truncate">{pushDestination ? `${t('header.push')} → ${pushDestination}` : t('header.push')}…</span></Button>
+            <Button variant={aheadCount > 0 && status?.trackingBranch === pushDestination ? 'secondary' : 'ghost'} onClick={() => void handlePush()} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}><ArrowUpToLine className="h-4 w-4" /><span className="max-w-44 truncate">{pushDestination ? `${t('header.push')} → ${pushDestination}` : t('header.push')}</span></Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
@@ -621,6 +621,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <DropdownMenu.Item className="menu-item" disabled={isRedoing || !canRedo} onSelect={() => void handleRedo()}><RotateCw className="h-4 w-4" />{t('header.redo')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 border-t border-border" />
                 <DropdownMenu.Item className="menu-item" onSelect={async () => { try { await pull(true); toast.success(t('header.rebasePulled')); } catch (error: any) { toast.error(t('header.rebasePullFailed'), error?.message); } }}><GitPullRequest className="h-4 w-4" />{t('header.pullRebase')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => void handlePush(true)}><ArrowUpToLine className="h-4 w-4" />{t('remote.chooseDestination')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item text-destructive" onSelect={() => void handleForcePush()}><AlertTriangle className="h-4 w-4" />{t('header.forcePush')}</DropdownMenu.Item>
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>

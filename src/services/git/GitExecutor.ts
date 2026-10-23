@@ -1,6 +1,6 @@
 import { useSettingsStore } from '@/stores/settingsStore';
 import { tNow } from '@/i18n';
-import { GitQueueCancelledError, isReadOnlyGitCommand, serializeGitWrite, updateGitWriteCommand } from './GitQueue';
+import { getGitCommand, GitQueueCancelledError, isReadOnlyGitCommand, serializeGitWrite, updateGitWriteCommand } from './GitQueue';
 import { useToastStore } from '@/stores/toastStore';
 
 export interface GitCommandResult {
@@ -32,12 +32,13 @@ export class GitExecutionError extends Error {
 export async function executeGit(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {
   if (isReadOnlyGitCommand(args)) return executeGitNow(args, cwd, stdin);
   const started = Date.now();
+  const command = getGitCommand(args);
   try {
-    const result = await serializeGitWrite(cwd, () => executeGitNow(args, cwd, stdin), args[0]);
-    recordGitOperation(args[0], cwd, started);
+    const result = await serializeGitWrite(cwd, () => executeGitNow(args, cwd, stdin), command);
+    recordGitOperation(command, cwd, started);
     return result;
   } catch (error) {
-    recordGitOperation(args[0], cwd, started, error, args[0] === 'fetch' ? async () => { await executeGit(args, cwd, stdin); } : undefined);
+    recordGitOperation(command, cwd, started, error, command === 'fetch' ? async () => { await executeGit(args, cwd, stdin); } : undefined);
     throw error;
   }
 }
@@ -48,8 +49,8 @@ export async function executeGitTransaction<T>(cwd: string, run: (git: (args: st
   let command = 'transaction';
   try {
     const result = await serializeGitWrite(cwd, () => run((args, stdin) => {
-      if (!isReadOnlyGitCommand(args)) command = args[0];
-      updateGitWriteCommand(cwd, args[0]);
+      if (!isReadOnlyGitCommand(args)) command = getGitCommand(args);
+      updateGitWriteCommand(cwd, getGitCommand(args));
       return executeGitNow(args, cwd, stdin);
     }));
     recordGitOperation(command, cwd, started);

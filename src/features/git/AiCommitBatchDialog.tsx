@@ -14,11 +14,13 @@ import { chooseRemoteTarget } from '@/services/git/RemoteActions';
 import { gitService } from '@/services/git/GitService';
 import { watchPushedCommit } from '@/services/git/PushChecks';
 import { openGitSettings } from '@/utils/errorGuidance';
+import { useGitOperationStatus } from '@/hooks/useGitOperationStatus';
 
 type Phase = 'ready' | 'collecting' | 'analyzing' | 'review' | 'choosing' | 'committing' | 'done' | 'stopped';
 type PushTarget = NonNullable<Awaited<ReturnType<typeof chooseRemoteTarget>>>;
 export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSettings }: { repoPath: string; branch: string; onClose: () => void; onOpenAiSettings: () => void }) {
   const { t, lang } = useI18n();
+  const { activity, elapsed, operationLabel, waitHint } = useGitOperationStatus(repoPath);
   const config = useSettingsStore(state => state.aiConfig);
   const configured = config.provider === 'openai-compatible' && !!config.apiKey.trim();
   const [phase, setPhase] = useState<Phase>('ready');
@@ -117,7 +119,8 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
         {!configured && <div className="space-y-2"><p>{t('batch.configure')}</p><Button variant="outline" onClick={() => { onClose(); onOpenAiSettings(); }}>{t('composer.configureAi')}</Button></div>}
         {analyzing && <p role="status" className="flex gap-2 items-center text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t(phase === 'collecting' ? 'batch.collecting' : 'batch.analyzing')}</p>}
         {phase === 'choosing' && <p role="status">{t('batch.choosing')}</p>}
-        {phase === 'committing' && <p role="status">{t('batch.committing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))}</p>}
+        {phase === 'committing' && <div className="space-y-2 rounded-lg bg-muted p-3"><p role="status">{t('batch.committing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))} {groups[completed.length]?.title}</p><p className="text-xs text-muted-foreground">{t('batch.hookHint')}</p></div>}
+        {(phase === 'committing' || pushState === 'pushing') && activity && <div className="space-y-1 text-sm"><p role="status">{operationLabel} · {elapsed}s</p>{waitHint && <p className="text-xs text-git-tag">{waitHint}</p>}</div>}
         {error && <div role="alert">{explainedError ? <p className="text-sm text-destructive">{error}</p> : errorOrigin === 'ai' ? <div className="space-y-2 text-sm"><p className="text-destructive">{t('batch.analysisFailed')}</p><details className="text-xs text-muted-foreground"><summary className="cursor-pointer min-h-7">{t('ui.error.details')}</summary><pre className="whitespace-pre-wrap break-words max-h-48 overflow-auto">{error}</pre></details><Button variant="outline" onClick={() => { onClose(); onOpenAiSettings(); }}>{t('composer.configureAi')}</Button></div> : <ErrorNotice error={error} onOpenSettings={() => { onClose(); openGitSettings(); }} />}</div>}
         {indexError && <div role="alert" className="text-destructive text-sm">{t('batch.indexError')}<pre className="whitespace-pre-wrap break-words text-xs">{indexError}</pre></div>}
         {phase === 'review' && <>
@@ -140,7 +143,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
         </section>)}
         {phase === 'review' && <Button variant="outline" disabled={groups.length >= 12} onClick={() => setGroups(previous => [...previous, { title: t('batch.newTitle'), body: '', reason: '', files: [] }])}><Plus className="h-4 w-4" />{t('batch.add')}</Button>}
         {phase === 'review' && !valid && <p role="alert" className="text-sm text-git-tag">{t('batch.empty')}</p>}
-        {(phase === 'done' || phase === 'stopped') && <div className="space-y-3"><p role="status" className="font-medium">{t(phase === 'done' ? 'batch.complete' : 'batch.stopped').replace('{n}', String(completed.length))}</p><ol className="space-y-2 text-sm">{completed.map(commit => <li key={commit.hash}><code className="text-primary mr-2">{commit.hash.slice(0, 7)}</code>{commit.title}</li>)}</ol>{recoveryRef && <p className="text-xs text-muted-foreground">{t('batch.recovery')}</p>}</div>}
+        {(phase === 'done' || phase === 'stopped' || (phase === 'committing' && completed.length > 0)) && <div className="space-y-3"><p role="status" className="font-medium">{t(phase === 'stopped' ? 'batch.stopped' : 'batch.complete').replace('{n}', String(completed.length))}</p><ol className="space-y-2 text-sm">{completed.map(commit => <li key={commit.hash}><code className="text-primary mr-2">{commit.hash.slice(0, 7)}</code>{commit.title}</li>)}</ol>{recoveryRef && <p className="text-xs text-muted-foreground">{t('batch.recovery')}</p>}</div>}
         {pushTarget && <p className="text-xs text-muted-foreground break-all">{t('batch.pushTarget')}{branch} → {pushTarget.remote}/{pushTarget.targetBranch}</p>}
         {pushState !== 'idle' && <p role={pushState === 'failed' ? 'alert' : 'status'} className="text-sm">{t(pushState === 'pushing' ? 'batch.pushing' : pushState === 'failed' ? 'batch.pushFailed' : 'batch.pushed')}</p>}
         {plan && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer min-h-7">{t('batch.context')}</summary><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words select-text bg-muted p-3 rounded-md">{plan.context}</pre></details>}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PushOptions } from '@/services/git/types';
+import type { PushContext, PushOptions } from '@/services/git/types';
 
 export type RemoteAction = 'branch' | 'tag' | 'tags' | 'deleteTag';
 export interface RemoteSelection extends PushOptions { remote: string; branch?: string }
@@ -10,6 +10,7 @@ export interface RemoteRequest {
   branch?: string;
   tag?: string;
   forceWithLease?: boolean;
+  context?: PushContext;
 }
 interface Pending extends RemoteRequest { resolve: (selection: RemoteSelection | null) => void }
 

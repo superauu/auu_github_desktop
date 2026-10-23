@@ -25,7 +25,7 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-commit-batch-'));
   const outfile = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/CommitBatchService'; export * from './src/services/ai/AiCommitBatchService'; export { AiCommitBatchDialog } from './src/features/git/AiCommitBatchDialog'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useSettingsStore } from './src/stores/settingsStore'; export { useWorkspaceSessionStore, draftKey } from './src/stores/workspaceSessionStore'; export { useRemoteDialogStore } from './src/stores/remoteDialogStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'batch-ui', setup(build) {
+  await build({ stdin: { contents: `export * from './src/services/git/CommitBatchService'; export { getGitWriteActivity } from './src/services/git/GitQueue'; export * from './src/services/ai/AiCommitBatchService'; export { AiCommitBatchDialog } from './src/features/git/AiCommitBatchDialog'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useSettingsStore } from './src/stores/settingsStore'; export { useWorkspaceSessionStore, draftKey } from './src/stores/workspaceSessionStore'; export { useRemoteDialogStore } from './src/stores/remoteDialogStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'batch-ui', setup(build) {
     build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
     build.onLoad({ filter: /AiClient\.ts$/ }, () => ({ contents: 'export const requestAiText = (...args) => globalThis.__batchAiRequest(...args);' }));
   } }] });
@@ -53,6 +53,27 @@ test('batch planning is read-only and creates reviewed commits in order with bod
   assert.equal(git(repo, 'show', 'HEAD~1:README.md'), 'base docs\n');
   assert.match(git(repo, 'log', '-2', '--format=%B'), /Why this feature exists/);
   assert.equal(git(repo, 'status', '--porcelain'), ''); assert.equal(git(repo, 'rev-parse', result.recoveryRef).trim(), before);
+});
+
+test('four groups run repository hooks once per commit and expose the actual in-flight commit phase', async () => {
+  const repo = await fixture();
+  for (const name of ['a.txt', 'README.md', 'c.txt', 'd.txt']) await write(repo, name, 'changed\n');
+  const hooks = path.join(repo, '.git', 'hooks'), marker = path.join(hooks, 'batch-waiting'), release = path.join(hooks, 'batch-release');
+  await fs.writeFile(path.join(hooks, 'pre-commit'), '#!/bin/sh\nhooks=$(git rev-parse --git-path hooks)\nprintf "called\\n" >> "$hooks/batch-calls"\ntouch "$hooks/batch-waiting"\ni=0\nwhile [ ! -f "$hooks/batch-release" ]; do\n i=$((i+1)); [ "$i" -lt 150 ] || exit 1\n sleep 0.1\ndone\n', { mode: 0o755 });
+  const plan = await app.commitBatchService.capture(repo), progress = [];
+  const outcome = app.commitBatchService.execute(plan, ['a.txt', 'README.md', 'c.txt', 'd.txt'].map((name, i) => group(`chore: group ${i + 1}`, [name])), { onProgress: list => progress.push(list.length) }).then(value => ({ value }), error => ({ error }));
+  try {
+    const deadline = Date.now() + 15000;
+    while (!await fs.stat(marker).catch(() => null) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+    assert.ok(await fs.stat(marker));
+    assert.equal(app.getGitWriteActivity(repo).command, 'commit');
+    assert.ok(app.getGitWriteActivity(repo).phaseStartedAt);
+  } finally { await fs.writeFile(release, 'continue'); }
+  const result = await outcome;
+  if (result.error) throw result.error;
+  assert.equal(result.value.completed.length, 4); assert.deepEqual(progress, [1, 2, 3, 4]);
+  assert.equal((await fs.readFile(path.join(hooks, 'batch-calls'), 'utf8')).trim().split(/\r?\n/).length, 4);
+  assert.equal(git(repo, 'status', '--porcelain'), ''); assert.equal(app.getGitWriteActivity(repo), null);
 });
 
 test('batch refuses same-path content changes, staging changes and additional files after analysis', async () => {
@@ -191,6 +212,21 @@ test('cancelling destination creates no commits; failed push retries only push a
     await act(async () => { button(renderer, '重试推送').props.onClick(); button(renderer, '重试推送').props.onClick(); });
     assert.equal(executions, 1); assert.equal(pushes, 2); assert.match(JSON.stringify(renderer.toJSON()), /全部提交已推送/);
   } finally { await fixture.cleanup(); }
+});
+
+test('batch execution displays completed commits and the current group while later checks are still running', async () => {
+  const fixture = await uiFixture(), { renderer } = fixture, gate = deferred();
+  const first = { hash: 'first', title: 'feat: a', files: ['a'] };
+  app.commitBatchService.execute = async (_plan, _groups, options) => { options.onProgress([first]); return gate.promise; };
+  try {
+    await act(async () => button(renderer, '确认创建 2 个提交').props.onClick());
+    const preview = JSON.stringify(renderer.toJSON());
+    assert.match(preview, /正在执行提交 2 \/ 2/); assert.match(preview, /已创建 1 个提交/);
+    assert.match(preview, /每个提交都会执行仓库配置的检查和签名/);
+    assert.match(preview, /first/); assert.equal(button(renderer, '关闭').props.disabled, true);
+    await act(async () => gate.resolve({ completed: [first, { hash: 'after', title: 'docs: b', files: ['b'] }] }));
+    assert.match(JSON.stringify(renderer.toJSON()), /已创建 2 个提交/);
+  } finally { gate.resolve({ completed: [first] }); await fixture.cleanup(); }
 });
 
 test('partial commit failures display completed results and cannot reexecute the stale plan', async () => {
