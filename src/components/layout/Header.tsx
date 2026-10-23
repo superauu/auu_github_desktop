@@ -242,6 +242,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const aheadCount = status?.ahead || 0;
+  const pushAheadCount = status?.trackingBranch === pushDestination ? aheadCount : 0;
   const behindCount = status?.behind || 0;
   const hasChanges = status ? !status.isClean : false;
   const currentBranchName =
@@ -598,7 +599,11 @@ export const Header: React.FC<HeaderProps> = ({
           {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
             <Button variant="ghost" onClick={handleFetch} title={t('header.fetchAll')}><RefreshCw className="h-4 w-4" /><span className="hidden lg:inline">{t('composer.fetch')}</span></Button>
             <Button variant="outline" onClick={handlePull} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}><ArrowDownToLine className="h-4 w-4" />{t('header.pull')}{behindCount > 0 && <span className="font-mono">{behindCount}</span>}</Button>
-            <Button variant={aheadCount > 0 && status?.trackingBranch === pushDestination ? 'secondary' : 'ghost'} onClick={() => void handlePush()} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}><ArrowUpToLine className="h-4 w-4" /><span className="max-w-28 truncate">{pushTarget ? `${t('header.push')} → ${pushTarget.remote}` : t('header.push')}</span></Button>
+            <Button variant={pushAheadCount > 0 ? 'secondary' : 'ghost'} onClick={() => void handlePush()} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}>
+              <ArrowUpToLine className="h-4 w-4" />
+              <span className="max-w-28 truncate">{pushTarget ? `${t('header.push')} → ${pushTarget.remote}` : t('header.push')}</span>
+              {pushAheadCount > 0 && <span className="shrink-0 font-mono tabular-nums">{pushAheadCount}</span>}
+            </Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
