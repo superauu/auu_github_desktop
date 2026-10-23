@@ -8,6 +8,7 @@ import { version } from './package.json';
 import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io';
 import { directoryScope } from './scripts/dev-directory-scope';
 import { validateGitArguments } from './scripts/git-policy';
+import { AI_REQUEST_TIMEOUT_MS } from './src/services/ai/aiLimits';
 
 const MAX_BODY = 8 * 1024 * 1024;
 const json = (res: ServerResponse, status: number, data: unknown) => {
@@ -92,7 +93,12 @@ export function gitApiPlugin(): Plugin {
               await allowedPath(data.args[data.args.indexOf('--') + 1]);
             }
           }
-          if (url.pathname === '/fs/exists') data.path = await allowedPath(path.resolve(data.cwd || process.cwd(), data.path));
+          if (url.pathname === '/fs/exists') {
+            if (data.paths !== undefined) {
+              if (!Array.isArray(data.paths) || data.paths.length > 4 || data.paths.some((value: unknown) => typeof value !== 'string')) throw new Error('Invalid operation paths');
+              data.paths = await Promise.all(data.paths.map((value: string) => allowedPath(path.resolve(data.cwd || process.cwd(), value))));
+            } else data.path = await allowedPath(path.resolve(data.cwd || process.cwd(), data.path));
+          }
           if (url.pathname === '/fs/validate-path') data.path = await allowedPath(data.path);
           if (url.pathname === '/ai/completion') {
             // Local development relay: same origin only, no credential persistence or redirects.
@@ -110,7 +116,7 @@ export function gitApiPlugin(): Plugin {
               headers[name] = value;
             }
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 60_000);
+            const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
             const disconnected = () => { if (!res.writableEnded) controller.abort(); };
             res.on('close', disconnected);
             try {
@@ -252,6 +258,9 @@ export function gitApiPlugin(): Plugin {
             return;
           }
           if (url.pathname === '/fs/exists') {
+            if (data.paths) {
+              json(res, 200, { exists: await Promise.all(data.paths.map((value: string) => fs.access(value).then(() => true, () => false))) }); return;
+            }
             json(res, 200, { exists: await fs.access(path.resolve(data.cwd || process.cwd(), data.path)).then(() => true, () => false) }); return;
           }
           if (url.pathname === '/fs/validate-path') {

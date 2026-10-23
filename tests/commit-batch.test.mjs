@@ -25,7 +25,7 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-commit-batch-'));
   const outfile = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/CommitBatchService'; export { getGitWriteActivity } from './src/services/git/GitQueue'; export * from './src/services/ai/AiCommitBatchService'; export { AiCommitBatchDialog } from './src/features/git/AiCommitBatchDialog'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useSettingsStore } from './src/stores/settingsStore'; export { useWorkspaceSessionStore, draftKey } from './src/stores/workspaceSessionStore'; export { useRemoteDialogStore } from './src/stores/remoteDialogStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'batch-ui', setup(build) {
+  await build({ stdin: { contents: `export * from './src/services/git/CommitBatchService'; export { getGitWriteActivity } from './src/services/git/GitQueue'; export * from './src/services/ai/AiCommitBatchService'; export { AiCommitBatchDialog } from './src/features/git/AiCommitBatchDialog'; export { CommitPlanningProgress } from './src/features/git/CommitPlanningProgress'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useSettingsStore } from './src/stores/settingsStore'; export { useWorkspaceSessionStore, draftKey } from './src/stores/workspaceSessionStore'; export { useRemoteDialogStore } from './src/stores/remoteDialogStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'batch-ui', setup(build) {
     build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
     build.onLoad({ filter: /AiClient\.ts$/ }, () => ({ contents: 'export const requestAiText = (...args) => globalThis.__batchAiRequest(...args);' }));
   } }] });
@@ -53,6 +53,42 @@ test('batch planning is read-only and creates reviewed commits in order with bod
   assert.equal(git(repo, 'show', 'HEAD~1:README.md'), 'base docs\n');
   assert.match(git(repo, 'log', '-2', '--format=%B'), /Why this feature exists/);
   assert.equal(git(repo, 'status', '--porcelain'), ''); assert.equal(git(repo, 'rev-parse', result.recoveryRef).trim(), before);
+});
+
+test('capture batches literal file fingerprints and reports real preparation progress', async () => {
+  const repo = await fixture();
+  const names = ['a.txt', 'README.md', '--literal.txt', 'bracket [name].txt', '中文 space.txt'];
+  if (process.platform !== 'win32') names.push('line\nbreak.txt');
+  for (const name of names) await write(repo, name, `changed ${name}\n`);
+  const previous = globalThis.fetch, requests = [], progress = [];
+  globalThis.fetch = (url, init) => { if (url === '/api/git') requests.push(JSON.parse(init.body).args); return previous(url, init); };
+  let plan;
+  try { plan = await app.commitBatchService.capture(repo, undefined, value => progress.push(value)); }
+  finally { globalThis.fetch = previous; }
+  const hashes = requests.filter(args => args.includes('hash-object'));
+  assert.equal(hashes.length, 2);
+  for (const name of names) assert.equal(plan.fingerprints[name], git(repo, 'hash-object', '--no-filters', '--', name).trim());
+  assert.equal(progress[0].stage, 'waiting');
+  assert.ok(progress.some(value => value.stage === 'reading' && value.completed === names.length && value.total === names.length));
+  assert.equal(progress.at(-1).stage, 'checking'); assert.equal(progress.at(-1).completed, names.length);
+  assert.equal(git(repo, 'show', ':a.txt'), 'base\n');
+});
+
+test('capture still rejects same-length edits during parallel preparation and cancels before AI', async () => {
+  const repo = await fixture(); await write(repo, 'a.txt', 'one\n');
+  const previous = globalThis.fetch; let hashes = 0;
+  globalThis.fetch = async (url, init) => {
+    if (url === '/api/git' && JSON.parse(init.body).args.includes('hash-object') && ++hashes === 2) await write(repo, 'a.txt', 'two\n');
+    return previous(url, init);
+  };
+  try { await assert.rejects(app.commitBatchService.capture(repo), /变化|changed/); }
+  finally { globalThis.fetch = previous; }
+  const controller = new AbortController();
+  await assert.rejects(app.commitBatchService.capture(repo, controller.signal, progress => {
+    if (progress.stage === 'reading' && progress.total > 0) controller.abort();
+  }), { name: 'AbortError' });
+  assert.equal(git(repo, 'show', ':a.txt'), 'base\n');
+  assert.equal(await fs.readFile(path.join(repo, 'a.txt'), 'utf8'), 'two\n');
 });
 
 test('four groups run repository hooks once per commit and expose the actual in-flight commit phase', async () => {
@@ -168,8 +204,43 @@ test('AI planning uses the configured adapter, full manifest and bounded excerpt
   const controller = new AbortController(); controller.abort(); await assert.rejects(app.analyzeCommitBatch({}, { provider: 'openai-compatible', apiKey: 'test' }, 'zh', controller.signal), { name: 'AbortError' });
 });
 
+test('AI cancellation returns promptly even when the provider ignores its signal', async () => {
+  globalThis.__batchAiRequest = () => new Promise(() => {});
+  const controller = new AbortController();
+  const result = app.analyzeCommitBatch({ files: [{ path: 'a' }], context: 'changes', truncated: false }, { provider: 'openai-compatible', apiKey: 'test' }, 'zh', controller.signal);
+  controller.abort();
+  await assert.rejects(result, { name: 'AbortError' });
+});
+
+test('AI planning times out at the relay deadline with a timeout message instead of user cancellation', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  globalThis.__batchAiRequest = () => new Promise(() => {});
+  const result = app.analyzeCommitBatch({ files: [{ path: 'a' }], context: 'changes', truncated: false }, { provider: 'openai-compatible', apiKey: 'test' }, 'zh', new AbortController().signal);
+  const rejected = assert.rejects(result, /60 秒|60 seconds/);
+  context.mock.timers.tick(60000);
+  await rejected;
+  context.mock.timers.reset();
+});
+
 const text = node => typeof node === 'string' ? node : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
 const button = (renderer, label) => renderer.root.findAllByType('button').find(value => text(value) === label);
+
+test('planning progress distinguishes file collection, model waiting and completed stage timings', async () => {
+  const now = Date.now(); let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.CommitPlanningProgress, { phase: 'collecting', progress: { stage: 'reading', completed: 2, total: 5 }, timing: { startedAt: now } })); });
+    assert.equal(renderer.root.findByType('progress').props.value, 2);
+    assert.equal(renderer.root.findByType('progress').props.max, 5);
+    assert.match(JSON.stringify(renderer.toJSON()), /正在读取当前变更/);
+    await act(async () => renderer.update(React.createElement(app.CommitPlanningProgress, { phase: 'analyzing', progress: { stage: 'checking', completed: 5, total: 5 }, timing: { startedAt: now - 13000, collectedAt: now - 12000 } })));
+    assert.match(JSON.stringify(renderer.toJSON()), /等待模型返回完整方案/);
+    assert.equal(renderer.root.findAllByType('progress').length, 0);
+    await act(async () => renderer.update(React.createElement(app.CommitPlanningProgress, { phase: 'review', progress: { stage: 'checking', completed: 5, total: 5 }, timing: { startedAt: 1000, collectedAt: 2250, finishedAt: 5250 } })));
+    const result = renderer.root.findAllByType('p').map(text).join(' ');
+    assert.match(result, /读取变更 1.3s/); assert.match(result, /AI 分析 3.0s/);
+  } finally { if (renderer) act(() => renderer.unmount()); }
+});
+
 async function uiFixture() {
   const originals = { capture: app.commitBatchService.capture, execute: app.commitBatchService.execute, status: app.gitService.getStatus, push: app.gitService.push, context: app.gitService.getPushContext, refresh: app.useRepoStore.getState().refreshAll, config: app.useSettingsStore.getState().aiConfig };
   const plan = { repoPath: '/batch-ui', branch: 'main', head: 'before', files: [{ path: 'a' }, { path: 'b' }], skipped: [], context: 'working changes', truncated: false };

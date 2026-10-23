@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Loader2, Plus, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
@@ -9,7 +9,8 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { toast } from '@/stores/toastStore';
 import { analyzeCommitBatch } from '@/services/ai/AiCommitBatchService';
-import { commitBatchService, CommitBatchError, validateBatchGroups, type CommitBatchPlan, type BatchCommitGroup, type CompletedBatchCommit } from '@/services/git/CommitBatchService';
+import { commitBatchService, CommitBatchError, validateBatchGroups, type CommitBatchPlan, type BatchCommitGroup, type CompletedBatchCommit, type BatchCaptureProgress } from '@/services/git/CommitBatchService';
+import { CommitPlanningProgress, type PlanningTiming } from './CommitPlanningProgress';
 import { chooseRemoteTarget } from '@/services/git/RemoteActions';
 import { gitService } from '@/services/git/GitService';
 import { watchPushedCommit } from '@/services/git/PushChecks';
@@ -24,6 +25,8 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
   const config = useSettingsStore(state => state.aiConfig);
   const configured = config.provider === 'openai-compatible' && !!config.apiKey.trim();
   const [phase, setPhase] = useState<Phase>('ready');
+  const [captureProgress, setCaptureProgress] = useState<BatchCaptureProgress>({ stage: 'waiting', completed: 0, total: 0 });
+  const [timing, setTiming] = useState<PlanningTiming | null>(null);
   const [plan, setPlan] = useState<CommitBatchPlan | null>(null);
   const [groups, setGroups] = useState<BatchCommitGroup[]>([]);
   const [summary, setSummary] = useState('');
@@ -41,7 +44,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
   const current = () => { const state = useRepoStore.getState(); return state.currentRepo?.path === repoPath && (state.status?.currentBranch || state.currentRepo.currentBranch) === branch; };
   const analyzing = phase === 'collecting' || phase === 'analyzing';
   const writing = phase === 'committing' || phase === 'choosing' || pushState === 'pushing';
-  const explainedError = ['batch.cancelled', 'batch.stale', 'batch.invalid', 'batch.localBranch', 'batch.tooMany', 'batch.renameOverlap', 'batch.submodule', 'batch.noNetChanges', 'safety.operationActive', 'explain.configure'].some(key => t(key) === error);
+  const explainedError = ['batch.cancelled', 'batch.analysisTimeout', 'batch.stale', 'batch.invalid', 'batch.localBranch', 'batch.tooMany', 'batch.renameOverlap', 'batch.submodule', 'batch.noNetChanges', 'safety.operationActive', 'explain.configure'].some(key => t(key) === error);
   let valid = false;
   try { if (plan && groups.length) { validateBatchGroups(groups, plan.files.map(file => file.path)); valid = true; } } catch { /* Inline guidance is shown below. */ }
 
@@ -50,18 +53,24 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
     abort.current?.abort(); const controller = new AbortController(); abort.current = controller;
     const settings = latest.current;
     const id = ++generation.current;
+    setTiming({ startedAt: Date.now() });
+    setCaptureProgress({ stage: 'waiting', completed: 0, total: 0 });
     setPhase('collecting'); setErrorOrigin('git'); setPlan(null); setError(''); setIndexError(''); setGroups([]); setSummary(''); setCompleted([]); setRecoveryRef(''); setPushTarget(null); setPushState('idle');
     try {
-      const snapshot = await commitBatchService.capture(repoPath, controller.signal);
+      const snapshot = await commitBatchService.capture(repoPath, controller.signal, progress => {
+        if (id === generation.current && mounted.current) setCaptureProgress(progress);
+      });
       if (id !== generation.current || !mounted.current) return;
       if (!current() || snapshot.branch !== branch) throw new Error(t('batch.stale'));
+      setTiming(previous => previous && ({ ...previous, collectedAt: Date.now() }));
       setPlan(snapshot); setPhase('analyzing'); setErrorOrigin('ai'); setModel(settings.config.model); setEndpoint(settings.config.endpoint);
       const result = await analyzeCommitBatch(snapshot, settings.config, settings.lang, controller.signal);
       if (id !== generation.current || !mounted.current) return;
       if (!current()) throw new Error(t('batch.stale'));
+      setTiming(previous => previous && ({ ...previous, finishedAt: Date.now() }));
       setGroups(result.groups); setSummary(result.summary); setModel(settings.config.model); setPhase('review');
     } catch (reason) {
-      if (id === generation.current && mounted.current) { setError(reason instanceof Error ? reason.name === 'AbortError' ? t('batch.cancelled') : reason.message : String(reason)); setPhase('ready'); }
+      if (id === generation.current && mounted.current) { setTiming(previous => previous && ({ ...previous, finishedAt: Date.now() })); setError(reason instanceof Error ? reason.name === 'AbortError' ? t('batch.cancelled') : reason.message : String(reason)); setPhase('ready'); }
     }
   };
   useEffect(() => {
@@ -107,7 +116,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
   const move = (index: number, delta: number) => setGroups(previous => { const copy = [...previous]; [copy[index], copy[index + delta]] = [copy[index + delta], copy[index]]; return copy; });
   const moveFile = (path: string, destination: number) => setGroups(previous => previous.map((group, index) => ({ ...group, files: index === destination ? [...group.files, path] : group.files.filter(file => file !== path) })));
   const merge = (index: number) => setGroups(previous => previous.flatMap((group, i) => i === index ? [] : i === index - 1 ? [{ ...group, body: [group.body, previous[index].body].filter(Boolean).join('\n\n'), files: [...group.files, ...previous[index].files] }] : [group]));
-  const cancelAnalysis = () => { generation.current++; abort.current?.abort(); setPhase('ready'); setError(t('batch.cancelled')); };
+  const cancelAnalysis = () => { generation.current++; abort.current?.abort(); setTiming(previous => previous && ({ ...previous, finishedAt: Date.now() })); setPhase('ready'); setError(t('batch.cancelled')); };
 
   return <ModalSurface label={t('batch.title')} onDismiss={onClose} dismissible={!writing} className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
     <div className="w-full max-w-4xl max-h-[90dvh] bg-card border border-border rounded-xl shadow-2xl flex flex-col">
@@ -117,7 +126,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
         <p className="text-xs text-muted-foreground break-all">{repoPath} · {branch}</p>
         {(configured || model) && <p className="text-xs text-muted-foreground break-all">{t('batch.provider')}{model || config.model} · {endpoint || config.endpoint}</p>}
         {!configured && <div className="space-y-2"><p>{t('batch.configure')}</p><Button variant="outline" onClick={() => { onClose(); onOpenAiSettings(); }}>{t('composer.configureAi')}</Button></div>}
-        {analyzing && <p role="status" className="flex gap-2 items-center text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t(phase === 'collecting' ? 'batch.collecting' : 'batch.analyzing')}</p>}
+        {timing && <CommitPlanningProgress phase={phase} progress={captureProgress} timing={timing} />}
         {phase === 'choosing' && <p role="status">{t('batch.choosing')}</p>}
         {phase === 'committing' && <div className="space-y-2 rounded-lg bg-muted p-3"><p role="status">{t('batch.committing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))} {groups[completed.length]?.title}</p><p className="text-xs text-muted-foreground">{t('batch.hookHint')}</p></div>}
         {(phase === 'committing' || pushState === 'pushing') && activity && <div className="space-y-1 text-sm"><p role="status">{operationLabel} · {elapsed}s</p>{waitHint && <p className="text-xs text-git-tag">{waitHint}</p>}</div>}

@@ -170,6 +170,12 @@ fn open_terminal(repo_path: String) -> Result<(), String> {
 #[tauri::command(async)]
 fn path_exists(path: String) -> bool { Path::new(&path).exists() }
 
+#[tauri::command(async)]
+fn paths_exist(paths: Vec<String>) -> Result<Vec<bool>, String> {
+    if paths.len() > 4 { return Err("Too many operation paths".into()); }
+    Ok(paths.iter().map(|path| Path::new(path).exists()).collect())
+}
+
 fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder().timeout(Duration::from_secs(20)).connect_timeout(Duration::from_secs(10))
         .redirect(reqwest::redirect::Policy::none()).user_agent("AuuGit").build().map_err(|e| e.to_string())
@@ -413,6 +419,7 @@ pub fn run() {
             repository_access::authorize_repository,
             repository_access::pick_repository_folder,
             path_exists,
+            paths_exist,
             request_ai_completion,
             get_github_job_logs,
             store_ai_key,

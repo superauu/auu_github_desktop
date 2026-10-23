@@ -960,25 +960,21 @@ export class GitService implements IGitService {
     // Git's path resolver supports linked worktrees and does not depend on localized status prose.
     const names = ['rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'MERGE_HEAD'];
     const resolved = (await executeGit(['rev-parse', '--path-format=absolute', ...names.flatMap(name => ['--git-path', name])], repoPath)).stdout.trimEnd().split(/\r?\n/);
-    const exists = async (name: string) => {
-      const path = resolved[names.indexOf(name)];
-      if (!path) throw new Error('Unable to resolve Git operation paths');
-      const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-      if (isTauri) {
-        const { invoke } = await import('@tauri-apps/api/core');
-        return invoke<boolean>('path_exists', { path });
-      }
+    if (resolved.length !== names.length || resolved.some(path => !path)) throw new Error('Unable to resolve Git operation paths');
+    let states: boolean[];
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      states = await invoke<boolean[]>('paths_exist', { paths: resolved });
+    } else {
       const res = await fetch('/api/fs/exists', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
-        body: JSON.stringify({ path, cwd: repoPath }),
+        body: JSON.stringify({ paths: resolved, cwd: repoPath }),
       });
       if (!res.ok) throw new Error('Unable to read repository operation state');
-      return (await res.json()).exists as boolean;
-    };
-    const [rebasing, cherryPicking, merging] = await Promise.all([
-      Promise.all([exists('rebase-merge'), exists('rebase-apply')]).then((states) => states.some(Boolean)),
-      exists('CHERRY_PICK_HEAD'), exists('MERGE_HEAD'),
-    ]);
+      states = (await res.json()).exists;
+    }
+    if (!Array.isArray(states) || states.length !== names.length || states.some(value => typeof value !== 'boolean')) throw new Error('Invalid repository operation state');
+    const rebasing = states[0] || states[1], cherryPicking = states[2], merging = states[3];
     const type = rebasing ? 'rebase' : cherryPicking ? 'cherry-pick' : merging ? 'merge' : 'none';
     return { type, conflictedFiles, inConflict: conflictedFiles.length > 0,
       isAllResolved: type !== 'none' && conflictedFiles.length === 0 };

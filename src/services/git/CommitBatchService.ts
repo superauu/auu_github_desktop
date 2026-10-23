@@ -11,6 +11,7 @@ export interface CommitBatchPlan {
   status: GitFileChange[]; fingerprints: Record<string, string>; index: string; context: string; truncated: boolean;
 }
 export interface CompletedBatchCommit { hash: string; title: string; files: string[] }
+export interface BatchCaptureProgress { stage: 'waiting' | 'reading' | 'checking'; completed: number; total: number }
 export class CommitBatchError extends Error {
   constructor(message: string, public completed: CompletedBatchCommit[], public recoveryRef?: string, public indexError?: string) { super(message); this.name = 'CommitBatchError'; }
 }
@@ -21,8 +22,27 @@ const pathsFor = (plan: Pick<CommitBatchPlan, 'files'>, paths: string[]) => [...
 const nul = (paths: string[]) => paths.join('\0') + '\0';
 const aborted = (signal?: AbortSignal) => { if (signal?.aborted) throw new DOMException('Aborted', 'AbortError'); };
 
-async function fingerprint(git: Git, file: GitFileChange) {
-  return file.status === 'deleted' ? 'deleted' : (await git(['hash-object', '--no-filters', '--', file.path])).stdout.trim();
+async function readFingerprints(git: Git, files: GitFileChange[], signal?: AbortSignal) {
+  const result: Record<string, string> = Object.create(null);
+  const batches: string[][] = [];
+  let batch: string[] = [], length = 0;
+  for (const file of files) {
+    if (file.status === 'deleted') { result[file.path] = 'deleted'; continue; }
+    // Keep argument lists well below Windows' process limit, including escaped quotes.
+    if (batch.length && (batch.length >= 64 || length + file.path.length * 2 + 3 > 8000)) {
+      batches.push(batch); batch = []; length = 0;
+    }
+    batch.push(file.path); length += file.path.length * 2 + 3;
+  }
+  if (batch.length) batches.push(batch);
+  for (const paths of batches) {
+    aborted(signal);
+    const hashes = (await git(['hash-object', '--no-filters', '--', ...paths])).stdout.trim().split(/\r?\n/);
+    aborted(signal);
+    if (hashes.length !== paths.length || hashes.some(hash => !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(hash))) throw new Error('Unable to fingerprint working files');
+    paths.forEach((path, index) => { result[path] = hashes[index]; });
+  }
+  return result;
 }
 
 export function validateBatchGroups(groups: BatchCommitGroup[], paths: string[]) {
@@ -47,55 +67,75 @@ async function assertCurrent(git: Git, plan: CommitBatchPlan, completed: Complet
   const expected = plan.status.filter(file => !done.has(file.path) && !done.has(file.oldPath || ''));
   if (signature(entries(current)) !== signature(expected)) throw new Error(tNow('batch.stale'));
   const remaining = new Map(expected.map(file => [file.path, file]));
-  for (const file of remaining.values()) {
-    aborted(signal);
-    if (await fingerprint(git, file) !== plan.fingerprints[file.path]) throw new Error(tNow('batch.stale'));
-  }
+  const fingerprints = await readFingerprints(git, [...remaining.values()], signal);
+  for (const file of remaining.values()) if (fingerprints[file.path] !== plan.fingerprints[file.path]) throw new Error(tNow('batch.stale'));
   const index = (await git(['ls-files', '--stage', '-z'])).stdout;
   const withoutDone = (value: string) => value.split('\0').filter(entry => entry && !done.has(entry.slice(entry.indexOf('\t') + 1))).sort().join('\0');
   if (withoutDone(index) !== withoutDone(plan.index)) throw new Error(tNow('batch.stale'));
 }
 
 export const commitBatchService = {
-  async capture(repoPath: string, signal?: AbortSignal): Promise<CommitBatchPlan> {
+  async capture(repoPath: string, signal?: AbortSignal, onProgress?: (progress: BatchCaptureProgress) => void): Promise<CommitBatchPlan> {
+    onProgress?.({ stage: 'waiting', completed: 0, total: 0 });
     return executeGitTransaction(repoPath, async git => {
       aborted(signal);
+      onProgress?.({ stage: 'reading', completed: 0, total: 0 });
       const status = await gitService.getStatus(repoPath);
-      if ((await gitService.getRepoOperationState(repoPath, status)).type !== 'none') throw new Error(tNow('safety.operationActive'));
-      let branch: string;
-      try { branch = (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'])).stdout.trim(); }
-      catch { throw new Error(tNow('batch.localBranch')); }
+      let branch = status.currentBranch;
+      // Porcelain already identifies local and unborn branches. Resolve only its detached sentinel.
+      if (!branch || branch === 'DETACHED') {
+        try { branch = (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'])).stdout.trim(); }
+        catch { throw new Error(tNow('batch.localBranch')); }
+      }
       const all = entries(status), unique = new Map<string, GitFileChange>();
       // The worktree version takes precedence over a partially staged version.
       for (const file of all) unique.set(file.path, { ...unique.get(file.path), ...file });
       if (!unique.size) throw new Error(tNow('err.aiNoFiles'));
       if (unique.size > 200) throw new Error(tNow('batch.tooMany'));
       for (const file of unique.values()) if (file.oldPath && unique.has(file.oldPath)) throw new Error(tNow('batch.renameOverlap'));
-      const index = (await git(['ls-files', '--stage', '-z'])).stdout;
-      if (index.split('\0').some(entry => entry.startsWith('160000 ') && unique.has(entry.slice(entry.indexOf('\t') + 1)))) throw new Error(tNow('batch.submodule'));
       const head = headOf(status);
-      const changed = head ? new Set((await git(['diff', '--name-only', '--no-renames', '-z', head, '--'])).stdout.split('\0').filter(Boolean)) : null;
+      const [operation, indexResult, changedResult] = await Promise.all([
+        gitService.getRepoOperationState(repoPath, status),
+        git(['ls-files', '--stage', '-z']),
+        head ? git(['diff', '--name-only', '--no-renames', '-z', head, '--']) : null,
+      ]);
+      aborted(signal);
+      if (operation.type !== 'none') throw new Error(tNow('safety.operationActive'));
+      const index = indexResult.stdout;
+      if (index.split('\0').some(entry => entry.startsWith('160000 ') && unique.has(entry.slice(entry.indexOf('\t') + 1)))) throw new Error(tNow('batch.submodule'));
+      const changed = changedResult ? new Set(changedResult.stdout.split('\0').filter(Boolean)) : null;
       const files = [...unique.values()].filter(file => changed ? changed.has(file.path) || (!!file.oldPath && changed.has(file.oldPath)) || file.status === 'untracked' : file.status !== 'deleted');
       const skipped = [...unique.keys()].filter(path => !files.some(file => file.path === path));
       if (!files.length) throw new Error(tNow('batch.noNetChanges'));
-      const fingerprints: Record<string, string> = Object.create(null);
-      for (const file of unique.values()) { aborted(signal); fingerprints[file.path] = await fingerprint(git, file); }
+      onProgress?.({ stage: 'reading', completed: 0, total: files.length });
+      const fingerprints = await readFingerprints(git, [...unique.values()], signal);
       const manifest = JSON.stringify(files.map(({ path, oldPath, status }) => ({ path, oldPath, status })));
       if (manifest.length > 16000) throw new Error(tNow('batch.tooMany'));
       const budget = Math.min(2400, Math.floor((48000 - manifest.length) / files.length));
       let truncated = false;
-      const excerpts: string[] = [];
-      for (const file of files) {
-        aborted(signal);
-        let diff: string;
-        if (file.status === 'untracked') diff = (await git(['diff', '--no-index', '--no-color', '--no-ext-diff', '--no-textconv', '--', '/dev/null', file.path])).stdout;
-        else if (head) diff = (await git(['--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-textconv', head, '--', ...pathsFor({ files }, [file.path])])).stdout;
-        else diff = (await gitService.getFileDiff(repoPath, file.path, file.staged, false)).map(line => line.content).join('\n');
-        if (diff.length > budget) truncated = true;
-        excerpts.push(`${JSON.stringify(file.path)}:\n${diff.slice(0, budget)}`);
-      }
+      const excerpts: string[] = new Array(files.length);
+      let cursor = 0, completed = 0, failed = false;
+      await Promise.all(Array.from({ length: Math.min(4, files.length) }, async () => {
+        while (cursor < files.length && !failed) {
+          const index = cursor++, file = files[index];
+          try {
+            aborted(signal);
+            let diff: string;
+            if (file.status === 'untracked') diff = (await git(['diff', '--no-index', '--no-color', '--no-ext-diff', '--no-textconv', '--', '/dev/null', file.path])).stdout;
+            else if (head) diff = (await git(['--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-textconv', head, '--', ...pathsFor({ files }, [file.path])])).stdout;
+            else diff = (await gitService.getFileDiff(repoPath, file.path, file.staged, false)).map(line => line.content).join('\n');
+            aborted(signal);
+            if (diff.length > budget) truncated = true;
+            excerpts[index] = `${JSON.stringify(file.path)}:\n${diff.slice(0, budget)}`;
+            onProgress?.({ stage: 'reading', completed: ++completed, total: files.length });
+          } catch (error) { failed = true; throw error; }
+        }
+      }));
       const plan = { repoPath, branch, head, files, skipped, status: all, fingerprints, index, truncated, context: `ALL FILES (exact paths):\n${manifest}\nDIFF EXCERPTS:\n${excerpts.join('\n\n')}` };
+      onProgress?.({ stage: 'checking', completed: 0, total: unique.size });
       await assertCurrent(git, plan, [], signal);
+      aborted(signal);
+      onProgress?.({ stage: 'checking', completed: unique.size, total: unique.size });
       return plan;
     });
   },

@@ -66,6 +66,10 @@ test('development filesystem and Git endpoints reject outside roots and linked d
   assert.equal((await post('fs/read-file', { repoPath: outside, filePath: 'secret.txt' })).status, 400);
   assert.equal((await post('fs/validate-path', { path: outside })).status, 400);
   assert.equal((await post('fs/exists', { path: path.join(outside, 'secret.txt') })).status, 400);
+  assert.equal((await post('fs/exists', { paths: [path.join(temporary, 'safe'), path.join(outside, 'secret.txt')] })).status, 400);
+  assert.equal((await post('fs/exists', { paths: Array(5).fill(path.join(temporary, 'safe')) })).status, 400);
+  const bulk = await post('fs/exists', { paths: [temporary, path.join(temporary, 'missing')] });
+  assert.equal(bulk.status, 200); assert.deepEqual((await bulk.json()).exists, [true, false]);
   assert.equal((await fetch(base + '/api/fs/list-dirs?path=' + encodeURIComponent(outside), { headers })).status, 400);
   assert.equal((await post('git', { args: ['-C', outside, 'status'], cwd: temporary })).status, 400);
   assert.equal((await post('git', { args: ['-c', 'core.quotepath=false', 'clone', '--', temporary, path.join(outside, 'clone')], cwd: temporary })).status, 400);

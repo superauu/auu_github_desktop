@@ -597,12 +597,35 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
-            <Button variant="ghost" onClick={handleFetch} title={t('header.fetchAll')}><RefreshCw className="h-4 w-4" /><span className="hidden lg:inline">{t('composer.fetch')}</span></Button>
-            <Button variant="outline" onClick={handlePull} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}><ArrowDownToLine className="h-4 w-4" />{t('header.pull')}{behindCount > 0 && <span className="font-mono">{behindCount}</span>}</Button>
-            <Button variant={pushAheadCount > 0 ? 'secondary' : 'ghost'} onClick={() => void handlePush()} title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}>
-              <ArrowUpToLine className="h-4 w-4" />
-              <span className="max-w-28 truncate">{pushTarget ? `${t('header.push')} → ${pushTarget.remote}` : t('header.push')}</span>
-              {pushAheadCount > 0 && <span className="shrink-0 font-mono tabular-nums">{pushAheadCount}</span>}
+            <Button variant="outline" className="gap-2 px-3" onClick={handleFetch} title={t('header.fetchAll')}>
+              <RefreshCw className="h-4 w-4" />
+              <span className="hidden font-medium lg:inline">{t('composer.fetch')}</span>
+            </Button>
+            <Button variant="outline" className="gap-2 px-3" onClick={handlePull} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}>
+              <ArrowDownToLine className="h-4 w-4" />
+              <span className="font-medium">{t('header.pull')}</span>
+              {behindCount > 0 && (
+                <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-semibold leading-none text-muted-foreground tabular-nums">
+                  {behindCount}
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              className={cn('gap-2 px-3', pushAheadCount > 0 && 'border-primary/25 bg-primary/5 hover:border-primary/40 hover:bg-primary/10')}
+              onClick={() => void handlePush()}
+              title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}
+            >
+              <ArrowUpToLine className={cn('h-4 w-4', pushAheadCount > 0 && 'text-primary')} />
+              <span className="inline-flex min-w-0 items-baseline gap-1.5">
+                <span className="font-medium">{t('header.push')}</span>
+                {pushTarget && <span className="max-w-24 truncate text-[11px] text-muted-foreground">→ {pushTarget.remote}</span>}
+              </span>
+              {pushAheadCount > 0 && (
+                <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold leading-none text-primary tabular-nums">
+                  {pushAheadCount}
+                </span>
+              )}
             </Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
