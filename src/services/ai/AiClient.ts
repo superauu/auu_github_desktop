@@ -5,6 +5,11 @@ import { requestAiCompletion } from './AiTransport';
 export type AiProtocol = 'chat-completions' | 'responses' | 'anthropic-messages';
 export interface AiMessage { role: 'system' | 'user' | 'assistant'; content: string }
 
+/** Raw provider bodies can be tens of KB; keep error digests bounded for toasts/logs. */
+const MAX_ERROR_BODY_CHARS = 2048;
+const clipErrorBody = (raw: string): string =>
+  raw.length <= MAX_ERROR_BODY_CHARS ? raw : `${raw.slice(0, MAX_ERROR_BODY_CHARS)}... [truncated, ${raw.length} chars total]`;
+
 export function aiEndpoint(endpoint: string, protocol: AiProtocol = 'chat-completions'): string {
   const url = new URL(endpoint.trim());
   const suffix = protocol === 'responses' ? '/responses' : protocol === 'anthropic-messages' ? '/messages' : '/chat/completions';
@@ -42,9 +47,10 @@ export async function requestAiText(config: AiApiConfig, messages: AiMessage[], 
   });
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   const raw = await response.text();
-  const responseError = (message: string) => new Error(`${message}\nHTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}\n${raw}`);
+  const clippedRaw = clipErrorBody(raw);
+  const responseError = (message: string) => new Error(`${message}\nHTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}\n${clippedRaw}`);
   if (!response.ok) {
-    throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', () => raw));
+    throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', () => clippedRaw));
   }
   let data;
   try { data = JSON.parse(raw); }

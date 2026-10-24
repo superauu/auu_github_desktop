@@ -17,6 +17,9 @@ export class GitHubApiError extends Error {
   constructor(public status: number, message: string) { super(message); this.name = 'GitHubApiError'; }
 }
 
+/** 上限保护：巨型仓库的列表接口不能无限翻页拖垮 UI */
+const DEFAULT_MAX_PAGES = 10;
+
 export class GitHubService {
   private token: string | null = null;
 
@@ -41,6 +44,7 @@ export class GitHubService {
         Accept: 'application/vnd.github+json',
         Authorization: `Bearer ${token}`,
       },
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!res.ok) {
@@ -53,10 +57,12 @@ export class GitHubService {
     return res.json();
   }
 
-  private async pages<T>(url: string, key?: string, cache?: RequestCache): Promise<T[]> {
+  private async pages<T>(url: string, key?: string, cache?: RequestCache, maxPages: number = DEFAULT_MAX_PAGES): Promise<T[]> {
     const result: T[] = [];
     const visited = new Set<string>();
+    let fetchedPages = 0;
     while (url && !visited.has(url)) {
+      if (fetchedPages >= maxPages) break;
       if (new URL(url).origin !== 'https://api.github.com') throw new Error('Invalid pagination URL');
       visited.add(url);
       const res = await fetch(url, { headers: this.getHeaders(), cache, signal: AbortSignal.timeout(20_000) });
@@ -64,6 +70,7 @@ export class GitHubService {
       const data = await res.json();
       result.push(...(key ? data[key] || [] : data));
       url = res.headers.get('link')?.match(/<([^>]+)>;\s*rel="next"/)?.[1] || '';
+      fetchedPages++;
     }
     return result;
   }
@@ -71,6 +78,7 @@ export class GitHubService {
   async getRepository(owner: string, repo: string): Promise<GitHubRepoDetails> {
     const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: this.getHeaders(),
+      signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) throw new Error(tNow('err.ghRepoInfo').replace('{s}', String(res.status)));
     return res.json();
@@ -138,6 +146,7 @@ export class GitHubService {
           ref: params.ref,
           inputs: params.inputs || {},
         }),
+        signal: AbortSignal.timeout(20_000),
       }
     );
     if (!res.ok) {
@@ -158,6 +167,7 @@ export class GitHubService {
       {
         method: 'POST',
         headers: this.getHeaders(),
+        signal: AbortSignal.timeout(20_000),
       }
     );
     if (!res.ok) {
@@ -175,6 +185,7 @@ export class GitHubService {
       {
         method: 'POST',
         headers: this.getHeaders(),
+        signal: AbortSignal.timeout(20_000),
       }
     );
     if (!res.ok) {
@@ -194,7 +205,7 @@ export class GitHubService {
     }
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/actions/jobs/${jobId}/logs`,
-      { headers: this.getHeaders() }
+      { headers: this.getHeaders(), signal: AbortSignal.timeout(20_000) }
     );
     if (!res.ok) {
       throw new Error(tNow('err.ghLogs').replace('{s}', String(res.status)));
@@ -238,10 +249,14 @@ export class GitHubService {
   async getPullRequests(
     owner: string,
     repo: string,
-    state: 'open' | 'closed' | 'all' = 'all'
+    state: 'open' | 'closed' | 'all' = 'all',
+    maxPages?: number
   ): Promise<GitHubPullRequest[]> {
     return this.pages<GitHubPullRequest>(
-      `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=100`
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&per_page=100`,
+      undefined,
+      undefined,
+      maxPages
     );
   }
 
@@ -282,6 +297,7 @@ export class GitHubService {
         body: params.body || '',
         draft: params.draft ?? false,
       }),
+      signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) {
       throw new Error(await this.extractGitHubError(res));
@@ -308,6 +324,7 @@ export class GitHubService {
           commit_title: options?.commitTitle,
           commit_message: options?.commitMessage,
         }),
+        signal: AbortSignal.timeout(20_000),
       }
     );
     if (!res.ok) {
@@ -331,6 +348,7 @@ export class GitHubService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ state }),
+        signal: AbortSignal.timeout(20_000),
       }
     );
     if (!res.ok) {
