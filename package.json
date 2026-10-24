@@ -9,7 +9,7 @@
     "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "node --test tests/review-regressions.test.mjs tests/release-versions.test.mjs tests/branch-safety.test.mjs tests/ai-protocols.test.mjs tests/ux-improvements.test.mjs tests/optimization-regressions.test.mjs tests/ui-review.test.mjs tests/commit-batch.test.mjs tests/security-hardening.test.mjs",
+    "test": "node --test tests/",
     "check:release": "node scripts/check-release.mjs"
   },
   "dependencies": {
