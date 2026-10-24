@@ -254,6 +254,24 @@ test('AI structured results reject unknown/duplicate paths and marker-filled con
   assert.match(app.diagnoseGitError('non-fast-forward'), /远端|remote/);
 });
 
+test('conflict resolution rewrites only the block span and preserves mixed line endings', () => {
+  // CRLF 文件中的冲突块由 git 以 LF 写入：块外字节必须逐字保留，替换行使用块自身的行尾。
+  const mixed = 'before\r\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> topic\r\nafter\r\ntail\n';
+  assert.equal(app.resolveSingleBlock(mixed, 0, 'current'), 'before\r\nours\r\nafter\r\ntail\n');
+  // 多块文件：只重写目标块，其余块（含不同行尾）与未涉及行保持原样。
+  const two = 'a\r\n<<<<<<< x\none\n=======\ntwo\n>>>>>>> y\r\nb\n<<<<<<< p\r\nthree\r\n=======\nfour\r\n>>>>>>> q\nz\n';
+  assert.equal(
+    app.resolveSingleBlock(two, 1, 'incoming'),
+    'a\r\n<<<<<<< x\none\n=======\ntwo\n>>>>>>> y\r\nb\nfour\nz\n'
+  );
+  // 块内多行替换沿用块的行尾风格；both 合并的两半之间也一致。
+  assert.equal(app.resolveSingleBlock(mixed, 0, 'both'), 'before\r\nours\ntheirs\r\nafter\r\ntail\n');
+  // 块结尾没有换行（EOF）时不补换行；空解析移除整块且不留下空行。
+  const eof = 'keep\r\n<<<<<<< a\nx\n=======\ny\n>>>>>>> b';
+  assert.equal(app.resolveSingleBlock(eof, 0, 'incoming'), 'keep\r\ny');
+  assert.equal(app.resolveSingleBlock(eof, 0, 'custom', ''), 'keep\r\n');
+});
+
 test('native-style AI waits cancel promptly without waiting for the provider', async () => {
   const abort = new AbortController(); let finish;
   const pending = new Promise(resolve => { finish = resolve; });

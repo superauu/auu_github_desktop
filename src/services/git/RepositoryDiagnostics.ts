@@ -1,6 +1,40 @@
 import { executeGit } from './GitExecutor';
+import { normalizeInvokeError } from './invokeError';
 import { tNow } from '@/i18n';
-import type { GitStatusResult, HealthIssue, RepoHealthDiagnosis } from './types';
+import { useSettingsStore } from '@/stores/settingsStore';
+import type { GitStatusResult, HealthIssue, RepoHealthDiagnosis, RepoOperationState } from './types';
+
+// Path probing is locale independent, unlike localized `git status` prose.
+const OPERATION_PATHS = ['rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'MERGE_HEAD'] as const;
+
+/**
+ * Detects an in-progress repository operation (merge/rebase/cherry-pick) by
+ * probing Git's operation marker files — never by matching localized status
+ * output. Returns the same operation taxonomy as GitService.getRepoOperationState.
+ */
+export async function probeRepoOperation(repoPath: string): Promise<RepoOperationState['type']> {
+    let states: boolean[];
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      try {
+        states = await invoke<boolean[]>('paths_exist', { repoPath, gitBinary: useSettingsStore.getState().gitCliPath?.trim() || 'git' });
+      } catch (error) {
+        throw normalizeInvokeError(error, 'Unable to read repository operation state');
+      }
+    } else {
+      const resolved = (await executeGit(['rev-parse', '--path-format=absolute', ...OPERATION_PATHS.flatMap(name => ['--git-path', name])], repoPath)).stdout.trimEnd().split(/\r?\n/);
+      if (resolved.length !== OPERATION_PATHS.length || resolved.some(path => !path)) throw new Error('Unable to resolve Git operation paths');
+      const res = await fetch('/api/fs/exists', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
+        body: JSON.stringify({ paths: resolved, cwd: repoPath }),
+      });
+      if (!res.ok) throw new Error('Unable to read repository operation state');
+      states = (await res.json()).exists;
+    }
+    if (!Array.isArray(states) || states.length !== OPERATION_PATHS.length || states.some(value => typeof value !== 'boolean')) throw new Error('Invalid repository operation state');
+    const rebasing = states[0] || states[1], cherryPicking = states[2], merging = states[3];
+    return rebasing ? 'rebase' : cherryPicking ? 'cherry-pick' : merging ? 'merge' : 'none';
+}
 
 export async function diagnoseRepository(repoPath: string, getStatus: (repoPath: string) => Promise<GitStatusResult>): Promise<RepoHealthDiagnosis> {
     const issues: HealthIssue[] = [];
@@ -30,11 +64,11 @@ export async function diagnoseRepository(repoPath: string, getStatus: (repoPath:
       // ignore
     }
 
-    // 2. Check in-progress operations (Merge, Rebase, Cherry-pick)
+    // 2. Check in-progress operations (Merge, Rebase, Cherry-pick) by probing
+    // Git's marker files — matching status prose breaks in localized Git installs.
     try {
-      const statusText = await executeGit(['status'], repoPath);
-
-      if (statusText.stdout.includes('rebase in progress') || statusText.stdout.includes('You are currently rebasing')) {
+      const operation = await probeRepoOperation(repoPath);
+      if (operation === 'rebase') {
         score -= 30;
         issues.push({
           type: 'in_progress',
@@ -43,7 +77,7 @@ export async function diagnoseRepository(repoPath: string, getStatus: (repoPath:
           description: tNow('diag.issue.rebaseDesc'),
           actionHint: tNow('diag.issue.rebaseHint'),
         });
-      } else if (statusText.stdout.includes('You have unmerged paths') || statusText.stdout.includes('All conflicts fixed but you are still merging')) {
+      } else if (operation === 'merge') {
         score -= 30;
         issues.push({
           type: 'in_progress',

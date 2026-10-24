@@ -664,6 +664,18 @@ test('binary diffs remain visible and porcelain exposes the current HEAD', () =>
   assert.deepEqual(binary[0].patchHeader, []);
 });
 
+test('porcelain v2 reports copied entries as renames and unquotes control escape paths', () => {
+  // porcelain v2 的复制状态 `C` 曾经落到 default 分支变成 'conflicted'，UI 会误报冲突。
+  const copied = app.parsePorcelainV2('1 C. N... 100644 100644 100644 hH hI copy name.txt');
+  assert.equal(copied.staged[0].status, 'renamed'); assert.equal(copied.staged[0].path, 'copy name.txt');
+  const copyRename = app.parsePorcelainV2('2 RC N... 100644 100644 100644 hH hI R100 renamed.txt\0old.txt\0');
+  assert.equal(copyRename.staged[0].status, 'renamed');
+  assert.equal(copyRename.unstaged[0].status, 'renamed');
+  assert.equal(copyRename.unstaged[0].path, 'renamed.txt'); assert.equal(copyRename.unstaged[0].oldPath, 'old.txt');
+  // \a \b \f \v 转义与既有 \n \t \r 补齐为同一映射。
+  assert.equal(app.unquoteGitPath('"\\a\\b\\f\\v bell.txt"'), '\x07\x08\x0c\x0b bell.txt');
+});
+
 test('failed diff and history-file reads reject instead of pretending there are no changes', async () => {
   const missing = path.join(tmp, 'missing-repository');
   await assert.rejects(app.gitService.getFileDiff(missing, 'file.txt'));
@@ -688,6 +700,47 @@ test('batch staging uses literal paths and initial commits can be unstaged witho
   await fs.writeFile(file(repo, 'a[1].txt'), 'changed');
   await app.gitService.stageFiles(repo, ['a[1].txt']); await app.gitService.unstageFiles(repo, ['a[1].txt']);
   assert.equal((await app.gitService.getStatus(repo)).unstaged[0].path, 'a[1].txt');
+});
+
+test('branch, tag and revision operands are validated before any write command runs', async () => {
+  const repo = await repository(); await fs.writeFile(file(repo, 'a.txt'), 'base\n'); await commit(repo);
+  const head = git(repo, 'rev-parse', 'HEAD').trim();
+  // 分支名：空名与前导连字符在触达 git 前拒绝（未校验时 `-D main` + 起点 main 会删除 main）。
+  await assert.rejects(app.gitService.createBranch(repo, '-D main'), /Invalid branch name/);
+  await assert.rejects(app.gitService.createBranch(repo, '   '), /Invalid branch name/);
+  // 起点：连字符形态在客户端拒绝；无法解析的修订由 rev-parse --verify --end-of-options 拒绝。
+  await assert.rejects(app.gitService.createBranch(repo, 'feature', '--abort'), /Invalid branch start point/);
+  await assert.rejects(app.gitService.createBranch(repo, 'feature', 'no-such-revision'));
+  // 标签：check-ref-format 认可 refs/tags/--x 这类形态，前导连字符必须显式拒绝；删除同样如此。
+  await assert.rejects(app.gitService.createTag(repo, '--delete=x'), /Invalid tag name/);
+  await assert.rejects(app.gitService.createTag(repo, ''), /Invalid tag name/);
+  await assert.rejects(app.gitService.deleteTag(repo, '-d v1'), /Invalid tag name/);
+  // 修订：revert/cherry-pick/reset 的操作数先解析为提交（--abort 等选项形态、树对象均被拒绝）。
+  await assert.rejects(app.gitService.revertCommit(repo, '--abort'));
+  await assert.rejects(app.gitService.cherryPickCommit(repo, '-n'));
+  await assert.rejects(app.gitService.hardResetCommit(repo, 'no-such-revision'));
+  await assert.rejects(app.gitService.softResetCommit(repo, 'HEAD^{tree}'));
+  // 全部拒绝之后引用与工作区必须原封不动。
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), head);
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+  // 合法输入保持可用：trim 后的分支/标签名、带起点建分支、附注标签、revert/reset/cherry-pick。
+  await app.gitService.createBranch(repo, 'feature/from-head', 'HEAD');
+  assert.equal(git(repo, 'rev-parse', 'feature/from-head').trim(), head);
+  await app.gitService.createTag(repo, ' v1.0 ', head, 'annotated');
+  // 附注标签的 rev-parse 指向 tag 对象，解引用到提交后再比较。
+  assert.equal(git(repo, 'rev-parse', 'v1.0^{commit}').trim(), head);
+  assert.match(git(repo, 'tag', '-l', '-n1', 'v1.0'), /annotated/);
+  await app.gitService.hardResetCommit(repo, head);
+  git(repo, 'switch', '-c', 'topic'); await fs.writeFile(file(repo, 'b.txt'), 'picked\n'); await commit(repo, 'pick me');
+  const pick = git(repo, 'rev-parse', 'HEAD').trim();
+  git(repo, 'switch', 'main');
+  await app.gitService.cherryPickCommit(repo, pick);
+  assert.equal(git(repo, 'show', 'HEAD:b.txt').trim(), 'picked');
+  await app.gitService.revertCommit(repo, 'v1.0');
+  assert.notEqual(git(repo, 'rev-parse', 'HEAD').trim(), head);
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+  await app.gitService.deleteTag(repo, 'v1.0');
+  assert.equal(git(repo, 'tag', '-l', 'v1.0').trim(), '');
 });
 
 test('unchanged polling reads status once and does not reload history or branches', async () => {

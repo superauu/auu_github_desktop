@@ -137,8 +137,51 @@ export function parseConflictBlocks(content: string): ParseConflictResult {
   };
 }
 
+interface ConflictSpan {
+  /** Character offset of the `<<<<<<<` marker line. */
+  blockStart: number;
+  /** Character offset where content resumes, just past the `>>>>>>>` line's terminator. */
+  afterEnd: number;
+  /** Terminator of the `>>>>>>>` line, '' when the block ends at EOF without one. */
+  endTerminator: string;
+  /** Terminator to use between replacement lines ('' means the block is at EOF). */
+  eol: '\n' | '\r\n';
+}
+
+/**
+ * Locates a conflict block by 0-indexed line numbers while tracking raw
+ * character offsets and line terminators, so replacement can be done as a
+ * string slice that leaves every uninvolved line (and its line ending)
+ * byte-identical — even in files with mixed line endings.
+ */
+function locateConflictSpan(content: string, startLine0: number, endLine0: number): ConflictSpan | null {
+  let offset = 0;
+  let lineIndex = 0;
+  let blockStart = -1;
+  let afterEnd = content.length;
+  let endTerminator = '';
+  let eol: '\n' | '\r\n' = '\n';
+  while (offset < content.length && lineIndex <= endLine0) {
+    if (lineIndex === startLine0) blockStart = offset;
+    const nl = content.indexOf('\n', offset);
+    const lineEnd = nl === -1 ? content.length : nl + 1;
+    if (lineIndex < endLine0 && nl !== -1) {
+      // Terminators of the lines before the block decide the replacement's EOL style.
+      eol = nl > offset && content[nl - 1] === '\r' ? '\r\n' : '\n';
+    }
+    if (lineIndex === endLine0) {
+      endTerminator = nl === -1 ? '' : nl > offset && content[nl - 1] === '\r' ? '\r\n' : '\n';
+      afterEnd = lineEnd;
+    }
+    offset = lineEnd;
+    lineIndex++;
+  }
+  return blockStart < 0 ? null : { blockStart, afterEnd, endTerminator, eol };
+}
+
 /**
  * Resolves a specific conflict block within the full file content by index.
+ * Only the block span is rewritten; line endings elsewhere are preserved.
  */
 export function resolveSingleBlock(
   content: string,
@@ -177,12 +220,15 @@ export function resolveSingleBlock(
       break;
   }
 
-  const lines = content.split(/\r?\n/);
-  const before = lines.slice(0, target.startLine - 1);
-  const after = lines.slice(target.endLine);
-
+  const span = locateConflictSpan(content, target.startLine - 1, target.endLine - 1);
+  if (!span) return content;
   const replacementLines = replacement.length > 0 ? replacement.split('\n') : [];
-  return [...before, ...replacementLines, ...after].join(content.includes('\r\n') ? '\r\n' : '\n');
+  // When the resolution is empty the single separator that used to sit between
+  // the block and the following content is dropped along with the block.
+  const middle = replacementLines.length
+    ? replacementLines.join(span.eol) + (span.endTerminator || '')
+    : '';
+  return content.slice(0, span.blockStart) + middle + content.slice(span.afterEnd);
 }
 
 /**

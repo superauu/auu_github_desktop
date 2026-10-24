@@ -2,6 +2,7 @@ import ignore from 'ignore';
 import { executeGit, GitExecutionError } from './GitExecutor';
 import { gitService } from './GitService';
 import { serializeGitWrite } from './GitQueue';
+import { normalizeInvokeError } from './invokeError';
 import { useSettingsStore } from '@/stores/settingsStore';
 
 export type IgnoreScope = 'shared' | 'local';
@@ -65,7 +66,13 @@ async function ignoreFile(repoPath: string, scope: IgnoreScope, content?: string
     const { authorizeGitBinary } = await import('@/services/fs/RepositoryAccess');
     await authorizeGitBinary(args.gitBinary);
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke('ignore_file', args);
+    // The Rust command always returns both fields (`json!({ "content", "exists" })`),
+    // so the payload type stays stricter than the optional `IgnoreSnapshot.exists`.
+    try {
+      return await invoke<{ content: string; exists: boolean }>('ignore_file', args);
+    } catch (error) {
+      throw normalizeInvokeError(error, 'Unable to update ignore rules');
+    }
   }
   const response = await fetch('/api/fs/ignore-file', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' }, body: JSON.stringify(args),

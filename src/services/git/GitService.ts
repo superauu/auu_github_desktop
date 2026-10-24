@@ -1,4 +1,4 @@
-import { diagnoseRepository } from './RepositoryDiagnostics';
+import { diagnoseRepository, probeRepoOperation } from './RepositoryDiagnostics';
 import {
   GitBlameLine,
   GitBranch,
@@ -16,7 +16,8 @@ import {
   RepoHealthDiagnosis,
   RepoOperationState,
 } from './types';
-import { executeGit, GitExecutionError } from './GitExecutor';
+import { executeGit, executeGitTransaction, GitExecutionError } from './GitExecutor';
+import { normalizeInvokeError } from './invokeError';
 import { parseWorktrees } from './worktrees';
 import {
   parseDiffOutput,
@@ -33,7 +34,14 @@ import { tNow } from '@/i18n';
 import { parseGitHubRemote } from './remoteIdentity';
 import { DiffCache } from './DiffCache';
 import { authorizeRepository } from '@/services/fs/RepositoryAccess';
-import { useSettingsStore } from '@/stores/settingsStore';
+
+/**
+ * Null device used by `diff --no-index` comparisons against untracked files.
+ * `/dev/null` wins on every platform: Git for Windows accepts it directly,
+ * while the DOS device `nul` breaks when a repository is nested inside
+ * another git repository (path prefix handling mangles it).
+ */
+const NULL_DEVICE = '/dev/null';
 
 export class GitService implements IGitService {
   private readonly diffCache = new DiffCache();
@@ -65,7 +73,8 @@ export class GitService implements IGitService {
     const identity = remoteUrl ? parseGitHubRemote(remoteUrl) : undefined;
 
     return {
-      id: String(Date.now()),
+      //随机 id 仅用于会话内标识；持久化层比较的是仓库路径，同毫秒打开两个仓库也不会冲突。
+      id: crypto.randomUUID(),
       name,
       path: normalizedPath,
       currentBranch: status.currentBranch || 'main',
@@ -196,6 +205,21 @@ export class GitService implements IGitService {
     }
   }
 
+  /**
+   * Validates that a user supplied revision is a real commit before it is
+   * spliced into a write command. `--end-of-options` guarantees the operand is
+   * parsed as a revision, so option-shaped input (e.g. `--abort`) can never be
+   * smuggled into `revert`, `cherry-pick` or `reset` as a flag.
+   */
+  private async resolveCommitHash(repoPath: string, revision: string): Promise<string> {
+    const trimmed = revision.trim();
+    if (!trimmed) throw new Error('Invalid revision');
+    const res = await executeGit(['rev-parse', '--verify', '--end-of-options', `${trimmed}^{commit}`], repoPath);
+    const hash = res.stdout.trim();
+    if (!hash) throw new Error(`Invalid revision: ${trimmed}`);
+    return hash;
+  }
+
   async getTags(repoPath: string): Promise<GitTag[]> {
     try {
       const format = '%(refname:short)%x1f%(objectname)%x1f%(subject)%x1f%(taggername)%x1f%(taggeremail)%x1f%(taggerdate:iso-strict)';
@@ -308,19 +332,19 @@ export class GitService implements IGitService {
   }
 
   async revertCommit(repoPath: string, hash: string): Promise<void> {
-    await executeGit(['revert', '--no-edit', hash], repoPath);
+    await executeGit(['revert', '--no-edit', await this.resolveCommitHash(repoPath, hash)], repoPath);
   }
 
   async cherryPickCommit(repoPath: string, hash: string): Promise<void> {
-    await executeGit(['cherry-pick', hash], repoPath);
+    await executeGit(['cherry-pick', await this.resolveCommitHash(repoPath, hash)], repoPath);
   }
 
   async hardResetCommit(repoPath: string, hash: string): Promise<void> {
-    await executeGit(['reset', '--hard', hash], repoPath);
+    await executeGit(['reset', '--hard', await this.resolveCommitHash(repoPath, hash)], repoPath);
   }
 
   async softResetCommit(repoPath: string, hash: string): Promise<void> {
-    await executeGit(['reset', '--soft', hash], repoPath);
+    await executeGit(['reset', '--soft', await this.resolveCommitHash(repoPath, hash)], repoPath);
   }
 
   async stageFile(repoPath: string, filePath: string): Promise<void> {
@@ -333,9 +357,15 @@ export class GitService implements IGitService {
 
   async unstageFiles(repoPath: string, filePaths: string[]): Promise<void> {
     if (!filePaths.length) return;
-    const initial = (await this.getStatus(repoPath)).headOid === '(initial)';
-    await executeGit(initial ? ['--literal-pathspecs', 'rm', '--cached', '--ignore-unmatch', '--pathspec-from-file=-', '--pathspec-file-nul']
-      : ['--literal-pathspecs', 'restore', '--staged', '--pathspec-from-file=-', '--pathspec-file-nul'], repoPath, filePaths.join('\0') + '\0');
+    // Probe and write inside one serialized transaction: a commit queued
+    // between the `(initial)` probe and the write must not turn the unstage
+    // into `rm --cached`, which would stage deletions of committed files.
+    await executeGitTransaction(repoPath, async git => {
+      const status = parsePorcelainV2((await git(['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'])).stdout);
+      const initial = status.headOid === '(initial)';
+      await git(initial ? ['--literal-pathspecs', 'rm', '--cached', '--ignore-unmatch', '--pathspec-from-file=-', '--pathspec-file-nul']
+        : ['--literal-pathspecs', 'restore', '--staged', '--pathspec-from-file=-', '--pathspec-file-nul'], filePaths.join('\0') + '\0');
+    });
   }
 
   async unstageFile(repoPath: string, filePath: string): Promise<void> {
@@ -352,11 +382,12 @@ export class GitService implements IGitService {
   }
 
   async discardChanges(repoPath: string, filePath: string): Promise<void> {
-    // For tracked modified files, restore
+    // For tracked modified files, restore. --literal-pathspecs keeps glob
+    // metacharacters in repository paths from widening the pathspec.
     try {
-      await executeGit(['restore', '--', filePath], repoPath);
+      await executeGit(['--literal-pathspecs', 'restore', '--', filePath], repoPath);
     } catch {
-      await executeGit(['checkout', '--', filePath], repoPath);
+      await executeGit(['--literal-pathspecs', 'checkout', '--', filePath], repoPath);
     }
   }
 
@@ -487,9 +518,20 @@ export class GitService implements IGitService {
   }
 
   async createBranch(repoPath: string, name: string, startPoint?: string): Promise<void> {
-    const args = ['branch', name];
-    if (startPoint) {
-      args.push(startPoint);
+    const branch = name.trim();
+    // Reject option-shaped names before anything reaches `git branch`: an
+    // unvalidated `-D` paired with start point `main` would delete `main`.
+    if (!branch || branch.startsWith('-')) throw new Error('Invalid branch name');
+    await executeGit(['check-ref-format', '--branch', branch], repoPath);
+    const args = ['branch', branch];
+    const start = startPoint?.trim();
+    if (start) {
+      if (start.startsWith('-')) throw new Error('Invalid branch start point');
+      // Validate through --end-of-options so option-shaped start points are
+      // rejected instead of being parsed as flags by `git branch`.
+      const commit = await executeGit(['rev-parse', '--verify', '--end-of-options', `${start}^{commit}`], repoPath);
+      if (!commit.stdout.trim()) throw new Error(`Invalid branch start point: ${start}`);
+      args.push(start);
     }
     await executeGit(args, repoPath);
   }
@@ -572,12 +614,16 @@ export class GitService implements IGitService {
     ignoreWhitespace = false
   ): Promise<ParsedDiffLine[]> {
     if (isUntracked) {
-      const nullDev = navigator.userAgent.includes('Windows') ? 'nul' : '/dev/null';
-      const res = await executeGit(['diff', '--no-index', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--', nullDev, filePath], repoPath);
+      // `/dev/null` is the only safe null device: Git for Windows accepts it
+      // directly, while the DOS device `nul` is mangled by Git's path prefix
+      // handling when a repository is nested inside another git repository.
+      // (The device choice therefore must not depend on navigator probing —
+      // userAgent-based platform detection is unreliable under WebView2 anyway.)
+      const res = await executeGit(['--literal-pathspecs', 'diff', '--no-index', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--', NULL_DEVICE, filePath], repoPath);
       return this.diffCache.parse(JSON.stringify([repoPath, filePath, 'untracked', ignoreWhitespace]), res.stdout);
     }
 
-    const args = ['diff', '--no-color'];
+    const args = ['--literal-pathspecs', 'diff', '--no-color'];
     if (ignoreWhitespace) args.push('-w');
     if (staged) {
       args.push('--staged');
@@ -650,20 +696,29 @@ export class GitService implements IGitService {
     commitHash?: string,
     message?: string
   ): Promise<void> {
+    const tag = name.trim();
+    // check-ref-format alone is not enough: it accepts option-shaped
+    // components (`refs/tags/--delete=v1.0` is a "valid" ref), so a leading
+    // dash must be rejected explicitly to keep `git tag` flag-free.
+    if (!tag || tag.startsWith('-')) throw new Error('Invalid tag name');
+    await executeGit(['check-ref-format', `refs/tags/${tag}`], repoPath);
     const args = ['tag'];
     if (message) {
-      args.push('-a', name, '-m', message);
+      args.push('-a', tag, '-m', message);
     } else {
-      args.push(name);
+      args.push(tag);
     }
-    if (commitHash) {
-      args.push(commitHash);
+    if (commitHash?.trim()) {
+      args.push(await this.resolveCommitHash(repoPath, commitHash.trim()));
     }
     await executeGit(args, repoPath);
   }
 
   async deleteTag(repoPath: string, name: string): Promise<void> {
-    await executeGit(['tag', '-d', name], repoPath);
+    const tag = name.trim();
+    if (!tag || tag.startsWith('-')) throw new Error('Invalid tag name');
+    await executeGit(['check-ref-format', `refs/tags/${tag}`], repoPath);
+    await executeGit(['tag', '-d', tag], repoPath);
   }
 
   private async tagRemote(repoPath: string, remote?: string): Promise<string> {
@@ -800,16 +855,20 @@ export class GitService implements IGitService {
     await executeGit(['check-ref-format', '--branch', targetBranch], repoPath);
     const binding = await this.getGitHubBinding(repoPath);
     if (!binding) throw new Error(tNow('remote.choose'));
-    await executeGit(['fetch', binding.name, `refs/pull/${prNumber}/head`], repoPath);
-    const exists = await executeGit(['show-ref', '--verify', '--quiet', `refs/heads/${targetBranch}`], repoPath)
-      .then(() => true, () => false);
-    if (exists) {
-      await executeGit(['switch', targetBranch], repoPath);
-      // Never force-update a PR branch that may contain the user's unpushed commits.
-      await executeGit(['merge', '--ff-only', '--no-edit', 'FETCH_HEAD'], repoPath);
-    } else {
-      await executeGit(['switch', '-c', targetBranch, 'FETCH_HEAD'], repoPath);
-    }
+    // The fetch and the switch below must not be interleaved with any other
+    // queued write (e.g. a poller's `fetch --all` overwriting FETCH_HEAD).
+    await executeGitTransaction(repoPath, async git => {
+      await git(['fetch', binding.name, `refs/pull/${prNumber}/head`]);
+      const exists = await git(['show-ref', '--verify', '--quiet', `refs/heads/${targetBranch}`])
+        .then(() => true, () => false);
+      if (exists) {
+        await git(['switch', targetBranch]);
+        // Never force-update a PR branch that may contain the user's unpushed commits.
+        await git(['merge', '--ff-only', '--no-edit', 'FETCH_HEAD']);
+      } else {
+        await git(['switch', '-c', targetBranch, 'FETCH_HEAD']);
+      }
+    });
     return targetBranch;
   }
 
@@ -820,45 +879,29 @@ export class GitService implements IGitService {
   async getRepoOperationState(repoPath: string, snapshot?: GitStatusResult): Promise<RepoOperationState> {
     const status = snapshot || await this.getStatus(repoPath);
     const conflictedFiles = status.unstaged.filter((file) => file.status === 'conflicted').map((file) => file.path);
-    // Git's path resolver supports linked worktrees and does not depend on localized status prose.
-    const names = ['rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD', 'MERGE_HEAD'];
-    let states: boolean[];
-    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      states = await invoke<boolean[]>('paths_exist', { repoPath, gitBinary: useSettingsStore.getState().gitCliPath?.trim() || 'git' });
-    } else {
-      const resolved = (await executeGit(['rev-parse', '--path-format=absolute', ...names.flatMap(name => ['--git-path', name])], repoPath)).stdout.trimEnd().split(/\r?\n/);
-      if (resolved.length !== names.length || resolved.some(path => !path)) throw new Error('Unable to resolve Git operation paths');
-      const res = await fetch('/api/fs/exists', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
-        body: JSON.stringify({ paths: resolved, cwd: repoPath }),
-      });
-      if (!res.ok) throw new Error('Unable to read repository operation state');
-      states = (await res.json()).exists;
-    }
-    if (!Array.isArray(states) || states.length !== names.length || states.some(value => typeof value !== 'boolean')) throw new Error('Invalid repository operation state');
-    const rebasing = states[0] || states[1], cherryPicking = states[2], merging = states[3];
-    const type = rebasing ? 'rebase' : cherryPicking ? 'cherry-pick' : merging ? 'merge' : 'none';
+    const type = await probeRepoOperation(repoPath);
     return { type, conflictedFiles, inConflict: conflictedFiles.length > 0,
       isAllResolved: type !== 'none' && conflictedFiles.length === 0 };
   }
 
   async resolveConflictWithOurs(repoPath: string, filePath: string): Promise<void> {
-    await executeGit(['checkout', '--ours', '--', filePath], repoPath);
-    await executeGit(['add', '--', filePath], repoPath);
+    // --literal-pathspecs keeps glob metacharacters in the path from widening
+    // the pathspec when the conflict resolution is applied.
+    await executeGit(['--literal-pathspecs', 'checkout', '--ours', '--', filePath], repoPath);
+    await executeGit(['--literal-pathspecs', 'add', '--', filePath], repoPath);
   }
 
   async resolveConflictWithTheirs(repoPath: string, filePath: string): Promise<void> {
-    await executeGit(['checkout', '--theirs', '--', filePath], repoPath);
-    await executeGit(['add', '--', filePath], repoPath);
+    await executeGit(['--literal-pathspecs', 'checkout', '--theirs', '--', filePath], repoPath);
+    await executeGit(['--literal-pathspecs', 'add', '--', filePath], repoPath);
   }
 
   async resetConflictMarkers(repoPath: string, filePath: string): Promise<void> {
     try {
-      await executeGit(['checkout', '--merge', '--', filePath], repoPath);
+      await executeGit(['--literal-pathspecs', 'checkout', '--merge', '--', filePath], repoPath);
     } catch {
-      await executeGit(['restore', '--staged', '--', filePath], repoPath);
-      await executeGit(['checkout', '--merge', '--', filePath], repoPath);
+      await executeGit(['--literal-pathspecs', 'restore', '--staged', '--', filePath], repoPath);
+      await executeGit(['--literal-pathspecs', 'checkout', '--merge', '--', filePath], repoPath);
     }
   }
 
@@ -872,7 +915,11 @@ export class GitService implements IGitService {
     this.validateFilePath(filePath);
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       const { invoke } = await import('@tauri-apps/api/core');
-      return invoke<string>('read_file_content', { repoPath, filePath, allowMissing });
+      try {
+        return await invoke<string>('read_file_content', { repoPath, filePath, allowMissing });
+      } catch (error) {
+        throw normalizeInvokeError(error, `Unable to read ${filePath}`);
+      }
     }
     const res = await fetch('/api/fs/read-file', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
@@ -888,7 +935,11 @@ export class GitService implements IGitService {
     this.validateFilePath(filePath);
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
       const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('write_file_content', { repoPath, filePath, content, expectedContent });
+      try {
+        await invoke('write_file_content', { repoPath, filePath, content, expectedContent });
+      } catch (error) {
+        throw normalizeInvokeError(error, `Unable to write ${filePath}`);
+      }
       return;
     }
     const res = await fetch('/api/fs/write-file', {

@@ -77,7 +77,7 @@ export function isReadOnlyGitCommand(args: string[]): boolean {
   if (command === 'check-ref-format') return true;
   if (command === 'symbolic-ref') return options.filter(option => !option.startsWith('-')).length === 1 && !options.some(option => ['-d', '--delete'].includes(option));
   if (command === 'worktree') return options[0] === 'list';
-  if (['status', 'log', 'show', 'diff', 'rev-parse', 'for-each-ref', 'ls-files', 'ls-tree', 'cat-file', 'blame', 'check-ignore', '--version', 'help'].includes(command)) return true;
+  if (['status', 'log', 'show', 'diff', 'rev-parse', 'for-each-ref', 'ls-files', 'ls-tree', 'cat-file', 'blame', 'check-ignore', 'show-ref', 'rev-list', 'merge-tree', 'diff-tree', '--version', 'help'].includes(command)) return true;
   if (command === 'branch') return options.some(option => ['--list', '--show-current', '-a', '-r', '-v', '-vv'].includes(option)) && !options.some(option => ['-d', '-D', '-m', '-M', '-f', '--delete', '--move', '--force'].includes(option));
   if (command === 'tag') return options.includes('-l') || options.includes('--list');
   if (command === 'stash') return ['list', 'show'].includes(options[0]);

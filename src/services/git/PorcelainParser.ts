@@ -33,6 +33,10 @@ export function unquoteGitPath(path: string): string {
         case 'n': bytes.push(10); break;
         case 't': bytes.push(9); break;
         case 'r': bytes.push(13); break;
+        case 'a': bytes.push(7); break;
+        case 'b': bytes.push(8); break;
+        case 'f': bytes.push(12); break;
+        case 'v': bytes.push(11); break;
         case '"': bytes.push(34); break;
         case '\\': bytes.push(92); break;
         default: bytes.push(next.charCodeAt(0) & 0xff);
@@ -191,9 +195,8 @@ function mapStatusCode(char: string): GitFileStatusType {
     case 'D':
       return 'deleted';
     case 'R':
+    case 'C': // porcelain v2 reports copies with `C`; they are renames for UI purposes.
       return 'renamed';
-    case 'C':
-      return 'conflicted';
     default:
       return 'modified';
   }
@@ -520,8 +523,9 @@ export function parseBlamePorcelain(output: string): GitBlameLine[] {
     }
     if (!line.trim()) continue;
 
-    // 记录头行：`<40位hash> <原始行号> <最终行号> [<行数>]`
-    if (!hash && /^[0-9a-f]{40} \d+ \d+/.test(line)) {
+    // 记录头行：`<40-64位hash> <原始行号> <最终行号> [<行数>]`（SHA-256 仓库为 64 位，
+    // 与 BranchSafetyService 的 40-64 位标准一致）
+    if (!hash && /^[0-9a-f]{40,64} \d+ \d+/.test(line)) {
       const parts = line.split(' ');
       hash = parts[0];
       finalLine = parseInt(parts[2], 10) || 0;

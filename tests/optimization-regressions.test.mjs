@@ -86,6 +86,19 @@ test('repository polling skips hidden/busy windows and never overlaps checks, ev
   poller.stop(); assert.equal(clock.timers.size, 0);
 });
 
+test('a per-tick veto skips the refresh without stopping the schedule, and probe failures never veto', async () => {
+  const clock = fakeClock(); let checks = 0, veto = false;
+  const poller = app.createExternalChangePoller({ check: async () => { checks++; }, canCheck: () => true, shouldSkip: async () => veto, now: clock.now, schedule: clock.schedule, cancel: clock.cancel });
+  // 操作进行中（veto=true）：本轮跳过检查，但下一轮仍按计划重试。
+  veto = true; await clock.fire(); assert.equal(checks, 0); assert.ok(clock.timers.size >= 1);
+  veto = false; await clock.fire(); assert.equal(checks, 1);
+  poller.stop();
+  // veto 探测自身抛错：视作不否决，轮询继续。
+  const failing = app.createExternalChangePoller({ check: async () => { checks++; }, canCheck: () => true, shouldSkip: async () => { throw new Error('probe failed'); }, now: clock.now, schedule: clock.schedule, cancel: clock.cancel });
+  await clock.fire(); assert.equal(checks, 2);
+  failing.stop(); assert.equal(clock.timers.size, 0);
+});
+
 test('notifications remain in session history after dismissal, bounded to 100 entries without disk persistence', () => {
   const store = app.useToastStore;
   store.setState({ toasts: [], history: [] });

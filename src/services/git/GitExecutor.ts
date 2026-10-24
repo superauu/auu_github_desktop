@@ -85,8 +85,10 @@ async function executeGitNow(args: string[], cwd: string, stdin?: string): Promi
         stdin,
       });
 
-      const isDiff = args.includes('diff');
-      if (result.exitCode !== 0 && (!isDiff || result.exitCode !== 1)) {
+      // Only `diff --no-index` uses exit code 1 to mean "differences found";
+      // tolerating exit 1 for every `diff` invocation would mask real failures.
+      const isNoIndexDiff = args.includes('--no-index');
+      if (result.exitCode !== 0 && (!isNoIndexDiff || result.exitCode !== 1)) {
         throw new GitExecutionError(
           `git ${args.join(' ')}`,
           result.exitCode,
@@ -135,8 +137,10 @@ async function executeGitNow(args: string[], cwd: string, stdin?: string): Promi
     }
 
     const data: GitCommandResult = JSON.parse(rawText);
-    const isDiff = args.includes('diff');
-    if (data.exitCode !== 0 && (!isDiff || data.exitCode !== 1)) {
+    // Only `diff --no-index` uses exit code 1 to mean "differences found";
+    // tolerating exit 1 for every `diff` invocation would mask real failures.
+    const isNoIndexDiff = args.includes('--no-index');
+    if (data.exitCode !== 0 && (!isNoIndexDiff || data.exitCode !== 1)) {
       throw new GitExecutionError(
         `git ${args.join(' ')}`,
         data.exitCode,
