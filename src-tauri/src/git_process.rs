@@ -303,6 +303,8 @@ mod tests {
             vec![
                 "hash-object".into(),
                 "--no-filters".into(),
+                // 直连 run_git 不经过策略层；必须 -w 落盘对象，cat-file 才有对象可读。
+                "-w".into(),
                 "--".into(),
                 "large.bin".into(),
             ],
