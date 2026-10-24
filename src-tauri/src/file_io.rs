@@ -48,8 +48,10 @@ pub fn atomic_write(path: &Path, content: &str, expected: Option<&str>) -> Resul
         .write_all(content.as_bytes())
         .map_err(|error| error.to_string())?;
     // Windows 拒绝替换只读文件：persist 前清除目标与临时文件的只读位，成功后恢复目标属性。
-    // （std 的 Permissions::set_readonly 在 Windows 上只翻转 FILE_ATTRIBUTE_READONLY，保留其余位。）
+    // （std 的 Permissions::set_readonly 在 Windows 上只翻转 FILE_ATTRIBUTE_READONLY，保留其余位。
+    // Unix 分支不执行此路径，故显式豁免 clippy 对 set_readonly(false) 的可移植性告警。）
     #[cfg(windows)]
+    #[allow(clippy::permissions_set_readonly_false)]
     let restore_readonly = {
         let mut readonly = false;
         if let Ok(metadata) = fs::metadata(path) {

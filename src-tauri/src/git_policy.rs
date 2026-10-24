@@ -103,10 +103,6 @@ pub(crate) fn command_index(args: &[String]) -> Result<usize, String> {
     Err("Missing Git command".into())
 }
 
-pub fn command(args: &[String]) -> Result<&str, String> {
-    Ok(&args[command_index(args)?])
-}
-
 fn safe_config(args: &[String]) -> bool {
     let mut read = false;
     let mut positional = Vec::new();
@@ -298,7 +294,7 @@ pub fn local_transport_path(spec: &str) -> Option<String> {
     let colon = spec.find(':');
     let slash = spec.find(['/', '\\']);
     if let Some(colon) = colon {
-        if slash.map_or(true, |slash| colon < slash) {
+        if slash.is_none_or(|slash| colon < slash) {
             // 冒号先于任何斜杠：Windows 盘符路径，或 scp 风格 host:path（远程）。
             let bytes = spec.as_bytes();
             if cfg!(windows) && bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() {

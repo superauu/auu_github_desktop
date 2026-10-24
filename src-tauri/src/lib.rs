@@ -59,14 +59,11 @@ fn transport_grant(args: &[String], cwd: &str, git_binary: Option<&str>) -> Opti
     let root = repository_access::resolve(Path::new(cwd)).ok()?;
     let mut granted = false;
     for url in &urls {
-        match git_policy::local_transport_path(url) {
-            // 本地路径目标必须落在授权根内；远程 URL 由默认白名单约束，无需放行。
-            Some(path) => {
-                let target = if Path::new(&path).is_absolute() { PathBuf::from(&path) } else { root.join(&path) };
-                repository_access::require_path(target.to_string_lossy().as_ref()).ok()?;
-                granted = true;
-            }
-            None => {}
+        // 本地路径目标必须落在授权根内；远程 URL 由默认白名单约束，无需放行。
+        if let Some(path) = git_policy::local_transport_path(url) {
+            let target = if Path::new(&path).is_absolute() { PathBuf::from(&path) } else { root.join(&path) };
+            repository_access::require_path(target.to_string_lossy().as_ref()).ok()?;
+            granted = true;
         }
     }
     granted.then_some(LOCAL_PROTOCOLS)
