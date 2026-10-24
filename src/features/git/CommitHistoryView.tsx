@@ -8,7 +8,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { confirmAction } from '@/stores/confirmStore';
 import { Button } from '@/components/ui/button';
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import { useWorkspaceSessionStore, DEFAULT_HISTORY_VIEW } from '@/stores/workspaceSessionStore';
+import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { gitService } from '@/services/git/GitService';
 import {
   GitCommit as GitCommitIcon,
@@ -35,6 +35,10 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { GitCommit } from '@/services/git/types';
 
+// 本地默认视图（与写侧默认值保持一致）：旧 localStorage 记录可能缺字段，
+// 这里做内联防御合并，不 import store 的新导出，避免与写侧 version/migrate 逻辑耦合。
+const DEFAULT_HISTORY_VIEW = { query: '', scrollTop: 0, metadataWidth: 176, columns: { author: true, date: true, hash: false } };
+
 export const CommitHistoryView: React.FC = () => {
   const { t } = useI18n();
   const {
@@ -56,7 +60,12 @@ export const CommitHistoryView: React.FC = () => {
   } = useRepoStore(useShallow(state => ({ commits: state.commits, selectedCommit: state.selectedCommit, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, scrollToCommitHash: state.scrollToCommitHash, isLoading: state.isLoading, commitsLoadedAll: state.commitsLoadedAll, loadMoreCommits: state.loadMoreCommits, revertCommit: state.revertCommit, cherryPickCommit: state.cherryPickCommit, softResetCommit: state.softResetCommit, hardResetCommit: state.hardResetCommit })));
 
   const repoPath = useRepoStore(state => state.currentRepo?.path) || '';
-  const savedView = useWorkspaceSessionStore(state => state.historyViews[repoPath]) || DEFAULT_HISTORY_VIEW;
+  const savedViewRaw = useWorkspaceSessionStore(state => state.historyViews[repoPath]);
+  // 旧记录缺字段时逐层回退默认值，防止 columns/metadataWidth 为 undefined 导致渲染崩溃
+  const savedView = useMemo(
+    () => ({ ...DEFAULT_HISTORY_VIEW, ...savedViewRaw, columns: { ...DEFAULT_HISTORY_VIEW.columns, ...savedViewRaw?.columns } }),
+    [savedViewRaw]
+  );
   const { metadataWidth, columns, query: searchQuery } = savedView;
   const updateView = useCallback((patch: Partial<typeof DEFAULT_HISTORY_VIEW>) => useWorkspaceSessionStore.getState().updateHistoryView(repoPath, patch), [repoPath]);
   const setMetadataWidth = (metadataWidth: number) => updateView({ metadataWidth });
@@ -173,7 +182,10 @@ export const CommitHistoryView: React.FC = () => {
   }, [searchQuery]);
   const firstVisible = Math.min(filteredCommits.length, Math.max(0, Math.floor(viewport.top / 42) - (hasWip ? 1 : 0) - 8));
   const lastVisible = Math.min(filteredCommits.length, Math.ceil((viewport.top + viewport.height) / 42) + 8);
-  const activeCommit = filteredCommits.find(commit => commit.hash === selectedCommit?.hash) || filteredCommits[0];
+  // 搜索态下不把高亮回退到 filteredCommits[0]：否则列表高亮与右侧详情（仍指向原选中提交）不一致；
+  // 未命中时保持 detail 不变，列表显示空态。
+  const activeCommit = filteredCommits.find(commit => commit.hash === selectedCommit?.hash)
+    || (searchQuery.trim() ? undefined : filteredCommits[0]);
   const selectedIndex = hasWip
     ? filteredCommits.findIndex((c) => c.hash === activeCommit?.hash) + 1
     : filteredCommits.findIndex((c) => c.hash === activeCommit?.hash);

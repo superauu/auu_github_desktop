@@ -25,6 +25,7 @@ import {
 } from '@/services/git/ConflictParser';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { VirtualRows } from '@/components/ui/VirtualRows';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -38,6 +39,8 @@ interface TextSegment {
   type: 'plain' | 'conflict';
   startLine: number;
   content: string;
+  // plain 段按行拆分，交给 VirtualRows 窗口化渲染（大文件数千行 plain 段不再一次性进 DOM）
+  lines?: string[];
   block?: ConflictBlock;
 }
 
@@ -106,10 +109,12 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     for (const b of blocks) {
       const plainBeforeEnd = b.startLine - 1;
       if (plainBeforeEnd > currentLineIdx) {
+        const plainLines = lines.slice(currentLineIdx, plainBeforeEnd);
         segs.push({
           type: 'plain',
           startLine: currentLineIdx + 1,
-          content: lines.slice(currentLineIdx, plainBeforeEnd).join('\n'),
+          content: plainLines.join('\n'),
+          lines: plainLines,
         });
       }
 
@@ -124,10 +129,12 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     }
 
     if (currentLineIdx < lines.length) {
+      const plainLines = lines.slice(currentLineIdx);
       segs.push({
         type: 'plain',
         startLine: currentLineIdx + 1,
-        content: lines.slice(currentLineIdx).join('\n'),
+        content: plainLines.join('\n'),
+        lines: plainLines,
       });
     }
 
@@ -415,9 +422,18 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
         <div className="p-2 space-y-2">
           {segments.map((seg, sIdx) => {
             if (seg.type === 'plain') {
+              // plain 段按行交给 VirtualRows（默认 300 行阈值）：小段直接渲染，大段窗口化，避免数万行一次进 DOM。
+              // 冲突块仍保持独立 DOM（见下方分支），scrollIntoView 依赖的 blockRefs 不受影响。
               return (
-                <div key={sIdx} className="py-1 px-3 text-muted-foreground/80 leading-relaxed whitespace-pre font-mono text-[12px]">
-                  {seg.content}
+                <div key={sIdx} className="py-1">
+                  <VirtualRows
+                    items={seg.lines ?? []}
+                    renderRow={(line) => (
+                      <div className="px-3 text-muted-foreground/80 leading-relaxed whitespace-pre font-mono text-[12px]">
+                        {line.length === 0 ? '\u00A0' : line}
+                      </div>
+                    )}
+                  />
                 </div>
               );
             }

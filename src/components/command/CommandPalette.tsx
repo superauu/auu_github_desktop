@@ -234,19 +234,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             {/* Quick Tags */}
             {tags.length > 0 && (
               <Command.Group heading={t('palette.group.tags')} className="px-2 py-1 mt-2">
-                {tags.map((t) => (
+                {tags.map((tag) => (
                   <Command.Item
-                    key={t.name}
+                    key={tag.name}
                     onSelect={() => {
                       onOpenChange(false);
-                      void selectAndLocateBranch(`refs/tags/${t.name}`).catch((error: Error) => toast.error(error.message));
+                      void selectAndLocateBranch(`refs/tags/${tag.name}`).catch((error: Error) => toast.error(error.message));
                     }}
                     className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-accent cursor-pointer text-xs"
                   >
                     <Tag className="h-3.5 w-3.5 text-git-tag" />
-                    <span className="font-mono">{t.name}</span>
+                    <span className="font-mono">{tag.name}</span>
                     <span className="ml-auto text-[11px] font-mono text-muted-foreground">
-                      {t.commitHash.slice(0, 7)}
+                      {tag.commitHash.slice(0, 7)}
                     </span>
                   </Command.Item>
                 ))}

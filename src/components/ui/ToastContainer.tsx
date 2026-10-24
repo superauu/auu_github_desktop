@@ -8,13 +8,15 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '@/i18n';
 import { useToastStore, ToastItem } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { ErrorNotice } from './ErrorNotice';
 
 export const ToastContainer: React.FC = () => {
-  const { toasts, removeToast } = useToastStore();
+  // 只订阅 toasts 与 removeToast：history 记录变化不再触发容器重渲染
+  const { toasts, removeToast } = useToastStore(useShallow(state => ({ toasts: state.toasts, removeToast: state.removeToast })));
 
   if (toasts.length === 0) return null;
 

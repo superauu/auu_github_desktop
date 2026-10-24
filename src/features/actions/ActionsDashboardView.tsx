@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Ban,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
@@ -62,7 +63,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     currentOwner,
     currentRepoName,
     error,
-  } = useGitHubStore();
+  } = useGitHubStore(useShallow(state => ({ workflows: state.workflows, selectedWorkflow: state.selectedWorkflow, workflowRuns: state.workflowRuns, selectedRun: state.selectedRun, selectedRunJobs: state.selectedRunJobs, selectWorkflow: state.selectWorkflow, selectRun: state.selectRun, refreshActions: state.refreshActions, isRefreshingActions: state.isRefreshingActions, isLoadingRuns: state.isLoadingRuns, isLoadingJobs: state.isLoadingJobs, openJobLogs: state.openJobLogs, openWorkflowYaml: state.openWorkflowYaml, openDispatchModal: state.openDispatchModal, rerunWorkflowRun: state.rerunWorkflowRun, cancelWorkflowRun: state.cancelWorkflowRun, isAuthenticated: state.isAuthenticated, user: state.user, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, error: state.error })));
   const { t } = useI18n();
   const selectedRunStatus = selectedRun ? workflowStatus(selectedRun.status, selectedRun.conclusion) : null;
 

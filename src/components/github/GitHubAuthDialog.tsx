@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   ArrowRight,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { gitHubOAuthService, DeviceCodeResponse } from '@/services/github/GitHubOAuthService';
@@ -59,7 +60,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     logout,
     refreshActions,
     isLoading: isStoreLoading,
-  } = useGitHubStore();
+  } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, login: state.login, logout: state.logout, refreshActions: state.refreshActions, isLoading: state.isLoading })));
   const { t } = useI18n();
 
   const [authMode, setAuthMode] = useState<'oauth' | 'pat'>('oauth');
@@ -187,7 +188,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
   };
 
   return (
-    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={'GitHub'}
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible label={'GitHub'}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
     >
       <div

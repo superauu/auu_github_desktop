@@ -29,7 +29,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
   };
 
   return (
-    <ModalSurface onDismiss={closeWorkflowYaml} dismissible={!false} label={'Workflow configuration'}
+    <ModalSurface onDismiss={closeWorkflowYaml} dismissible label={t('yaml.modalLabel')}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150 select-none"
     >
       <div

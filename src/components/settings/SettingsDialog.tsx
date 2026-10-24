@@ -64,6 +64,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     credentialError,
     setAiConfig,
   } = useSettingsStore();
+  const { t, lang } = useI18n();
+  const setLang = useSettingsStore((st) => st.setLanguage);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   useEffect(() => { if (open) setActiveTab(initialTab); }, [open, initialTab]);
@@ -96,13 +98,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     }
   };
 
+  // Git CLI 路径检测：300ms 防抖 + 过期守卫（照上方 AI 测试 effect 的模式），避免输入每个字符都触发一次检测
+  const gitDetectRequest = useRef(0);
   useEffect(() => {
-    if (open) {
-      detectGitVersion();
-    }
-  }, [open, gitCliPath]);
-  const { t, lang } = useI18n();
-  const setLang = useSettingsStore((st) => st.setLanguage);
+    if (!open) return;
+    const request = ++gitDetectRequest.current;
+    const timer = setTimeout(() => {
+      if (request !== gitDetectRequest.current) return;
+      setIsDetectingGit(true);
+      gitService.getGitVersion()
+        .then((ver) => { if (request === gitDetectRequest.current) setGitVersion(ver || t('settings.git.notFound')); })
+        .catch(() => { if (request === gitDetectRequest.current) setGitVersion(t('settings.git.detectFailed')); })
+        .finally(() => { if (request === gitDetectRequest.current) setIsDetectingGit(false); });
+    }, 300);
+    return () => { clearTimeout(timer); gitDetectRequest.current++; };
+  }, [open, gitCliPath, t]);
 
   useEffect(() => {
     if (credentialError) toast.error(t('settings.ai.testFailed'), credentialError);
@@ -154,7 +164,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   ];
 
   return (
-    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={t('settings.title')}
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible label={t('settings.title')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
     >
       <div

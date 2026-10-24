@@ -81,6 +81,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(210);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   // Focus input when opened
   useEffect(() => {
@@ -96,6 +97,9 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [history, isExecuting]);
+
+  // 拖拽中卸载时移除 window 级 mousemove/mouseup 监听，避免泄漏
+  useEffect(() => () => { resizeCleanupRef.current?.(); }, []);
 
   if (!open) return null;
 
@@ -116,12 +120,18 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
       setHeight(newHeight);
     };
 
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
+    const detachResizeListeners = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      resizeCleanupRef.current = null;
     };
 
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      detachResizeListeners();
+    };
+
+    resizeCleanupRef.current = detachResizeListeners;
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
@@ -151,11 +161,11 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
         // Parse command line respecting quoted arguments
         const args = parseGitArgs(rawCmd.slice(4).trim());
         if (!repoPath) {
-          outputText = 'Error: No repository open';
+          outputText = t('terminal.noRepoError');
         } else {
           changesRepository = !isReadOnlyGitCommand(args);
           const res = await executeGit(args, repoPath);
-          outputText = res.stdout || res.stderr || 'Done (Exit Code 0)';
+          outputText = res.stdout || res.stderr || t('terminal.doneExitZero');
         }
       } else {
         outputText = `[Local Terminal]: ${rawCmd}\n(${t('terminal.gitOnlyHint')})`;
@@ -166,7 +176,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
         {
           id: Math.random().toString(36).slice(2),
           command: rawCmd,
-          output: outputText || 'Done (Exit Code 0)',
+          output: outputText || t('terminal.doneExitZero'),
           timestamp: now,
         },
       ]);

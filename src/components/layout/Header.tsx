@@ -94,14 +94,15 @@ export const Header: React.FC<HeaderProps> = ({
     undoLastCommit,
     redoStack,
     redoLastCommit,
-    commits,
     stashPush,
     stashPop,
     activeTab,
     stashes,
     branches,
     checkoutBranch,
-  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo, openTabs: state.openTabs, closeTab: state.closeTab, switchTab: state.switchTab, fetchRemote: state.fetchRemote, refreshAll: state.refreshAll, pull: state.pull, undoLastCommit: state.undoLastCommit, redoStack: state.redoStack, redoLastCommit: state.redoLastCommit, commits: state.commits, stashPush: state.stashPush, stashPop: state.stashPop, activeTab: state.activeTab, stashes: state.stashes, branches: state.branches, checkoutBranch: state.checkoutBranch })));
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo, openTabs: state.openTabs, closeTab: state.closeTab, switchTab: state.switchTab, fetchRemote: state.fetchRemote, refreshAll: state.refreshAll, pull: state.pull, undoLastCommit: state.undoLastCommit, redoStack: state.redoStack, redoLastCommit: state.redoLastCommit, stashPush: state.stashPush, stashPop: state.stashPop, activeTab: state.activeTab, stashes: state.stashes, branches: state.branches, checkoutBranch: state.checkoutBranch })));
+  // 只订阅 commits 数组的长度布尔值，避免整个提交历史数组变化都触发 Header 重渲染
+  const canUndo = useRepoStore(state => state.commits.length > 0);
 
   const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
   const { resolvedTheme, setTheme } = useThemeStore();
@@ -255,7 +256,6 @@ export const Header: React.FC<HeaderProps> = ({
     status?.currentBranch ||
     currentRepo?.currentBranch ||
     'main';
-  const canUndo = commits.length > 0;
   const canRedo = redoStack.length > 0 && redoStack[0].branch === currentBranchName;
 
   return (
@@ -419,7 +419,9 @@ export const Header: React.FC<HeaderProps> = ({
             </Tooltip>
 
             {/* Quick Switcher: repository: auu_saas > branch: main */}
-            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+            {/* 注意：这里必须用 overflow-x-clip 而非 overflow-hidden——hidden 会把该元素在两个轴上都变成裁切容器，
+                垂直方向会裁掉其内部触发的非 portal 浮层；clip 只在水平轴上防重叠，垂直轴保持可见。 */}
+            <div className="flex items-center gap-1.5 min-w-0 overflow-x-clip">
               {/* Repository Selector Dropdown */}
               <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); }}>
                 <Popover.Trigger asChild>
@@ -566,7 +568,7 @@ export const Header: React.FC<HeaderProps> = ({
                               <div className="flex items-center gap-1.5 truncate min-w-0">
                                 <GitBranchIcon className={cn("h-3 w-3 shrink-0", isCurrentBranch ? "text-primary" : "text-muted-foreground")} />
                                 <span className="truncate">{branch.name}</span>
-                                {branch.worktreePath && !isCurrentBranch && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>Worktree</span>}
+                                {branch.worktreePath && !isCurrentBranch && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>{t('sidebar.worktreeBadge')}</span>}
                               </div>
                               {isCurrentBranch && (
                                 <span className="text-[12px] uppercase px-1 rounded bg-primary/20 text-primary font-bold font-mono shrink-0">

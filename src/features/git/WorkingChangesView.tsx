@@ -281,19 +281,20 @@ export const WorkingChangesView: React.FC = () => {
     ...(!fileMenu.file.staged && fileMenu.file.status !== 'untracked' ? [{ id: 'discard', label: t('changes.discardTitle'), danger: true, onClick: () => void handleDiscard(fileMenu.file.path) }] : []),
   ] : [];
 
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const copyFilePath = () => {
     if (!activeFile) return;
     navigator.clipboard.writeText(activeFile.path);
     setCopiedPath(true);
     toast.success(t('changes.copiedPath'), activeFile.path);
-    setTimeout(() => setCopiedPath(false), 2000);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopiedPath(false), 2000);
   };
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      // Cleanup any pending state updates
-    };
+  // 卸载时清理复制提示的延时器，避免卸载后 setState
+  useEffect(() => () => {
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
   }, []);
 
   // Compute diff addition / deletion counts (memoized)

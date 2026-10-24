@@ -48,7 +48,7 @@ export const PullRequestsView: React.FC = () => {
     currentRepoName,
     isLoadingPullRequests,
     pullRequestsError,
-  } = useGitHubStore();
+  } = useGitHubStore(useShallow(state => ({ pullRequests: state.pullRequests, selectedPR: state.selectedPR, selectPR: state.selectPR, prFilterState: state.prFilterState, setPRFilterState: state.setPRFilterState, loadPullRequests: state.loadPullRequests, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isLoadingPullRequests: state.isLoadingPullRequests, pullRequestsError: state.pullRequestsError })));
 
   const { fetchAndCheckoutPR } = useRepoStore(useShallow(state => ({ fetchAndCheckoutPR: state.fetchAndCheckoutPR })));
   const { t } = useI18n();
@@ -328,7 +328,7 @@ export const PullRequestsView: React.FC = () => {
                             isMerged && "bg-violet-500/15 text-git-branch border-violet-500/30"
                           )}
                         >
-                          {isOpen ? 'Open' : isMerged ? 'Merged' : 'Closed'}
+                          {isOpen ? t('pr.stateOpen') : isMerged ? t('pr.stateMerged') : t('pr.stateClosed')}
                         </Badge>
 
                         {pr.labels?.map((label) => (

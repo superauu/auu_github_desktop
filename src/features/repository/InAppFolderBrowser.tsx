@@ -49,7 +49,8 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
 
   useEffect(() => {
     loadDir(initialPath);
-  }, []);
+    // initialPath 变化时重新加载目录（如同一浏览器实例被复用并传入新路径）
+  }, [initialPath]);
 
   return (
     <div className="rounded-xl border border-border/80 bg-background/80 overflow-hidden text-xs flex flex-col max-h-64 animate-in fade-in-50">
@@ -154,7 +155,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
                     onSelectPath(dir.path);
                   }}
                 >
-                  选择
+                  {t('browser.select')}
                 </Button>
                 <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
               </div>

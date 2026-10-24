@@ -51,7 +51,7 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
   ];
 
   return (
-    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!false} label={t('settings.tab.shortcuts')}
+    <ModalSurface onDismiss={() => onOpenChange(false)} dismissible label={t('settings.tab.shortcuts')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
     >
       <div

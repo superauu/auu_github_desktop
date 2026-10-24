@@ -550,6 +550,10 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'f' || e.key === 'F')) {
+        // 照 AppLayout 全局快捷键的 guard 模式：弹窗打开时不抢焦点，输入中也不劫持
+        if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+        const el = e.target as HTMLElement | null;
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
         e.preventDefault();
         searchInputRef.current?.focus();
       }
@@ -629,6 +633,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
   const handleDeleteTag = async (name: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    // 与右键菜单删除路径保持一致：删除本地 tag 前必须经过确认
+    if (!await confirmAction({ title: t('sidebar.ctx.deleteLocalTag'), description: t('composer.deleteTagWarning'), detail: name })) return;
     try {
       await deleteTag(name);
       toast.info(t('sidebar.tagDeleted'), name);
@@ -954,7 +960,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                     onDragEnd={handleDragEnd}
                                     onClick={() => {
                                       selectAndLocateBranch(branch.name);
-                                      toast.info(`${t('sidebar.ctx.locatedCommit')}: ${branch.name}`);
                                     }}
                                     onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                                     className={cn(
@@ -977,7 +982,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                       ) : null}
                                       <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                                       <span className="truncate">{leafName}</span>
-                                      {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>Worktree</span>}
+                                      {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>{t('sidebar.worktreeBadge')}</span>}
                                     </div>
                                     {branch.isCurrent ? (
                                       <span className="text-[12px] uppercase px-1 rounded bg-primary/25 text-primary font-bold font-mono">
@@ -1028,7 +1033,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           onDragEnd={handleDragEnd}
                           onClick={() => {
                             selectAndLocateBranch(branch.name);
-                            toast.info(`${t('sidebar.ctx.locatedCommit')}: ${branch.name}`);
                           }}
                           onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                           className={cn(
@@ -1051,7 +1055,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             ) : null}
                             <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                             <span className="truncate">{branch.name}</span>
-                            {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>Worktree</span>}
+                            {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>{t('sidebar.worktreeBadge')}</span>}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {branch.isCurrent ? (
@@ -1136,7 +1140,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           onDragEnd={handleDragEnd}
                           onClick={() => {
                             selectAndLocateBranch(branch.name);
-                            toast.info(`${t('sidebar.ctx.locatedRemoteCommit')}: ${branch.name}`);
                           }}
                           onContextMenu={(e) => handleRemoteBranchContextMenu(e, branch)}
                           className={cn(
@@ -1199,7 +1202,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                               onDragEnd={handleDragEnd}
                               onClick={() => {
                                 selectAndLocateBranch(branch.name);
-                                toast.info(`${t('sidebar.ctx.locatedRemoteCommit')}: ${branch.name}`);
                               }}
                               onContextMenu={(e) => handleRemoteBranchContextMenu(e, branch)}
                               className={cn(
@@ -1509,7 +1511,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                               }
                             }}
                           >
-                            Pop
+                            {t('sidebar.popAction')}
                           </Button>
                           <Button
                             variant="ghost"

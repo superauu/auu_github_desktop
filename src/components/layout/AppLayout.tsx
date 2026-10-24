@@ -11,6 +11,7 @@ import { LeftSidebar } from './LeftSidebar';
 import { CenterStage } from './CenterStage';
 import { RightPane } from './RightPane';
 import { StatusBar } from './StatusBar';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { CommandPalette } from '@/components/command/CommandPalette';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { RepositoryDialog } from '@/features/repository/RepositoryDialog';
@@ -84,22 +85,23 @@ export const AppLayout: React.FC = () => {
   // Global Shortcuts（速查浮层：按 ?）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
-      // Ctrl+` 切换内嵌终端（输入框内也允许）
+      // Ctrl+` 切换内嵌终端：放在 dialog guard 之前，弹窗内也能呼出（终端是开发辅助）
       if ((e.ctrlKey || e.metaKey) && (e.key === '`' || e.code === 'Backquote')) {
         e.preventDefault();
         toggleEmbeddedTerminal();
         return;
       }
 
-      if (isTypingTarget(e.target)) return;
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
 
-      // Ctrl+K 命令面板
+      // Ctrl+K 命令面板：放在 isTypingTarget 之前，输入框内也要能呼出
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setCommandPaletteOpen((v) => !v);
         return;
       }
+
+      if (isTypingTarget(e.target)) return;
 
       // Ctrl+, 打开设置
       if ((e.ctrlKey || e.metaKey) && e.key === ',') {
@@ -142,7 +144,7 @@ export const AppLayout: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleEmbeddedTerminal, fetchRemote, pull, setActiveTab]);
+  }, [toggleEmbeddedTerminal, fetchRemote, pull, setActiveTab, t]);
 
   // Apply compact mode on mount
   // 启动后静默检查应用更新（仅桌面端）
@@ -214,24 +216,26 @@ export const AppLayout: React.FC = () => {
   return (
     <div className="app-shell h-screen w-screen flex flex-col overflow-hidden text-foreground select-none font-sans" data-window-maximized={windowChrome.maximized} data-window-focused={windowChrome.focused}>
       {/* Top Header & Action Toolbar */}
-      <Header
-        windowChrome={windowChrome}
-        navigationOverlay={navigationOverlay}
-        inspectorOverlay={inspectorOverlay}
-        onToggleNavigation={() => navigationOverlay ? setNavigationOpen(!navigationOpen) : toggleLeftSidebar()}
-        onToggleInspector={() => inspectorOverlay ? setInspectorOpen(!inspectorOpen) : toggleRightPane()}
-        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-        onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
-        onOpenRepoDialog={() => handleOpenRepoDialog('open')}
-        onOpenGitHubAuth={() => setGithubAuthOpen(true)}
-      />
+      <ErrorBoundary>
+        <Header
+          windowChrome={windowChrome}
+          navigationOverlay={navigationOverlay}
+          inspectorOverlay={inspectorOverlay}
+          onToggleNavigation={() => navigationOverlay ? setNavigationOpen(!navigationOpen) : toggleLeftSidebar()}
+          onToggleInspector={() => inspectorOverlay ? setInspectorOpen(!inspectorOpen) : toggleRightPane()}
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
+          onOpenRepoDialog={() => handleOpenRepoDialog('open')}
+          onOpenGitHubAuth={() => setGithubAuthOpen(true)}
+        />
+      </ErrorBoundary>
 
       {/* Main 3-Column Work Area */}
       <div className="app-workspace flex-1 min-h-0 flex overflow-hidden relative">
-        {!navigationOverlay && <LeftSidebar />}
+        {!navigationOverlay && <ErrorBoundary><LeftSidebar /></ErrorBoundary>}
         {navigationOverlay && navigationOpen && <ModalSurface label={t('composer.navigation')} onDismiss={() => setNavigationOpen(false)} className="fixed inset-0 z-40 bg-black/35 flex">
           <div className="glass-surface h-full w-72 flex flex-col shadow-2xl border-r border-border">
-            <LeftSidebar inDrawer onNavigate={() => setNavigationOpen(false)} />
+            <ErrorBoundary><LeftSidebar inDrawer onNavigate={() => setNavigationOpen(false)} /></ErrorBoundary>
           </div>
         </ModalSurface>}
         {!navigationOverlay && !isLeftSidebarCollapsed && (
@@ -263,7 +267,7 @@ export const AppLayout: React.FC = () => {
               title={t('layout.resizeRight')}
             />
         )}
-        <RightPane overlay={inspectorOverlay} open={inspectorOpen} onClose={() => setInspectorOpen(false)} onOpenAiSettings={() => { setSettingsTab('ai'); setSettingsOpen(true); }} />
+        <ErrorBoundary><RightPane overlay={inspectorOverlay} open={inspectorOpen} onClose={() => setInspectorOpen(false)} onOpenAiSettings={() => { setSettingsTab('ai'); setSettingsOpen(true); }} /></ErrorBoundary>
       </div>
 
       {/* Bottom Status Bar */}
