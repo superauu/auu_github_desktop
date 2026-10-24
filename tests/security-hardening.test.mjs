@@ -119,6 +119,49 @@ test('git policy helpers classify devices, operand shapes and local clone source
   assert.equal(app.isLocalCloneSource('ssh://example.invalid/r.git'), false);
   assert.equal(app.isLocalCloneSource('git@example.invalid:r.git'), false);
   assert.equal(app.isLocalCloneSource('file://outside/repo'), true);
+  // 传输目标按本地 file 传输处理时的路径形态（与 Rust local_transport_path 一致）。
+  assert.equal(app.localTransportPath('plain'), 'plain');
+  assert.equal(app.localTransportPath('./x'), './x');
+  assert.equal(app.localTransportPath('/repos/x'), '/repos/x');
+  assert.equal(app.localTransportPath('https://example.invalid/r.git'), null);
+  assert.equal(app.localTransportPath('ssh://example.invalid/r.git'), null);
+  assert.equal(app.localTransportPath('git@example.invalid:r.git'), null);
+  assert.equal(app.localTransportPath('host:r.git'), null);
+  assert.equal(app.localTransportPath('file:E:/x'), null);
+  assert.equal(app.localTransportPath('file://example.invalid/x'), null);
+  assert.equal(app.localTransportPath('file://'), null);
+  assert.equal(app.localTransportPath('FILE://localhost/repos/x'), '/repos/x');
+  assert.equal(app.localTransportPath('file:///repos/a%20b'), '/repos/a b');
+  assert.equal(app.localTransportPath('file:///repos/%2E%2E'), '/repos/..');
+  assert.equal(app.localTransportPath('file:///a%zz'), '/a%zz');
+  if (process.platform === 'win32') {
+    assert.equal(app.localTransportPath('C:/repos/x'), 'C:/repos/x');
+    assert.equal(app.localTransportPath('file://E:/repos/x'), 'E:/repos/x');
+    assert.equal(app.localTransportPath('file:///E:/repos/x'), 'E:/repos/x');
+    assert.equal(app.localTransportPath('file://E:\\repos\\x'), 'E:\\repos\\x');
+  } else {
+    assert.equal(app.localTransportPath('C:/repos/x'), null);
+    assert.equal(app.localTransportPath('file:///E:/repos/x'), '/E:/repos/x');
+  }
+  // push/fetch/pull 的传输目标候选（与 Rust transport_candidates 一致）：取值选项的值、
+  // refspec 与未知选项都不会被误读成 <repository>。
+  assert.deepEqual(app.transportCandidates(['--all']), 'all');
+  assert.deepEqual(app.transportCandidates(['origin']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['--prune', 'origin', 'refs/heads/main']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['+main:main']), { explicit: ['+main:main'] });
+  assert.deepEqual(app.transportCandidates(['--multiple', 'a', 'b']), { explicit: ['a', 'b'] });
+  assert.equal(app.transportCandidates([]), 'upstream');
+  assert.equal(app.transportCandidates(['--rebase']), 'upstream');
+  assert.deepEqual(app.transportCandidates(['--', 'origin', 'main']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['--depth', '1', 'origin']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['--shallow-exclude', './inside', 'origin']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['--force-with-lease=refs/heads/x:o', 'origin']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['-qf', 'origin']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['-o', 'x', 'origin']), { explicit: ['origin'] });
+  assert.deepEqual(app.transportCandidates(['-qovalue', 'origin']), { explicit: ['origin'] });
+  assert.equal(app.transportCandidates(['--unknown', 'origin']), null);
+  assert.equal(app.transportCandidates(['-s', 'ort', 'origin']), null);
+  assert.equal(app.transportCandidates(['--']), 'upstream');
   if (process.platform === 'win32') {
     assert.equal(app.isLocalCloneSource('C:/repos/x'), true);
     assert.equal(app.isLocalCloneSource('C:x'), true);
@@ -137,11 +180,12 @@ test('development git endpoint rejects smuggled values and off-repository file a
     ['hash-object', '-w', 'untracked.txt'],
     ['init', path.join(outside, 'evil')],
     ['worktree', 'move', 'wt', path.join(outside, 'evil')],
+    // file:// 源可解析为本地路径时交给授权表：越界源在端点层拒绝（纯层只拒绝无法解析的形态）。
     ['clone', '--', 'file://' + path.join(outside, 'secret'), path.join(temporary, 'bad-clone')],
   ]) {
     const response = await post('git', { args, cwd: repository });
     assert.equal(response.status, 400, JSON.stringify(args));
-    assert.match((await response.json()).error, /Unsupported|requires|stay inside/);
+    assert.match((await response.json()).error, /Unsupported|requires|stay inside|outside/);
   }
   assert.equal(await fs.access(path.join(outside, 'evil')).then(() => true, () => false), false);
   // 合法的 untracked diff（空设备 + 仓库内相对路径）保持可用。
@@ -275,6 +319,58 @@ test('the hardened policy still permits local clone, init and linked worktree cr
     const response = await post('git', data);
     assert.equal(response.status, 200); const result = await response.json(); assert.equal(result.exitCode, 0, result.stderr);
   }
+});
+
+test('push and fetch grant the local transport only for authorized local remotes', async () => {
+  const work = path.join(temporary, 'transport-repo'), mirror = path.join(temporary, 'mirror.git');
+  const git = (...args) => execFileSync('git', args, { cwd: work, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  execFileSync('git', ['init', '-b', 'main', work], { windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['init', '--bare', mirror], { windowsHide: true, stdio: 'ignore' });
+  git('config', 'user.name', 'Policy Test'); git('config', 'user.email', 'policy@example.invalid');
+  await fs.writeFile(path.join(work, 'file.txt'), 'base\n'); git('add', '--', 'file.txt'); git('commit', '-m', 'base');
+  git('remote', 'add', 'origin', mirror);
+  git('remote', 'add', 'fileform', 'file:///' + mirror.replaceAll('\\', '/'));
+  // 授权根内的本地 remote：remote 名、直接路径、file:// 形式都能推送。
+  for (const [label, args] of [
+    ['named remote', ['push', 'origin', 'refs/heads/main:refs/heads/main']],
+    ['direct path', ['push', mirror, 'refs/heads/main:refs/heads/path-branch']],
+    ['file:// form', ['push', 'fileform', 'refs/heads/main:refs/heads/file-branch']],
+  ]) {
+    const response = await post('git', { args, cwd: work });
+    assert.equal(response.status, 200, label);
+    const result = await response.json();
+    assert.equal(result.exitCode, 0, `${label}: ${result.stderr}`);
+  }
+  // fetch --all、指定 remote、裸 pull（上游远程解析）同样获得放行。
+  git('fetch', 'origin');
+  git('branch', '--set-upstream-to=origin/main');
+  for (const [label, args] of [
+    ['fetch --all', ['fetch', '--all']],
+    ['named fetch', ['fetch', 'origin', 'refs/heads/main']],
+    ['bare pull', ['pull', '--rebase']],
+  ]) {
+    const response = await post('git', { args, cwd: work });
+    assert.equal(response.status, 200, label);
+    const result = await response.json();
+    assert.equal(result.exitCode, 0, `${label}: ${result.stderr}`);
+  }
+  // 越界的本地 remote（remote 名或直接路径）回落默认白名单，由 git 报传输错误而非放行。
+  const outsideMirror = path.join(outside, 'outside-mirror.git');
+  execFileSync('git', ['init', '--bare', outsideMirror], { windowsHide: true, stdio: 'ignore' });
+  git('remote', 'add', 'elsewhere', outsideMirror);
+  await fs.writeFile(path.join(work, 'file.txt'), 'second\n'); git('add', '--', 'file.txt'); git('commit', '-m', 'second');
+  for (const [label, args] of [
+    ['outside named remote', ['push', 'elsewhere', 'refs/heads/main']],
+    ['outside direct path', ['push', outsideMirror, 'refs/heads/main']],
+    ['outside file:// form', ['push', 'file://' + outsideMirror.replaceAll('\\', '/'), 'refs/heads/main']],
+  ]) {
+    const response = await post('git', { args, cwd: work });
+    assert.equal(response.status, 200, label);
+    const result = await response.json();
+    assert.notEqual(result.exitCode, 0, `${label}: must stay blocked`);
+    assert.match(result.stderr, /not allowed|does not appear/, label);
+  }
+  assert.equal(await fs.access(path.join(outsideMirror, 'refs', 'heads', 'main')).then(() => true, () => false), false);
 });
 
 test('development filesystem and Git endpoints reject outside roots and linked directory escapes', async () => {

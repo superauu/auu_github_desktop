@@ -371,4 +371,44 @@ mod tests {
         .unwrap();
         assert_eq!(allowed.exit_code, 0, "{}", allowed.stderr);
     }
+
+    #[test]
+    fn local_push_targets_need_the_local_protocol_grant() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source");
+        init_repo(&source);
+        let clone = |target: &std::path::Path| {
+            run_git_protocols(
+                vec![
+                    "clone".into(),
+                    "--bare".into(),
+                    "--".into(),
+                    source.to_string_lossy().into_owned(),
+                    target.to_string_lossy().into_owned(),
+                ],
+                directory.path().to_string_lossy().into_owned(),
+                None,
+                None,
+                Some(LOCAL_PROTOCOLS),
+            )
+            .unwrap()
+        };
+        let work = directory.path().join("work");
+        let bare = directory.path().join("mirror.git");
+        assert_eq!(clone(&work).exit_code, 0);
+        assert_eq!(clone(&bare).exit_code, 0);
+        std::fs::write(work.join("file.txt"), "change\n").unwrap();
+        let cwd = work.to_string_lossy().into_owned();
+        run_git(vec!["add".into(), "--".into(), "file.txt".into()], cwd.clone(), None, None).unwrap();
+        run_git(vec!["commit".into(), "-m".into(), "change".into()], cwd.clone(), None, None).unwrap();
+        let push = vec![
+            "push".into(),
+            bare.to_string_lossy().into_owned(),
+            "refs/heads/main:refs/heads/main".into(),
+        ];
+        let blocked = run_git_protocols(push.clone(), cwd.clone(), None, None, None).unwrap();
+        assert_ne!(blocked.exit_code, 0, "{}", blocked.stderr);
+        let allowed = run_git_protocols(push, cwd, None, None, Some(LOCAL_PROTOCOLS)).unwrap();
+        assert_eq!(allowed.exit_code, 0, "{}", allowed.stderr);
+    }
 }

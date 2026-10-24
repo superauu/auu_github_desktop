@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { version } from './package.json';
 import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io';
 import { directoryScope } from './scripts/dev-directory-scope';
-import { validateGitArguments } from './scripts/git-policy';
+import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy';
 import { createGitBinaryResolver } from './scripts/git-binary';
 import { AI_REQUEST_TIMEOUT_MS } from './src/services/ai/aiLimits';
 
@@ -49,9 +49,69 @@ async function repoFile(repoPath: string, filePath: string): Promise<string> {
   if (relative.split(path.sep).some(part => part.toLowerCase() === '.git')) throw new Error('Invalid repository file path');
   return resolved;
 }
+// push/fetch/pull 的只读远程解析（与 src-tauri/src/lib.rs transport_grant 一致）：
+// remote 名经 `git remote get-url --all` 展开 insteadOf，push 侧优先 pushurl，--all 覆盖多值 URL。
+async function gitLines(cwd: string, args: string[], gitBinary: string): Promise<string[]> {
+  return await new Promise<string[]>((resolve, reject) => {
+    const child = spawn(gitBinary, args, { cwd, windowsHide: true });
+    let output = '', error = '';
+    child.stdout.on('data', chunk => { output += chunk; });
+    child.stderr.on('data', chunk => { error += chunk; });
+    child.on('error', reject);
+    child.on('close', code => code === 0
+      ? resolve(output.split('\n').map(line => line.trim()).filter(Boolean))
+      : reject(new Error(error)));
+  });
+}
+async function remoteUrls(command: string, name: string, cwd: string, gitBinary: string): Promise<string[]> {
+  const args = ['remote', 'get-url', '--all'];
+  if (command === 'push') args.push('--push');
+  const urls = await gitLines(cwd, [...args, name], gitBinary);
+  if (!urls.length) throw new Error('Missing remote URL');
+  return urls;
+}
+async function allRemoteUrls(cwd: string, gitBinary: string): Promise<string[]> {
+  const urls: string[] = [];
+  for (const name of await gitLines(cwd, ['remote'], gitBinary)) urls.push(...await remoteUrls('fetch', name, cwd, gitBinary));
+  return urls;
+}
+async function upstreamRemote(command: string, cwd: string, gitBinary: string): Promise<string> {
+  const tracking = (await gitLines(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', command === 'push' ? '@{push}' : '@{u}'], gitBinary))[0];
+  if (!tracking) throw new Error('Missing upstream remote');
+  // remote 名可能含斜杠，对 `git remote` 列表做最长前缀匹配。
+  const matched = (await gitLines(cwd, ['remote'], gitBinary))
+    .filter(name => tracking.startsWith(name + '/')).sort((a, b) => b.length - a.length)[0];
+  if (!matched) throw new Error('Missing upstream remote');
+  return matched;
+}
 export function gitApiPlugin(): Plugin {
   const allowedPath = directoryScope();
   const resolveGitBinary = createGitBinaryResolver();
+  // 远程目标解析为授权根内的本地路径时放行本地传输（与 clone 源同构）；任一本地目标越界或
+  // 解析失败一律不放行（fail closed），由 git 自然报传输错误。与 src-tauri/src/lib.rs 一致。
+  const transportGrant = async (command: string, args: string[], index: number, cwd: string, gitBinary: string): Promise<boolean> => {
+    const candidates = transportCandidates(args.slice(index + 1));
+    if (!candidates) return false;
+    let urls: string[];
+    if (candidates === 'all') urls = await allRemoteUrls(cwd, gitBinary);
+    else if (candidates === 'upstream') urls = await remoteUrls(command, await upstreamRemote(command, cwd, gitBinary), cwd, gitBinary);
+    else {
+      urls = [];
+      for (const name of candidates.explicit) {
+        try { urls.push(...await remoteUrls(command, name, cwd, gitBinary)); }
+        catch { urls.push(name); } // 不是 remote 名：按本地路径处理（相对路径按 spawn cwd 解析）
+      }
+    }
+    let granted = false;
+    for (const url of urls) {
+      const local = localTransportPath(url);
+      if (!local) continue;
+      const outside = await allowedPath(path.isAbsolute(local) ? local : path.resolve(cwd, local)).then(() => false, () => true);
+      if (outside) return false; // 任一本地目标越界 → 整体不放行
+      granted = true;
+    }
+    return granted;
+  };
   return {
     name: 'git-api-plugin',
     configureServer(server) {
@@ -91,9 +151,42 @@ export function gitApiPlugin(): Plugin {
               const separator = data.args.indexOf('--');
               if (separator < 0 || data.args.length !== separator + 3) throw new Error('Clone requires an explicit destination');
               await allowedPath(data.args[data.args.length - 1]);
-            }
-            if (command === 'worktree' && data.args[index + 1] === 'add') {
-              await allowedPath(data.args[data.args.indexOf('--') + 1]);
+              // 与 src-tauri/src/lib.rs 一致：本地路径源本身就是一次跨仓库读取，只放行已授权目录，
+              // 并仅对该次调用开放本地传输。file:// 先解析出文件系统路径（无法解析的形态已在
+              // validateGitArguments 拒绝）；git 实际按 spawn cwd 解析相对源，因此用 data.cwd 归一。
+              const source = data.args[separator + 1];
+              if (isLocalCloneSource(source)) {
+                const local = localTransportPath(source);
+                if (!local) throw new Error('Unsupported clone protocol: file');
+                await allowedPath(path.resolve(data.cwd, local));
+                data.gitProtocols = 'https:http:ssh:git:file';
+              }
+            } else {
+              // 与 src-tauri 一致：这些形态会按 cwd 直接读盘或落盘，镜像纯层检查（validateGitArguments）
+              // 之外再对实际落点做授权根校验（allowedPath 会 realpath，可拦符号链接逃逸）。
+              for (const operand of noIndexPaths(data.args, index)) {
+                if (!isNullDevice(operand)) await allowedPath(path.resolve(data.cwd, operand));
+              }
+              if (command === 'init') {
+                const target = initTarget(data.args, index);
+                if (target) await allowedPath(path.resolve(data.cwd, target));
+              }
+              if (command === 'worktree' && data.args[index + 1] === 'add') {
+                await allowedPath(data.args[data.args.indexOf('--') + 1]);
+              }
+              if (command === 'worktree' && data.args[index + 1] === 'move') {
+                for (const target of worktreeMoveTargets(data.args, index)) await allowedPath(path.resolve(data.cwd, target));
+              }
+              if (command === 'push' || command === 'fetch' || command === 'pull') {
+                // 与 src-tauri/src/lib.rs 一致：远程目标与 clone 源同构，解析为授权根内的本地路径时
+                // 放行本地传输。解析会跑只读 git 子进程（remote get-url / rev-parse @{u}），
+                // 失败即不放行（fail closed），由 git 自然报传输错误。
+                try {
+                  if (await transportGrant(command, data.args, index, data.cwd, data.gitBinary)) {
+                    data.gitProtocols = 'https:http:ssh:git:file';
+                  }
+                } catch { /* fail closed */ }
+              }
             }
           }
           if (url.pathname === '/fs/exists') {
@@ -180,7 +273,7 @@ export function gitApiPlugin(): Plugin {
             json(res, 200, await operation); return;
           }
           if (url.pathname === '/git') {
-            const { args, cwd = process.cwd(), gitBinary = 'git', stdin } = data;
+            const { args, cwd = process.cwd(), gitBinary = 'git', stdin, gitProtocols } = data;
             if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string') ||
                 typeof gitBinary !== 'string' || !/^git(?:\.exe)?$/i.test(path.basename(gitBinary)) ||
                 (stdin !== undefined && typeof stdin !== 'string')) throw new Error('Invalid Git command');
@@ -193,8 +286,11 @@ export function gitApiPlugin(): Plugin {
               json(res, 400, { exitCode: -1, stdout: '', stderr: `Repository directory is unavailable: ${cwd}`, errorCode: 'REPOSITORY_DIRECTORY_UNAVAILABLE' });
               return;
             }
+            // 默认收紧传输白名单（与 src-tauri DEFAULT_PROTOCOLS 一致）；仅上面校验过的授权本地
+            // clone 源或 push/fetch/pull 的授权本地远程对该次调用放行 file 传输（LOCAL_PROTOCOLS）。
+            // 非精确匹配一律回落默认，fail closed。
             const child = spawn(gitBinary, ['-c', 'core.quotepath=false', ...args], {
-              cwd, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never', GIT_ALLOW_PROTOCOL: 'https:http:ssh:git:file' },
+              cwd, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never', GIT_ALLOW_PROTOCOL: gitProtocols === 'https:http:ssh:git:file' ? gitProtocols : 'https:http:ssh:git' },
             });
             let stdout = '', stderr = '', size = 0, finished = false;
             const finish = (status: number, value: unknown) => {
@@ -206,7 +302,7 @@ export function gitApiPlugin(): Plugin {
             const collect = (stream: 'stdout' | 'stderr', chunk: string) => {
               size += Buffer.byteLength(chunk);
               if (size > 32 * 1024 * 1024) { child.kill(); finish(413, { error: 'Git output too large' }); return; }
-              if (stream === 'stdout') stdout += chunk.toString('utf8'); else stderr += chunk.toString('utf8');
+              if (stream === 'stdout') stdout += chunk; else stderr += chunk;
             };
             child.stdout.on('data', (chunk) => collect('stdout', chunk));
             child.stderr.on('data', (chunk) => collect('stderr', chunk));

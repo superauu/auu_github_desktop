@@ -27,11 +27,99 @@ fn normalize_display_path(p: &std::path::Path) -> String {
     s
 }
 
+/// push/fetch/pull 的传输目标解析为已授权根内的本地路径时，对该次调用放行本地传输
+/// （与 clone 源的授权同构，授权模型不变：只有用户批准的目录可写）。
+/// 远程名先经只读 `git remote get-url --all` 解析（展开 insteadOf，push 侧优先 pushurl，
+/// --all 覆盖多值 URL 的全部推送目标）；解析失败、目标越界或命令形态不确定时一律
+/// 返回 None：回落默认白名单，由 git 自然报传输错误（fail closed）。
+fn transport_grant(args: &[String], cwd: &str, git_binary: Option<&str>) -> Option<&'static str> {
+    let index = git_policy::command_index(args).ok()?;
+    let command = args[index].as_str();
+    if !matches!(command, "push" | "fetch" | "pull") {
+        return None;
+    }
+    let urls = match git_policy::transport_candidates(&args[index + 1..])? {
+        git_policy::TransportCandidates::All => all_remote_urls(cwd, git_binary)?,
+        git_policy::TransportCandidates::Upstream => {
+            let name = upstream_remote_name(command, cwd, git_binary)?;
+            remote_urls(command == "push", &name, cwd, git_binary)?
+        }
+        git_policy::TransportCandidates::Explicit(names) => {
+            let mut urls = Vec::new();
+            for name in &names {
+                match remote_urls(command == "push", name, cwd, git_binary) {
+                    Some(mut found) => urls.append(&mut found),
+                    // 不是 remote 名：按本地路径处理（相对路径按 spawn cwd 解析）。
+                    None => urls.push(name.clone()),
+                }
+            }
+            urls
+        }
+    };
+    let root = repository_access::resolve(Path::new(cwd)).ok()?;
+    let mut granted = false;
+    for url in &urls {
+        match git_policy::local_transport_path(url) {
+            // 本地路径目标必须落在授权根内；远程 URL 由默认白名单约束，无需放行。
+            Some(path) => {
+                let target = if Path::new(&path).is_absolute() { PathBuf::from(&path) } else { root.join(&path) };
+                repository_access::require_path(target.to_string_lossy().as_ref()).ok()?;
+                granted = true;
+            }
+            None => {}
+        }
+    }
+    granted.then_some(LOCAL_PROTOCOLS)
+}
+
+/// `git remote get-url --all [--push] <name>`：返回该 remote 的全部传输目标 URL。
+fn remote_urls(push: bool, name: &str, cwd: &str, git_binary: Option<&str>) -> Option<Vec<String>> {
+    let mut arguments = vec!["remote".into(), "get-url".into(), "--all".into()];
+    if push { arguments.push("--push".into()); }
+    arguments.push(name.into());
+    let result = run_git(arguments, cwd.to_string(), git_binary.map(str::to_string), None).ok()?;
+    if result.exit_code != 0 { return None; }
+    let urls: Vec<String> = result.stdout.lines().map(str::trim).filter(|url| !url.is_empty()).map(String::from).collect();
+    (!urls.is_empty()).then_some(urls)
+}
+
+/// fetch --all：枚举全部 remote 的 URL（任一解析失败即放弃放行）。
+fn all_remote_urls(cwd: &str, git_binary: Option<&str>) -> Option<Vec<String>> {
+    let listing = run_git(vec!["remote".into()], cwd.to_string(), git_binary.map(str::to_string), None).ok()?;
+    if listing.exit_code != 0 { return None; }
+    let mut urls = Vec::new();
+    for name in listing.stdout.lines().map(str::trim).filter(|name| !name.is_empty()) {
+        urls.append(&mut remote_urls(false, name, cwd, git_binary)?);
+    }
+    Some(urls)
+}
+
+/// 裸 push/fetch/pull 的远程：@{push} / @{u} 展开 push.default 与上游配置；
+/// remote 名可能含斜杠，对 `git remote` 列表做最长前缀匹配。
+fn upstream_remote_name(command: &str, cwd: &str, git_binary: Option<&str>) -> Option<String> {
+    let expression = if command == "push" { "@{push}" } else { "@{u}" };
+    let tracking = run_git(
+        vec!["rev-parse".into(), "--abbrev-ref".into(), "--symbolic-full-name".into(), expression.into()],
+        cwd.to_string(),
+        git_binary.map(str::to_string),
+        None,
+    ).ok()?;
+    if tracking.exit_code != 0 { return None; }
+    let tracking = tracking.stdout.trim();
+    let listing = run_git(vec!["remote".into()], cwd.to_string(), git_binary.map(str::to_string), None).ok()?;
+    if listing.exit_code != 0 { return None; }
+    listing.stdout.lines().map(str::trim).filter(|name| !name.is_empty())
+        .filter(|name| tracking.strip_prefix(*name).is_some_and(|rest| rest.starts_with('/')))
+        .max_by_key(|name| name.len())
+        .map(String::from)
+}
+
 #[tauri::command]
 async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
     git_policy::validate(&args)?;
-    // None = 默认收紧的传输白名单；仅已授权的本地 clone 源对该次调用放行 file 传输。
+    // None = 默认收紧的传输白名单；仅已授权的本地 clone 源或 push/fetch/pull 的已授权本地远程对该次调用放行。
     let mut protocols: Option<&'static str> = None;
+    let mut transport = false;
     if args != ["--version"] && args != ["-c", "core.quotepath=false", "--version"] {
         let index = git_policy::command_index(&args)?;
         let command = args[index].as_str();
@@ -42,7 +130,10 @@ async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<Stri
             let source = &args[separator + 1];
             if git_policy::is_local_clone_source(source) {
                 // 本地路径源本身就是一次跨仓库读取：只允许已授权目录作为源。
-                repository_access::require_path(source)?;
+                // file:// URL 先解析出文件系统路径（与 push/fetch/pull 的传输目标同构）；
+                // 无法解析的形态已在 validate 纯层拒绝，此处兜底维持同样错误。
+                let path = git_policy::local_transport_path(source).ok_or("Unsupported clone protocol: file")?;
+                repository_access::require_path(&path)?;
                 protocols = Some(LOCAL_PROTOCOLS);
             }
             cwd = std::env::current_dir().map_err(|error| error.to_string())?.to_string_lossy().into_owned();
@@ -77,9 +168,20 @@ async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<Stri
                     _ => {}
                 }
             }
+            if matches!(command, "push" | "fetch" | "pull") {
+                // 远程目标与 clone 源同构：实际放行在 spawn_blocking 内解析——需跑只读
+                // git remote get-url / rev-parse @{u}，不能阻塞异步运行时线程。
+                transport = true;
+            }
         }
     }
-    tauri::async_runtime::spawn_blocking(move || run_git_protocols(args, cwd, git_binary, stdin, protocols)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        if transport {
+            // 只读解析与传输命令顺序执行，各自短暂占用并发闸后即释放，不形成循环等待。
+            protocols = protocols.or_else(|| transport_grant(&args, &cwd, git_binary.as_deref()));
+        }
+        run_git_protocols(args, cwd, git_binary, stdin, protocols)
+    }).await.map_err(|e| e.to_string())?
 }
 
 fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {

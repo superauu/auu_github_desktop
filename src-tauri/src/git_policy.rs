@@ -280,9 +280,268 @@ pub fn worktree_move_targets(args: &[String], index: usize) -> Vec<String> {
         .collect()
 }
 
+/// 传输目标按本地 file 传输处理时的路径形态；远程 URL 返回 None。
+/// 远程 URL 包括 https:// 等带 scheme 的 URL、scp 风格 host:path，以及 git 按 ssh 处理的
+/// file:<path>（单斜杠）形式。file:// URL 解析出文件系统路径：authority 仅接受空、
+/// localhost 与（Windows）盘符，并做百分号解码；非本地 host 维持 None（fail closed）。
+/// 与 scripts/git-policy.ts 的 localTransportPath 一致。
+pub fn local_transport_path(spec: &str) -> Option<String> {
+    if spec.len() >= 7 && spec.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("file://")) {
+        return local_file_url(&spec[7..]);
+    }
+    if spec.len() >= 5 && spec.get(..5).is_some_and(|prefix| prefix.eq_ignore_ascii_case("file:")) {
+        return None;
+    }
+    if spec.contains("://") {
+        return None;
+    }
+    let colon = spec.find(':');
+    let slash = spec.find(['/', '\\']);
+    if let Some(colon) = colon {
+        if slash.map_or(true, |slash| colon < slash) {
+            // 冒号先于任何斜杠：Windows 盘符路径，或 scp 风格 host:path（远程）。
+            let bytes = spec.as_bytes();
+            if cfg!(windows) && bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() {
+                return Some(spec.to_string());
+            }
+            return None;
+        }
+    }
+    Some(spec.to_string())
+}
+
+/// file:// 后的 authority/path 解析：file:///E:/x → E:/x、file://E:/x → E:/x、
+/// file:///repos/x → /repos/x（file://localhost/repos/x 等价）。
+fn local_file_url(rest: &str) -> Option<String> {
+    let boundary = rest.find(['/', '\\'])?;
+    let authority = &rest[..boundary];
+    let mut path = &rest[boundary..];
+    if authority.eq_ignore_ascii_case("localhost") {
+        // 与空 authority 等价，path 保持不变。
+    } else {
+        let bytes = authority.as_bytes();
+        if cfg!(windows) && bytes.len() == 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() {
+            path = rest;
+        } else if !authority.is_empty() {
+            return None;
+        }
+    }
+    let bytes = path.as_bytes();
+    if cfg!(windows)
+        && bytes.len() >= 3
+        && (bytes[0] == b'/' || bytes[0] == b'\\')
+        && bytes[2] == b':'
+        && bytes[1].is_ascii_alphabetic()
+    {
+        path = &path[1..];
+    }
+    Some(percent_decode(path))
+}
+
+/// URL 百分号解码（与 git 的 url_decode 对齐）：非法序列按字面量保留。
+/// 解码在授权之前进行，".." 逃逸由调用方的 resolve/require_path 拒绝。
+fn percent_decode(value: &str) -> String {
+    if !value.contains('%') {
+        return value.to_string();
+    }
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%'
+            && index + 2 < bytes.len()
+            && bytes[index + 1].is_ascii_hexdigit()
+            && bytes[index + 2].is_ascii_hexdigit()
+        {
+            let hex = |byte: u8| (byte as char).to_digit(16).unwrap() as u8;
+            decoded.push(hex(bytes[index + 1]) * 16 + hex(bytes[index + 2]));
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+/// push/fetch/pull 的传输目标候选。git 把 <repository> 当作位置参数（--multiple 时全部
+/// 位置参数都是远程；fetch --all 无位置参数则枚举全部 remote）；裸调用使用上游/推送远程。
+/// 位置参数之前的选项必须能确定是否取值，否则返回 None（fail closed）——
+/// 防止把选项值（如 --shallow-exclude ./x 的 ./x）误读成 <repository> 造成越界放行。
+/// 与 scripts/git-policy.ts 的 transportCandidates 一致。
+#[derive(Debug, PartialEq)]
+pub enum TransportCandidates {
+    All,
+    Upstream,
+    Explicit(Vec<String>),
+}
+
+/// 确定取值的 push/fetch/pull 长选项（跳过其单独的值）。
+const TRANSPORT_VALUE_OPTIONS: &[&str] = &[
+    "--depth",
+    "--deepen",
+    "--shallow-since",
+    "--shallow-exclude",
+    "--refmap",
+    "--jobs",
+    "--server-option",
+    "--upload-pack",
+    "--receive-pack",
+    "--exec",
+    "--negotiation-tip",
+    "--submodule-prefix",
+    "--repo",
+    "--into-name",
+];
+
+/// 确定不取值的 push/fetch/pull 长选项（= 形式同样合法，如 --force-with-lease=<ref>:<oid>）；
+/// 不在两表内的选项一律放弃放行。
+const TRANSPORT_FLAG_OPTIONS: &[&str] = &[
+    "--all",
+    "--multiple",
+    "--tags",
+    "--force",
+    "--delete",
+    "--set-upstream",
+    "--force-with-lease",
+    "--no-force-with-lease",
+    "--force-if-includes",
+    "--prune",
+    "--prune-tags",
+    "--no-prune",
+    "--dry-run",
+    "--no-tags",
+    "--atomic",
+    "--quiet",
+    "--verbose",
+    "--progress",
+    "--porcelain",
+    "--ipv4",
+    "--ipv6",
+    "--follow-tags",
+    "--unshallow",
+    "--update-shallow",
+    "--stdin",
+    "--mirror",
+    "--signed",
+    "--no-signed",
+    "--thin",
+    "--no-thin",
+    "--recurse-submodules",
+    "--no-recurse-submodules",
+    "--no-verify",
+    "--write-fetch-head",
+    "--no-write-fetch-head",
+    "--no-show-forced-updates",
+    "--auto-maintenance",
+    "--no-auto-maintenance",
+    "--no-write-commit-graph",
+    // pull 透传的 merge 形态选项（均不取单独的值）。
+    "--rebase",
+    "--no-rebase",
+    "--commit",
+    "--no-commit",
+    "--squash",
+    "--no-squash",
+    "--ff",
+    "--no-ff",
+    "--ff-only",
+    "--log",
+    "--no-log",
+    "--stat",
+    "--no-stat",
+    "--compact-summary",
+    "--signoff",
+    "--no-verify-signatures",
+    "--verify-signatures",
+    "--allow-unrelated-histories",
+    "--overwrite-ignore",
+    "--no-overwrite-ignore",
+    "--edit",
+    "--no-edit",
+    "--autostash",
+    "--no-autostash",
+    "--fork-point",
+    "--no-fork-point",
+];
+
+/// 确定不取值的短选项；值选项只有 -o（server/push option，getopt 语义）。
+const TRANSPORT_SHORT_FLAGS: &[char] = &['q', 'v', 'f', 'n', 'd', 't', 'p', '4', '6'];
+
+/// 返回 Ok(true) 表示该短选项簇以 -o 结尾、消耗下一个参数；Err 表示含未知选项。
+fn transport_short_options(cluster: &str) -> Result<bool, ()> {
+    let flags: Vec<char> = cluster.chars().collect();
+    for (index, flag) in flags.iter().enumerate() {
+        if *flag == 'o' {
+            return Ok(index + 1 == flags.len());
+        }
+        if !TRANSPORT_SHORT_FLAGS.contains(flag) {
+            return Err(());
+        }
+    }
+    Ok(false)
+}
+
+pub fn transport_candidates(rest: &[String]) -> Option<TransportCandidates> {
+    let mut all = false;
+    let mut multiple = false;
+    let mut positionals: Vec<String> = Vec::new();
+    let mut iterator = rest.iter();
+    while let Some(argument) = iterator.next() {
+        if argument == "--" {
+            // git parse-options：-- 之后的第一个参数就是 <repository>。
+            return Some(match iterator.next() {
+                Some(value) => TransportCandidates::Explicit(vec![value.clone()]),
+                None if all => TransportCandidates::All,
+                None => TransportCandidates::Upstream,
+            });
+        }
+        if !argument.starts_with('-') {
+            if multiple {
+                positionals.push(argument.clone());
+                continue;
+            }
+            return Some(TransportCandidates::Explicit(vec![argument.clone()]));
+        }
+        if argument.starts_with("--") {
+            let (name, inline) = match argument.split_once('=') {
+                Some((name, value)) => (name, Some(value)),
+                None => (argument.as_str(), None),
+            };
+            if TRANSPORT_VALUE_OPTIONS.contains(&name) {
+                if inline.is_none() {
+                    iterator.next();
+                }
+                continue;
+            }
+            if TRANSPORT_FLAG_OPTIONS.contains(&name) {
+                all |= name == "--all";
+                multiple |= name == "--multiple";
+                continue;
+            }
+            return None;
+        }
+        match transport_short_options(&argument[1..]) {
+            Ok(true) => {
+                iterator.next();
+            }
+            Ok(false) => {}
+            Err(()) => return None,
+        }
+    }
+    if all {
+        return Some(TransportCandidates::All);
+    }
+    if !positionals.is_empty() {
+        return Some(TransportCandidates::Explicit(positionals));
+    }
+    Some(TransportCandidates::Upstream)
+}
+
 /// clone 源是本地路径（file 传输，必须先授权）还是远程 URL。
 /// scp 风格 host:path 视作远程（由 GIT_ALLOW_PROTOCOL 约束），与 git 的
-/// url_is_local_not_ssh 对齐；file: 前缀按本地处理（调用方直接拒绝）。
+/// url_is_local_not_ssh 对齐；file: 前缀按本地处理（调用方解析后授权，
+/// 无法解析的形态在 validate 纯层直接拒绝）。
 pub fn is_local_clone_source(source: &str) -> bool {
     if source.to_ascii_lowercase().starts_with("file:") {
         return true;
@@ -381,7 +640,12 @@ pub fn validate(args: &[String]) -> Result<(), String> {
             .position(|value| value == "--")
             .map(|offset| offset + index + 1);
         if let Some(source) = separator.and_then(|separator| args.get(separator + 1)) {
-            if source.to_ascii_lowercase().starts_with("file:") {
+            // file:// 源只有能解析为本地路径时才交给调用方按授权表放行；
+            // 无法解析的形态（非本地 host 等，git 会按 ssh 处理）维持纯层拒绝。
+            if source.len() >= 5
+                && source.get(..5).is_some_and(|prefix| prefix.eq_ignore_ascii_case("file:"))
+                && local_transport_path(source).is_none()
+            {
                 return Err("Unsupported clone protocol: file".into());
             }
         }
@@ -603,5 +867,114 @@ mod tests {
             ["wt", "dest"]
         );
         assert!(worktree_move_targets(&args(&["worktree", "add", "--", "dest"]), 0).is_empty());
+    }
+    #[test]
+    fn classifies_local_transport_targets() {
+        assert_eq!(local_transport_path("plain"), Some("plain".into()));
+        assert_eq!(local_transport_path("./x"), Some("./x".into()));
+        assert_eq!(local_transport_path("/repos/x"), Some("/repos/x".into()));
+        assert_eq!(local_transport_path("https://example.invalid/r.git"), None);
+        assert_eq!(local_transport_path("ssh://example.invalid/r.git"), None);
+        assert_eq!(local_transport_path("git@example.invalid:r.git"), None);
+        assert_eq!(local_transport_path("host:r.git"), None);
+        // file:<path>（单斜杠）git 按 ssh 处理，非本地 file 传输。
+        assert_eq!(local_transport_path("file:E:/x"), None);
+        // 非本地 host：git 不走本地 file 传输。
+        assert_eq!(local_transport_path("file://example.invalid/x"), None);
+        assert_eq!(local_transport_path("file://"), None);
+        assert_eq!(
+            local_transport_path("FILE://localhost/repos/x"),
+            Some("/repos/x".into())
+        );
+        assert_eq!(
+            local_transport_path("file:///repos/a%20b"),
+            Some("/repos/a b".into())
+        );
+        // 解码后的 .. 逃逸由调用方的 resolve/require_path 拒绝，这里只验证解码。
+        assert_eq!(
+            local_transport_path("file:///repos/%2E%2E"),
+            Some("/repos/..".into())
+        );
+        assert_eq!(local_transport_path("file:///a%zz"), Some("/a%zz".into()));
+        if cfg!(windows) {
+            assert_eq!(local_transport_path("C:/repos/x"), Some("C:/repos/x".into()));
+            assert_eq!(local_transport_path(r"C:\repos\x"), Some(r"C:\repos\x".into()));
+            assert_eq!(
+                local_transport_path("file://E:/repos/x"),
+                Some("E:/repos/x".into())
+            );
+            assert_eq!(
+                local_transport_path("file:///E:/repos/x"),
+                Some("E:/repos/x".into())
+            );
+            assert_eq!(
+                local_transport_path(r"file://E:\repos\x"),
+                Some(r"E:\repos\x".into())
+            );
+        } else {
+            assert_eq!(local_transport_path("C:/repos/x"), None);
+            assert_eq!(
+                local_transport_path("file:///E:/repos/x"),
+                Some("/E:/repos/x".into())
+            );
+        }
+    }
+    #[test]
+    fn extracts_transport_candidates_conservatively() {
+        use TransportCandidates::{All, Explicit, Upstream};
+        assert_eq!(transport_candidates(&args(&["--all"])), Some(All));
+        assert_eq!(
+            transport_candidates(&args(&["origin"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        // 首个位置参数之后是 refspec，不再参与远程判定。
+        assert_eq!(
+            transport_candidates(&args(&["--prune", "origin", "refs/heads/main"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        assert_eq!(
+            transport_candidates(&args(&["+main:main"])),
+            Some(Explicit(vec!["+main:main".into()]))
+        );
+        assert_eq!(
+            transport_candidates(&args(&["--multiple", "a", "b"])),
+            Some(Explicit(vec!["a".into(), "b".into()]))
+        );
+        assert_eq!(transport_candidates(&args(&[])), Some(Upstream));
+        assert_eq!(transport_candidates(&args(&["--rebase"])), Some(Upstream));
+        assert_eq!(
+            transport_candidates(&args(&["--", "origin", "main"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        // 取值选项的值不是 <repository>；其余位置照常解析。
+        assert_eq!(
+            transport_candidates(&args(&["--depth", "1", "origin"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        assert_eq!(
+            transport_candidates(&args(&["--shallow-exclude", "./inside", "origin"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        assert_eq!(
+            transport_candidates(&args(&["--jobs=2", "origin"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        assert_eq!(
+            transport_candidates(&args(&["-qf", "origin"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        assert_eq!(
+            transport_candidates(&args(&["-o", "x", "origin"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        assert_eq!(
+            transport_candidates(&args(&["-qovalue", "origin"])),
+            Some(Explicit(vec!["origin".into()]))
+        );
+        // 未知选项（含未知取值选项）放弃放行；-- 之前无远程则按裸调用处理。
+        assert_eq!(transport_candidates(&args(&["--unknown", "origin"])), None);
+        assert_eq!(transport_candidates(&args(&["--refmapx", "origin"])), None);
+        assert_eq!(transport_candidates(&args(&["-s", "ort", "origin"])), None);
+        assert_eq!(transport_candidates(&args(&["--"])), Some(Upstream));
     }
 }
