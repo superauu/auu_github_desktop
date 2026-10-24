@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { applyCursorTheme, normalizeCursorTheme, type CursorThemeId } from '@/utils/cursorThemes';
 import type { AiProtocol } from '@/services/ai/AiClient';
+import { tNow } from '@/i18n';
 
 export interface AiApiConfig {
   provider: 'builtin' | 'openai-compatible';
@@ -134,7 +135,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
           await keyWrites;
           const key = await invoke<string | null>('get_ai_key');
           if (version === keyVersion) set({ aiConfig: { ...get().aiConfig, apiKey: key || '' } });
-        } catch (error) { set({ credentialError: `无法读取或迁移 AI 凭据: ${String(error)}` }); }
+        } catch (error) { set({ credentialError: tNow('err.aiCredentialReadFailed').replace('{m}', String(error)) }); }
       })();
       return secretInit;
     },
@@ -191,7 +192,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
             const { invoke } = await import('@tauri-apps/api/core');
             await invoke('store_ai_key', { key });
             set({ credentialError: null });
-          }).catch((error) => { set({ credentialError: `无法安全保存 AI 凭据: ${String(error)}` }); });
+          }).catch((error) => { set({ credentialError: tNow('err.aiCredentialSaveFailed').replace('{m}', String(error)) }); });
         }
       }
       set({ aiConfig: updatedAi });

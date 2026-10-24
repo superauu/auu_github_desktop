@@ -53,7 +53,7 @@ async function loadToken(): Promise<string | null> {
       }
       return null;
     } catch (err) {
-      throw new Error(`无法读取系统凭据: ${String(err)}`);
+      throw new Error(tNow('err.keyringReadFailed').replace('{m}', String(err)));
     }
   }
   const legacy = localStorage.getItem(GITHUB_TOKEN_KEY);
@@ -215,7 +215,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
     },
     logout: () => {
       authGeneration++; get().clearRepo();
-      void clearToken().catch((error) => toast.error('无法清理凭据', String(error)));
+      void clearToken().catch((error) => toast.error(tNow('err.credentialCleanupFailed'), String(error)));
       githubService.setToken(null);
       set({ token: null, user: null, isAuthenticated: false });
     },
@@ -314,7 +314,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       const valid = ticket('logs');
       const { currentOwner: owner, currentRepoName: repo } = get();
       if (!owner || !repo) return;
-      const name = jobName || `Job #${jobId}`;
+      const name = jobName || tNow('ci.jobFallback').replace('{id}', String(jobId));
       const knownJob = get().selectedRunJobs.find(job => job.id === jobId);
       let htmlUrl = knownJob?.html_url;
       set({ isLogsModalOpen: true, activeJobLogs: { jobId, jobName: name, rawLogs: '', state: 'loading', htmlUrl } });
@@ -353,7 +353,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       try {
         await githubService.dispatchWorkflow(owner, repo, workflow.id, { ref, inputs });
         if (!valid()) return;
-        toast.success('调度请求已提交至 GitHub'); get().closeDispatchModal();
+        toast.success(tNow('ci.dispatchSubmitted')); get().closeDispatchModal();
         await get().refreshActions();
       } catch (error: any) { if (valid()) throw error; }
     },
@@ -363,8 +363,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       const valid = ticket('rerun');
       try {
         await githubService.rerunWorkflow(owner, repo, runId, failedOnly);
-        if (valid()) { toast.success('重跑请求已发送'); await get().refreshActions(); }
-      } catch (error: any) { if (valid()) toast.error('重新运行失败', error.message); }
+        if (valid()) { toast.success(tNow('ci.rerunRequested')); await get().refreshActions(); }
+      } catch (error: any) { if (valid()) toast.error(tNow('ci.rerunFailed'), error.message); }
     },
     cancelWorkflowRun: async (runId) => {
       const { currentOwner: owner, currentRepoName: repo } = get();
@@ -372,8 +372,8 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       const valid = ticket('cancel');
       try {
         await githubService.cancelWorkflowRun(owner, repo, runId);
-        if (valid()) { toast.info('取消请求已发送'); await get().refreshActions(); }
-      } catch (error: any) { if (valid()) toast.error('取消工作流失败', error.message); }
+        if (valid()) { toast.info(tNow('ci.cancelRequested')); await get().refreshActions(); }
+      } catch (error: any) { if (valid()) toast.error(tNow('ci.cancelFailed'), error.message); }
     },
     loadPullRequests: async () => {
       const valid = ticket('prs');
@@ -407,7 +407,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
           if (checks.length && checks.every((check) => check.status === 'completed')) {
             const passed = checks.filter((check) => check.conclusion === 'success').length;
             if (passed === checks.length) toast.success(tNow('ci.passed'), `${passed}/${checks.length}`);
-            else toast.warning('CI 未全部通过', checks.map((check) => `${check.name}: ${check.conclusion}`).join(', '));
+            else toast.warning(tNow('ci.failed'), checks.map((check) => `${check.name}: ${check.conclusion}`).join(', '));
             stopWatch(); return;
           }
         } catch { /* retry transient failures without reporting a successful run */ }

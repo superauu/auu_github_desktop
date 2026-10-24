@@ -391,12 +391,15 @@ export const useRepoStore = create<RepoState>((set, get) => {
         }
         const operationState = await gitService.getRepoOperationState(repo.path, status);
         if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
-        if (JSON.stringify(status) !== JSON.stringify(get().status)) set({ status });
+        const statusChanged = JSON.stringify(status) !== JSON.stringify(get().status);
+        if (statusChanged) set({ status });
         if (JSON.stringify(operationState) !== JSON.stringify(get().operationState)) set({ operationState });
         const changes = [...status.staged, ...status.unstaged, ...status.untracked];
         const selected = get().selectedFile;
         const next = changes.find(file => file.path === selected?.path && file.staged === selected.staged) || changes[0] || null;
         // Re-read the visible diff even if status codes did not change; keep old content while loading.
+        // The unchanged-status reload is intentional: an externally re-edited file keeps its
+        // status code, and the regression suite pins this refresh behavior.
         get().setSelectedFile(next);
       } catch (error: any) {
         if (isCurrent(repo.path, epoch) && refresh === refreshId) set({ errorMessage: error.message });
@@ -852,7 +855,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         // 硬重置到不相关提交，造成数据丢失。
         const headHash = await gitService.getBranchCommitHash(currentRepo.path, 'HEAD');
         if (!headHash) {
-          throw new Error('无法获取当前 HEAD 提交，仓库可能还没有任何提交');
+          throw new Error(tNow('err.headUnavailable'));
         }
 
         await gitService.undoLastCommit(currentRepo.path);
@@ -885,7 +888,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
       const item = redoStack[0];
       if (item.branch !== currentRepo.currentBranch) {
-        throw new Error(`无法在当前分支重做，该提交属于分支: ${item.branch}`);
+        throw new Error(tNow('err.redoBranchMismatch').replace('{branch}', item.branch));
       }
 
       try {
@@ -916,7 +919,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     fetchAndCheckoutPR: async (prNumber: number, customBranchName?: string) => {
       const set = scopedSet();
       const { currentRepo } = get();
-      if (!currentRepo) throw new Error('未打开任何 Git 仓库');
+      if (!currentRepo) throw new Error(tNow('err.noRepoOpen'));
       set({ isLoading: true, errorMessage: null });
       try {
         const branch = await gitService.fetchAndCheckoutPR(currentRepo.path, prNumber, customBranchName);
@@ -931,7 +934,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     diagnoseRepository: async () => {
       const { currentRepo } = get();
       if (!currentRepo) {
-        throw new Error('未打开任何 Git 仓库');
+        throw new Error(tNow('err.noRepoOpen'));
       }
       return await gitService.diagnoseRepository(currentRepo.path);
     },

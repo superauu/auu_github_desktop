@@ -6,7 +6,8 @@ interface ThemeState {
   theme: ThemeMode;
   resolvedTheme: 'dark' | 'light';
   setTheme: (theme: ThemeMode) => void;
-  initTheme: () => void;
+  /** Registers the OS color-scheme listener; returns its cleanup (undefined when matchMedia is unavailable). */
+  initTheme: () => (() => void) | undefined;
 }
 
 const THEME_STORAGE_KEY = 'auu_git_theme';

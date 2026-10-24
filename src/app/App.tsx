@@ -11,8 +11,9 @@ export const App: React.FC = () => {
   const { initAuth } = useGitHubStore();
 
   useEffect(() => {
-    // Initialize theme system
-    initTheme();
+    // Initialize theme system; the returned cleanup removes the matchMedia
+    // listener so StrictMode's double mount cannot leak it.
+    const disposeTheme = initTheme();
     void useSettingsStore.getState().initSecrets();
 
     // Initialize GitHub auth state
@@ -20,7 +21,10 @@ export const App: React.FC = () => {
 
     let cancelled = false;
     void restoreSavedRepository(() => cancelled);
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      disposeTheme?.();
+    };
   }, [initTheme, initAuth]);
 
   return <><AppLayout /><AppTextContextMenu /></>;
