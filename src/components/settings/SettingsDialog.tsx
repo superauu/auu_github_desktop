@@ -89,7 +89,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     try {
       const ver = await gitService.getGitVersion();
       setGitVersion(ver || t('settings.git.notFound'));
-    } catch (err: any) {
+    } catch {
       setGitVersion(t('settings.git.detectFailed'));
     } finally {
       setIsDetectingGit(false);

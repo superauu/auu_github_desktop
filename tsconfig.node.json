@@ -1,11 +1,15 @@
 {
+  // 与 tsconfig.json 保持一致的 Node 侧纯类型检查配置（vite.config.ts + scripts/）。
+  // 不再作为 composite 引用项目：npm run build 用裸 `tsc`，根 tsconfig 已覆盖这些文件；
+  // noEmit 确保任何入口加载本文件都不会在源码旁产出 .js/.tsbuildinfo。
   "compilerOptions": {
-    "composite": true,
+    "noEmit": true,
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
     "strict": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "scripts"]
 }

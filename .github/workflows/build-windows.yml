@@ -43,6 +43,16 @@ jobs:
       - name: Run Regression Tests
         run: npm test
 
+      # 与 ci.yml 同级的质量门（命令形式与缓存配置保持一致），发布构建前先过检查。
+      - name: Lint Frontend
+        run: npm run lint
+
+      - name: Lint Desktop Backend
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Test Desktop Backend
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
       - name: Generate App Icons
         run: npx tauri icon public/logo.svg
 

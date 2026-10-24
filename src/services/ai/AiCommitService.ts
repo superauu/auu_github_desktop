@@ -195,7 +195,7 @@ export class AiCommitService {
           diffText: diffSummary,
           addedSymbols,
         });
-      } catch (e) {
+      } catch {
         // 读取单个 diff 出错不阻断
         results.push({
           path: file.path,

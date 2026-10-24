@@ -11,7 +11,8 @@ export default tseslint.config(
     rules: {
       // TypeScript checks unused symbols; legacy API responses are intentionally untyped.
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
+      // ignoreRestSiblings: 放行「解构剔除敏感字段」惯用法（如 settingsStore 剔除 apiKey）。
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-expressions': ['error', { allowTernary: true }],
       // Error.cause requires ES2022; the application currently targets ES2020.
