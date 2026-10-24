@@ -47,11 +47,36 @@ pub fn atomic_write(path: &Path, content: &str, expected: Option<&str>) -> Resul
     temporary
         .write_all(content.as_bytes())
         .map_err(|error| error.to_string())?;
-    if let Ok(metadata) = fs::metadata(path) {
-        temporary
-            .as_file()
-            .set_permissions(metadata.permissions())
-            .map_err(|error| error.to_string())?;
+    // Windows 拒绝替换只读文件：persist 前清除目标与临时文件的只读位，成功后恢复目标属性。
+    // （std 的 Permissions::set_readonly 在 Windows 上只翻转 FILE_ATTRIBUTE_READONLY，保留其余位。）
+    #[cfg(windows)]
+    let restore_readonly = {
+        let mut readonly = false;
+        if let Ok(metadata) = fs::metadata(path) {
+            readonly = metadata.permissions().readonly();
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(false);
+            fs::set_permissions(path, permissions).map_err(|error| error.to_string())?;
+        }
+        // 临时文件同步目标权限时也可能继承只读位，统一清除（persist 才能重命名）。
+        if let Ok(metadata) = temporary.as_file().metadata() {
+            let mut permissions = metadata.permissions();
+            permissions.set_readonly(false);
+            temporary
+                .as_file()
+                .set_permissions(permissions)
+                .map_err(|error| error.to_string())?;
+        }
+        readonly
+    };
+    #[cfg(not(windows))]
+    {
+        if let Ok(metadata) = fs::metadata(path) {
+            temporary
+                .as_file()
+                .set_permissions(metadata.permissions())
+                .map_err(|error| error.to_string())?;
+        }
     }
     temporary
         .as_file()
@@ -68,6 +93,16 @@ pub fn atomic_write(path: &Path, content: &str, expected: Option<&str>) -> Resul
     temporary
         .persist(path)
         .map_err(|error| error.error.to_string())?;
+    #[cfg(windows)]
+    {
+        if restore_readonly {
+            if let Ok(metadata) = fs::metadata(path) {
+                let mut permissions = metadata.permissions();
+                permissions.set_readonly(true);
+                let _ = fs::set_permissions(path, permissions);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -104,5 +139,19 @@ mod tests {
         fs::remove_file(&path).unwrap();
         atomic_write(&path, "created", Some("")).unwrap();
         assert_eq!(read_text(&path).unwrap(), "created");
+    }
+
+    #[test]
+    fn replaces_readonly_files_and_restores_the_attribute() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("file");
+        fs::write(&path, "old").unwrap();
+        let mut permissions = fs::metadata(&path).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&path, permissions).unwrap();
+        atomic_write(&path, "new", Some("old")).unwrap();
+        assert_eq!(read_text(&path).unwrap(), "new");
+        assert!(fs::metadata(&path).unwrap().permissions().readonly());
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
     }
 }

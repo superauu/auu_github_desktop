@@ -57,10 +57,100 @@ test('Git arguments reject execution overrides, abbreviations and configuration 
     ['init', '-c', 'core.sshCommand=bad'],
     ['merge', '-s', 'custom', 'HEAD'], ['merge', '-nscustom', 'HEAD'],
     ['merge', '--strategy=custom', 'HEAD'], ['rebase', '--str=custom', 'HEAD'],
+    // 跳检走私：log 的 -m 是开关不取值，后面的 blocked 选项必须仍然被检查；
+    // 取值 flag 的值本身（commit -m / merge -m）也必须过全部选项检查。
+    ['log', '-m', '--format=x', '-m', '--output=' + path.join(outside, 'evil'), '-1'],
+    ['log', '-m', '--output=' + path.join(outside, 'evil')],
+    ['commit', '-m', '--exec=evil'], ['merge', '-m', '--strategy=evil'], ['tag', '-m', '--output=evil'],
+    ['clone', '-qb', '-c-branch', '--', 'url', 'target'],
+    // 任意文件读写载体：hash-object -w、commit/tag 的 -F/--file、blame --contents、pathspec-from-file。
+    ['hash-object', '-w', 'file'], ['hash-object', '-wfile'],
+    ['commit', '-F', 'file'], ['commit', '--file=x'], ['commit', '-t', 'file'], ['commit', '-C', 'HEAD'],
+    ['tag', '-F', 'file'], ['merge', '-F', 'file'], ['blame', '--contents', 'file'],
+    ['commit', '--pathspec-from-file=outside'], ['add', '--pathspec-from-file=outside'],
+    // 未来多键值 config 写入与越界目标。
+    ['config', '--local', 'user.name', 'a', 'user.email', 'b'],
+    ['config', '--local', '--replace-all', '--', 'auugit.x', 'v', 'core.hooksPath', 'evil'],
+    ['config', '--list', 'a', 'b', 'c'],
+    ['clone', '--', 'file://outside/repo', 'target'],
+    ['init', path.join(outside, 'evil')], ['init', '..'], ['init', '--', path.join(outside, 'evil')],
+    ['worktree', 'move', 'wt', path.join(outside, 'evil')], ['worktree', 'move', 'wt', '../evil'],
+    ['diff', '--no-index', 'a', 'b'], ['diff', '--no-index', '--', 'a'],
+    ['diff', '--no-index', '--', path.join(outside, 'secret'), 'b'],
+    ['diff', '--no-index', '--', 'a', '../secret'],
   ];
   for (const args of rejected) assert.throws(() => app.validateGitArguments(args), undefined, JSON.stringify(args));
-  for (const args of [['clone', '-qb', '-c-branch', '--', 'url', 'target'], ['clone', '-qbbranch-with-c', '--', 'url', 'target'], ['clone', '--', '-c-url', 'target'], ['cherry-pick', '-s', 'HEAD'], ['merge', '--signoff', '--end-of-options', 'main']]) assert.doesNotThrow(() => app.validateGitArguments(args));
-  for (const args of [['-c', 'core.quotepath=false', 'status', '-z'], ['commit', '-m', '--exec=literal text'], ['config', '--local', 'branch.main.pushRemote', 'origin'], ['config', '--get', 'core.ignorecase'], ['-c', `sequence.editor=printf '%s\\n' 'pick ${'a'.repeat(40)}' 'fixup ${'b'.repeat(40)}' > "$1"; :`, 'rebase', '--interactive', 'HEAD']]) assert.doesNotThrow(() => app.validateGitArguments(args));
+  for (const args of [['clone', '-qbbranch-with-c', '--', 'url', 'target'], ['clone', '--', '-c-url', 'target'], ['clone', '--', 'https://example.invalid/repo.git', 'target'], ['cherry-pick', '-s', 'HEAD'], ['merge', '--signoff', '--end-of-options', 'main'], ['init', '-b', 'main'], ['init', '.'], ['worktree', 'add', '-b', 'review', '--', 'dest', 'main']]) assert.doesNotThrow(() => app.validateGitArguments(args));
+  for (const args of [
+    ['-c', 'core.quotepath=false', 'status', '-z'],
+    ['commit', '-m', 'hello world'], ['commit', '-m', '-- high priority'],
+    ['tag', '-a', 'v1', '-m', 'release'],
+    ['stash', 'push', '-u', '-m', 'wip'],
+    ['update-ref', '-m', 'AuuGit Redo', 'refs/heads/x', 'a'.repeat(40), 'b'.repeat(40)],
+    ['log', '-n', '5', '--format=%h'], ['reflog', 'show', '--all', '-n', '150', '--format=%H'],
+    ['checkout', '-b', 'feature'], ['switch', '--track', '-c', 'x', 'refs/remotes/origin/x'],
+    ['hash-object', '--no-filters', '--', 'file'], ['blame', '--line-porcelain', '--', 'file'],
+    ['add', '--pathspec-from-file=-', '--pathspec-file-nul'],
+    ['commit', '--only', '-m', 'message', '--pathspec-from-file=-', '--pathspec-file-nul'],
+    ['config', '--local', 'branch.main.pushRemote', 'origin'], ['config', '--get', 'core.ignorecase'],
+    ['config', '--get', 'core.ignorecase', 'pat'], ['config', '--local', '-z', '--get-regexp', '^auugit\\.'],
+    ['-c', `sequence.editor=printf '%s\\n' 'pick ${'a'.repeat(40)}' 'fixup ${'b'.repeat(40)}' > "$1"; :`, 'rebase', '--interactive', 'HEAD'],
+  ]) assert.doesNotThrow(() => app.validateGitArguments(args));
+});
+
+test('git policy helpers classify devices, operand shapes and local clone sources', () => {
+  assert.equal(app.isNullDevice('nul'), true);
+  assert.equal(app.isNullDevice('NUL'), true);
+  assert.equal(app.isNullDevice('/dev/null'), true);
+  assert.equal(app.isNullDevice('nul:'), false);
+  assert.equal(app.isNullDevice('C:/x'), false);
+  assert.deepEqual(app.noIndexPaths(['diff', '--no-index', '--no-color', '--', 'nul', 'a/b'], 0), ['nul', 'a/b']);
+  assert.deepEqual(app.noIndexPaths(['diff', '--no-index', '--', '/dev/null', 'file'], 0), ['/dev/null', 'file']);
+  assert.deepEqual(app.noIndexPaths(['check-ignore', '--no-index', '-z'], 0), []);
+  assert.equal(app.initTarget(['init', '-b', 'main'], 0), null);
+  assert.equal(app.initTarget(['init', '-b', 'main', 'sub'], 0), 'sub');
+  assert.equal(app.initTarget(['init', '--', 'sub'], 0), 'sub');
+  assert.deepEqual(app.worktreeMoveTargets(['worktree', 'move', 'wt', 'dest'], 0), ['wt', 'dest']);
+  assert.deepEqual(app.worktreeMoveTargets(['worktree', 'add', '--', 'dest'], 0), []);
+  assert.equal(app.isLocalCloneSource('/repos/x'), true);
+  assert.equal(app.isLocalCloneSource('./x'), true);
+  assert.equal(app.isLocalCloneSource('plain-dir'), true);
+  assert.equal(app.isLocalCloneSource('https://example.invalid/r.git'), false);
+  assert.equal(app.isLocalCloneSource('ssh://example.invalid/r.git'), false);
+  assert.equal(app.isLocalCloneSource('git@example.invalid:r.git'), false);
+  assert.equal(app.isLocalCloneSource('file://outside/repo'), true);
+  if (process.platform === 'win32') {
+    assert.equal(app.isLocalCloneSource('C:/repos/x'), true);
+    assert.equal(app.isLocalCloneSource('C:x'), true);
+    assert.equal(app.isLocalCloneSource('host:r.git'), false);
+  }
+});
+
+test('development git endpoint rejects smuggled values and off-repository file access', async () => {
+  const repository = path.join(temporary, 'policy-repo');
+  await fs.mkdir(repository, { recursive: true });
+  await fs.writeFile(path.join(repository, 'untracked.txt'), 'new content\n');
+  for (const args of [
+    ['log', '-m', '--format=x', '-m', '--output=' + path.join(outside, 'evil'), '-1'],
+    ['diff', '--no-index', 'a', 'b'],
+    ['diff', '--no-index', '--', path.join(outside, 'secret.txt'), 'b'],
+    ['hash-object', '-w', 'untracked.txt'],
+    ['init', path.join(outside, 'evil')],
+    ['worktree', 'move', 'wt', path.join(outside, 'evil')],
+    ['clone', '--', 'file://' + path.join(outside, 'secret'), path.join(temporary, 'bad-clone')],
+  ]) {
+    const response = await post('git', { args, cwd: repository });
+    assert.equal(response.status, 400, JSON.stringify(args));
+    assert.match((await response.json()).error, /Unsupported|requires|stay inside/);
+  }
+  assert.equal(await fs.access(path.join(outside, 'evil')).then(() => true, () => false), false);
+  // 合法的 untracked diff（空设备 + 仓库内相对路径）保持可用。
+  // Git for Windows 直接支持 /dev/null；测试仓库嵌套在项目仓库内时 NUL 会被 git 的 prefix 破坏。
+  const diff = await post('git', { args: ['diff', '--no-index', '--no-color', '--', '/dev/null', 'untracked.txt'], cwd: repository });
+  assert.equal(diff.status, 200);
+  const result = await diff.json();
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stdout, /untracked\.txt/);
 });
 
 test('native approval deduplicates concurrent requests and retries after cancellation', async () => {

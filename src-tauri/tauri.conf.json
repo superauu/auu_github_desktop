@@ -31,6 +31,9 @@
     }
   },
   "plugins": {
+    "shell": {
+      "open": "https://github\\.com/\\S+"
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0RjRCMzFENjM1NzE5NDkKUldSSkdWZGpIYlAwWktBYVVTUDJKditGS3FqUERoU2lXQVcvVk5xK2R5Q203QnR2dUduUEdDZHcK",
       "endpoints": [

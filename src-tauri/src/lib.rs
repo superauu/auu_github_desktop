@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf, Component};
 use std::time::Duration;
 mod file_io;
 mod git_process;
-use git_process::{run_git, run_git_bytes, GitCommandResult};
+use git_process::{run_git, run_git_bytes, run_git_protocols, GitCommandResult, LOCAL_PROTOCOLS};
 mod repository_access;
 mod repository_dialog;
 mod git_policy;
@@ -30,21 +30,56 @@ fn normalize_display_path(p: &std::path::Path) -> String {
 #[tauri::command]
 async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
     git_policy::validate(&args)?;
+    // None = 默认收紧的传输白名单；仅已授权的本地 clone 源对该次调用放行 file 传输。
+    let mut protocols: Option<&'static str> = None;
     if args != ["--version"] && args != ["-c", "core.quotepath=false", "--version"] {
-        let command = git_policy::command(&args)?;
+        let index = git_policy::command_index(&args)?;
+        let command = args[index].as_str();
         if command == "clone" {
             let separator = args.iter().position(|value| value == "--").ok_or("Clone requires an explicit destination")?;
             if args.len() != separator + 3 { return Err("Invalid clone arguments".into()); }
             repository_access::require(&args[separator + 2])?;
+            let source = &args[separator + 1];
+            if git_policy::is_local_clone_source(source) {
+                // 本地路径源本身就是一次跨仓库读取：只允许已授权目录作为源。
+                repository_access::require_path(source)?;
+                protocols = Some(LOCAL_PROTOCOLS);
+            }
             cwd = std::env::current_dir().map_err(|error| error.to_string())?.to_string_lossy().into_owned();
-        } else { repository_access::require(&cwd)?; }
-        if command == "worktree" && args.iter().position(|value| value == command)
-            .and_then(|index| args.get(index + 1)).is_some_and(|value| value == "add") {
-            let separator = args.iter().position(|value| value == "--").ok_or("Worktree requires an explicit destination")?;
-            repository_access::require(args.get(separator + 1).ok_or("Missing worktree destination")?)?;
+        } else {
+            let root = repository_access::require(&cwd)?;
+            if command == "init" {
+                // git init [<directory>] 会直接在目标位置创建 .git，与 clone 目标同样需要授权。
+                if let Some(target) = git_policy::init_target(&args, index) {
+                    let target_path = if Path::new(&target).is_absolute() { PathBuf::from(&target) } else { root.join(&target) };
+                    repository_access::require(target_path.to_string_lossy().as_ref())?;
+                }
+            }
+            if command == "diff" {
+                // --no-index 绕过索引直接读盘：操作数必须是空设备或授权根内的路径。
+                for operand in git_policy::no_index_operands(&args, index)? {
+                    if git_policy::is_null_device(&operand) { continue; }
+                    repository_access::require_path(root.join(&operand).to_string_lossy().as_ref())?;
+                }
+            }
+            if command == "worktree" {
+                match args.get(index + 1).map(String::as_str) {
+                    Some("add") => {
+                        let separator = args.iter().position(|value| value == "--").ok_or("Worktree requires an explicit destination")?;
+                        repository_access::require(args.get(separator + 1).ok_or("Missing worktree destination")?)?;
+                    }
+                    // move 会把一个工作树（含 .git 指针）落盘到新位置，目标同样不得逃出授权边界。
+                    Some("move") => {
+                        for target in git_policy::worktree_move_targets(&args, index) {
+                            repository_access::require_path(root.join(&target).to_string_lossy().as_ref())?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
     }
-    tauri::async_runtime::spawn_blocking(move || run_git(args, cwd, git_binary, stdin)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || run_git_protocols(args, cwd, git_binary, stdin, protocols)).await.map_err(|e| e.to_string())?
 }
 
 fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
@@ -216,6 +251,12 @@ async fn poll_github_device_token(client_id: String, device_code: String) -> Res
     response_text(response).await
 }
 
+fn header_value(value: &str) -> Result<reqwest::header::HeaderValue, String> {
+    // 前端提供的头部值可能含非法字符：显式校验而不是让 reqwest 的 header() 直接 panic。
+    reqwest::header::HeaderValue::from_bytes(value.as_bytes())
+        .map_err(|_| "Invalid AI request header".into())
+}
+
 #[tauri::command]
 async fn request_ai_completion(url: String, authorization: String, body: String, extra_headers: Option<std::collections::HashMap<String, String>>) -> Result<String, String> {
     let parsed = reqwest::Url::parse(&url).map_err(|e| e.to_string())?;
@@ -225,10 +266,19 @@ async fn request_ai_completion(url: String, authorization: String, body: String,
     }
     let payload: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
     let mut request = http_client()?.post(parsed).header("User-Agent", concat!("AuuGit/", env!("CARGO_PKG_VERSION"))).timeout(Duration::from_secs(60)).json(&payload);
-    if !authorization.is_empty() { request = request.header("Authorization", authorization); }
+    if !authorization.is_empty() {
+        let value = header_value(&authorization)?;
+        request = request.header(reqwest::header::AUTHORIZATION, value);
+    }
     for (name, value) in extra_headers.unwrap_or_default() {
         match name.as_str() {
-            "x-api-key" | "anthropic-version" | "x-opencode-session" => { request = request.header(name, value); }
+            "x-api-key" | "anthropic-version" | "x-opencode-session" => {
+                let Ok(name) = reqwest::header::HeaderName::from_bytes(name.as_bytes()) else {
+                    return Err("Unsupported AI request header".into());
+                };
+                let value = header_value(&value)?;
+                request = request.header(name, value);
+            }
             _ => return Err("Unsupported AI request header".into()),
         }
     }
@@ -452,4 +502,20 @@ pub fn run() {
 #[tauri::command]
 fn restart_application(app: tauri::AppHandle) {
     app.restart();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn rejects_unsafe_ai_header_values_instead_of_panicking() {
+        assert!(header_value("Bearer token").is_ok());
+        assert!(header_value("sk-abc123_xyz").is_ok());
+        // CRLF 注入与控制字符必须返回错误，而不是让 reqwest panic。
+        assert!(header_value("Bearer\r\ninjected: 1").is_err());
+        assert!(header_value("Bearer\ninjected: 1").is_err());
+        assert!(header_value("\n").is_err());
+        assert!(header_value("\u{1}").is_err());
+        assert!(header_value("\u{7f}").is_err());
+    }
 }
