@@ -876,7 +876,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 else if (event.key === 'Escape') { setEditingGroupId(null); setEditingName(''); }
                               }}
                               aria-label={t('workspaces.rename')}
-                              className="flex-1 min-w-0 h-7 px-2 text-xs bg-background/60 border border-primary/50 rounded-md focus:outline-none text-foreground"
+                              className="flex-1 min-w-0 h-7 px-2 text-xs bg-background/60 border border-primary/50 rounded-md text-foreground"
                             />
                             <button
                               onClick={commitRenameGroup}
