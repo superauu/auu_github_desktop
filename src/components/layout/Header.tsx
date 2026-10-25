@@ -1,4 +1,4 @@
-import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
+import { isRepositoryAccessCancelled, listRepositoryPermissions } from '@/services/fs/RepositoryAccess';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import * as Popover from '@radix-ui/react-popover';
 import { pushFromUi } from '@/services/git/RemoteActions';
@@ -35,8 +35,21 @@ import {
   MoreHorizontal,
   Shield,
   Check,
+  FolderInput,
+  FolderCog,
+  Pencil,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
+import {
+  useWorkspaceGroupsStore,
+  buildRepoSections,
+  runBatchFetch,
+  batchFetchToast,
+} from '@/stores/workspaceGroupsStore';
+import type { WorkspaceGroup, BatchRepoTarget } from '@/stores/workspaceGroupsStore';
+import type { RepositoryInfo } from '@/services/git/types';
 import { useI18n } from '@/i18n';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
@@ -66,6 +79,89 @@ interface HeaderProps {
 }
 
 const EMPTY_IGNORE_PATHS: string[] = [];
+
+/**
+ * 仓库菜单里的单行仓库条目。
+ * showGroupControl=false 时渲染与旧版完全一致的扁平行（无分组功能的零变化保证）；
+ * true 时行尾追加“分组”入口，点击在行内展开二级指派面板（列出所有组，点击即指派/移出）。
+ * 说明：仓库菜单本体是 Radix Popover（非 DropdownMenu），嵌套 DropdownMenu.Sub 不可用，
+ * 内联展开面板是最稳的二级交互——无二级 portal 定位/点击外部关闭冲突，键盘可达。
+ */
+interface RepoMenuRowProps {
+  repo: RepositoryInfo;
+  showGroupControl: boolean;
+  groupName: string | null;
+  assignOpen: boolean;
+  onToggleAssign: () => void;
+  groups: WorkspaceGroup[];
+  currentGroupId: string | null;
+  onAssign: (groupId: string | null) => void;
+  onOpen: () => void;
+}
+
+const RepoMenuRow: React.FC<RepoMenuRowProps> = ({
+  repo, showGroupControl, groupName, assignOpen, onToggleAssign, groups, currentGroupId, onAssign, onOpen,
+}) => {
+  const { t } = useI18n();
+  const rowButton = (
+    <button
+      onClick={onOpen}
+      className={cn(
+        'text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between',
+        showGroupControl ? 'min-w-0 flex-1' : 'w-full'
+      )}
+    >
+      <span className="truncate max-w-[170px]">{repo.name}</span>
+      <span className="text-[12px] text-muted-foreground font-mono">{repo.currentBranch}</span>
+    </button>
+  );
+  if (!showGroupControl) return rowButton;
+  return (
+    <div>
+      <div className="flex items-center gap-0.5">
+        {rowButton}
+        <button
+          onClick={onToggleAssign}
+          title={t('workspaces.assignTitle')}
+          aria-label={`${t('workspaces.assignTitle')}: ${repo.name}`}
+          aria-expanded={assignOpen}
+          className="shrink-0 h-6 max-w-[96px] px-1.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 transition-colors"
+        >
+          <FolderInput className="h-3 w-3 shrink-0" />
+          <span className="truncate">{groupName || t('workspaces.ungrouped')}</span>
+          <ChevronDown className={cn('h-2.5 w-2.5 shrink-0 transition-transform', assignOpen && 'rotate-180')} />
+        </button>
+      </div>
+      {assignOpen && (
+        <div className="mx-1 mb-1 rounded-md border border-border/60 bg-secondary/30 p-1 space-y-0.5 max-h-40 overflow-y-auto">
+          {groups.map((group) => {
+            const active = group.id === currentGroupId;
+            return (
+              <button
+                key={group.id}
+                onClick={() => onAssign(active ? null : group.id)}
+                title={active ? t('workspaces.removeFromGroup') : undefined}
+                className="w-full text-left px-2 py-1 text-xs rounded flex items-center gap-1.5 text-foreground/80 hover:text-foreground hover:bg-accent"
+              >
+                <Check className={cn('h-3 w-3 shrink-0', active ? 'text-primary' : 'opacity-0')} />
+                <span className="truncate">{group.name}</span>
+              </button>
+            );
+          })}
+          {currentGroupId && (
+            <button
+              onClick={() => onAssign(null)}
+              className="w-full text-left px-2 py-1 text-xs rounded flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-accent"
+            >
+              <X className="h-3 w-3 shrink-0" />
+              <span>{t('workspaces.removeFromGroup')}</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const Header: React.FC<HeaderProps> = ({
   windowChrome,
@@ -127,6 +223,17 @@ export const Header: React.FC<HeaderProps> = ({
   const [isUndoing, setIsUndoing] = useState(false);
   const [isRedoing, setIsRedoing] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
+
+  // ===== 仓库分组 Workspaces（T6）=====
+  const groups = useWorkspaceGroupsStore((state) => state.groups);
+  const hasGroups = groups.length > 0;
+  const [assignPanelPath, setAssignPanelPath] = useState<string | null>(null);
+  const [showGroupManager, setShowGroupManager] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [batchBusyGroupId, setBatchBusyGroupId] = useState<string | null>(null);
 
   const cycleTheme = () => {
     const nextTheme: ThemeMode = resolvedTheme === 'dark' ? 'light' : 'dark';
@@ -248,6 +355,92 @@ export const Header: React.FC<HeaderProps> = ({
   const handleOpenTerminal = async () => {
     toggleEmbeddedTerminal();
     toast.info(!isEmbeddedTerminalOpen ? t('header.terminalOpened') : t('header.terminalClosed'));
+  };
+
+  // ===== 仓库分组：菜单辅助 =====
+  const repoByPath = new Map(recentRepos.map((repo) => [repo.path, repo]));
+  const repoSections = hasGroups ? buildRepoSections(groups, recentRepos.map((repo) => repo.path)) : [];
+
+  const openRecentRepo = async (repo: RepositoryInfo) => {
+    setShowRepoMenu(false);
+    if (await setCurrentRepo(repo)) toast.success(`${t('header.repoMenu.switchedToast')}: ${repo.name}`);
+  };
+
+  const closeRepoMenuExtras = () => {
+    setAssignPanelPath(null);
+    setShowGroupManager(false);
+    setConfirmDeleteId(null);
+    setEditingGroupId(null);
+    setEditingName('');
+    setNewGroupName('');
+  };
+
+  const handleAssignRepo = (repoPath: string, groupId: string | null) => {
+    useWorkspaceGroupsStore.getState().assignRepo(repoPath, groupId);
+  };
+
+  const handleCreateGroup = () => {
+    const created = useWorkspaceGroupsStore.getState().createGroup(newGroupName);
+    if (!created) {
+      toast.warning(!newGroupName.trim() ? t('workspaces.nameEmpty') : t('workspaces.nameDuplicate'));
+      return;
+    }
+    setNewGroupName('');
+  };
+
+  const commitRenameGroup = () => {
+    if (!editingGroupId) return;
+    const renamed = useWorkspaceGroupsStore.getState().renameGroup(editingGroupId, editingName);
+    if (!renamed) {
+      toast.warning(!editingName.trim() ? t('workspaces.nameEmpty') : t('workspaces.nameDuplicate'));
+      return;
+    }
+    setEditingGroupId(null);
+    setEditingName('');
+  };
+
+  const handleDeleteGroup = (groupId: string) => {
+    useWorkspaceGroupsStore.getState().deleteGroup(groupId);
+    setConfirmDeleteId(null);
+    if (editingGroupId === groupId) {
+      setEditingGroupId(null);
+      setEditingName('');
+    }
+  };
+
+  const normalizeRepoPath = (value: string) => value.replace(/\\/g, '/').toLowerCase();
+
+  /** 组内批量 fetch：逐个执行 gitService.fetch(repoPath)，聚合结果 toast */
+  const handleGroupFetchAll = async (group: WorkspaceGroup) => {
+    if (batchBusyGroupId) return;
+    const targets: BatchRepoTarget[] = group.repoPaths.map((path) => ({
+      path,
+      name: repoByPath.get(path)?.name || path.split(/[\\/]/).pop() || path,
+    }));
+    if (targets.length === 0) return;
+    // Tauri 下只对已授权仓库路径执行（避免在批量流程里触发授权弹窗）；浏览器开发模式无授权限制
+    let authorized: Set<string> | null = null;
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try { authorized = new Set((await listRepositoryPermissions()).map(normalizeRepoPath)); }
+      catch { authorized = null; }
+    }
+    const authSet = authorized;
+    const allowed = authSet ? targets.filter((target) => authSet.has(normalizeRepoPath(target.path))) : targets;
+    if (allowed.length === 0) {
+      toast.warning(t('workspaces.batchNoAuthorized'), t('workspaces.batchNoAuthorizedDesc'));
+      return;
+    }
+    setBatchBusyGroupId(group.id);
+    toast.info(t('workspaces.batchFetching').replace('{n}', String(allowed.length)));
+    try {
+      const result = await runBatchFetch(allowed, (repoPath) => gitService.fetch(repoPath));
+      const summary = batchFetchToast(result, t);
+      if (summary.type === 'success') toast.success(summary.title, summary.description);
+      else toast.warning(summary.title, summary.description);
+      if (currentRepo && result.ok.some((item) => item.path === currentRepo.path)) void useRepoStore.getState().refreshStatus();
+    } finally {
+      setBatchBusyGroupId(null);
+    }
   };
 
   const aheadCount = status?.ahead || 0;
@@ -466,7 +659,7 @@ export const Header: React.FC<HeaderProps> = ({
                 垂直方向会裁掉其内部触发的非 portal 浮层；clip 只在水平轴上防重叠，垂直轴保持可见。 */}
             <div className="flex items-center gap-1.5 min-w-0 overflow-x-clip">
               {/* Repository Selector Dropdown */}
-              <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); }}>
+              <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); else closeRepoMenuExtras(); }}>
                 <Popover.Trigger asChild>
                 <button
                   className="glass-control h-8 min-w-0 flex items-center gap-1.5 px-2.5 py-0 leading-none hover:bg-accent/60 transition-colors text-left group"
@@ -504,27 +697,233 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>{t('header.repoMenu.openOther')}</span>
                     </button>
 
-                    {recentRepos.length > 0 && (
+                    {recentRepos.length > 0 && !hasGroups && (
                       <>
                         <div className="px-2 pt-2 pb-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
                           {t('header.repoMenu.recent')}
                         </div>
                         <div className="max-h-36 overflow-y-auto space-y-0.5">
                           {recentRepos.map((repo) => (
-                            <button
+                            <RepoMenuRow
                               key={repo.path}
-                              onClick={async () => {
-                                setShowRepoMenu(false);
-                                if (await setCurrentRepo(repo)) toast.success(`${t('header.repoMenu.switchedToast')}: ${repo.name}`);
-                              }}
-                              className="w-full text-left px-2 py-1 text-xs text-foreground/80 hover:text-foreground hover:bg-accent rounded-md flex items-center justify-between"
-                            >
-                              <span className="truncate max-w-[170px]">{repo.name}</span>
-                              <span className="text-[12px] text-muted-foreground font-mono">{repo.currentBranch}</span>
-                            </button>
+                              repo={repo}
+                              showGroupControl={false}
+                              groupName={null}
+                              assignOpen={false}
+                              onToggleAssign={() => {}}
+                              groups={groups}
+                              currentGroupId={null}
+                              onAssign={() => {}}
+                              onOpen={() => void openRecentRepo(repo)}
+                            />
                           ))}
                         </div>
                       </>
+                    )}
+
+                    {recentRepos.length > 0 && hasGroups && (
+                      <div className="max-h-64 overflow-y-auto space-y-1">
+                        {repoSections.map((section) => {
+                          if (!section.group) {
+                            return (
+                              <div key="ungrouped">
+                                <div className="px-2 pt-1 pb-0.5 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  {t('workspaces.ungrouped')}
+                                </div>
+                                <div className="space-y-0.5">
+                                  {section.repos.map((path) => {
+                                    const repo = repoByPath.get(path);
+                                    if (!repo) return null;
+                                    return (
+                                      <RepoMenuRow
+                                        key={path}
+                                        repo={repo}
+                                        showGroupControl
+                                        groupName={null}
+                                        assignOpen={assignPanelPath === path}
+                                        onToggleAssign={() => setAssignPanelPath(assignPanelPath === path ? null : path)}
+                                        groups={groups}
+                                        currentGroupId={null}
+                                        onAssign={(groupId) => handleAssignRepo(path, groupId)}
+                                        onOpen={() => void openRecentRepo(repo)}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }
+                          const group = section.group;
+                          const canPull = !!currentRepo && group.repoPaths.includes(currentRepo.path);
+                          return (
+                            <div key={group.id}>
+                              <div className="px-2 pt-1 pb-0.5 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between gap-1">
+                                <span className="truncate" title={group.name}>{group.name}</span>
+                                <span className="flex items-center gap-0.5 shrink-0">
+                                  <button
+                                    onClick={() => void handleGroupFetchAll(group)}
+                                    disabled={batchBusyGroupId !== null}
+                                    title={t('workspaces.groupFetchAll')}
+                                    aria-label={`${t('workspaces.groupFetchAll')}: ${group.name}`}
+                                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    {batchBusyGroupId === group.id
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <RefreshCw className="h-3 w-3" />}
+                                  </button>
+                                  <button
+                                    onClick={() => void handlePull()}
+                                    disabled={!canPull}
+                                    title={canPull ? t('workspaces.groupPullAll') : t('workspaces.groupPullDisabled')}
+                                    aria-label={`${t('workspaces.groupPullAll')}: ${group.name}`}
+                                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    <ArrowDownToLine className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              </div>
+                              <div className="space-y-0.5">
+                                {section.repos.length === 0 && (
+                                  <div className="px-2 py-0.5 text-[11px] text-muted-foreground/60 italic">
+                                    {t('workspaces.groupEmpty')}
+                                  </div>
+                                )}
+                                {section.repos.map((path) => {
+                                  const repo = repoByPath.get(path);
+                                  if (!repo) return null;
+                                  return (
+                                    <RepoMenuRow
+                                      key={path}
+                                      repo={repo}
+                                      showGroupControl
+                                      groupName={group.name}
+                                      assignOpen={assignPanelPath === path}
+                                      onToggleAssign={() => setAssignPanelPath(assignPanelPath === path ? null : path)}
+                                      groups={groups}
+                                      currentGroupId={group.id}
+                                      onAssign={(groupId) => handleAssignRepo(path, groupId)}
+                                      onOpen={() => void openRecentRepo(repo)}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* 组管理入口（功能唯一入口，始终可见；管理面板内联展开，不弹二级浮层） */}
+                    <div className="my-1.5 border-t border-border/60" />
+                    <button
+                      onClick={() => { setShowGroupManager((value) => !value); setConfirmDeleteId(null); }}
+                      aria-expanded={showGroupManager}
+                      className="w-full text-left px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md flex items-center gap-2"
+                    >
+                      <FolderCog className="h-3.5 w-3.5" />
+                      <span className="flex-1">{t('workspaces.manage')}</span>
+                      <ChevronDown className={cn('h-3 w-3 transition-transform', showGroupManager && 'rotate-180')} />
+                    </button>
+                    {showGroupManager && (
+                      <div className="mx-0.5 mt-1 mb-0.5 rounded-lg border border-border/60 bg-secondary/30 p-1.5 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <input
+                            value={newGroupName}
+                            onChange={(event) => setNewGroupName(event.target.value)}
+                            onKeyDown={(event) => { if (event.key === 'Enter') handleCreateGroup(); }}
+                            placeholder={t('workspaces.createPlaceholder')}
+                            aria-label={t('workspaces.create')}
+                            className="flex-1 min-w-0 h-7 px-2 text-xs bg-background/60 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                          />
+                          <button
+                            onClick={handleCreateGroup}
+                            title={t('workspaces.create')}
+                            aria-label={t('workspaces.create')}
+                            className="h-7 w-7 shrink-0 rounded-md flex items-center justify-center text-primary hover:bg-primary/10"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        {groups.length === 0 && (
+                          <div className="px-1 text-[11px] text-muted-foreground/70 italic">{t('workspaces.empty')}</div>
+                        )}
+                        {groups.map((group) => editingGroupId === group.id ? (
+                          <div key={group.id} className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              value={editingName}
+                              onChange={(event) => setEditingName(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') commitRenameGroup();
+                                else if (event.key === 'Escape') { setEditingGroupId(null); setEditingName(''); }
+                              }}
+                              aria-label={t('workspaces.rename')}
+                              className="flex-1 min-w-0 h-7 px-2 text-xs bg-background/60 border border-primary/50 rounded-md focus:outline-none text-foreground"
+                            />
+                            <button
+                              onClick={commitRenameGroup}
+                              title={t('workspaces.rename')}
+                              aria-label={t('workspaces.rename')}
+                              className="h-7 w-7 shrink-0 rounded-md flex items-center justify-center text-primary hover:bg-primary/10"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => { setEditingGroupId(null); setEditingName(''); }}
+                              title={t('common.cancel')}
+                              aria-label={t('common.cancel')}
+                              className="h-7 w-7 shrink-0 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div key={group.id} className="flex items-center justify-between gap-1 rounded-md px-1.5 py-1 hover:bg-accent/60">
+                            {confirmDeleteId === group.id ? (
+                              <>
+                                <span className="min-w-0 flex-1 truncate text-[11px] text-destructive">{t('workspaces.deleteConfirm')}</span>
+                                <button
+                                  onClick={() => handleDeleteGroup(group.id)}
+                                  title={t('workspaces.deleteConfirmTitle')}
+                                  aria-label={t('workspaces.deleteConfirmTitle')}
+                                  className="h-6 w-6 shrink-0 rounded flex items-center justify-center text-destructive hover:bg-destructive/10"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  title={t('common.cancel')}
+                                  aria-label={t('common.cancel')}
+                                  className="h-6 w-6 shrink-0 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="min-w-0 flex-1 truncate text-xs text-foreground" title={group.name}>{group.name}</span>
+                                <span className="text-[11px] text-muted-foreground font-mono shrink-0">{group.repoPaths.length}</span>
+                                <button
+                                  onClick={() => { setEditingGroupId(group.id); setEditingName(group.name); setConfirmDeleteId(null); }}
+                                  title={t('workspaces.rename')}
+                                  aria-label={`${t('workspaces.rename')}: ${group.name}`}
+                                  className="h-6 w-6 shrink-0 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => { setConfirmDeleteId(group.id); setEditingGroupId(null); }}
+                                  title={t('workspaces.delete')}
+                                  aria-label={`${t('workspaces.delete')}: ${group.name}`}
+                                  className="h-6 w-6 shrink-0 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-accent"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </Popover.Content></Popover.Portal>
                 )}

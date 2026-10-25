@@ -2,5 +2,52 @@
  * 仓库分组 Workspaces（第二梯队功能）。
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
  */
-export const workspacesZh = {} as const;
-export const workspacesEn = {} as const;
+export const workspacesZh = {
+  'workspaces.manage': '管理分组…',
+  'workspaces.ungrouped': '未分组',
+  'workspaces.assignTitle': '指派到分组',
+  'workspaces.removeFromGroup': '移出分组',
+  'workspaces.groupFetchAll': '获取整组远端 (fetch)',
+  'workspaces.groupPullAll': '拉取当前打开的仓库',
+  'workspaces.groupPullDisabled': '仅支持拉取当前打开的仓库；未打开的仓库拉取会改动其工作区，已禁用',
+  'workspaces.groupEmpty': '该分组暂无仓库',
+  'workspaces.batchFetching': '正在获取 {n} 个仓库的远端…',
+  'workspaces.batchFetchDone': '整组获取完成：{n} 个仓库已更新',
+  'workspaces.batchFetchPartial': '获取完成：成功 {n} 个，失败 {m} 个',
+  'workspaces.batchNoAuthorized': '组内没有已授权的仓库',
+  'workspaces.batchNoAuthorizedDesc': '请先在应用内打开并授权对应仓库，再重试批量获取。',
+  'workspaces.createPlaceholder': '新分组名称',
+  'workspaces.create': '新建分组',
+  'workspaces.rename': '重命名分组',
+  'workspaces.delete': '删除分组',
+  'workspaces.deleteConfirmTitle': '确认删除',
+  'workspaces.deleteConfirm': '删除后组内仓库回到未分组',
+  'workspaces.nameEmpty': '组名不能为空',
+  'workspaces.nameDuplicate': '已存在同名分组',
+  'workspaces.empty': '还没有分组，先在上方创建一个',
+} as const;
+
+export const workspacesEn = {
+  'workspaces.manage': 'Manage groups…',
+  'workspaces.ungrouped': 'Ungrouped',
+  'workspaces.assignTitle': 'Assign to group',
+  'workspaces.removeFromGroup': 'Remove from group',
+  'workspaces.groupFetchAll': 'Fetch all in group',
+  'workspaces.groupPullAll': 'Pull the currently open repository',
+  'workspaces.groupPullDisabled': 'Only the currently open repository can be pulled; pulling an unopened repository would modify its working tree, so it is disabled here',
+  'workspaces.groupEmpty': 'No repositories in this group',
+  'workspaces.batchFetching': 'Fetching {n} repositories…',
+  'workspaces.batchFetchDone': 'Group fetch finished: {n} repositories updated',
+  'workspaces.batchFetchPartial': 'Fetch finished: {n} succeeded, {m} failed',
+  'workspaces.batchNoAuthorized': 'No authorized repositories in this group',
+  'workspaces.batchNoAuthorizedDesc': 'Open and approve the repositories in the app first, then retry the batch fetch.',
+  'workspaces.createPlaceholder': 'New group name',
+  'workspaces.create': 'Create group',
+  'workspaces.rename': 'Rename group',
+  'workspaces.delete': 'Delete group',
+  'workspaces.deleteConfirmTitle': 'Confirm delete',
+  'workspaces.deleteConfirm': 'Repositories in this group return to Ungrouped',
+  'workspaces.nameEmpty': 'Group name cannot be empty',
+  'workspaces.nameDuplicate': 'A group with the same name already exists',
+  'workspaces.empty': 'No groups yet — create one above',
+} as const;
