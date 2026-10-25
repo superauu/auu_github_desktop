@@ -10,7 +10,6 @@ import {
   AlertCircle,
   ExternalLink,
   CheckCircle2,
-  RefreshCw,
   Copy,
   Check,
   ShieldCheck,
@@ -59,9 +58,8 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     isAddingProfile,
     login,
     logout,
-    refreshActions,
     isLoading: isStoreLoading,
-  } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isAddingProfile: state.isAddingProfile, login: state.login, logout: state.logout, refreshActions: state.refreshActions, isLoading: state.isLoading })));
+  } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isAddingProfile: state.isAddingProfile, login: state.login, logout: state.logout, isLoading: state.isLoading })));
   const { t } = useI18n();
 
   const [authMode, setAuthMode] = useState<'oauth' | 'pat'>('oauth');
@@ -269,18 +267,6 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 >
                   <LogOut className="h-3 w-3" />
                   <span>{t('auth.logout')}</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={async () => {
-                    await refreshActions();
-                    toast.success(t('auth.refreshToast'));
-                  }}
-                  className="h-7 text-[12px] gap-1 text-muted-foreground hover:text-foreground"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  <span>{t('auth.refresh')}</span>
                 </Button>
               </div>
             </div>

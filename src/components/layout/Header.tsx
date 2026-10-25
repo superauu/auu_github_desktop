@@ -656,7 +656,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <TooltipTrigger asChild>
                   <button
                     onClick={onOpenGitHubAuth}
-                    aria-label={t('header.manageGithubCreds')}
+                    aria-label={t('header.signGithubTooltip')}
                     className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
                   >
                     <Github className="h-3 w-3 text-foreground" />
@@ -665,7 +665,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">{t('header.manageGithubCreds')}</TooltipContent>
+                <TooltipContent side="bottom">{t('header.signGithubTooltip')}</TooltipContent>
               </Tooltip>
             )}
 

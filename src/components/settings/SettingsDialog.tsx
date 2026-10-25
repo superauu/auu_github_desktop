@@ -37,7 +37,7 @@ import { RemotesManager } from './RemotesManager';
 import { RepositoryPermissions } from './RepositoryPermissions';
 import { CursorThemePicker } from './CursorThemePicker';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, LogOut, Key } from 'lucide-react';
+import { CheckCircle2, LogOut } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { checkForUpdates, openUpdateDialog } from '@/services/updater/UpdateService';
 import { confirmAction } from '@/stores/confirmStore';
@@ -243,6 +243,20 @@ export const ExternalToolsSection: React.FC = () => {
   );
 };
 
+/** 账号列表行头像：非当前账号读取 Profile 内登记的摘要，缺失或取回失败回退为占位图标 */
+const ProfileAvatar: React.FC<{ src: string | null; login: string; className?: string }> = ({ src, login, className }) => {
+  const [failed, setFailed] = useState(!src);
+  useEffect(() => { setFailed(!src); }, [src]);
+  if (!src || failed) {
+    return (
+      <div className={cn('flex items-center justify-center rounded-full border border-border bg-accent text-muted-foreground shrink-0', className)} aria-hidden>
+        <Github className="h-[55%] w-[55%]" />
+      </div>
+    );
+  }
+  return <img src={src} alt={login} onError={() => setFailed(true)} className={className} />;
+};
+
 interface SettingsDialogProps {
   initialTab?: SettingsTab;
   open: boolean;
@@ -260,7 +274,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 }) => {
   const { theme, setTheme } = useThemeStore();
   const { resetLayout, navigationPinned, setNavigationPinned, inspectorPresentation, setInspectorPresentation } = useLayoutStore();
-  const { user, isAuthenticated, logout } = useGitHubStore();
+  const { user, isAuthenticated, profiles, activeProfileId, logout, switchProfile, removeProfile, addProfile } = useGitHubStore();
   const {
     gitCliPath,
     setGitCliPath,
@@ -793,49 +807,85 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {activeTab === 'github' && (
               <div className="space-y-4">
                 {isAuthenticated && user ? (
-                  <div className="p-4 rounded-xl border border-border bg-accent/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <img
-                        src={user.avatar_url}
-                        alt={user.login}
-                        className="w-10 h-10 rounded-full border border-border/80 shadow-xs shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="font-semibold text-xs text-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
-                          <span className="truncate min-w-16">{user.name || user.login}</span>
-                          <Badge variant="success" className="h-3.5 text-[10px] px-1 gap-0.5 shrink-0">
-                            <CheckCircle2 className="h-2.5 w-2.5" />
-                            <span>{t('common.connected')}</span>
-                          </Badge>
-                        </div>
-                        <div className="text-[12px] text-muted-foreground font-mono truncate">@{user.login}</div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-medium text-foreground">
+                        {t('settings.github.accountsTitle')} <span className="text-muted-foreground font-normal">({profiles.length})</span>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                       <Button
                         size="xs"
                         variant="outline"
                         onClick={() => {
                           onOpenChange(false);
+                          addProfile();
                           onOpenGitHubAuth?.();
                         }}
-                        className="gap-1 text-xs h-7"
+                        className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10"
                       >
-                        <Key className="h-3 w-3" />
-                        <span>{t('common.manageCredentials')}</span>
+                        <Plus className="h-3 w-3" />
+                        <span>{t('profiles.addAccount')}</span>
                       </Button>
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        onClick={() => {
-                          logout();
-                          toast.info(t('settings.github.disconnectToast'));
-                        }}
-                        className="gap-1 text-xs h-7"
-                      >
-                        <LogOut className="h-3 w-3" />
-                        <span>{t('common.disconnect')}</span>
-                      </Button>
+                    </div>
+                    <div className="rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
+                      {profiles.map((profile) => {
+                        const isActive = profile.id === activeProfileId;
+                        const login = isActive ? user.login : (profile.user?.login ?? profile.label);
+                        const avatarSrc = isActive ? user.avatar_url : (profile.user?.avatarUrl ?? null);
+                        return (
+                          <div
+                            key={profile.id}
+                            className={cn(
+                              'p-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2',
+                              isActive ? 'bg-accent/20' : 'hover:bg-accent/30 transition-colors'
+                            )}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <ProfileAvatar src={avatarSrc} login={login} className="w-8 h-8 rounded-full border border-border/80 shadow-xs shrink-0" />
+                              <div className="min-w-0">
+                                <div className="font-semibold text-xs text-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
+                                  <span className="truncate min-w-16">{login}</span>
+                                  {isActive && (
+                                    <Badge variant="success" className="h-3.5 text-[10px] px-1 gap-0.5 shrink-0">
+                                      <CheckCircle2 className="h-2.5 w-2.5" />
+                                      <span>{t('settings.github.currentBadge')}</span>
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-[12px] text-muted-foreground font-mono truncate">@{login}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                              {!isActive && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={() => { void switchProfile(profile.id); }}
+                                  className="gap-1 text-xs h-7"
+                                >
+                                  <span>{t('settings.github.switchTo')}</span>
+                                </Button>
+                              )}
+                              <Button
+                                size="xs"
+                                variant={isActive ? 'destructive' : 'ghost'}
+                                onClick={() => {
+                                  if (isActive) {
+                                    logout();
+                                    toast.info(t('settings.github.disconnectToast'));
+                                  } else {
+                                    void removeProfile(profile.id);
+                                    toast.info(t('settings.github.removedToast').replace('{login}', login));
+                                  }
+                                }}
+                                className={cn('gap-1 text-xs h-7', !isActive && 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10')}
+                              >
+                                <LogOut className="h-3 w-3" />
+                                <span>{t('common.disconnect')}</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (

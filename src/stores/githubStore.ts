@@ -27,9 +27,17 @@ const LEGACY_DEMO_KEY = 'auu_github_demo_mode';
 export const DEFAULT_PROFILE_ID = 'default';
 const PROFILES_KEY = 'auu_git_profiles';
 
+export interface GitHubProfileUser {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+}
+
 export interface GitHubProfile {
   id: string;
   label: string;
+  /** 上次验证成功时登记的账号摘要；头像直连 avatars.githubusercontent.com（CSP 仅放行该域名） */
+  user?: GitHubProfileUser;
 }
 
 /** 生成去连字符 UUID（32 位 hex），供新 Profile 的 id 使用 */
@@ -53,9 +61,20 @@ export function parseStoredProfiles(raw: string | null): { profiles: GitHubProfi
     const cleaned: GitHubProfile[] = [];
     for (const item of rawProfiles) {
       if (!item || typeof item !== 'object') continue;
-      const { id, label } = item as Record<string, unknown>;
+      const { id, label, user } = item as Record<string, unknown>;
       if (typeof id !== 'string' || !id.trim()) continue;
-      cleaned.push({ id, label: typeof label === 'string' && label.trim() ? label : id });
+      const profile: GitHubProfile = { id, label: typeof label === 'string' && label.trim() ? label : id };
+      if (user && typeof user === 'object' && !Array.isArray(user)) {
+        const { login, name, avatarUrl } = user as Record<string, unknown>;
+        if (typeof login === 'string' && login.trim() && typeof avatarUrl === 'string' && avatarUrl.trim()) {
+          profile.user = {
+            login: login.trim(),
+            name: typeof name === 'string' && name.trim() ? name : null,
+            avatarUrl,
+          };
+        }
+      }
+      cleaned.push(profile);
     }
     const activeProfileId = typeof rawActiveId === 'string' && cleaned.some((p) => p.id === rawActiveId)
       ? rawActiveId
@@ -72,12 +91,21 @@ function saveProfiles(profiles: GitHubProfile[], activeProfileId: string | null)
   } catch { /* 隐私模式/配额失败不阻断登录流程 */ }
 }
 
-/** 确保某 Profile 存在并以刚验证过的 GitHub login 命名（登录/恢复会话后调用） */
-function withProfileLabel(profiles: GitHubProfile[], id: string, label: string): GitHubProfile[] {
+/** 确保某 Profile 存在并登记刚验证过的 GitHub 账号摘要（label 即 login，登录/恢复会话后调用） */
+function withProfileIdentity(profiles: GitHubProfile[], id: string, verified: GitHubUser): GitHubProfile[] {
+  const summary: GitHubProfileUser = {
+    login: verified.login,
+    name: verified.name ?? null,
+    avatarUrl: verified.avatar_url,
+  };
   const existing = profiles.find((p) => p.id === id);
-  if (!existing) return [...profiles, { id, label }];
-  if (existing.label === label) return profiles;
-  return profiles.map((p) => (p.id === id ? { ...p, label } : p));
+  if (!existing) return [...profiles, { id, label: summary.login, user: summary }];
+  const unchanged = existing.label === summary.login
+    && existing.user?.login === summary.login
+    && existing.user?.name === summary.name
+    && existing.user?.avatarUrl === summary.avatarUrl;
+  if (unchanged) return profiles;
+  return profiles.map((p) => (p.id === id ? { ...p, label: summary.login, user: summary } : p));
 }
 
 const storedProfiles = typeof localStorage !== 'undefined'
@@ -279,7 +307,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         githubService.setToken(token);
         // 首次成功认证会把默认 Profile（沿用旧 keyring 条目）登记进列表，完成旧用户迁移
         const profileId = get().activeProfileId ?? DEFAULT_PROFILE_ID;
-        const profiles = withProfileLabel(get().profiles, profileId, user.login);
+        const profiles = withProfileIdentity(get().profiles, profileId, user);
         set({ token, user, isAuthenticated: true, profiles, activeProfileId: profileId });
         persistProfiles();
         const { currentOwner, currentRepoName } = get();
@@ -303,7 +331,7 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         await persistToken(token, profileId);
         if (attempt !== authGeneration) return;
         githubService.setToken(token);
-        const profiles = withProfileLabel(get().profiles, profileId, user.login);
+        const profiles = withProfileIdentity(get().profiles, profileId, user);
         set({
           token, user, isAuthenticated: true, isLoading: false, profiles, activeProfileId: profileId,
           isAddingProfile: false, addProfileReturnId: null,
