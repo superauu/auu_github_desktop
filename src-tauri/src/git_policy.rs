@@ -46,6 +46,8 @@ const COMMANDS: &[&str] = &[
     "write-tree",
     "cat-file",
     "worktree",
+    "submodule",
+    "lfs",
     "config",
 ];
 
@@ -154,12 +156,20 @@ fn safe_config(args: &[String]) -> bool {
         return false;
     }
     let key = &positional[0];
-    matches!(key.as_str(), "user.name" | "user.email")
+    let value = positional.get(1).map(String::as_str);
+    // SSH 签名配置：user.signingkey 任意值（user.name 先例）；commit/tag.gpgsign 的值
+    // 必须恰为 true/false；gpg.format 必须恰为 ssh（本产品只管 SSH 签名）。
+    // gpg.program / gpg.ssh.program 是任意可执行文件执行面，gpg.ssh.* 其余键同样
+    // 不放行——都落到此处下方自然返回 false（fail closed）。
+    matches!(key.as_str(), "user.name" | "user.email" | "user.signingkey")
         || key.starts_with("auugit.")
         || (key.starts_with("branch.")
             && [".remote", ".merge", ".pushremote"]
                 .iter()
                 .any(|suffix| key.ends_with(suffix)))
+        || (matches!(key.as_str(), "commit.gpgsign" | "tag.gpgsign")
+            && matches!(value, Some("true") | Some("false")))
+        || (key == "gpg.format" && value == Some("ssh"))
 }
 
 /// 各命令的短选项声明：(消耗下一个参数, 一律禁止) 的字符集。
@@ -283,10 +293,18 @@ pub fn worktree_move_targets(args: &[String], index: usize) -> Vec<String> {
 /// localhost 与（Windows）盘符，并做百分号解码；非本地 host 维持 None（fail closed）。
 /// 与 scripts/git-policy.ts 的 localTransportPath 一致。
 pub fn local_transport_path(spec: &str) -> Option<String> {
-    if spec.len() >= 7 && spec.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("file://")) {
+    if spec.len() >= 7
+        && spec
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("file://"))
+    {
         return local_file_url(&spec[7..]);
     }
-    if spec.len() >= 5 && spec.get(..5).is_some_and(|prefix| prefix.eq_ignore_ascii_case("file:")) {
+    if spec.len() >= 5
+        && spec
+            .get(..5)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("file:"))
+    {
         return None;
     }
     if spec.contains("://") {
@@ -298,7 +316,11 @@ pub fn local_transport_path(spec: &str) -> Option<String> {
         if slash.is_none_or(|slash| colon < slash) {
             // 冒号先于任何斜杠：Windows 盘符路径，或 scp 风格 host:path（远程）。
             let bytes = spec.as_bytes();
-            if cfg!(windows) && bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() {
+            if cfg!(windows)
+                && bytes.len() >= 2
+                && bytes[1] == b':'
+                && bytes[0].is_ascii_alphabetic()
+            {
                 return Some(spec.to_string());
             }
             return None;
@@ -589,6 +611,167 @@ fn safe_bisect(rest: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// git submodule 子命令约束：`foreach`（对每个子模块执行任意 shell 命令！）、
+/// `absorbgitdirs`、`summary`、`set-url`、`helper` 与未列出的子命令（含裸
+/// `git submodule`）一律拒绝（fail closed）。放行的子命令按各自选项白名单校验：
+/// 除列出的一律拒绝，取值选项必须显式声明（`add` 的 --reference/--reference-if-able
+/// 会读取外部仓库对象，已含在"未知选项即拒"中）。位置参数是子模块路径（add 是
+/// <repository> [<path>]），不做额外形态检查；add 的本地路径 <repository> 由调用方
+/// （execute_git）与 clone 源同构授权。与 scripts/git-policy.ts 的 safeSubmodule 一致。
+fn safe_submodule(rest: &[String]) -> Result<(), String> {
+    let Some(sub) = rest.first() else {
+        return Err("Missing submodule subcommand".into());
+    };
+    // 各子命令的选项白名单：(取值长选项, 开关长选项, 取值短选项字符, 开关短选项字符)。
+    let (value_long, flag_long, value_short, flag_short): (&[&str], &[&str], &[char], &[char]) =
+        match sub.as_str() {
+            "status" => (&[], &["--cached", "--recursive"], &[], &[]),
+            "add" => (
+                &["--name", "--branch", "--depth"],
+                &["--force"],
+                &['b'],
+                &['f'],
+            ),
+            "update" => (
+                &["--depth"],
+                &["--init", "--recursive", "--remote", "--checkout", "--force"],
+                &[],
+                &['f'],
+            ),
+            "deinit" => (&[], &["--all", "--force"], &[], &['f']),
+            // git submodule init 实际没有 --recursive 之类的 flag：只放位置路径与 --。
+            "init" => (&[], &[], &[], &[]),
+            "sync" => (&[], &["--recursive"], &[], &[]),
+            _ => return Err(format!("Unsupported submodule subcommand: {sub}")),
+        };
+    let mut arguments = rest[1..].iter();
+    while let Some(argument) = arguments.next() {
+        // -- 之后全是位置参数（路径 / add 的源+路径），不再做选项检查。
+        if argument == "--" {
+            break;
+        }
+        if !argument.starts_with('-') {
+            continue;
+        }
+        if argument.starts_with("--") {
+            // 长选项支持 = 内联值；开关选项带 = 的形态（git 本身也不接受）直接拒绝。
+            let name = argument.split('=').next().unwrap_or(argument);
+            if value_long.contains(&name) {
+                if !argument.contains('=') {
+                    arguments.next();
+                }
+                continue;
+            }
+            if flag_long.contains(&name) && !argument.contains('=') {
+                continue;
+            }
+            return Err(format!("Unsupported submodule option: {argument}"));
+        }
+        // 短选项簇：取值字符必须位于簇尾（消耗下一参数作值）；内联值与未知字符一律拒绝。
+        let flags: Vec<char> = argument[1..].chars().collect();
+        for (position, flag) in flags.iter().enumerate() {
+            if value_short.contains(flag) {
+                if position + 1 != flags.len() {
+                    return Err(format!("Unsupported submodule option: {argument}"));
+                }
+                arguments.next();
+                break;
+            }
+            if !flag_short.contains(flag) {
+                return Err(format!("Unsupported submodule option: {argument}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// git submodule add 的 <repository> 位置参数（本地路径源需与 clone 源同构授权）：
+/// `--` 之后的首个位置参数，或跳过取值选项（--name/--branch/--depth 及簇尾 -b 的
+/// 值）之后的首个位置参数。任何不确定的形态返回 None（fail closed——validate 纯层
+/// 已先行拒绝未知选项，这里只是解析层的兜底）。与 scripts/git-policy.ts 的
+/// submoduleAddSource 一致。
+pub fn submodule_add_source(args: &[String], index: usize) -> Option<String> {
+    if args.get(index).map(String::as_str) != Some("submodule")
+        || args.get(index + 1).map(String::as_str) != Some("add")
+    {
+        return None;
+    }
+    let mut arguments = args[index + 2..].iter();
+    while let Some(argument) = arguments.next() {
+        if argument == "--" {
+            return arguments.next().cloned();
+        }
+        if !argument.starts_with('-') {
+            return Some(argument.clone());
+        }
+        if argument.starts_with("--") {
+            let name = argument.split('=').next().unwrap_or(argument);
+            if matches!(name, "--name" | "--branch" | "--depth") {
+                if !argument.contains('=') {
+                    arguments.next();
+                }
+            } else if name != "--force" {
+                return None;
+            }
+            continue;
+        }
+        // 短选项簇：-b 取值必须在簇尾（内联值形态 validate 层已拒，这里兜底返回 None）。
+        let flags: Vec<char> = argument[1..].chars().collect();
+        let mut consumes = false;
+        for (position, flag) in flags.iter().enumerate() {
+            match flag {
+                'f' => {}
+                'b' if position + 1 == flags.len() => consumes = true,
+                _ => return None,
+            }
+        }
+        if consumes {
+            arguments.next();
+        }
+    }
+    None
+}
+
+/// git lfs 子命令约束：`git lfs ...` 会执行 PATH 里的 git-lfs 外部二进制，策略只管
+/// argv。`push`（v1 不做上传面）、`migrate`（重写历史！）、`pointer`/`clean`/`smudge`
+/// （过滤驱动）、`update`/`logs`/`prune`/`dedup`/`lock`/`unlock` 与未列出的子命令
+/// （含裸 `git lfs`）一律拒绝（fail closed）。git-lfs 缺失时 git 自然报错，由前端捕获
+/// 展示。与 scripts/git-policy.ts 的 safeLfs 一致。
+fn safe_lfs(rest: &[String]) -> Result<(), String> {
+    let Some(sub) = rest.first() else {
+        return Err("Missing lfs subcommand".into());
+    };
+    match sub.as_str() {
+        // 裸调用会写全局 ~/.gitconfig：必须带且只带 --local（只写仓库内 .git/config
+        // 与 .git/hooks）；其余任何选项或位置参数拒绝。
+        "install" | "uninstall" => {
+            if rest.len() != 2 || rest[1] != "--local" {
+                return Err(format!("Unsupported lfs {sub} arguments"));
+            }
+        }
+        // 只接受位置模式参数（-- 分隔之后同样按模式字面传递）；任何选项拒绝
+        // （含 --filename，v1 不放）。
+        "track" | "untrack" => {
+            for argument in &rest[1..] {
+                if argument == "--" {
+                    break;
+                }
+                if argument.starts_with('-') {
+                    return Err(format!("Unsupported lfs option: {argument}"));
+                }
+            }
+        }
+        // 只读/下载面子命令：bare 调用（无选项无位置参数）。
+        "ls-files" | "status" | "version" | "env" | "fetch" | "pull" | "checkout" => {
+            if rest.len() != 1 {
+                return Err(format!("Unsupported lfs {sub} arguments"));
+            }
+        }
+        _ => return Err(format!("Unsupported lfs subcommand: {sub}")),
+    }
+    Ok(())
+}
+
 pub fn validate(args: &[String]) -> Result<(), String> {
     let index = command_index(args)?;
     let name = args[index].as_str();
@@ -600,6 +783,12 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "bisect" {
         safe_bisect(&args[index + 1..])?;
+    }
+    if name == "submodule" {
+        safe_submodule(&args[index + 1..])?;
+    }
+    if name == "lfs" {
+        safe_lfs(&args[index + 1..])?;
     }
     let mut skip_value = false;
     for argument in &args[index + 1..] {
@@ -649,8 +838,7 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     no_index_operands(args, index)?;
     // init / worktree move 的目标会在工作目录之外落盘：纯校验先挡绝对路径与 .. 上溯。
     if name == "init"
-        && init_target(args, index)
-            .is_some_and(|target| escapes_working_directory(&target))
+        && init_target(args, index).is_some_and(|target| escapes_working_directory(&target))
     {
         return Err("Git init target must stay inside the working directory".into());
     }
@@ -669,7 +857,9 @@ pub fn validate(args: &[String]) -> Result<(), String> {
             // file:// 源只有能解析为本地路径时才交给调用方按授权表放行；
             // 无法解析的形态（非本地 host 等，git 会按 ssh 处理）维持纯层拒绝。
             if source.len() >= 5
-                && source.get(..5).is_some_and(|prefix| prefix.eq_ignore_ascii_case("file:"))
+                && source
+                    .get(..5)
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("file:"))
                 && local_transport_path(source).is_none()
             {
                 return Err("Unsupported clone protocol: file".into());
@@ -724,6 +914,271 @@ mod tests {
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }
+    }
+    #[test]
+    fn gates_submodule_subcommands_fail_closed() {
+        // 放行：仓库工具面板真实使用的形态（status/add/update/init/deinit/sync 的
+        // 白名单选项、-- 分隔与位置路径；add 的源+路径含取值选项跳值）。
+        for values in [
+            vec!["submodule", "status"],
+            vec!["submodule", "status", "--cached", "--recursive"],
+            vec!["submodule", "status", "--", "dep", "other"],
+            vec!["submodule", "status", "dep"],
+            vec![
+                "submodule",
+                "add",
+                "--name",
+                "dep",
+                "-b",
+                "main",
+                "--depth",
+                "1",
+                "--",
+                "../dep-repo",
+                "dep",
+            ],
+            vec![
+                "submodule",
+                "add",
+                "-f",
+                "--branch=main",
+                "--depth=1",
+                "--force",
+                "https://example.invalid/dep.git",
+                "dep",
+            ],
+            // 短选项簇：-f 开关 + 簇尾 -b 取值。
+            vec!["submodule", "add", "-fb", "main", "url", "dep"],
+            vec!["submodule", "update", "--init", "--recursive"],
+            vec![
+                "submodule",
+                "update",
+                "--remote",
+                "--checkout",
+                "-f",
+                "--depth",
+                "1",
+                "--",
+                "dep",
+            ],
+            vec!["submodule", "deinit", "--all"],
+            vec!["submodule", "deinit", "-f", "dep"],
+            vec!["submodule", "deinit", "--", "dep"],
+            vec!["submodule", "init"],
+            vec!["submodule", "init", "dep"],
+            vec!["submodule", "init", "--", "dep"],
+            vec!["submodule", "sync", "--recursive", "dep"],
+            vec!["submodule", "sync", "--", "dep"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：foreach 执行任意 shell 命令、absorbgitdirs/summary/set-url/helper 与
+        // 未列出的子命令（含裸调用）；--reference* 读外部仓库对象；未声明的取值选项
+        // 与任何未知选项（含走私 blocked 选项）。
+        for values in [
+            vec!["submodule"],
+            vec!["submodule", "help"],
+            vec!["submodule", "foreach", "pwd"],
+            vec!["submodule", "foreach", "--recursive", "rm -rf /"],
+            vec!["submodule", "absorbgitdirs"],
+            vec!["submodule", "summary"],
+            vec!["submodule", "set-url", "dep", "url"],
+            vec!["submodule", "helper"],
+            vec!["submodule", "unknown-sub"],
+            vec![
+                "submodule",
+                "add",
+                "--reference",
+                "/outside/repo",
+                "url",
+                "dep",
+            ],
+            vec![
+                "submodule",
+                "add",
+                "--reference-if-able",
+                "/outside/repo",
+                "url",
+                "dep",
+            ],
+            vec!["submodule", "add", "--dissociate", "url", "dep"],
+            vec![
+                "submodule",
+                "add",
+                "--name",
+                "x",
+                "--upload-pack=evil",
+                "url",
+                "dep",
+            ],
+            vec!["submodule", "add", "--progress", "url", "dep"],
+            // 短选项内联值与未知短选项。
+            vec!["submodule", "add", "-bmain", "url", "dep"],
+            vec!["submodule", "add", "-x", "url", "dep"],
+            vec!["submodule", "update", "--merge"],
+            vec!["submodule", "update", "--rebase"],
+            vec!["submodule", "update", "--jobs", "2"],
+            // init 实际没有 --recursive：fail closed。
+            vec!["submodule", "init", "--recursive"],
+            vec!["submodule", "sync", "--quiet"],
+            vec!["submodule", "status", "--quiet"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_lfs_subcommands_fail_closed() {
+        // 放行：track/untrack 的位置模式、install/uninstall 恰带 --local、只读/下载
+        // 面子命令的 bare 调用。
+        for values in [
+            vec!["lfs", "track"],
+            vec!["lfs", "track", "*.psd"],
+            vec!["lfs", "track", "--", "*.psd", "*.zip"],
+            vec!["lfs", "untrack", "*.psd"],
+            vec!["lfs", "install", "--local"],
+            vec!["lfs", "uninstall", "--local"],
+            vec!["lfs", "ls-files"],
+            vec!["lfs", "status"],
+            vec!["lfs", "version"],
+            vec!["lfs", "env"],
+            vec!["lfs", "fetch"],
+            vec!["lfs", "pull"],
+            vec!["lfs", "checkout"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：裸 lfs、install/uninstall 裸调用（写全局 ~/.gitconfig）与多余选项、
+        // push/migrate 等封禁子命令、track 的任何选项、bare 子命令带参数。
+        for values in [
+            vec!["lfs"],
+            vec!["lfs", "help"],
+            vec!["lfs", "install"],
+            vec!["lfs", "uninstall"],
+            vec!["lfs", "install", "--local", "--force"],
+            vec!["lfs", "install", "--force"],
+            vec!["lfs", "uninstall", "--local", "extra"],
+            vec!["lfs", "track", "--filename", "x"],
+            vec!["lfs", "track", "--custom", "*.psd"],
+            vec!["lfs", "untrack", "--verbose"],
+            vec!["lfs", "push", "origin", "main"],
+            vec!["lfs", "migrate"],
+            vec!["lfs", "migrate", "import", "--everything"],
+            vec!["lfs", "pointer", "--file", "x"],
+            vec!["lfs", "clean"],
+            vec!["lfs", "smudge"],
+            vec!["lfs", "update"],
+            vec!["lfs", "logs"],
+            vec!["lfs", "logs", "last"],
+            vec!["lfs", "prune"],
+            vec!["lfs", "dedup"],
+            vec!["lfs", "lock", "x"],
+            vec!["lfs", "unlock", "x"],
+            vec!["lfs", "version", "--help"],
+            vec!["lfs", "fetch", "--all"],
+            vec!["lfs", "pull", "origin"],
+            vec!["lfs", "unknown-sub"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn allows_signing_config_keys_but_never_gpg_executables() {
+        // 放行：user.signingkey 任意值；commit/tag.gpgsign 恰为 true/false；
+        // gpg.format 恰为 ssh。读取（--get）任意键沿用既有规则。
+        for values in [
+            vec![
+                "config",
+                "--local",
+                "user.signingkey",
+                "~/.ssh/id_ed25519.pub",
+            ],
+            vec![
+                "config",
+                "--local",
+                "user.signingkey",
+                "ssh-ed25519 AAAAC3Nza user@host",
+            ],
+            vec!["config", "--local", "commit.gpgsign", "true"],
+            vec!["config", "--local", "commit.gpgsign", "false"],
+            vec!["config", "--local", "tag.gpgsign", "true"],
+            vec!["config", "--local", "tag.gpgsign", "false"],
+            vec!["config", "--local", "gpg.format", "ssh"],
+            vec!["config", "--get", "gpg.program"],
+            vec!["config", "--get", "gpg.ssh.program"],
+            vec!["config", "--get", "user.signingkey"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：gpg.format 只认 ssh；gpgsign 只认字面 true/false（git 会把 yes/1
+        // 解析为真值，策略必须收窄）；gpg.program / gpg.ssh.* 是任意可执行文件
+        // 执行面，永不放行。
+        for values in [
+            vec!["config", "--local", "gpg.format", "x509"],
+            vec!["config", "--local", "gpg.format", "openpgp"],
+            vec!["config", "--local", "commit.gpgsign", "yes"],
+            vec!["config", "--local", "commit.gpgsign", "1"],
+            vec!["config", "--local", "tag.gpgsign", "on"],
+            vec!["config", "--local", "user.signingkey", "v", "extra"],
+            vec!["config", "--local", "gpg.program", "/evil/signer"],
+            vec!["config", "--local", "gpg.program"],
+            vec!["config", "--local", "gpg.ssh.program", "/evil/ssh"],
+            vec!["config", "--local", "gpg.ssh.allowedSignersFile", "/evil"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn extracts_submodule_add_sources() {
+        let source = |values: &[&str]| submodule_add_source(&args(values), 0);
+        assert_eq!(
+            source(&["submodule", "add", "--", "../dep-repo", "dep"]),
+            Some("../dep-repo".into())
+        );
+        assert_eq!(
+            source(&[
+                "submodule",
+                "add",
+                "--name",
+                "dep",
+                "-b",
+                "main",
+                "--depth",
+                "1",
+                "--",
+                "../dep-repo",
+                "dep"
+            ]),
+            Some("../dep-repo".into())
+        );
+        assert_eq!(
+            source(&[
+                "submodule",
+                "add",
+                "-f",
+                "--branch=main",
+                "../dep-repo",
+                "dep"
+            ]),
+            Some("../dep-repo".into())
+        );
+        // 短选项簇：簇尾 -b 的值被跳过，首个位置参数仍是 <repository>。
+        assert_eq!(
+            source(&["submodule", "add", "-fb", "main", "../dep-repo"]),
+            Some("../dep-repo".into())
+        );
+        assert_eq!(
+            source(&["submodule", "add", "https://example.invalid/dep.git", "dep"]),
+            Some("https://example.invalid/dep.git".into())
+        );
+        // 非 add 形态、缺位置参数、只有取值选项：返回 None（fail closed）。
+        assert_eq!(source(&["submodule", "status", "--", "dep"]), None);
+        assert_eq!(source(&["submodule", "update", "--init", "dep"]), None);
+        assert_eq!(source(&["submodule", "add"]), None);
+        assert_eq!(source(&["submodule", "add", "--name"]), None);
+        assert_eq!(
+            source(&["submodule", "add", "--", "dep"]),
+            Some("dep".into())
+        );
     }
     #[test]
     fn blocks_execution_overrides_and_scope_bypasses() {
@@ -919,15 +1374,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(operands, ["nul", "a/b"]);
-        assert!(no_index_operands(&args(&["check-ignore", "--no-index", "-z"]), 0)
-            .unwrap()
-            .is_empty());
+        assert!(
+            no_index_operands(&args(&["check-ignore", "--no-index", "-z"]), 0)
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(init_target(&args(&["init", "-b", "main"]), 0), None);
         assert_eq!(
             init_target(&args(&["init", "-b", "main", "sub"]), 0),
             Some("sub".into())
         );
-        assert_eq!(init_target(&args(&["init", "--", "sub"]), 0), Some("sub".into()));
+        assert_eq!(
+            init_target(&args(&["init", "--", "sub"]), 0),
+            Some("sub".into())
+        );
         assert_eq!(
             worktree_move_targets(&args(&["worktree", "move", "wt", "dest"]), 0),
             ["wt", "dest"]
@@ -963,8 +1423,14 @@ mod tests {
         );
         assert_eq!(local_transport_path("file:///a%zz"), Some("/a%zz".into()));
         if cfg!(windows) {
-            assert_eq!(local_transport_path("C:/repos/x"), Some("C:/repos/x".into()));
-            assert_eq!(local_transport_path(r"C:\repos\x"), Some(r"C:\repos\x".into()));
+            assert_eq!(
+                local_transport_path("C:/repos/x"),
+                Some("C:/repos/x".into())
+            );
+            assert_eq!(
+                local_transport_path(r"C:\repos\x"),
+                Some(r"C:\repos\x".into())
+            );
             assert_eq!(
                 local_transport_path("file://E:/repos/x"),
                 Some("E:/repos/x".into())

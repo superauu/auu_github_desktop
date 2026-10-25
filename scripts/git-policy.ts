@@ -1,4 +1,4 @@
-const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'config']);
+const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
 const fixedOverrides = new Set(['core.quotepath=false', 'core.editor=true', 'rebase.updaterefs=false']);
 function safeOverride(value: string): boolean {
   if (fixedOverrides.has(value.toLowerCase())) return true;
@@ -200,6 +200,112 @@ function safeBisect(rest: string[]): void {
   }
 }
 
+// git submodule 子命令约束：foreach（对每个子模块执行任意 shell 命令！）、
+// absorbgitdirs、summary、set-url、helper 与未列出的子命令（含裸 git submodule）
+// 一律拒绝（fail closed）。放行的子命令按各自选项白名单校验：除列出的一律拒绝，
+// 取值选项必须显式声明（add 的 --reference/--reference-if-able 会读取外部仓库对象，
+// 已含在"未知选项即拒"中）。add 的本地路径 <repository> 由调用方（dev 中间件 /
+// execute_git）与 clone 源同构授权。与 src-tauri/src/git_policy.rs safe_submodule 一致。
+const submoduleOptionRules: Record<string, { valueLong: Set<string>; flagLong: Set<string>; valueShort: Set<string>; flagShort: Set<string> }> = {
+  status: { valueLong: new Set(), flagLong: new Set(['--cached', '--recursive']), valueShort: new Set(), flagShort: new Set() },
+  add: { valueLong: new Set(['--name', '--branch', '--depth']), flagLong: new Set(['--force']), valueShort: new Set(['b']), flagShort: new Set(['f']) },
+  update: { valueLong: new Set(['--depth']), flagLong: new Set(['--init', '--recursive', '--remote', '--checkout', '--force']), valueShort: new Set(), flagShort: new Set(['f']) },
+  deinit: { valueLong: new Set(), flagLong: new Set(['--all', '--force']), valueShort: new Set(), flagShort: new Set(['f']) },
+  // git submodule init 实际没有 --recursive 之类的 flag：只放位置路径与 --。
+  init: { valueLong: new Set(), flagLong: new Set(), valueShort: new Set(), flagShort: new Set() },
+  sync: { valueLong: new Set(), flagLong: new Set(['--recursive']), valueShort: new Set(), flagShort: new Set() },
+};
+function safeSubmodule(rest: string[]): void {
+  const sub = rest[0];
+  if (!sub) throw new Error('Missing submodule subcommand');
+  const rule = submoduleOptionRules[sub];
+  if (!rule) throw new Error(`Unsupported submodule subcommand: ${sub}`);
+  for (let index = 1; index < rest.length; index++) {
+    const argument = rest[index];
+    // -- 之后全是位置参数（路径 / add 的源+路径），不再做选项检查。
+    if (argument === '--') break;
+    if (!argument.startsWith('-')) continue;
+    if (argument.startsWith('--')) {
+      // 长选项支持 = 内联值；开关选项带 = 的形态（git 本身也不接受）直接拒绝。
+      const equals = argument.indexOf('=');
+      const name = equals < 0 ? argument : argument.slice(0, equals);
+      if (rule.valueLong.has(name)) {
+        if (equals < 0) index++;
+        continue;
+      }
+      if (rule.flagLong.has(name) && equals < 0) continue;
+      throw new Error(`Unsupported submodule option: ${argument}`);
+    }
+    // 短选项簇：取值字符必须位于簇尾（消耗下一参数作值）；未知字符一律拒绝。
+    const flags = argument.slice(1);
+    for (let position = 0; position < flags.length; position++) {
+      if (rule.valueShort.has(flags[position])) {
+        if (position + 1 !== flags.length) throw new Error(`Unsupported submodule option: ${argument}`);
+        index++;
+        break;
+      }
+      if (!rule.flagShort.has(flags[position])) throw new Error(`Unsupported submodule option: ${argument}`);
+    }
+  }
+}
+
+// git submodule add 的 <repository> 位置参数（本地路径源需与 clone 源同构授权）：
+// -- 之后的首个位置参数，或跳过取值选项（--name/--branch/--depth 及簇尾 -b 的值）
+// 之后的首个位置参数。任何不确定的形态返回 null（fail closed——validate 纯层已先行
+// 拒绝未知选项，这里只是解析层的兜底）。与 src-tauri/src/git_policy.rs submodule_add_source 一致。
+export function submoduleAddSource(args: string[], index: number): string | null {
+  if (args[index] !== 'submodule' || args[index + 1] !== 'add') return null;
+  for (let cursor = index + 2; cursor < args.length; cursor++) {
+    const argument = args[cursor];
+    if (argument === '--') return args[cursor + 1] ?? null;
+    if (!argument.startsWith('-')) return argument;
+    if (argument.startsWith('--')) {
+      const equals = argument.indexOf('=');
+      const name = equals < 0 ? argument : argument.slice(0, equals);
+      if (['--name', '--branch', '--depth'].includes(name)) { if (equals < 0) cursor++; }
+      else if (name !== '--force') return null;
+      continue;
+    }
+    // 短选项簇：-b 取值必须在簇尾（内联值形态 validate 层已拒，这里兜底返回 null）。
+    const flags = argument.slice(1);
+    let consumes = false;
+    for (let position = 0; position < flags.length; position++) {
+      if (flags[position] === 'f') continue;
+      if (flags[position] === 'b' && position + 1 === flags.length) { consumes = true; continue; }
+      return null;
+    }
+    if (consumes) cursor++;
+  }
+  return null;
+}
+
+// git lfs 子命令约束：git lfs ... 会执行 PATH 里的 git-lfs 外部二进制，策略只管
+// argv。push（v1 不做上传面）、migrate（重写历史！）、pointer/clean/smudge（过滤
+// 驱动）、update/logs/prune/dedup/lock/unlock 与未列出的子命令（含裸 git lfs）
+// 一律拒绝（fail closed）。git-lfs 缺失时 git 自然报错，由前端捕获展示。
+// 与 src-tauri/src/git_policy.rs safe_lfs 一致。
+function safeLfs(rest: string[]): void {
+  const sub = rest[0];
+  if (!sub) throw new Error('Missing lfs subcommand');
+  if (sub === 'install' || sub === 'uninstall') {
+    // 裸调用会写全局 ~/.gitconfig：必须恰带 --local（只写仓库内 .git/config 与
+    // .git/hooks）；其余任何选项或位置参数拒绝。
+    if (rest.length !== 2 || rest[1] !== '--local') throw new Error(`Unsupported lfs ${sub} arguments`);
+  } else if (sub === 'track' || sub === 'untrack') {
+    // 只接受位置模式参数（-- 分隔之后同样按模式字面传递）；任何选项拒绝（含
+    // --filename，v1 不放）。
+    for (const argument of rest.slice(1)) {
+      if (argument === '--') break;
+      if (argument.startsWith('-')) throw new Error(`Unsupported lfs option: ${argument}`);
+    }
+  } else if (['ls-files', 'status', 'version', 'env', 'fetch', 'pull', 'checkout'].includes(sub)) {
+    // 只读/下载面子命令：bare 调用（无选项无位置参数）。
+    if (rest.length !== 1) throw new Error(`Unsupported lfs ${sub} arguments`);
+  } else {
+    throw new Error(`Unsupported lfs subcommand: ${sub}`);
+  }
+}
+
 export function validateGitArguments(args: string[]): { command: string; index: number } {
   let index = 0;
   while (index < args.length) {
@@ -227,9 +333,22 @@ export function validateGitArguments(args: string[]): { command: string; index: 
     }
     // 写入形态恰好是 [key] 或 [key value]；读取形态至多两个位置参数。防多键值走私。
     if (read ? values.length > 2 : values.length !== 1 && values.length !== 2) throw new Error('Unsupported Git configuration access');
-    if (!read && !/^(user\.(name|email)|auugit\..+|branch\..+\.(remote|merge|pushremote))$/.test(values[0] || '')) throw new Error('Unsupported Git configuration access');
+    if (!read) {
+      const key = values[0] || '';
+      const value = values[1];
+      // SSH 签名配置：user.signingkey 任意值（user.name 先例）；commit/tag.gpgsign 的值
+      // 必须恰为 true/false；gpg.format 必须恰为 ssh（本产品只管 SSH 签名）。
+      // gpg.program / gpg.ssh.program 是任意可执行文件执行面，gpg.ssh.* 其余键同样
+      // 不放行——fail closed。与 src-tauri/src/git_policy.rs safe_config 一致。
+      const base = /^(user\.(name|email|signingkey)|auugit\..+|branch\..+\.(remote|merge|pushremote))$/.test(key);
+      const gpgBool = (key === 'commit.gpgsign' || key === 'tag.gpgsign') && (value === 'true' || value === 'false');
+      const gpgFormat = key === 'gpg.format' && value === 'ssh';
+      if (!base && !gpgBool && !gpgFormat) throw new Error('Unsupported Git configuration access');
+    }
   }
   if (command === 'bisect') safeBisect(args.slice(index + 1));
+  if (command === 'submodule') safeSubmodule(args.slice(index + 1));
+  if (command === 'lfs') safeLfs(args.slice(index + 1));
   const blocked = ['--upload-pack', '--receive-pack', '--exec', '--ext-diff', '--textconv', '--template', '--separate-git-dir', '--unsafe-paths', '--output', '--config', '--config-env', '--strategy', '--contents', '--file'];
   let skipValue = false;
   for (let cursor = index + 1; cursor < args.length; cursor++) {

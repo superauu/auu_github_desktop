@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { version } from './package.json';
 import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io';
 import { directoryScope } from './scripts/dev-directory-scope';
-import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy';
+import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, submoduleAddSource, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy';
 import { createGitBinaryResolver } from './scripts/git-binary';
 import { AI_REQUEST_TIMEOUT_MS } from './src/services/ai/aiLimits';
 
@@ -176,6 +176,18 @@ export function gitApiPlugin(): Plugin {
               }
               if (command === 'worktree' && data.args[index + 1] === 'move') {
                 for (const target of worktreeMoveTargets(data.args, index)) await allowedPath(path.resolve(data.cwd, target));
+              }
+              if (command === 'submodule' && data.args[index + 1] === 'add') {
+                // 与 src-tauri 一致：submodule add 的本地路径源与 clone 源同构——解析出
+                // <repository> 位置参数，本地形态必须落在授权根内，且仅对该次调用开放本地
+                // 传输；子模块目标路径本身在父仓库工作区内，无需额外授权。
+                const source = submoduleAddSource(data.args, index);
+                if (source && isLocalCloneSource(source)) {
+                  const local = localTransportPath(source);
+                  if (!local) throw new Error('Unsupported clone protocol: file');
+                  await allowedPath(path.resolve(data.cwd, local));
+                  data.gitProtocols = 'https:http:ssh:git:file';
+                }
               }
               if (command === 'push' || command === 'fetch' || command === 'pull') {
                 // 与 src-tauri/src/lib.rs 一致：远程目标与 clone 源同构，解析为授权根内的本地路径时

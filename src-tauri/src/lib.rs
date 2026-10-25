@@ -12,6 +12,7 @@ mod repository_dialog;
 mod git_policy;
 mod git_binary;
 mod external_tools;
+mod ssh_signing;
 use file_io::{atomic_write, read_bytes, read_text, FILE_WRITES, MAX_FILE_BYTES};
 
 /// 去除 Windows canonicalize 返回的 \\?\ 前缀（含 UNC 形式）。
@@ -164,6 +165,22 @@ async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<Stri
                         }
                     }
                     _ => {}
+                }
+            }
+            if command == "submodule" {
+                // submodule add 的本地路径 <repository> 与 clone 源同构：跨仓库读取需先
+                // 授权，且仅对该次调用放行本地传输；相对源按 spawn cwd（当前仓库根）解析。
+                // 子模块目标路径本身落在父仓库工作区内，无需额外授权。update 走 .gitmodules
+                // 里登记的 URL：https 等远程由默认白名单放行，本地 file:// 形态 v1 不放行
+                // （fail closed，由 git 自然报传输错误）。
+                if let Some(source) = git_policy::submodule_add_source(&args, index) {
+                    if git_policy::is_local_clone_source(&source) {
+                        let path = git_policy::local_transport_path(&source)
+                            .ok_or("Unsupported clone protocol: file")?;
+                        let target = if Path::new(&path).is_absolute() { PathBuf::from(&path) } else { root.join(&path) };
+                        repository_access::require_path(target.to_string_lossy().as_ref())?;
+                        protocols = Some(LOCAL_PROTOCOLS);
+                    }
                 }
             }
             if matches!(command, "push" | "fetch" | "pull") {
@@ -596,6 +613,9 @@ pub fn run() {
             external_tools::set_external_tool,
             external_tools::remove_external_tool,
             external_tools::launch_external_tool,
+            ssh_signing::detect_ssh_keygen,
+            ssh_signing::list_ssh_public_keys,
+            ssh_signing::generate_ssh_signing_key,
             paths_exist,
             request_ai_completion,
             get_github_job_logs,
