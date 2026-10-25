@@ -30,7 +30,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
   return (
     <footer aria-label={t('window.statusbar')} className="glass-surface glass-statusbar h-7 px-3 flex items-center justify-between gap-4 text-[12px] text-muted-foreground select-none shrink-0 z-20">
       {/* Left side info */}
-      <div className="flex min-w-0 items-center gap-3 overflow-hidden">
+      <div className="flex min-w-0 items-center gap-3 overflow-x-clip">
         {currentRepo ? (
           <>
             <div className="flex min-w-0 items-center gap-1 text-foreground font-medium" title={currentRepo.path}>
