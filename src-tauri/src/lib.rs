@@ -11,6 +11,7 @@ mod repository_access;
 mod repository_dialog;
 mod git_policy;
 mod git_binary;
+mod external_tools;
 use file_io::{atomic_write, read_bytes, read_text, FILE_WRITES, MAX_FILE_BYTES};
 
 /// 去除 Windows canonicalize 返回的 \\?\ 前缀（含 UNC 形式）。
@@ -181,7 +182,9 @@ async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<Stri
     }).await.map_err(|e| e.to_string())?
 }
 
-fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
+/// 仓库内相对路径解析 + 授权：拒 `..`/绝对路径/`.git` 组件，最终路径必须落在
+/// 授权仓库内。external_tools 的 launch 与本文件的读写命令共用同一套边界。
+pub(crate) fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
     let relative = Path::new(&file_path);
     if file_path.is_empty() || relative.components().any(|part| match part {
         Component::ParentDir | Component::RootDir | Component::Prefix(_) => true,
@@ -579,6 +582,10 @@ pub fn run() {
             repository_access::list_repository_permissions,
             repository_access::revoke_repository_permission,
             git_binary::authorize_git_binary,
+            external_tools::get_external_tools,
+            external_tools::set_external_tool,
+            external_tools::remove_external_tool,
+            external_tools::launch_external_tool,
             paths_exist,
             request_ai_completion,
             get_github_job_logs,

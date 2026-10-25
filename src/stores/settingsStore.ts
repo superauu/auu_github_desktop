@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { applyCursorTheme, normalizeCursorTheme, type CursorThemeId } from '@/utils/cursorThemes';
 import type { AiProtocol } from '@/services/ai/AiClient';
+import { externalToolService, type ExternalToolConfig } from '@/services/tools/ExternalToolService';
 import { tNow } from '@/i18n';
 
 export interface AiApiConfig {
@@ -23,9 +24,12 @@ export interface SettingsState {
   autoFetchInterval: 'never' | '5m' | '10m' | '30m';
   aiConfig: AiApiConfig;
   language: Language;
+  // 外部 diff/merge 工具（F4）：只做后端配置文件的镜像，绝不落入 localStorage。
+  externalTools: ExternalToolConfig[];
 
   credentialError: string | null;
   initSecrets: () => Promise<void>;
+  initExternalTools: () => Promise<void>;
 
   // Actions
   setGitCliPath: (path: string) => void;
@@ -37,6 +41,8 @@ export interface SettingsState {
   setAutoFetchInterval: (interval: 'never' | '5m' | '10m' | '30m') => void;
   setAiConfig: (config: Partial<AiApiConfig>) => void;
   setLanguage: (lang: Language) => void;
+  saveExternalTool: (tool: ExternalToolConfig) => Promise<ExternalToolConfig[]>;
+  removeExternalTool: (toolId: string) => Promise<ExternalToolConfig[]>;
   resetSettings: () => void;
 }
 
@@ -45,6 +51,7 @@ let legacyAiKey = '';
 let keyVersion = 0;
 let keyWrites: Promise<void> = Promise.resolve();
 let secretInit: Promise<void> | null = null;
+let toolsInit: Promise<void> | null = null;
 const isDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 const DEFAULT_SETTINGS = {
@@ -56,6 +63,7 @@ const DEFAULT_SETTINGS = {
   diffIgnoreWhitespace: false,
   autoFetchInterval: '10m' as const,
   language: 'zh' as const,
+  externalTools: [] as ExternalToolConfig[],
   aiConfig: {
     provider: 'builtin' as const,
     protocol: 'chat-completions' as AiProtocol,
@@ -83,6 +91,8 @@ function loadSettings() {
           protocol: ['chat-completions', 'responses', 'anthropic-messages'].includes(parsed.aiConfig?.protocol) ? parsed.aiConfig.protocol : 'chat-completions',
           apiKey: legacyAiKey,
         },
+        // 工具配置归后端文件所有：localStorage 里的任何残留一律丢弃。
+        externalTools: [],
       };
     }
   } catch {
@@ -138,6 +148,35 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
         } catch (error) { set({ credentialError: tNow('err.aiCredentialReadFailed').replace('{m}', String(error)) }); }
       })();
       return secretInit;
+    },
+
+    // 外部工具配置的加载与保存都只走后端命令（配置文件归后端所有），失败时
+    // 允许重试（toolsInit 复位），由调用方决定如何提示。
+    initExternalTools: async () => {
+      if (!isDesktop()) return;
+      if (toolsInit) return toolsInit;
+      toolsInit = (async () => {
+        const tools = await externalToolService.list();
+        set({ externalTools: tools });
+      })();
+      try {
+        await toolsInit;
+      } catch (error) {
+        toolsInit = null;
+        throw error;
+      }
+    },
+
+    saveExternalTool: async (tool: ExternalToolConfig) => {
+      const tools = await externalToolService.save(tool);
+      set({ externalTools: tools });
+      return tools;
+    },
+
+    removeExternalTool: async (toolId: string) => {
+      const tools = await externalToolService.remove(toolId);
+      set({ externalTools: tools });
+      return tools;
     },
 
     setGitCliPath: (gitCliPath: string) => {
@@ -201,7 +240,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
 
     resetSettings: () => {
       get().setAiConfig({ apiKey: '' });
-      set(DEFAULT_SETTINGS);
+      // 外部工具配置归后端文件所有，不随重置清空（工具列表保持后端镜像）。
+      set({ ...DEFAULT_SETTINGS, externalTools: get().externalTools });
       applyCursorTheme('system');
       localStorage.removeItem(SETTINGS_KEY);
       if (typeof document !== 'undefined') {

@@ -15,7 +15,13 @@ import {
   Sparkles,
   RefreshCw,
   Cpu,
+  Plus,
+  Pencil,
+  Trash2,
+  GitCompare,
+  GitMerge,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -34,6 +40,208 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, LogOut, Key } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { checkForUpdates, openUpdateDialog } from '@/services/updater/UpdateService';
+import { confirmAction } from '@/stores/confirmStore';
+import {
+  newExternalToolId,
+  validateExternalToolDraft,
+  type ExternalToolConfig,
+  type ExternalToolMode,
+} from '@/services/tools/ExternalToolService';
+
+const isDesktopRuntime = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+interface ExternalToolFormState {
+  id?: string;
+  name: string;
+  program: string;
+  args: string;
+  mode: ExternalToolMode;
+}
+
+/**
+ * 外部 diff/merge 工具设置区（F4，仅桌面端渲染）。
+ * 表单校验错误沿用内联红字模式，保存/删除结果沿用 toast 模式。
+ */
+export const ExternalToolsSection: React.FC = () => {
+  const { t } = useI18n();
+  const desktop = isDesktopRuntime();
+  const { externalTools, initExternalTools, saveExternalTool, removeExternalTool } = useSettingsStore(useShallow((state) => ({
+    externalTools: state.externalTools,
+    initExternalTools: state.initExternalTools,
+    saveExternalTool: state.saveExternalTool,
+    removeExternalTool: state.removeExternalTool,
+  })));
+  const [form, setForm] = useState<ExternalToolFormState | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let active = true;
+    initExternalTools().catch((error: unknown) => {
+      if (active) setLoadError(String(error instanceof Error ? error.message : error));
+    });
+    return () => { active = false; };
+    // initExternalTools 是稳定的 store action，桌面判定不变时无需重跑。
+  }, [desktop]);
+
+  if (!desktop) return null;
+
+  const startAdd = () => {
+    setForm({ name: '', program: '', args: '', mode: 'diff' });
+    setFormError(null);
+  };
+  const startEdit = (tool: ExternalToolConfig) => {
+    setForm({ id: tool.id, name: tool.name, program: tool.program, args: tool.args, mode: tool.mode });
+    setFormError(null);
+  };
+  const dismissForm = () => {
+    setForm(null);
+    setFormError(null);
+  };
+  const submitForm = async () => {
+    if (!form || busy) return;
+    const error = validateExternalToolDraft(form);
+    if (error) {
+      setFormError(error);
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveExternalTool({
+        id: form.id || newExternalToolId(),
+        name: form.name.trim(),
+        program: form.program.trim(),
+        args: form.args.trim(),
+        mode: form.mode,
+      });
+      toast.success(t('externalTools.saved'));
+      dismissForm();
+    } catch (error: any) {
+      setFormError(String(error?.message || error));
+      toast.error(t('externalTools.saveFailed'), String(error?.message || error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const deleteTool = async (tool: ExternalToolConfig) => {
+    if (!await confirmAction({
+      title: t('externalTools.deleteTitle'),
+      description: t('externalTools.deleteDesc').replace('{name}', tool.name),
+      detail: tool.program,
+    })) return;
+    try {
+      await removeExternalTool(tool.id);
+      toast.success(t('externalTools.deleted'));
+    } catch (error: any) {
+      toast.error(t('externalTools.deleteFailed'), String(error?.message || error));
+    }
+  };
+
+  const modeBadge = (mode: ExternalToolMode) => (
+    <Badge variant="outline" className="h-4 px-1 gap-0.5 text-[10px] shrink-0">
+      {mode === 'diff' ? <GitCompare className="h-2.5 w-2.5" /> : <GitMerge className="h-2.5 w-2.5" />}
+      <span>{t(mode === 'diff' ? 'externalTools.mode.diff' : 'externalTools.mode.merge')}</span>
+    </Badge>
+  );
+
+  return (
+    <section className="space-y-2 border-t border-border pt-3" data-testid="external-tools-section">
+      <h3 className="text-xs font-medium">{t('externalTools.title')}</h3>
+      <p className="text-[12px] text-muted-foreground">{t('externalTools.description')}</p>
+      {loadError && <p role="alert" className="text-destructive">{t('externalTools.loadFailed')}: {loadError}</p>}
+
+      {form ? (
+        <div className="space-y-2 rounded-lg border border-border p-2.5 bg-accent/20">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium">{t('externalTools.formTitle')}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" aria-label={t('common.close')} onClick={dismissForm}>
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="text-[12px] font-medium">{t('externalTools.name')}</span>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder={t('externalTools.namePlaceholder')}
+                aria-label={t('externalTools.name')}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[12px] font-medium">{t('externalTools.mode')}</span>
+              <select
+                value={form.mode}
+                onChange={(e) => setForm({ ...form, mode: e.target.value as ExternalToolMode })}
+                aria-label={t('externalTools.mode')}
+                className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-xs"
+              >
+                <option value="diff" className="bg-popover text-foreground">{t('externalTools.mode.diff')}</option>
+                <option value="merge" className="bg-popover text-foreground">{t('externalTools.mode.merge')}</option>
+              </select>
+            </label>
+          </div>
+          <label className="block space-y-1">
+            <span className="text-[12px] font-medium">{t('externalTools.program')}</span>
+            <Input
+              value={form.program}
+              onChange={(e) => setForm({ ...form, program: e.target.value })}
+              placeholder={t('externalTools.programPlaceholder')}
+              className="font-mono text-xs"
+              aria-label={t('externalTools.program')}
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-[12px] font-medium">{t('externalTools.args')}</span>
+            <Input
+              value={form.args}
+              onChange={(e) => setForm({ ...form, args: e.target.value })}
+              placeholder={t('externalTools.argsPlaceholder')}
+              className="font-mono text-xs"
+              aria-label={t('externalTools.args')}
+            />
+          </label>
+          <p className="text-[12px] text-muted-foreground leading-relaxed">{t('externalTools.argsHint')}</p>
+          {formError && <p role="alert" className="text-destructive select-text">{formError}</p>}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button variant="ghost" size="xs" onClick={dismissForm} disabled={busy}>{t('common.cancel')}</Button>
+            <Button variant="outline" size="xs" onClick={() => void submitForm()} disabled={busy} className="gap-1">
+              <Check className="h-3 w-3" />
+              <span>{t('externalTools.save')}</span>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {externalTools.length === 0 && !loadError && <p className="text-muted-foreground">{t('externalTools.empty')}</p>}
+          <div className="space-y-1">
+            {externalTools.map((tool) => (
+              <div key={tool.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                {modeBadge(tool.mode)}
+                <span className="font-medium shrink-0">{tool.name}</span>
+                <span title={tool.program} className="min-w-0 flex-1 truncate font-mono text-[12px] text-muted-foreground">{tool.program}</span>
+                <Button variant="ghost" size="xs" className="h-6 w-6 p-0 shrink-0" aria-label={`${t('externalTools.edit')}: ${tool.name}`} onClick={() => startEdit(tool)}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="xs" className="h-6 w-6 p-0 shrink-0 hover:text-destructive" aria-label={`${t('externalTools.delete')}: ${tool.name}`} onClick={() => void deleteTool(tool)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div>
+            <Button variant="outline" size="xs" className="gap-1" onClick={startAdd}>
+              <Plus className="h-3 w-3" />
+              <span>{t('externalTools.add')}</span>
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+};
 
 interface SettingsDialogProps {
   initialTab?: SettingsTab;
@@ -453,6 +661,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <RemotesManager />
                 <RepositoryPermissions />
+                <ExternalToolsSection />
               </div>
             )}
 

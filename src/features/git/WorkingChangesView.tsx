@@ -32,6 +32,8 @@ import {
   AlignLeft,
   Loader2,
   History,
+  GitCompare,
+  GitMerge,
 } from 'lucide-react';
 import { ConflictBanner } from './ConflictBanner';
 import { IgnoreDialog } from './IgnoreDialog';
@@ -48,7 +50,10 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { groupDiffIntoHunks } from '@/services/git/PorcelainParser';
 import { gitService } from '@/services/git/GitService';
+import { externalToolService, type ExternalToolConfig, type ExternalToolMode } from '@/services/tools/ExternalToolService';
 import { GitBlameLine, GitCommit, GitFileChange } from '@/services/git/types';
+
+const isDesktopRuntime = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 export const WorkingChangesView: React.FC = () => {
   const { setChangesFileListWidth } = useLayoutStore();
@@ -238,6 +243,26 @@ export const WorkingChangesView: React.FC = () => {
   const [fileMenu, setFileMenu] = useState<{ file: GitFileChange; x: number; y: number } | null>(null);
   const [ignorePaths, setIgnorePaths] = useState<string[] | null>(null);
   useEffect(() => { setIgnorePaths(null); setFileMenu(null); }, [currentRepo?.path]);
+
+  // 外部 diff/merge 工具（F4，仅桌面端）：加载一次后端配置镜像，供右键菜单列出。
+  const desktop = isDesktopRuntime();
+  const externalTools = useSettingsStore(useShallow((state) => state.externalTools));
+  useEffect(() => {
+    if (!desktop) return;
+    useSettingsStore.getState().initExternalTools().catch(() => {
+      // 菜单入口随列表为空而隐藏；失败由设置区的加载提示兜底。
+    });
+  }, [desktop]);
+
+  const launchWithExternalTool = async (tool: ExternalToolConfig, mode: ExternalToolMode, file: GitFileChange) => {
+    if (!currentRepo) return;
+    try {
+      await externalToolService.launch(tool.id, mode, currentRepo.path, file.path);
+      toast.success(t('externalTools.launched'), `${tool.name}: ${file.path}`);
+    } catch (error: any) {
+      toast.error(t('externalTools.launchFailed'), String(error?.message || error));
+    }
+  };
   const toggleFile = async (file: GitFileChange) => {
     await runGitAction(() => file.staged ? unstageFile(file.path) : stageFile(file.path), t(file.staged ? 'changes.unstagedToast' : 'changes.stagedToast'), t('changes.opFailed'));
     requestAnimationFrame(() => {
@@ -273,12 +298,31 @@ export const WorkingChangesView: React.FC = () => {
       },
     };
   };
+  // 外部工具入口：ContextMenu 组件无子菜单，按当前文件语义平铺列出已配置工具——
+  // 冲突文件列出 merge 工具（index 三阶段合并），其余文件列出 diff 工具（working vs HEAD）。
+  const externalMenuItems: ContextMenuItem[] = (() => {
+    if (!fileMenu || !desktop) return [];
+    const conflicted = fileMenu.file.status === 'conflicted';
+    const tools = externalTools.filter((tool) => tool.mode === (conflicted ? 'merge' : 'diff'));
+    if (!tools.length) return [];
+    return [
+      { id: 'external-tools-separator', separator: true } as ContextMenuItem,
+      ...tools.map((tool) => ({
+        id: `external-tool-${tool.id}`,
+        label: t(conflicted ? 'externalTools.mergeWith' : 'externalTools.diffWith').replace('{name}', tool.name),
+        icon: conflicted ? <GitMerge className="h-3.5 w-3.5" /> : <GitCompare className="h-3.5 w-3.5" />,
+        onClick: () => void launchWithExternalTool(tool, conflicted ? 'merge' : 'diff', fileMenu.file),
+      } as ContextMenuItem)),
+    ];
+  })();
+
   const fileMenuItems: ContextMenuItem[] = fileMenu ? [
     { id: 'stage', label: t(fileMenu.file.staged ? 'changes.unstageTitle' : 'changes.stageTitle'), onClick: () => void toggleFile(fileMenu.file) },
     ...(fileMenu.file.status === 'untracked' ? [{ id: 'ignore', label: t('ignore.title'), onClick: () => setIgnorePaths(
       picked.has(fileKey(fileMenu.file)) ? selectedFiles.filter(file => file.status === 'untracked').map(file => file.path) : [fileMenu.file.path]
     ) }] : []),
     ...(!fileMenu.file.staged && fileMenu.file.status !== 'untracked' ? [{ id: 'discard', label: t('changes.discardTitle'), danger: true, onClick: () => void handleDiscard(fileMenu.file.path) }] : []),
+    ...externalMenuItems,
   ] : [];
 
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
