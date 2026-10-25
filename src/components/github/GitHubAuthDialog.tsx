@@ -303,7 +303,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   setAuthMode('oauth');
                 }}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all',
+                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-colors',
                   authMode === 'oauth'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -319,7 +319,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   setAuthMode('pat');
                 }}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all',
+                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-colors',
                   authMode === 'pat'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'

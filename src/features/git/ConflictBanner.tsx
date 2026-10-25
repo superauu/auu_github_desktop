@@ -162,7 +162,7 @@ export const ConflictBanner: React.FC = () => {
           size="xs"
           onClick={handleComplete}
           disabled={!isAllResolved || isSubmitting}
-          className={`h-7 text-xs gap-1.5 shadow-sm transition-all ${
+          className={`h-7 text-xs gap-1.5 shadow-sm transition-[background-color,border-color,box-shadow] ${
             isAllResolved
               ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
               : 'opacity-60 cursor-not-allowed'

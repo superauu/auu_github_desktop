@@ -51,7 +51,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             onClick={onOpenRepo}
-            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
+            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-[background-color,border-color,box-shadow] text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
           >
             <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500 dark:text-cyan-300 w-fit transition-transform">
               <FolderOpen className="h-5 w-5" />
@@ -64,12 +64,12 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                 {t('welcome.openRepoDesc')}
               </div>
             </div>
-            <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-cyan-400 dark:bg-cyan-300 group-hover:w-full transition-all duration-300" aria-hidden />
+            <span className="absolute bottom-0 left-0 h-[2px] w-full origin-left scale-x-0 group-hover:scale-x-100 bg-cyan-400 dark:bg-cyan-300 transition-transform duration-300" aria-hidden />
           </button>
 
           <button
             onClick={onCloneRepo}
-            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
+            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-[background-color,border-color,box-shadow] text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
           >
             <div className="p-2 rounded-lg bg-neon-pink/10 text-neon-pink dark:text-neon-pink/90 w-fit transition-transform">
               <GitFork className="h-5 w-5" />
@@ -82,12 +82,12 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                 {t('welcome.cloneRepoDesc')}
               </div>
             </div>
-            <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-neon-pink group-hover:w-full transition-all duration-300" aria-hidden />
+            <span className="absolute bottom-0 left-0 h-[2px] w-full origin-left scale-x-0 group-hover:scale-x-100 bg-neon-pink transition-transform duration-300" aria-hidden />
           </button>
 
           <button
             onClick={onInitRepo}
-            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-all text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
+            className="group p-4 rounded-xl border border-border bg-card/40 hover:bg-accent/40 hover:border-primary/50 dark:hover:border-cyan-300/50 dark:hover:shadow-[0_0_18px_rgba(0,229,255,0.18)] transition-[background-color,border-color,box-shadow] text-left flex flex-col justify-between h-32 relative overflow-hidden cursor-pointer"
           >
             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-neon-green w-fit transition-transform">
               <FolderGit2 className="h-5 w-5" />
@@ -100,7 +100,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                 {t('welcome.initRepoDesc')}
               </div>
             </div>
-            <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-emerald-400 to-cyan-400 group-hover:w-full transition-all duration-300" aria-hidden />
+            <span className="absolute bottom-0 left-0 h-[2px] w-full origin-left scale-x-0 group-hover:scale-x-100 bg-gradient-to-r from-emerald-400 to-cyan-400 transition-transform duration-300" aria-hidden />
           </button>
         </div>
 

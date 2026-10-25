@@ -281,7 +281,7 @@ export const PullRequestsView: React.FC = () => {
                       aria-current={isSelected ? 'true' : undefined}
                       onClick={() => selectPR(pr)}
                       className={cn(
-                        "p-3 rounded-lg border text-xs cursor-pointer transition-all group space-y-2",
+                        "p-3 rounded-lg border text-xs cursor-pointer transition-[background-color,border-color,box-shadow] group space-y-2",
                         isSelected
                           ? "bg-accent border-primary/40 shadow-xs"
                           : "bg-card/40 border-border/60 hover:bg-accent/40"

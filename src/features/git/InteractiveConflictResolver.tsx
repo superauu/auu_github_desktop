@@ -609,7 +609,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
             onClick={handleSaveAndStage}
             disabled={isSaving || hasConflicts || originalContent.current === undefined}
             className={cn(
-              "h-7 text-xs px-3 gap-1.5 shadow-sm transition-all",
+              "h-7 text-xs px-3 gap-1.5 shadow-sm transition-[background-color,border-color,box-shadow]",
               !hasConflicts
                 ? "bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -724,7 +724,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                   else blockRefs.current.delete(block.index);
                 }}
                 className={cn(
-                  "rounded-xl border transition-all overflow-hidden my-3 shadow-md",
+                  "rounded-xl border transition-[background-color,border-color,box-shadow] overflow-hidden my-3 shadow-md",
                   isActive
                     ? "border-primary ring-1 ring-primary/40 bg-card/40"
                     : "border-border/80 bg-card/20 hover:border-border"

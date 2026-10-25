@@ -672,7 +672,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           aria-current={activeTab === 'changes' ? 'page' : undefined}
           onClick={() => { setActiveTab('changes'); onNavigate?.(); }}
           className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'changes'
               ? "bg-accent text-accent-foreground shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -700,7 +700,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           aria-current={activeTab === 'history' ? 'page' : undefined}
           onClick={() => { setActiveTab('history'); onNavigate?.(); }}
           className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'history'
               ? "bg-accent text-accent-foreground shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -721,7 +721,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           aria-current={activeTab === 'pullRequests' ? 'page' : undefined}
           onClick={() => { setActiveTab('pullRequests'); onNavigate?.(); }}
           className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'pullRequests'
               ? "bg-accent text-accent-foreground shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -745,7 +745,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           aria-current={activeTab === 'actions' ? 'page' : undefined}
           onClick={() => { setActiveTab('actions'); onNavigate?.(); }}
           className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-all group",
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'actions'
               ? "bg-accent text-accent-foreground shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -772,7 +772,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           <button
             aria-pressed={sidebarMode === 'list'} onClick={() => setSidebarMode('list')}
             className={cn(
-              "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-all",
+              "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-colors",
               sidebarMode === 'list'
                 ? "bg-background text-foreground shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -784,7 +784,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           <button
             aria-pressed={sidebarMode === 'agents'} onClick={() => setSidebarMode('agents')}
             className={cn(
-              "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-all",
+              "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-colors",
               sidebarMode === 'agents'
                 ? "bg-background text-foreground shadow-xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -963,7 +963,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                     }}
                                     onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                                     className={cn(
-                                      "group flex items-center justify-between px-2 py-1 rounded-md text-xs transition-all cursor-pointer",
+                                      "group flex items-center justify-between px-2 py-1 rounded-md text-xs transition-colors cursor-pointer",
                                       dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                                       draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                                       branch.isCurrent
@@ -1036,7 +1036,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           }}
                           onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                           className={cn(
-                            "group flex items-center justify-between px-2 py-1.5 rounded-md text-xs transition-all cursor-pointer",
+                            "group flex items-center justify-between px-2 py-1.5 rounded-md text-xs transition-colors cursor-pointer",
                             dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                             draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                             branch.isCurrent
@@ -1143,7 +1143,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           }}
                           onContextMenu={(e) => handleRemoteBranchContextMenu(e, branch)}
                           className={cn(
-                            "group flex items-center justify-between px-2 py-1 rounded-md text-xs cursor-pointer transition-all",
+                            "group flex items-center justify-between px-2 py-1 rounded-md text-xs cursor-pointer transition-colors",
                             dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                             draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                             isSelected
@@ -1205,7 +1205,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                               }}
                               onContextMenu={(e) => handleRemoteBranchContextMenu(e, branch)}
                               className={cn(
-                                "group flex items-center justify-between px-2 py-1 rounded-md text-xs cursor-pointer transition-all",
+                                "group flex items-center justify-between px-2 py-1 rounded-md text-xs cursor-pointer transition-colors",
                                 dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                                 draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                                 isSelected

@@ -500,7 +500,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         aria-pressed={theme === item.id}
                         onClick={() => setTheme(item.id as ThemeMode)}
                         className={cn(
-                          "p-3 rounded-lg border text-left transition-all relative",
+                          "p-3 rounded-lg border text-left transition-[background-color,border-color,box-shadow] relative",
                           theme === item.id
                             ? "border-primary bg-primary/10 text-foreground shadow-sm"
                             : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
@@ -676,7 +676,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <button
                       aria-pressed={aiConfig.provider === 'builtin'} onClick={() => setAiConfig({ provider: 'builtin' })}
                       className={cn(
-                        "p-3 rounded-lg border text-left transition-all relative space-y-1",
+                        "p-3 rounded-lg border text-left transition-[background-color,border-color,box-shadow] relative space-y-1",
                         aiConfig.provider === 'builtin'
                           ? "border-primary bg-primary/10 text-foreground shadow-sm"
                           : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
@@ -697,7 +697,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <button
                       aria-pressed={aiConfig.provider === 'openai-compatible'} onClick={() => setAiConfig({ provider: 'openai-compatible' })}
                       className={cn(
-                        "p-3 rounded-lg border text-left transition-all relative space-y-1",
+                        "p-3 rounded-lg border text-left transition-[background-color,border-color,box-shadow] relative space-y-1",
                         aiConfig.provider === 'openai-compatible'
                           ? "border-primary bg-primary/10 text-foreground shadow-sm"
                           : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
