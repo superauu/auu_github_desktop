@@ -22,7 +22,9 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { githubService } from '@/services/github/GitHubService';
+import type { GitHubPullRequest } from '@/services/github/types';
 import { CreatePullRequestModal } from './CreatePullRequestModal';
+import { PullRequestDetailModal } from './PullRequestDetailModal';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
@@ -61,6 +63,7 @@ export const PullRequestsView: React.FC = () => {
   const [mergeMethod, setMergeMethod] = useState<'merge' | 'squash' | 'rebase'>('merge');
   const [isMerging, setIsMerging] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [reviewPR, setReviewPR] = useState<GitHubPullRequest | null>(null);
 
   const filteredPRs = useMemo(() => {
     return pullRequests.filter((pr) => {
@@ -340,6 +343,19 @@ export const PullRequestsView: React.FC = () => {
                             {label.name}
                           </Badge>
                         ))}
+
+                        {/* 打开应用内 PR Review 弹窗（阻止冒泡，不影响行选中） */}
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={(event) => { event.stopPropagation(); setReviewPR(pr); }}
+                          aria-label={t('prReview.openAria').replace('{n}', String(pr.number))}
+                          title={t('prReview.openTitle').replace('{n}', String(pr.number))}
+                          className="ml-auto h-5 px-1.5 text-[10px] gap-1 shrink-0"
+                        >
+                          <MessageSquare className="h-2.5 w-2.5" />
+                          <span>{t('prReview.open')}</span>
+                        </Button>
                       </div>
                     </div>
                   );
@@ -547,6 +563,16 @@ export const PullRequestsView: React.FC = () => {
 
       {/* Create Pull Request Modal */}
       <CreatePullRequestModal open={createPROpen} onOpenChange={setCreatePROpen} />
+
+      {/* PR Review 详情弹窗（对话 / 文件 / 提交评审） */}
+      {reviewPR && currentOwner && currentRepoName && (
+        <PullRequestDetailModal
+          pr={reviewPR}
+          owner={currentOwner}
+          repo={currentRepoName}
+          onClose={() => setReviewPR(null)}
+        />
+      )}
     </div>
   );
 };

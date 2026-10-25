@@ -7,7 +7,6 @@ import {
   GitHubUser,
   GitHubWorkflow,
   GitHubWorkflowRun,
-  GitHubReview,
   JobLogsData,
   WorkflowDispatchParams,
   WorkflowYamlContent,
@@ -19,6 +18,85 @@ export class GitHubApiError extends Error {
 
 /** 上限保护：巨型仓库的列表接口不能无限翻页拖垮 UI */
 const DEFAULT_MAX_PAGES = 10;
+
+/** PR 评审事件枚举（create review 的 event 字段） */
+export type ReviewEvent = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
+const REVIEW_EVENTS: readonly ReviewEvent[] = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'];
+
+/** createPullRequestReview 的单条行内评论输入；对 diff 可见行评论（v1 不支持跨行区间） */
+export interface ReviewCommentInput {
+  path: string;
+  /** 评论锚定的行号（RIGHT=新文件行号，LEFT=旧文件行号），由调用方传入 */
+  line?: number;
+  side?: 'LEFT' | 'RIGHT';
+  body: string;
+}
+
+export interface CreateReviewParams {
+  event: ReviewEvent;
+  body?: string;
+  comments?: ReviewCommentInput[];
+}
+
+/** GET /pulls/{n}/files 的单个文件（patch 为 unified diff 文本，二进制/超大文件为 undefined） */
+export interface GitHubPullRequestFile {
+  sha: string;
+  filename: string;
+  previous_filename?: string;
+  status: 'added' | 'removed' | 'modified' | 'renamed' | 'changed' | 'copied' | 'unchanged';
+  additions: number;
+  deletions: number;
+  changes: number;
+  blob_url?: string;
+  raw_url?: string;
+  patch?: string;
+}
+
+export interface GitHubPullRequestFilesResult {
+  files: GitHubPullRequestFile[];
+  /** 文件数超过软上限（>300）时为 true，UI 据此显示截断提示 */
+  truncated: boolean;
+}
+
+/** 评审时间线条目（含 body 的完整 review；PENDING 无 submitted_at） */
+export interface GitHubPullRequestReview {
+  id: number;
+  user: { login: string; avatar_url?: string };
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+  body: string;
+  submitted_at: string | null;
+  commit_id?: string | null;
+  html_url?: string;
+}
+
+/** 行内评审评论（GET /pulls/{n}/comments）；LEFT 侧评论 line 为 null，行号在 original_line */
+export interface GitHubReviewComment {
+  id: number;
+  path: string;
+  side?: 'LEFT' | 'RIGHT';
+  line?: number | null;
+  original_line?: number | null;
+  in_reply_to_id?: number | null;
+  body: string;
+  user: { login: string; avatar_url?: string };
+  diff_hunk?: string;
+  created_at: string;
+  updated_at: string;
+  html_url?: string;
+}
+
+/** PR 对话区评论（GET issues/{n}/comments） */
+export interface GitHubIssueComment {
+  id: number;
+  user: { login: string; avatar_url?: string };
+  body: string;
+  created_at: string;
+  updated_at: string;
+  html_url?: string;
+}
+
+/** 文件列表的展示软上限：超过即标记截断（UI 只渲染前 300 个文件） */
+export const PR_FILES_SOFT_LIMIT = 300;
 
 export class GitHubService {
   private token: string | null = null;
@@ -264,8 +342,79 @@ export class GitHubService {
     owner: string,
     repo: string,
     pullNumber: number
-  ): Promise<GitHubReview[]> {
-    return this.pages<GitHubReview>(`https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/reviews?per_page=100`);
+  ): Promise<GitHubPullRequestReview[]> {
+    return this.pages<GitHubPullRequestReview>(`https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/reviews?per_page=100`);
+  }
+
+  /** PR 变更文件列表：分页聚合（cap 10 页），>300 文件时置 truncated 标记 */
+  async getPullRequestFiles(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    maxPages: number = DEFAULT_MAX_PAGES
+  ): Promise<GitHubPullRequestFilesResult> {
+    const files = await this.pages<GitHubPullRequestFile>(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/files?per_page=100`,
+      undefined,
+      'no-store',
+      maxPages
+    );
+    return { files, truncated: files.length > PR_FILES_SOFT_LIMIT };
+  }
+
+  /** 行内评审评论（锚定在 diff 行上的那些） */
+  async getPullRequestReviewComments(
+    owner: string,
+    repo: string,
+    pullNumber: number
+  ): Promise<GitHubReviewComment[]> {
+    return this.pages<GitHubReviewComment>(`https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/comments?per_page=100`, undefined, 'no-store');
+  }
+
+  /** PR 对话区评论（issue comments，不含 review 与行内评论） */
+  async getPullRequestIssueComments(
+    owner: string,
+    repo: string,
+    pullNumber: number
+  ): Promise<GitHubIssueComment[]> {
+    return this.pages<GitHubIssueComment>(`https://api.github.com/repos/${owner}/${repo}/issues/${pullNumber}/comments?per_page=100`, undefined, 'no-store');
+  }
+
+  /**
+   * 提交评审：APPROVE / REQUEST_CHANGES / COMMENT + 总评 body + 行内评论数组。
+   * event 必须是枚举值；REQUEST_CHANGES 缺 body 的前端校验在 prReviewLogic.validateReviewSubmission（不发请求）。
+   */
+  async createPullRequestReview(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+    params: CreateReviewParams
+  ): Promise<GitHubPullRequestReview> {
+    if (!REVIEW_EVENTS.includes(params.event)) {
+      throw new GitHubApiError(400, tNow('prReview.invalidEvent'));
+    }
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/reviews`, {
+      method: 'POST',
+      headers: {
+        ...this.getHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        event: params.event,
+        body: params.body || '',
+        comments: (params.comments || []).map(comment => ({
+          path: comment.path,
+          body: comment.body,
+          ...(typeof comment.line === 'number' ? { line: comment.line } : {}),
+          ...(comment.side ? { side: comment.side } : {}),
+        })),
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) {
+      throw new GitHubApiError(res.status, await this.extractGitHubError(res));
+    }
+    return res.json();
   }
 
   /** 从错误响应中提取 GitHub 返回的 message 字段，便于 toast 展示 */
