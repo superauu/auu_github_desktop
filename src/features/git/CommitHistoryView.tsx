@@ -73,9 +73,14 @@ export const CommitHistoryView: React.FC = () => {
   const setSearchQuery = (query: string) => updateView({ query, scrollTop: 0 });
   const [graphWidth, setGraphWidth] = useState(64);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [searchMode, setSearchMode] = useState<'metadata' | 'contents'>('metadata');
+  // 三选下拉：metadata=提交信息（客户端过滤），contents=代码增删（-S 字面），regex=代码正则（-G）。
+  // 用下拉而非"内容模式 + 正则勾选"：勾选框只在内容模式下有效，会让模式与身份键出现隐藏组合状态。
+  const [searchMode, setSearchMode] = useState<'metadata' | 'contents' | 'regex'>('metadata');
+  // 路径过滤只对内容搜索生效：输入即时回显，300ms 防抖进搜索身份键。
+  const [pathInput, setPathInput] = useState('');
+  const [searchPath, setSearchPath] = useState('');
   const [branchDrop, setBranchDrop] = useState<{ source: GitBranch; target: GitBranch } | null>(null);
-  const searchIdentity = `${searchMode}:${searchQuery}`;
+  const searchIdentity = `${searchMode}:${searchPath}:${searchQuery}`;
   const focusAfterRender = useRef<string | null>(null);
   const [remoteResults, setRemoteResults] = useState<{ query: string; commits: GitCommit[] } | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
@@ -85,6 +90,7 @@ export const CommitHistoryView: React.FC = () => {
   const scrollSave = useRef<ReturnType<typeof setTimeout>>();
   const lastScroll = useRef(savedView.scrollTop);
   const previousQuery = useRef(searchQuery);
+  const previousPath = useRef('');
   const restoringScroll = useRef(savedView.scrollTop > 0);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ open: boolean; x: number; y: number; commit: GitCommit | null }>({
@@ -132,24 +138,30 @@ export const CommitHistoryView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [scrollToCommitHash, selectedCommit?.hash]);
 
+  // 路径过滤 300ms 防抖：输入停顿后才更新身份键触发搜索，避免每个按键都发一次全历史查询。
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchPath(pathInput.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [pathInput]);
+
   useEffect(() => {
     const request = ++searchRequest.current;
     setSearchError(''); setSearchComplete(false);
     if (!searchQuery.trim() || !repoPath) { setSearchBusy(false); setRemoteResults(null); return; }
     setSearchBusy(true);
     const timer = setTimeout(() => {
-      void (searchMode === 'contents' ? historyWorkflowService.searchContents(repoPath, searchQuery) : gitService.findCommits(repoPath, searchQuery)).then(results => {
+      void (searchMode === 'metadata' ? gitService.findCommits(repoPath, searchQuery) : historyWorkflowService.searchContents(repoPath, searchQuery, { regex: searchMode === 'regex', path: searchPath })).then(results => {
         if (request !== searchRequest.current) return;
-        setRemoteResults({ query: searchIdentity, commits: results }); setSearchComplete(searchMode === 'contents' || results.length < 100);
+        setRemoteResults({ query: searchIdentity, commits: results }); setSearchComplete(searchMode === 'metadata' || results.length < 100);
       }).catch((error: Error) => { if (request === searchRequest.current) setSearchError(error.message); })
         .finally(() => { if (request === searchRequest.current) setSearchBusy(false); });
     }, 250);
     return () => { clearTimeout(timer); searchRequest.current++; };
-  }, [repoPath, searchQuery, searchMode]);
+  }, [repoPath, searchQuery, searchMode, searchPath]);
 
   const filteredCommits = useMemo(() => remoteResults?.query === searchIdentity && searchQuery.trim() ? remoteResults.commits : commits.filter((c) => {
     if (!searchQuery.trim()) return true;
-    if (searchMode === 'contents') return false;
+    if (searchMode !== 'metadata') return false;
     const q = searchQuery.toLowerCase();
     return (
       c.subject.toLowerCase().includes(q) ||
@@ -161,7 +173,7 @@ export const CommitHistoryView: React.FC = () => {
 
   const loadNext = async () => {
     if (!searchQuery.trim()) { await loadMoreCommits(); return; }
-    if (searchBusy || searchMode === 'contents') return;
+    if (searchBusy || searchMode !== 'metadata') return;
     const request = searchRequest.current;
     setSearchBusy(true);
     try {
@@ -175,11 +187,11 @@ export const CommitHistoryView: React.FC = () => {
   };
 
   useEffect(() => {
-    if (previousQuery.current === searchQuery) return;
-    previousQuery.current = searchQuery; lastScroll.current = 0;
+    if (previousQuery.current === searchQuery && previousPath.current === searchPath) return;
+    previousQuery.current = searchQuery; previousPath.current = searchPath; lastScroll.current = 0;
     if (viewportRef.current) viewportRef.current.scrollTop = 0;
     setViewport(previous => ({ ...previous, top: 0 }));
-  }, [searchQuery]);
+  }, [searchQuery, searchPath]);
   const firstVisible = Math.min(filteredCommits.length, Math.max(0, Math.floor(viewport.top / 42) - (hasWip ? 1 : 0) - 8));
   const lastVisible = Math.min(filteredCommits.length, Math.ceil((viewport.top + viewport.height) / 42) + 8);
   // 搜索态下不把高亮回退到 filteredCommits[0]：否则列表高亮与右侧详情（仍指向原选中提交）不一致；
@@ -321,7 +333,7 @@ export const CommitHistoryView: React.FC = () => {
         <Button variant="outline" size="xs" disabled={!repoPath} onClick={() => setEditorOpen(true)}>{t('flow.historyEditor')}</Button>
         {/* Search commit box */}
         <div className="flex items-center gap-2">
-          <select aria-label={t('flow.searchMode')} value={searchMode} onChange={e => { setRemoteResults(null); setSearchMode(e.target.value as 'metadata' | 'contents'); }} className="max-w-28 rounded border border-input bg-background p-1 text-xs"><option value="metadata">{t('flow.searchMetadata')}</option><option value="contents">{t('flow.searchContents')}</option></select><div className="relative w-52">
+          <select aria-label={t('flow.searchMode')} value={searchMode} onChange={e => { setRemoteResults(null); setSearchMode(e.target.value as 'metadata' | 'contents' | 'regex'); }} className="max-w-28 rounded border border-input bg-background p-1 text-xs"><option value="metadata">{t('flow.searchMetadata')}</option><option value="contents">{t('flow.searchContents')}</option><option value="regex">{t('flow.searchRegex')}</option></select><div className="relative w-52">
             <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2" />
             <Input
               value={searchQuery}
@@ -330,6 +342,13 @@ export const CommitHistoryView: React.FC = () => {
               className="h-7 pl-7 text-[12px] bg-secondary/30"
             />
           </div>
+          {/* 路径过滤仅在内容搜索（字面/正则）下生效，提交信息模式下不渲染以免误导 */}
+          {searchMode !== 'metadata' && <Input
+            value={pathInput}
+            onChange={(e) => setPathInput(e.target.value)}
+            aria-label={t('flow.searchPath')} title={t('flow.searchPath')} placeholder={t('flow.searchPathPlaceholder')}
+            className="w-36 h-7 text-[12px] bg-secondary/30"
+          />}
         <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="xs">{t('composer.columns')}</Button></DropdownMenu.Trigger>
           <DropdownMenu.Portal><DropdownMenu.Content align="end" className="z-50 min-w-40 bg-popover border border-border rounded-lg shadow-xl p-1">
             {(['author', 'date', 'hash'] as const).map(key => <DropdownMenu.CheckboxItem key={key} className="menu-item" checked={columns[key]} onCheckedChange={checked => setColumns(previous => ({ ...previous, [key]: checked === true }))}><span className="w-4">{columns[key] ? '✓' : ''}</span>{t(`composer.column.${key}`)}</DropdownMenu.CheckboxItem>)}

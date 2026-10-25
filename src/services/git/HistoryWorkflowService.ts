@@ -1,4 +1,4 @@
-import { executeGit, executeGitTransaction } from './GitExecutor';
+import { executeGit, executeGitTransaction, GitExecutionError } from './GitExecutor';
 import { requireClean, savePoint } from './BranchSafetyService';
 import { parseGitLog } from './PorcelainParser';
 import { tNow } from '@/i18n';
@@ -7,6 +7,8 @@ import type { GitCommit } from './types';
 export interface HistoryPlan { branch: string; head: string; base: string; commits: GitCommit[] }
 export interface HistoryStep { hash: string; action: 'pick' | 'squash' | 'fixup' }
 export interface ReflogEntry { hash: string; selector: string; subject: string; timestamp: number }
+/** Options for searchContents: pickaxe variant and an optional repository-relative pathspec filter. */
+export interface ContentSearchOptions { regex?: boolean; path?: string }
 const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
 export const historyWorkflowService = {
   async plan(repoPath: string, count: number): Promise<HistoryPlan> {
@@ -58,8 +60,25 @@ export const historyWorkflowService = {
       await git(['update-ref', '--create-reflog', '-m', 'AuuGit recovery', `refs/heads/${name}`, target, '0'.repeat(target.length)]);
     });
   },
-  async searchContents(repoPath: string, query: string): Promise<GitCommit[]> {
+  async searchContents(repoPath: string, query: string, options: ContentSearchOptions = {}): Promise<GitCommit[]> {
     if (!query.trim()) return [];
-    return parseGitLog((await executeGit(['log', '--all', '--topo-order', '--max-count=100', '--fixed-strings', `-S${query}`, `--format=${format}`, '--'], repoPath)).stdout);
+    const pathspec = options.path?.trim() || '';
+    // Pathspec travels after "--", but a leading "-" is rejected outright so an
+    // option-looking filter can never reach the command line.
+    if (pathspec.startsWith('-')) throw new Error('Invalid path filter: a pathspec must not start with "-"');
+    // Literal mode keeps -S with --fixed-strings; regex mode swaps in -G and must NOT be fixed-strings.
+    const pickaxe = options.regex ? `-G${query}` : `-S${query}`;
+    const args = ['log', '--all', '--topo-order', '--max-count=100', ...(options.regex ? [] : ['--fixed-strings']), pickaxe, `--format=${format}`];
+    // Every option stays ahead of the separator; git treats the remainder as pathspecs.
+    args.push('--', ...(pathspec ? [pathspec] : []));
+    try {
+      return parseGitLog((await executeGit(args, repoPath)).stdout);
+    } catch (error) {
+      // An illegal pattern makes git exit 128; surface a readable hint instead of a bare stderr dump.
+      if (options.regex && error instanceof GitExecutionError && /invalid regex|not a valid regular expression/i.test(error.stderr)) {
+        throw new Error(`Invalid regular expression: ${query}`);
+      }
+      throw error;
+    }
   },
 };
