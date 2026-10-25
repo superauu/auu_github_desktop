@@ -60,7 +60,9 @@ jobs:
         run: npx tauri icon public/logo.svg
 
       - name: Build Tauri Desktop App
-        run: npm run tauri -- build -- --locked --target ${{ matrix.target }}
+        # --target 必须在 cargo 透传分隔符 -- 之前：否则只传给了 cargo（bundler 找不到
+        # target/<triple>/release 下的主程序），Tauri CLI 自身收不到目标三元组。
+        run: npm run tauri -- build --target ${{ matrix.target }} -- --locked
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
