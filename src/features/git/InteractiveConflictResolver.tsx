@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Columns3,
   RotateCcw,
   Save,
   Split,
@@ -17,12 +18,20 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import {
   parseConflictBlocks,
   resolveSingleBlock,
   resolveAllBlocks,
   ConflictBlock,
 } from '@/services/git/ConflictParser';
+import {
+  fetchStages,
+  locateBlockSpans,
+  type BlockSpan,
+  type ConflictSide,
+  type ConflictStages,
+} from '@/services/git/ConflictBaseService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { VirtualRows } from '@/components/ui/VirtualRows';
@@ -69,6 +78,14 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   const [isSaving, setIsSaving] = useState(false);
   const [activeBlockIndex, setActiveBlockIndex] = useState<number>(0);
   const blockRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  // F3 三方对照：整文件开关、块级展开集合、索引三阶段版本（基线/我方/对方）。
+  const diffFontSize = useSettingsStore(state => state.diffFontSize);
+  const [wholeCompareOpen, setWholeCompareOpen] = useState(false);
+  const [expandedCompare, setExpandedCompare] = useState<Set<number>>(new Set());
+  const [stages, setStages] = useState<ConflictStages | null>(null);
+  const [stagesLoading, setStagesLoading] = useState(false);
+  const [stagesError, setStagesError] = useState<string | null>(null);
+  const stagesId = useRef(0);
 
   // Load file content
   const loadContent = async () => {
@@ -140,6 +157,75 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
     return segs;
   }, [content, blocks]);
+
+  // F3：读取索引中的三阶段版本（git show :1:/:2:/:3:）。服务层大小护栏（>2MB）与
+  // 路径校验失败会走到 stagesError，UI 提供重试；缺失基线（add/add）按 null 透传。
+  const loadStages = async () => {
+    const request = ++stagesId.current;
+    const repoPath = useRepoStore.getState().currentRepo?.path;
+    if (!repoPath) return;
+    setStagesLoading(true);
+    setStagesError(null);
+    try {
+      const result = await fetchStages(repoPath, filePath);
+      if (request !== stagesId.current || useRepoStore.getState().currentRepo?.path !== repoPath) return;
+      setStages(result);
+    } catch (err: any) {
+      if (request !== stagesId.current) return;
+      setStages(null);
+      setStagesError(err?.message || String(err));
+    } finally {
+      if (request === stagesId.current) setStagesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setExpandedCompare(new Set());
+    setWholeCompareOpen(false);
+    setStages(null);
+    setStagesError(null);
+    setStagesLoading(false);
+    if (!hasConflicts) return;
+    void loadStages();
+    return () => { stagesId.current++; };
+  }, [filePath, currentRepo?.path, hasConflicts]);
+
+  const toggleBlockCompare = (index: number) => {
+    setExpandedCompare(previous => {
+      const next = new Set(previous);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  // F3：把每个冲突块定位到三个版本中的行区间——基线用上下文锚点启发式（失败按比例
+  // 兜底），我方/对方的区域内容即块解析结果，可精确匹配。高亮映射供整文件对照使用。
+  const compareData = useMemo(() => {
+    if (!stages || !hasConflicts || !content) return null;
+    const workingLines = content.split(/\r?\n/);
+    const buildColumn = (side: ConflictSide, text: string | null) => {
+      if (text === null) return null;
+      const lines = text.split(/\r?\n/);
+      const spans = locateBlockSpans(lines, blocks, workingLines, side);
+      const spansByBlock = new Map<number, BlockSpan>();
+      const highlights = new Map<number, number>();
+      blocks.forEach((block, spanIndex) => {
+        const span = spans[spanIndex];
+        if (!span) return;
+        spansByBlock.set(block.index, span);
+        for (let line = span.start; line < span.end; line++) highlights.set(line, block.index);
+      });
+      return { lines, spansByBlock, highlights };
+    };
+    return {
+      columns: {
+        base: buildColumn('base', stages.base),
+        ours: buildColumn('ours', stages.ours),
+        theirs: buildColumn('theirs', stages.theirs),
+      },
+    };
+  }, [stages, hasConflicts, content, blocks]);
 
   const handleResolveBlock = (
     index: number,
@@ -232,6 +318,150 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     }
   };
 
+  // ===== F3 三方对照渲染 =====
+
+  // 整文件对照单栏：列内横向滚动（overflow-y-hidden 使 VirtualRows 的纵向视口
+  // 探测继续命中外层滚动容器，不破坏窗口化）；冲突区域高亮，点击跳到对应解决块。
+  const renderWholeCompareColumn = (side: ConflictSide) => {
+    const column = compareData?.columns[side];
+    const meta: Record<ConflictSide, { label: string; tone: string; missing: string }> = {
+      base: { label: t('conflictBase.columnBase'), tone: 'text-muted-foreground', missing: t('conflictBase.baseMissing') },
+      ours: { label: t('conflictBase.columnOurs'), tone: 'text-emerald-400', missing: t('conflictBase.sideMissing') },
+      theirs: { label: t('conflictBase.columnTheirs'), tone: 'text-sky-400', missing: t('conflictBase.sideMissing') },
+    };
+    const info = meta[side];
+    return (
+      <div key={side} className="flex-1 min-w-[240px] flex flex-col overflow-x-auto overflow-y-hidden">
+        <div className="px-3 py-1.5 text-[11px] font-semibold bg-background/40 border-b border-border/60 flex items-center justify-between gap-2 select-none shrink-0">
+          <span className={info.tone}>{info.label}</span>
+          {column && <span className="text-[10px] font-mono text-muted-foreground">{column.lines.length}</span>}
+        </div>
+        {column ? (
+          <VirtualRows
+            items={column.lines}
+            contentWidth
+            rowHeight={Math.ceil(diffFontSize * 1.625)}
+            renderRow={(line, lineIndex) => {
+              const target = column.highlights.get(lineIndex);
+              const highlighted = target !== undefined;
+              return (
+                <div
+                  onClick={highlighted ? () => scrollToBlock(target) : undefined}
+                  title={highlighted ? t('conflictBase.clickHint') : undefined}
+                  className={cn(
+                    'px-3 whitespace-pre font-mono leading-relaxed select-text',
+                    side === 'base' && (highlighted ? 'bg-rose-500/15 text-foreground cursor-pointer' : 'text-muted-foreground/80'),
+                    side === 'ours' && (highlighted ? 'bg-emerald-500/15 text-foreground cursor-pointer' : 'text-foreground/85'),
+                    side === 'theirs' && (highlighted ? 'bg-sky-500/15 text-foreground cursor-pointer' : 'text-foreground/85'),
+                  )}
+                >
+                  {line.length === 0 ? '\u00A0' : line}
+                </div>
+              );
+            }}
+          />
+        ) : (
+          <div className="px-3 py-4 text-[11px] text-muted-foreground select-none">{info.missing}</div>
+        )}
+      </div>
+    );
+  };
+
+  const renderBlockCompare = (block: ConflictBlock) => {
+    const baseColumn = compareData?.columns.base ?? null;
+    const baseSpan = baseColumn?.spansByBlock.get(block.index) ?? null;
+    const baseRegion = baseColumn && baseSpan ? baseColumn.lines.slice(baseSpan.start, baseSpan.end) : null;
+    const regionLines = (text: string) => (text.length > 0 ? text.split(/\r?\n/) : []);
+
+    const lineRangeLabel = (span: BlockSpan) =>
+      t('resolver.lines').replace('{a}', String(span.start + 1)).replace('{b}', String(span.end));
+
+    const shell = (label: string, tone: string, badge: string | null, body: React.ReactNode) => (
+      <div className="flex-1 min-w-[160px] rounded-lg border border-border/60 bg-background/40 flex flex-col overflow-hidden">
+        <div className="px-2 py-1 text-[10px] font-semibold border-b border-border/50 bg-secondary/40 flex items-center justify-between gap-1 select-none shrink-0">
+          <span className={cn(tone, 'truncate')} title={label}>{label}</span>
+          {badge && <span className="font-mono text-[10px] text-muted-foreground shrink-0">{badge}</span>}
+        </div>
+        <div className="p-1">{body}</div>
+      </div>
+    );
+
+    const regionRows = (lines: string[]) => (
+      <VirtualRows
+        items={lines}
+        renderRow={(line) => (
+          <div
+            className="px-2 py-0.5 whitespace-pre-wrap break-all font-mono leading-relaxed text-foreground/85 select-text"
+            style={{ fontSize: diffFontSize }}
+          >
+            {line.length === 0 ? '\u00A0' : line}
+          </div>
+        )}
+      />
+    );
+
+    const renderBaseBody = () => {
+      if (stagesError) {
+        return (
+          <div className="px-2 py-2 text-[11px] text-destructive flex flex-col items-start gap-1.5 select-none">
+            <span>{t('conflictBase.loadFailed')}: {stagesError}</span>
+            <Button variant="outline" size="xs" className="h-5 px-2 text-[10px]" onClick={() => void loadStages()}>
+              {t('conflictBase.retry')}
+            </Button>
+          </div>
+        );
+      }
+      if (stagesLoading || !compareData) {
+        return (
+          <div className="px-2 py-2 text-[11px] text-muted-foreground flex items-center gap-1.5 select-none">
+            <RotateCcw className="h-3 w-3 animate-spin" />
+            <span>{t('conflictBase.loading')}</span>
+          </div>
+        );
+      }
+      if (!baseColumn || !baseSpan) {
+        return <div className="px-2 py-1 text-[11px] text-muted-foreground select-none">{t('conflictBase.baseMissing')}</div>;
+      }
+      return (
+        <div>
+          {baseRegion && baseRegion.length > 0
+            ? regionRows(baseRegion)
+            : <div className="px-2 py-1 text-[11px] text-muted-foreground italic select-none">{t('conflictBase.emptyRegion')}</div>}
+          {!baseSpan.matched && (
+            <div className="px-2 pt-1 pb-0.5 text-[10px] text-muted-foreground/80 select-none">{t('conflictBase.approxRegion')}</div>
+          )}
+        </div>
+      );
+    };
+
+    const sideBody = (lines: string[]) => (lines.length > 0
+      ? regionRows(lines)
+      : <div className="px-2 py-1 text-[11px] text-muted-foreground italic select-none">{t('conflictBase.emptyRegion')}</div>);
+
+    return (
+      <div className="flex items-stretch gap-2 p-2 border-t border-border/80 bg-background/20">
+        {shell(
+          t('conflictBase.blockBase'),
+          'text-muted-foreground',
+          baseSpan ? lineRangeLabel(baseSpan) : null,
+          renderBaseBody()
+        )}
+        {shell(
+          t('conflictBase.blockOurs').replace('{name}', block.currentBranchName),
+          'text-emerald-400',
+          null,
+          sideBody(regionLines(block.currentContent))
+        )}
+        {shell(
+          t('conflictBase.blockTheirs').replace('{name}', block.incomingBranchName),
+          'text-sky-400',
+          null,
+          sideBody(regionLines(block.incomingContent))
+        )}
+      </div>
+    );
+  };
+
   if (readError && !loading) {
     return <div role="alert" className="p-6 text-sm text-destructive">{t('resolver.loadFailed')}: {readError}<Button onClick={() => void loadContent()}>{t('resolver.resetMarkers')}</Button></div>;
   }
@@ -271,6 +501,25 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* F3: whole-file three-way compare toggle */}
+          {hasConflicts && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setWholeCompareOpen(open => !open)}
+              className={cn(
+                "h-7 text-[11px] px-2 gap-1",
+                wholeCompareOpen
+                  ? "text-primary bg-primary/10 hover:text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title={t('conflictBase.toggleTitle')}
+            >
+              <Columns3 className="h-3 w-3" />
+              <span>{t('conflictBase.toggle')}</span>
+            </Button>
+          )}
+
           {/* Conflict Navigation */}
           {blocks.length > 0 && (
             <div className="flex items-center bg-secondary/50 rounded-md border border-border/60 p-0.5 mr-1">
@@ -419,6 +668,32 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
           </div>
         )}
 
+        {/* F3: whole-file three-way compare (base / ours / theirs) */}
+        {wholeCompareOpen && hasConflicts && (
+          <div className="mx-2 mt-2 rounded-xl border border-border bg-card/30 overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-border/80 bg-secondary/50 flex items-center justify-between gap-2 text-[11px] select-none">
+              <span className="text-muted-foreground truncate">{t('conflictBase.clickHint')}</span>
+              {stagesError && (
+                <Button variant="outline" size="xs" className="h-5 px-2 text-[10px] shrink-0" onClick={() => void loadStages()}>
+                  {t('conflictBase.retry')}
+                </Button>
+              )}
+            </div>
+            {stagesError ? (
+              <div className="px-3 py-3 text-[11px] text-destructive">{t('conflictBase.loadFailed')}: {stagesError}</div>
+            ) : !compareData ? (
+              <div className="px-3 py-4 text-[11px] text-muted-foreground flex items-center gap-2 select-none">
+                <RotateCcw className="h-3 w-3 animate-spin" />
+                <span>{t('conflictBase.loading')}</span>
+              </div>
+            ) : (
+              <div className="flex items-stretch divide-x divide-border/60">
+                {(['base', 'ours', 'theirs'] as const).map(side => renderWholeCompareColumn(side))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="p-2 space-y-2">
           {segments.map((seg, sIdx) => {
             if (seg.type === 'plain') {
@@ -468,6 +743,17 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
                   {/* Decision Action Buttons */}
                   <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => toggleBlockCompare(block.index)}
+                      className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                      title={expandedCompare.has(block.index) ? t('conflictBase.blockCollapse') : t('conflictBase.blockCompareTitle')}
+                    >
+                      <Columns3 className="h-3 w-3" />
+                      <span>{expandedCompare.has(block.index) ? t('conflictBase.blockCollapse') : t('conflictBase.blockCompare')}</span>
+                    </Button>
+
                     <Button
                       variant="outline"
                       size="xs"
@@ -553,6 +839,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                     </pre>
                   </div>
                 </div>
+
+                {/* F3: per-block three-way comparison (base region / ours / theirs) */}
+                {expandedCompare.has(block.index) && renderBlockCompare(block)}
               </div>
             );
           })}
