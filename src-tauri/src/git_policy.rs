@@ -22,6 +22,7 @@ const COMMANDS: &[&str] = &[
     "restore",
     "checkout",
     "switch",
+    "bisect",
     "commit",
     "merge",
     "rebase",
@@ -562,6 +563,32 @@ pub fn is_local_clone_source(source: &str) -> bool {
     }
 }
 
+/// git bisect 子命令约束：`run`（执行任意外部命令）、`replay`（读取并重放外部文件）、
+/// `visualize`/`view`（拉起图形界面/pager）以及未列出的子命令（含 help）一律拒绝（fail closed）。
+/// 放行的子命令其参数只允许纯位置 rev：`--` 之后的参数 git 按修订/路径解析，同样只放行
+/// 非选项形态；`--term-*` 等任何选项在纯层直接拒绝。rev 的真实性由服务层在调用前用
+/// `rev-parse --verify --end-of-options <rev>^{commit}` 双端校验。与 scripts/git-policy.ts 一致。
+fn safe_bisect(rest: &[String]) -> Result<(), String> {
+    const SUBCOMMANDS: &[&str] = &[
+        "start", "bad", "good", "new", "old", "skip", "reset", "log", "terms",
+    ];
+    let Some(sub) = rest.first() else {
+        return Err("Missing bisect subcommand".into());
+    };
+    if !SUBCOMMANDS.contains(&sub.as_str()) {
+        return Err(format!("Unsupported bisect subcommand: {sub}"));
+    }
+    for argument in &rest[1..] {
+        if argument == "--" {
+            break;
+        }
+        if argument.starts_with('-') {
+            return Err(format!("Unsupported bisect option: {argument}"));
+        }
+    }
+    Ok(())
+}
+
 pub fn validate(args: &[String]) -> Result<(), String> {
     let index = command_index(args)?;
     let name = args[index].as_str();
@@ -570,6 +597,9 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "config" && !safe_config(&args[index + 1..]) {
         return Err("Unsupported Git configuration access".into());
+    }
+    if name == "bisect" {
+        safe_bisect(&args[index + 1..])?;
     }
     let mut skip_value = false;
     for argument in &args[index + 1..] {
@@ -654,6 +684,46 @@ mod tests {
     use super::*;
     fn args(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
+    }
+    #[test]
+    fn gates_bisect_subcommands_fail_closed() {
+        let hash = "a".repeat(40);
+        // 放行：向导真实使用的形态（位置 rev、-- 后的路径限定、无参数子命令）。
+        for values in [
+            vec!["bisect", "start", hash.as_str(), "HEAD~9"],
+            vec!["bisect", "start", "HEAD", "HEAD~3", "--", "src/"],
+            vec!["bisect", "bad"],
+            vec!["bisect", "good", hash.as_str()],
+            vec!["bisect", "new", "HEAD"],
+            vec!["bisect", "old", hash.as_str()],
+            vec!["bisect", "skip", hash.as_str()],
+            vec!["bisect", "skip", "--", hash.as_str()],
+            vec!["bisect", "reset"],
+            vec!["bisect", "log"],
+            vec!["bisect", "terms"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：任意命令执行、外部文件重放、图形/pager、未知子命令与裸调用。
+        for values in [
+            vec!["bisect"],
+            vec!["bisect", "help"],
+            vec!["bisect", "run", "make test"],
+            vec!["bisect", "run"],
+            vec!["bisect", "replay", "saved-log.txt"],
+            vec!["bisect", "visualize"],
+            vec!["bisect", "visualize", "--", "HEAD"],
+            vec!["bisect", "view", "HEAD"],
+            vec!["bisect", "bisect-run"],
+            vec!["bisect", "start", "--term-new=broken", "HEAD"],
+            vec!["bisect", "start", "--term-old=works", "HEAD", "HEAD~5"],
+            vec!["bisect", "bad", "--term-good=x"],
+            vec!["bisect", "good", "-P", "rev"],
+            vec!["bisect", "log", "--output=evil"],
+            vec!["bisect", "reset", "-q", "--foo"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
     }
     #[test]
     fn blocks_execution_overrides_and_scope_bypasses() {

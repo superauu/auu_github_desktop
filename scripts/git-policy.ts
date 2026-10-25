@@ -1,4 +1,4 @@
-const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'config']);
+const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'config']);
 const fixedOverrides = new Set(['core.quotepath=false', 'core.editor=true', 'rebase.updaterefs=false']);
 function safeOverride(value: string): boolean {
   if (fixedOverrides.has(value.toLowerCase())) return true;
@@ -184,6 +184,22 @@ export function transportCandidates(rest: string[]): TransportCandidates | null 
   return 'upstream';
 }
 
+// git bisect 子命令约束：run（执行任意外部命令）、replay（读取并重放外部文件）、
+// visualize/view（拉起图形界面/pager）以及未列出的子命令（含 help）一律拒绝（fail closed）。
+// 放行的子命令其参数只允许纯位置 rev：-- 之后的参数 git 按修订/路径解析，同样只放行非选项形态；
+// --term-* 等任何选项在纯层直接拒绝。rev 的真实性由服务层在调用前用
+// rev-parse --verify --end-of-options <rev>^{commit} 双端校验。与 src-tauri/src/git_policy.rs 一致。
+const bisectSubcommands = new Set(['start', 'bad', 'good', 'new', 'old', 'skip', 'reset', 'log', 'terms']);
+function safeBisect(rest: string[]): void {
+  const sub = rest[0];
+  if (!sub) throw new Error('Missing bisect subcommand');
+  if (!bisectSubcommands.has(sub)) throw new Error(`Unsupported bisect subcommand: ${sub}`);
+  for (const argument of rest.slice(1)) {
+    if (argument === '--') break;
+    if (argument.startsWith('-')) throw new Error(`Unsupported bisect option: ${argument}`);
+  }
+}
+
 export function validateGitArguments(args: string[]): { command: string; index: number } {
   let index = 0;
   while (index < args.length) {
@@ -213,6 +229,7 @@ export function validateGitArguments(args: string[]): { command: string; index: 
     if (read ? values.length > 2 : values.length !== 1 && values.length !== 2) throw new Error('Unsupported Git configuration access');
     if (!read && !/^(user\.(name|email)|auugit\..+|branch\..+\.(remote|merge|pushremote))$/.test(values[0] || '')) throw new Error('Unsupported Git configuration access');
   }
+  if (command === 'bisect') safeBisect(args.slice(index + 1));
   const blocked = ['--upload-pack', '--receive-pack', '--exec', '--ext-diff', '--textconv', '--template', '--separate-git-dir', '--unsafe-paths', '--output', '--config', '--config-env', '--strategy', '--contents', '--file'];
   let skipValue = false;
   for (let cursor = index + 1; cursor < args.length; cursor++) {

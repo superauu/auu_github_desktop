@@ -78,6 +78,11 @@ test('Git arguments reject execution overrides, abbreviations and configuration 
     ['diff', '--no-index', 'a', 'b'], ['diff', '--no-index', '--', 'a'],
     ['diff', '--no-index', '--', path.join(outside, 'secret'), 'b'],
     ['diff', '--no-index', '--', 'a', '../secret'],
+    // bisect 的执行/重放/图形子命令、未列出的子命令、裸调用与选项走私一律拒绝。
+    ['bisect'], ['bisect', 'help'], ['bisect', 'run', 'make'], ['bisect', 'run'],
+    ['bisect', 'replay', 'log.txt'], ['bisect', 'visualize'], ['bisect', 'visualize', '--', 'HEAD'],
+    ['bisect', 'view', 'HEAD'], ['bisect', 'start', '--term-new=broken', 'HEAD'],
+    ['bisect', 'bad', '--term-good=x'], ['bisect', 'log', '--output=evil'],
   ];
   for (const args of rejected) assert.throws(() => app.validateGitArguments(args), undefined, JSON.stringify(args));
   for (const args of [['clone', '-qbbranch-with-c', '--', 'url', 'target'], ['clone', '--', '-c-url', 'target'], ['clone', '--', 'https://example.invalid/repo.git', 'target'], ['cherry-pick', '-s', 'HEAD'], ['merge', '--signoff', '--end-of-options', 'main'], ['init', '-b', 'main'], ['init', '.'], ['worktree', 'add', '-b', 'review', '--', 'dest', 'main']]) assert.doesNotThrow(() => app.validateGitArguments(args));
@@ -95,6 +100,12 @@ test('Git arguments reject execution overrides, abbreviations and configuration 
     ['config', '--local', 'branch.main.pushRemote', 'origin'], ['config', '--get', 'core.ignorecase'],
     ['config', '--get', 'core.ignorecase', 'pat'], ['config', '--local', '-z', '--get-regexp', '^auugit\\.'],
     ['-c', `sequence.editor=printf '%s\\n' 'pick ${'a'.repeat(40)}' 'fixup ${'b'.repeat(40)}' > "$1"; :`, 'rebase', '--interactive', 'HEAD'],
+    // bisect 向导的真实形态：位置 rev、-- 后的路径限定与无参数子命令放行。
+    ['bisect', 'start', 'a'.repeat(40), 'HEAD~9'],
+    ['bisect', 'start', 'HEAD', 'HEAD~3', '--', 'src/'],
+    ['bisect', 'bad'], ['bisect', 'good', 'a'.repeat(40)], ['bisect', 'new', 'HEAD'],
+    ['bisect', 'old', 'a'.repeat(40)], ['bisect', 'skip', 'a'.repeat(40)], ['bisect', 'skip', '--', 'a'.repeat(40)],
+    ['bisect', 'reset'], ['bisect', 'log'], ['bisect', 'terms'],
   ]) assert.doesNotThrow(() => app.validateGitArguments(args));
 });
 
@@ -182,6 +193,10 @@ test('development git endpoint rejects smuggled values and off-repository file a
     ['worktree', 'move', 'wt', path.join(outside, 'evil')],
     // file:// 源可解析为本地路径时交给授权表：越界源在端点层拒绝（纯层只拒绝无法解析的形态）。
     ['clone', '--', 'file://' + path.join(outside, 'secret'), path.join(temporary, 'bad-clone')],
+    // bisect run（任意命令执行）与 replay（外部文件重放）在端点层同样拒绝。
+    ['bisect', 'run', 'make'],
+    ['bisect', 'replay', 'log.txt'],
+    ['bisect', 'start', '--term-new=broken', 'HEAD'],
   ]) {
     const response = await post('git', { args, cwd: repository });
     assert.equal(response.status, 400, JSON.stringify(args));

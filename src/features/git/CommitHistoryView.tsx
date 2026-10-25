@@ -1,4 +1,5 @@
 import { HistoryEditorDialog } from './HistoryEditorDialog';
+import { BisectWizardDialog } from './BisectWizardDialog';
 import { DragDropActionModal } from './DragDropActionModal';
 import { historyWorkflowService } from '@/services/git/HistoryWorkflowService';
 import type { GitBranch } from '@/services/git/types';
@@ -23,6 +24,7 @@ import {
   Undo2,
   ArrowUpFromLine,
   ArrowDownToLine,
+  Split,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -73,6 +75,7 @@ export const CommitHistoryView: React.FC = () => {
   const setSearchQuery = (query: string) => updateView({ query, scrollTop: 0 });
   const [graphWidth, setGraphWidth] = useState(64);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [bisectOpen, setBisectOpen] = useState(false);
   // 三选下拉：metadata=提交信息（客户端过滤），contents=代码增删（-S 字面），regex=代码正则（-G）。
   // 用下拉而非"内容模式 + 正则勾选"：勾选框只在内容模式下有效，会让模式与身份键出现隐藏组合状态。
   const [searchMode, setSearchMode] = useState<'metadata' | 'contents' | 'regex'>('metadata');
@@ -330,7 +333,12 @@ export const CommitHistoryView: React.FC = () => {
           )}
         </div>
 
-        <Button variant="outline" size="xs" disabled={!repoPath} onClick={() => setEditorOpen(true)}>{t('flow.historyEditor')}</Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="xs" disabled={!repoPath} onClick={() => setBisectOpen(true)} aria-label={t('bisect.open')} title={t('bisect.open')}>
+            <Split className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="outline" size="xs" disabled={!repoPath} onClick={() => setEditorOpen(true)}>{t('flow.historyEditor')}</Button>
+        </div>
         {/* Search commit box */}
         <div className="flex items-center gap-2">
           <select aria-label={t('flow.searchMode')} value={searchMode} onChange={e => { setRemoteResults(null); setSearchMode(e.target.value as 'metadata' | 'contents' | 'regex'); }} className="max-w-28 rounded border border-input bg-background p-1 text-xs"><option value="metadata">{t('flow.searchMetadata')}</option><option value="contents">{t('flow.searchContents')}</option><option value="regex">{t('flow.searchRegex')}</option></select><div className="relative w-52">
@@ -599,6 +607,14 @@ export const CommitHistoryView: React.FC = () => {
 
       {/* Commit Context Menu (right click on any commit row) */}
       {editorOpen && <HistoryEditorDialog repoPath={repoPath} onClose={() => setEditorOpen(false)} />}
+      {bisectOpen && (
+        <BisectWizardDialog
+          repoPath={repoPath}
+          commits={commits}
+          defaultBadHash={selectedCommit?.hash}
+          onClose={() => setBisectOpen(false)}
+        />
+      )}
       {branchDrop && <DragDropActionModal open sourceBranch={branchDrop.source} targetBranch={branchDrop.target} onOpenChange={open => { if (!open) setBranchDrop(null); }} />}
       <ContextMenu
         open={ctxMenu.open}
