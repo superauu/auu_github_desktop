@@ -199,6 +199,7 @@ export const en = {
   'settings.ai.model': 'Model Name',
   'settings.ai.testBtn': 'Test Connection',
   'settings.ai.testing': 'Testing...',
+  'settings.ai.apiKeyLabel': 'API Key',
   'settings.github.notConnected': 'GitHub Account Not Connected',
   'settings.github.notConnectedDesc': 'Sign in via secure OAuth to view Actions and PRs',
   'settings.github.login': 'Sign in to GitHub',
@@ -859,6 +860,7 @@ export const en = {
   'dispatch.running': 'Dispatching...',
   'dispatch.run': 'Run Workflow',
   'logs.copied': 'Full build log copied',
+  'logs.toggleFullscreen': 'Toggle fullscreen',
   'logs.lines': 'lines',
   'logs.searchPlaceholder': 'Search logs...',
   'logs.scrollToBottom': 'Auto scroll to bottom',
@@ -966,6 +968,7 @@ export const en = {
   'auth.cancelOauth': 'Cancel authorization',
   'auth.openGeneratePage': 'Open GitHub to generate',
   'auth.patPlaceholder': 'ghp_xxxxxxxxxxxxxxxxxxxx or github_pat_...',
+  'auth.patLabel': 'GitHub Personal Access Token (PAT)',
 
 
   'repo.pickFolderFailed': 'Failed to pick folder',

@@ -199,6 +199,7 @@ export const zh = {
   'settings.ai.model': '模型名称',
   'settings.ai.testBtn': '测试连接',
   'settings.ai.testing': '正在测试...',
+  'settings.ai.apiKeyLabel': 'API 密钥',
   'settings.github.notConnected': 'GitHub 账号未连接',
   'settings.github.notConnectedDesc': '通过安全 OAuth 登录以查看 Actions 与 PR',
   'settings.github.login': '登录 GitHub',
@@ -868,6 +869,7 @@ export const zh = {
   'dispatch.running': '正在提交调度...',
   'dispatch.run': '运行工作流 (Run Workflow)',
   'logs.copied': '已复制完整构建日志',
+  'logs.toggleFullscreen': '切换全屏',
   'logs.lines': '行日志',
   'logs.searchPlaceholder': '搜索日志...',
   'logs.scrollToBottom': '自动滚动到底部',
@@ -977,6 +979,7 @@ export const zh = {
   'auth.cancelOauth': '取消授权',
   'auth.openGeneratePage': '一键前往网页生成',
   'auth.patPlaceholder': 'ghp_xxxxxxxxxxxxxxxxxxxx 或 github_pat_...',
+  'auth.patLabel': 'GitHub 个人访问令牌（PAT）',
 
 
   // ============ 仓库对话框 ============

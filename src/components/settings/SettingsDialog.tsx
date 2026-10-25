@@ -756,10 +756,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                       <div>
                         <label htmlFor="ai-key" className="text-[12px] font-medium text-foreground block mb-1">
-                          API Key
+                          {t('settings.ai.apiKeyLabel')}
                         </label>
                         <Input
-                          id="ai-key" type="password"
+                          id="ai-key" type="password" autoComplete="off"
                           value={aiConfig.apiKey}
                           onChange={(e) => setAiConfig({ apiKey: e.target.value })}
                           placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"

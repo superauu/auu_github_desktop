@@ -195,6 +195,8 @@ export const JobLogsViewerModal: React.FC = () => {
               variant="ghost"
               size="xs"
               onClick={() => setIsFullScreen(!isFullScreen)}
+              aria-label={t('logs.toggleFullscreen')}
+              title={t('logs.toggleFullscreen')}
               className="h-7 w-7 p-0"
             >
               {isFullScreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -205,6 +207,7 @@ export const JobLogsViewerModal: React.FC = () => {
               variant="ghost"
               size="xs"
               onClick={closeJobLogs}
+              aria-label={t('common.close')}
               className="h-7 w-7 p-0 hover:text-git-deleted"
             >
               <X className="h-4 w-4" />

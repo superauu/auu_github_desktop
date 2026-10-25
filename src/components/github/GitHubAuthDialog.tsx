@@ -474,8 +474,8 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-foreground block">
-                      GitHub Personal Access Token (PAT)
+                    <label htmlFor="pat-input" className="text-xs font-medium text-foreground block">
+                      {t('auth.patLabel')}
                     </label>
                     <button
                       type="button"
@@ -488,7 +488,9 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   </div>
 
                   <Input
+                    id="pat-input"
                     type="password"
+                    autoComplete="off"
                     value={tokenInput}
                     onChange={(e) => setTokenInput(e.target.value)}
                     placeholder={t('auth.patPlaceholder')}

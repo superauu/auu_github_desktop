@@ -9,6 +9,7 @@ const ActionsDashboardView = lazy(() => import('@/features/actions/ActionsDashbo
 const PullRequestsView = lazy(() => import('@/features/pr/PullRequestsView').then((module) => ({ default: module.PullRequestsView })));
 
 import { useLayoutStore } from '@/stores/layoutStore';
+import { useI18n } from '@/i18n';
 import { EmbeddedTerminalPanel } from './EmbeddedTerminalPanel';
 
 interface CenterStageProps {
@@ -26,6 +27,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
 }) => {
   const { currentRepo, activeTab } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab })));
   const { isEmbeddedTerminalOpen, setEmbeddedTerminalOpen } = useLayoutStore();
+  const { t } = useI18n();
 
   if (!currentRepo) {
     return (
@@ -60,7 +62,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
           key={`${currentRepo.path}:${activeTab}`}
           className="flex-1 flex flex-col overflow-hidden min-h-0 animate-in fade-in duration-200 slide-in-from-bottom-2 ease-out"
         >
-          <ErrorBoundary><Suspense fallback={<div role="status" aria-label="Loading" className="p-6 animate-pulse">…</div>}>{renderActiveView()}</Suspense></ErrorBoundary>
+          <ErrorBoundary><Suspense fallback={<div role="status" aria-label={t('common.loading')} className="p-6 animate-pulse">…</div>}>{renderActiveView()}</Suspense></ErrorBoundary>
         </div>
       </div>
 

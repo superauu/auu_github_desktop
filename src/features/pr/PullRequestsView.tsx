@@ -443,6 +443,7 @@ export const PullRequestsView: React.FC = () => {
                         onChange={(e) => setMergeMethod(e.target.value as 'merge' | 'squash' | 'rebase')}
                         className="h-7 rounded-md border border-border/70 bg-background/80 px-1.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         title={t('pr.mergeMethod')}
+                        aria-label={t('pr.mergeMethod')}
                       >
                         <option value="merge">{t('pr.mergeMethod.merge')}</option>
                         <option value="squash">{t('pr.mergeMethod.squash')}</option>

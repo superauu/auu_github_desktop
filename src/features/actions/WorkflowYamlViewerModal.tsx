@@ -59,6 +59,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
               variant="ghost"
               size="xs"
               onClick={closeWorkflowYaml}
+              aria-label={t('common.close')}
               className="h-7 w-7 p-0 hover:text-rose-400"
             >
               <X className="h-4 w-4" />
