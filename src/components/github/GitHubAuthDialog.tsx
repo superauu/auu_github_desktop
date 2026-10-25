@@ -97,6 +97,13 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     }
   }, [open, handleCancelOAuth]);
 
+  // 条件挂载模式（AppLayout 按需加载）下关闭即卸载，上方 !open 分支不再触发：
+  // 卸载时执行同等清理。两个清理均为幂等（无流程进行时是安全空操作）。
+  useEffect(() => () => {
+    handleCancelOAuth();
+    useGitHubStore.getState().cancelAddProfile();
+  }, [handleCancelOAuth]);
+
   if (!open) return null;
 
   const handleCopyCode = async (code: string) => {

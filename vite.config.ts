@@ -422,6 +422,9 @@ export default defineConfig({
           const normalized = id.replace(/\\/g, '/');
           if (normalized.includes('/node_modules/yaml/')) return 'workflow-yaml';
           if (normalized.includes('/node_modules/')) return 'vendor';
+          // 词典是纯数据（zh/en 与各内容模块互不依赖应用代码），独立成块并行加载；
+          // index.ts（useI18n）留在主包——它引用 settingsStore，强行拆会牵连 store 图。
+          if (normalized.includes('/src/i18n/') && !normalized.endsWith('/src/i18n/index.ts')) return 'i18n-dicts';
         },
       },
     },

@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RemoteOperationDialog } from '@/features/git/RemoteOperationDialog';
 import { pushFromUi } from '@/services/git/RemoteActions';
 import { useRemoteDialogStore } from '@/stores/remoteDialogStore';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Header } from './Header';
 import { LeftSidebar } from './LeftSidebar';
 import { CenterStage } from './CenterStage';
@@ -13,9 +13,6 @@ import { RightPane } from './RightPane';
 import { StatusBar } from './StatusBar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { CommandPalette } from '@/components/command/CommandPalette';
-import { SettingsDialog } from '@/components/settings/SettingsDialog';
-import { RepositoryDialog } from '@/features/repository/RepositoryDialog';
-import { GitHubAuthDialog } from '@/components/github/GitHubAuthDialog';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { ShortcutCheatSheet } from './ShortcutCheatSheet';
@@ -26,13 +23,20 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { checkForUpdates } from '@/services/updater/UpdateService';
 import { createExternalChangePoller } from '@/services/git/ExternalChangePoller';
 import { getPendingGitWrites } from '@/services/git/GitQueue';
-import { OperationHistoryDialog } from './OperationHistoryDialog';
-import { RecoveryCenterDialog } from '@/features/git/RecoveryCenterDialog';
 import { UpdateDialog } from './UpdateDialog';
 import { gitService } from '@/services/git/GitService';
 import { toast } from '@/stores/toastStore';
 import { useWindowChrome } from '@/hooks/useWindowChrome';
 import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
+
+// 稀用全局弹窗按需加载，削减首屏主包：设置/仓库/登录/操作历史/恢复中心。
+// CommandPalette 保持常驻——ReleaseNotesDialog 寄宿其内（面板关闭后仍需挂载）；
+// UpdateDialog 需启动即自动检查更新，不能延迟挂载。
+const SettingsDialog = lazy(() => import('@/components/settings/SettingsDialog').then(m => ({ default: m.SettingsDialog })));
+const RepositoryDialog = lazy(() => import('@/features/repository/RepositoryDialog').then(m => ({ default: m.RepositoryDialog })));
+const GitHubAuthDialog = lazy(() => import('@/components/github/GitHubAuthDialog').then(m => ({ default: m.GitHubAuthDialog })));
+const OperationHistoryDialog = lazy(() => import('./OperationHistoryDialog').then(m => ({ default: m.OperationHistoryDialog })));
+const RecoveryCenterDialog = lazy(() => import('@/features/git/RecoveryCenterDialog').then(m => ({ default: m.RecoveryCenterDialog })));
 
 export const AppLayout: React.FC = () => {
   const windowChrome = useWindowChrome();
@@ -273,8 +277,16 @@ export const AppLayout: React.FC = () => {
 
       {/* Bottom Status Bar */}
       <StatusBar onOpenHistory={() => setHistoryOpen(true)} />
-      {historyOpen && <OperationHistoryDialog onClose={() => setHistoryOpen(false)} onRecovery={path => { void openRecovery(path); }} />}
-      {recoveryPath && <RecoveryCenterDialog repoPath={recoveryPath} onClose={() => setRecoveryPath(null)} />}
+      {historyOpen && (
+        <ErrorBoundary><Suspense fallback={null}>
+          <OperationHistoryDialog onClose={() => setHistoryOpen(false)} onRecovery={path => { void openRecovery(path); }} />
+        </Suspense></ErrorBoundary>
+      )}
+      {recoveryPath && (
+        <ErrorBoundary><Suspense fallback={null}>
+          <RecoveryCenterDialog repoPath={recoveryPath} onClose={() => setRecoveryPath(null)} />
+        </Suspense></ErrorBoundary>
+      )}
       <UpdateDialog />
 
       {/* Global Modals & Dialogs */}
@@ -286,23 +298,35 @@ export const AppLayout: React.FC = () => {
         onOpenGitHubAuth={() => setGithubAuthOpen(true)}
       />
 
-      <SettingsDialog
-        initialTab={settingsTab}
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        onOpenGitHubAuth={() => setGithubAuthOpen(true)}
-      />
+      {settingsOpen && (
+        <ErrorBoundary><Suspense fallback={null}>
+          <SettingsDialog
+            initialTab={settingsTab}
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            onOpenGitHubAuth={() => setGithubAuthOpen(true)}
+          />
+        </Suspense></ErrorBoundary>
+      )}
 
-      <RepositoryDialog
-        open={repoDialogOpen}
-        onOpenChange={setRepoDialogOpen}
-        initialMode={repoDialogMode}
-      />
+      {repoDialogOpen && (
+        <ErrorBoundary><Suspense fallback={null}>
+          <RepositoryDialog
+            open={repoDialogOpen}
+            onOpenChange={setRepoDialogOpen}
+            initialMode={repoDialogMode}
+          />
+        </Suspense></ErrorBoundary>
+      )}
 
-      <GitHubAuthDialog
-        open={githubAuthOpen}
-        onOpenChange={setGithubAuthOpen}
-      />
+      {githubAuthOpen && (
+        <ErrorBoundary><Suspense fallback={null}>
+          <GitHubAuthDialog
+            open={githubAuthOpen}
+            onOpenChange={setGithubAuthOpen}
+          />
+        </Suspense></ErrorBoundary>
+      )}
 
       {/* Global Floating Toast Notifications */}
       <ToastContainer />
