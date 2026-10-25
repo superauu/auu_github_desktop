@@ -2,7 +2,7 @@ import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 import { pushFromUi } from '@/services/git/RemoteActions';
 import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React from 'react';
+import React, { useState } from 'react';
 import { Command } from 'cmdk';
 import {
   Search,
@@ -19,12 +19,14 @@ import {
   Workflow,
   Clock,
   FileCode2,
+  FileText,
   GitPullRequest,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { toast } from '@/stores/toastStore';
+import { ReleaseNotesDialog } from '@/features/git/ReleaseNotesDialog';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -49,14 +51,27 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     tags,
     checkoutBranch,
     selectAndLocateBranch,
-  } = useRepoStore(useShallow(state => ({ setActiveTab: state.setActiveTab, fetchRemote: state.fetchRemote, pull: state.pull, branches: state.branches, tags: state.tags, checkoutBranch: state.checkoutBranch, selectAndLocateBranch: state.selectAndLocateBranch })));
+    currentRepo,
+  } = useRepoStore(useShallow(state => ({ setActiveTab: state.setActiveTab, fetchRemote: state.fetchRemote, pull: state.pull, branches: state.branches, tags: state.tags, checkoutBranch: state.checkoutBranch, selectAndLocateBranch: state.selectAndLocateBranch, currentRepo: state.currentRepo })));
   const { setTheme } = useThemeStore();
   const { t } = useI18n();
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
 
-  if (!open) return null;
+  // 挂在当前激活仓库上；命令面板关闭后对话框仍需保持挂载，所以渲染在提前返回之外。
+  const releaseNotesDialog = releaseNotesOpen && currentRepo
+    ? <ReleaseNotesDialog
+        repoPath={currentRepo.path}
+        onClose={() => setReleaseNotesOpen(false)}
+        onOpenSettings={() => { setReleaseNotesOpen(false); onOpenSettings?.(); }}
+      />
+    : null;
+
+  if (!open) return releaseNotesDialog;
 
   return (
-    <ModalSurface onDismiss={() => onOpenChange(false)} label={t('palette.placeholder')}
+    <>
+      {releaseNotesDialog}
+      <ModalSurface onDismiss={() => onOpenChange(false)} label={t('palette.placeholder')}
       className="fixed inset-0 z-50 flex items-start justify-center px-4 pb-4 pt-[min(12dvh,6rem)] bg-background/80 backdrop-blur-md animate-in fade-in-0 duration-150 select-none"
     >
       <div
@@ -136,6 +151,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* Git Core Actions */}
             <Command.Group heading={t('palette.group.git')} className="px-2 py-1 mt-2">
+              <Command.Item
+                disabled={!currentRepo}
+                onSelect={() => {
+                  if (!currentRepo) return;
+                  onOpenChange(false);
+                  setReleaseNotesOpen(true);
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md aria-disabled:opacity-40 hover:bg-accent cursor-pointer text-xs"
+              >
+                <FileText className="h-3.5 w-3.5 text-primary" />
+                <span>{t('releaseNotes.command')}</span>
+              </Command.Item>
+
               <Command.Item
                 onSelect={async () => {
                   onOpenChange(false);
@@ -317,5 +345,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         </Command>
       </div>
     </ModalSurface>
+    </>
   );
 };
