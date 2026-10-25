@@ -4,6 +4,10 @@ import { remoteEn } from './remote';
 import { workflowEn } from './workflow';
 import { resilienceEn } from './resilience';
 import { optimizationEn } from './optimization';
+import { fileTreeEn } from './fileTree';
+import { historySearchEn } from './historySearch';
+import { conflictBaseEn } from './conflictBase';
+import { externalToolsEn } from './externalTools';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
@@ -30,6 +34,10 @@ export const en = {
   ...commitBatchEn,
   ...uiReviewEn,
   ...remoteEn,
+  ...fileTreeEn,
+  ...historySearchEn,
+  ...conflictBaseEn,
+  ...externalToolsEn,
   'layout.pinNavigation': 'Pin left navigation',
   'layout.unpinNavigation': 'Unpin and hide navigation',
   'layout.pinNavigationDesc': 'Keep navigation visible and remember this choice. Turn off to hide it immediately; use the top-left button to open it temporarily.',
