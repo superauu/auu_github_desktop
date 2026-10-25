@@ -962,7 +962,7 @@ export const zh = {
   'auth.refreshToast': '已刷新 GitHub 数据',
   'auth.refresh': '刷新同步',
   'auth.scopesSuffix': '权限。可直接在客户端内触发 GitHub Actions 或查看 PR 详情。',
-  'auth.oauthTab': 'GitHub OAuth 快速登录 (推荐)',
+  'auth.oauthTab': 'OAuth 快速登录（推荐）',
   'auth.patTab': '个人访问令牌 (PAT)',
   'auth.oauthCard.title': '免配置 Token · 安全极速授权',
   'auth.oauthCard.desc': '点击下方按钮将获取一组一次性 8 位核验码，并自动打开 GitHub 官方授权页面。在网页中点击确认后，客户端将自动完成登录握手。',

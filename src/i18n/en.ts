@@ -951,7 +951,7 @@ export const en = {
   'auth.refreshToast': 'GitHub data refreshed',
   'auth.refresh': 'Refresh sync',
   'auth.scopesSuffix': 'scopes. Trigger GitHub Actions or browse PR details right inside the client.',
-  'auth.oauthTab': 'GitHub OAuth Quick Sign-in (recommended)',
+  'auth.oauthTab': 'OAuth Sign-in (Recommended)',
   'auth.patTab': 'Personal Access Token (PAT)',
   'auth.oauthCard.title': 'Zero-config Token · Fast & Secure',
   'auth.oauthCard.desc': 'Click the button below to get a one-time 8-character code and open the official GitHub authorization page. Confirm on the web page and the client completes the handshake automatically.',

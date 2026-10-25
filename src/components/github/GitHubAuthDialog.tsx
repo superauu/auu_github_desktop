@@ -303,14 +303,14 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   setAuthMode('oauth');
                 }}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-colors',
+                  'flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                   authMode === 'oauth'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                <span>{t('auth.oauthTab')}</span>
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <span className="truncate" title={t('auth.oauthTab')}>{t('auth.oauthTab')}</span>
               </button>
               <button
                 type="button"
@@ -319,14 +319,14 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   setAuthMode('pat');
                 }}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-colors',
+                  'flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                   authMode === 'pat'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                <Key className="h-3.5 w-3.5" />
-                <span>{t('auth.patTab')}</span>
+                <Key className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate" title={t('auth.patTab')}>{t('auth.patTab')}</span>
               </button>
             </div>
 
