@@ -575,6 +575,9 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
         try {
           const checks = await githubService.getCommitChecks(owner, repo, sha);
           if (!valid()) return;
+          // 写入 commitChecks：NotificationService 经外部订阅观察 running→completed
+          // 迁移来弹系统通知（推送后失焦场景），也与 fetchCommitChecks 的缓存形状一致。
+          set((state) => ({ commitChecks: { ...state.commitChecks, [sha]: checks } }));
           if (checks.length && checks.every((check) => check.status === 'completed')) {
             const passed = checks.filter((check) => check.conclusion === 'success').length;
             if (passed === checks.length) toast.success(tNow('ci.passed'), `${passed}/${checks.length}`);
