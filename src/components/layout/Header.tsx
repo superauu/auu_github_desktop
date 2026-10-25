@@ -74,11 +74,22 @@ interface HeaderProps {
   onToggleInspector: () => void;
   onOpenCommandPalette?: () => void;
   onOpenSettings?: () => void;
+  /** “管理账号”入口：直达设置的 GitHub 账号分区（缺省回落 onOpenSettings）。 */
+  onOpenAccountSettings?: () => void;
   onOpenRepoDialog?: () => void;
   onOpenGitHubAuth?: () => void;
 }
 
 const EMPTY_IGNORE_PATHS: string[] = [];
+
+/**
+ * 菜单 select → 打开弹窗必须延迟一拍：DropdownMenu 卸载收尾（焦点归还/事件清理）
+ * 与 Dialog 的 DismissibleLayer 监听存在竞态，WebView2 上弹窗会被同一轮交互误判为
+ * 外部点击而立即关闭（表现为“点击没反应”）。齿轮按钮不经菜单，无此问题。
+ */
+const openDialogAfterMenuTeardown = (open?: () => void): void => {
+  if (open) window.setTimeout(open, 0);
+};
 
 /**
  * 仓库菜单里的单行仓库条目。
@@ -168,6 +179,7 @@ export const Header: React.FC<HeaderProps> = ({
   navigationOverlay, inspectorOverlay, onToggleNavigation, onToggleInspector,
   onOpenCommandPalette,
   onOpenSettings,
+  onOpenAccountSettings,
   onOpenRepoDialog,
   onOpenGitHubAuth,
 }) => {
@@ -605,10 +617,10 @@ export const Header: React.FC<HeaderProps> = ({
                       );
                     })}
                     <DropdownMenu.Separator className="my-1 border-t border-border" />
-                    <DropdownMenu.Item className="menu-item" onSelect={() => { addProfile(); onOpenGitHubAuth?.(); }}>
+                    <DropdownMenu.Item className="menu-item" onSelect={() => { addProfile(); openDialogAfterMenuTeardown(onOpenGitHubAuth); }}>
                       <Plus className="h-4 w-4" />{t('profiles.addAccount')}
                     </DropdownMenu.Item>
-                    <DropdownMenu.Item className="menu-item" onSelect={() => onOpenSettings?.()}>
+                    <DropdownMenu.Item className="menu-item" onSelect={() => openDialogAfterMenuTeardown(onOpenAccountSettings ?? onOpenSettings)}>
                       <SettingsIcon className="h-4 w-4" />{t('profiles.manage')}
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>

@@ -38,7 +38,7 @@ export const AppLayout: React.FC = () => {
   const windowChrome = useWindowChrome();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git'>('appearance');
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git' | 'github'>('appearance');
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { navigationOverlay, inspectorOverlay, panels } = useWorkspaceLayout();
@@ -225,6 +225,7 @@ export const AppLayout: React.FC = () => {
           onToggleInspector={() => inspectorOverlay ? setInspectorOpen(!inspectorOpen) : toggleRightPane()}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
+          onOpenAccountSettings={() => { setSettingsTab('github'); setSettingsOpen(true); }}
           onOpenRepoDialog={() => handleOpenRepoDialog('open')}
           onOpenGitHubAuth={() => setGithubAuthOpen(true)}
         />
