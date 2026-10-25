@@ -1,5 +1,5 @@
 import { tNow } from '@/i18n';
-export interface CommitGroup { title: string; files: string[] }
+export interface CommitGroup { id?: string; title: string; files: string[] }
 function parseJson(raw: string): any {
   return JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
 }

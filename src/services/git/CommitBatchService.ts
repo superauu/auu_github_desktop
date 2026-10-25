@@ -5,7 +5,7 @@ import { tNow } from '@/i18n';
 import type { GitFileChange } from './types';
 
 type Git = (args: string[], stdin?: string) => Promise<GitCommandResult>;
-export interface BatchCommitGroup { title: string; body: string; reason: string; files: string[] }
+export interface BatchCommitGroup { id?: string; title: string; body: string; reason: string; files: string[] }
 export interface CommitBatchPlan {
   repoPath: string; branch: string; head: string; files: GitFileChange[]; skipped: string[];
   status: GitFileChange[]; fingerprints: Record<string, string>; index: string; context: string; truncated: boolean;

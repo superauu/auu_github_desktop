@@ -18,6 +18,9 @@ import { openGitSettings } from '@/utils/errorGuidance';
 import { useGitOperationStatus } from '@/hooks/useGitOperationStatus';
 
 type Phase = 'ready' | 'collecting' | 'analyzing' | 'review' | 'choosing' | 'committing' | 'done' | 'stopped';
+// 分组在移动/合并/重命名间保持稳定 key，避免输入状态错绑到错误分组
+let batchGroupSeq = 0;
+const withBatchGroupIds = (groups: BatchCommitGroup[]) => groups.map(group => ({ ...group, id: group.id ?? `batch-g${++batchGroupSeq}` }));
 type PushTarget = NonNullable<Awaited<ReturnType<typeof chooseRemoteTarget>>>;
 export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSettings }: { repoPath: string; branch: string; onClose: () => void; onOpenAiSettings: () => void }) {
   const { t, lang } = useI18n();
@@ -68,7 +71,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
       if (id !== generation.current || !mounted.current) return;
       if (!current()) throw new Error(t('batch.stale'));
       setTiming(previous => previous && ({ ...previous, finishedAt: Date.now() }));
-      setGroups(result.groups); setSummary(result.summary); setModel(settings.config.model); setPhase('review');
+      setGroups(withBatchGroupIds(result.groups)); setSummary(result.summary); setModel(settings.config.model); setPhase('review');
     } catch (reason) {
       if (id === generation.current && mounted.current) { setTiming(previous => previous && ({ ...previous, finishedAt: Date.now() })); setError(reason instanceof Error ? reason.name === 'AbortError' ? t('batch.cancelled') : reason.message : String(reason)); setPhase('ready'); }
     }
@@ -138,7 +141,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
           {plan?.truncated && <p className="text-xs text-git-tag">{t('batch.truncated')}</p>}
           {plan?.skipped.length ? <p className="text-xs text-muted-foreground break-words">{t('batch.skipped')} {plan.skipped.join(', ')}</p> : null}
         </>}
-        {(phase === 'review' || phase === 'committing' || phase === 'choosing') && groups.map((group, index) => <section key={index} aria-label={`${index + 1}. ${group.title}`} className="p-4 border border-border rounded-lg space-y-3">
+        {(phase === 'review' || phase === 'committing' || phase === 'choosing') && groups.map((group, index) => <section key={group.id ?? index} aria-label={`${index + 1}. ${group.title}`} className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{index + 1} / {groups.length} · {group.files.length} {t('batch.files')}</strong><div className="flex flex-wrap gap-1">
             <Button size="icon" variant="ghost" disabled={writing || index === 0} aria-label={t('batch.up')} onClick={() => move(index, -1)}><ArrowUp className="h-4 w-4" /></Button>
             <Button size="icon" variant="ghost" disabled={writing || index === groups.length - 1} aria-label={t('batch.down')} onClick={() => move(index, 1)}><ArrowDown className="h-4 w-4" /></Button>
@@ -152,13 +155,13 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
             <div className="min-w-0 flex-[1_1_10rem]"><FilePath path={path} /></div>
             <div className="relative w-56 max-w-full min-w-0 shrink-0">
               <select className="w-full min-w-0 h-8 appearance-none truncate border border-input rounded-md bg-background pl-3 pr-8 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40" disabled={writing} aria-label={`${t('batch.move')}: ${path}`} title={`${index + 1}. ${group.title}`} value={index} onChange={event => moveFile(path, Number(event.target.value))}>
-                {groups.map((candidate, i) => <option key={i} value={i}>{i + 1}. {candidate.title}</option>)}
+                {groups.map((candidate, i) => <option key={candidate.id ?? i} value={i}>{i + 1}. {candidate.title}</option>)}
               </select>
               <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
           </li>)}</ul>
         </section>)}
-        {phase === 'review' && <Button variant="outline" disabled={groups.length >= 12} onClick={() => setGroups(previous => [...previous, { title: t('batch.newTitle'), body: '', reason: '', files: [] }])}><Plus className="h-4 w-4" />{t('batch.add')}</Button>}
+        {phase === 'review' && <Button variant="outline" disabled={groups.length >= 12} onClick={() => setGroups(previous => [...previous, { id: `batch-g${++batchGroupSeq}`, title: t('batch.newTitle'), body: '', reason: '', files: [] }])}><Plus className="h-4 w-4" />{t('batch.add')}</Button>}
         {phase === 'review' && !valid && <p role="alert" className="text-sm text-git-tag">{t('batch.empty')}</p>}
         {(phase === 'done' || phase === 'stopped' || (phase === 'committing' && completed.length > 0)) && <div className="space-y-3"><p role="status" className="font-medium">{t(phase === 'stopped' ? 'batch.stopped' : 'batch.complete').replace('{n}', String(completed.length))}</p><ol className="space-y-2 text-sm">{completed.map(commit => <li key={commit.hash}><code className="text-primary mr-2">{commit.hash.slice(0, 7)}</code>{commit.title}</li>)}</ol>{recoveryRef && <p className="text-xs text-muted-foreground">{t('batch.recovery')}</p>}</div>}
         {pushTarget && <p className="text-xs text-muted-foreground break-all">{t('batch.pushTarget')}{branch} → {pushTarget.remote}/{pushTarget.targetBranch}</p>}
