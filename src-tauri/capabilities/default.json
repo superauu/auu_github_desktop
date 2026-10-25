@@ -9,8 +9,11 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "shell:default",
     "dialog:default",
-    "updater:default"
+    "updater:default",
+    "notification:default"
   ]
 }
