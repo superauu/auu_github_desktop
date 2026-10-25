@@ -37,3 +37,6 @@ __pycache__/
 
 # Local AI development skills
 /.agent/skills/
+
+# rustc --emit=metadata 语法门产物
+src-tauri/*.rmeta
