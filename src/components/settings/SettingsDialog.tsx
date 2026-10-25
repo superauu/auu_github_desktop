@@ -382,9 +382,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
         {/* Left Settings Navigation */}
         <div className="w-44 border-r border-border bg-sidebar/50 p-2 flex flex-col justify-between shrink-0">
           <div className="space-y-1">
-            <div className="px-2 py-1.5 text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Settings className="h-4 w-4 text-primary" />
-              <span>{t('settings.title')}</span>
+            <div className="px-2 py-1.5 text-xs font-semibold text-foreground flex items-center gap-1.5 min-w-0">
+              <Settings className="h-4 w-4 text-primary shrink-0" />
+              <span className="truncate">{t('settings.title')}</span>
             </div>
 
             <div className="pt-2 space-y-0.5">
@@ -398,7 +398,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 )}
               >
                 <Palette className="h-3.5 w-3.5" />
-                <span>{t('settings.tab.appearance')}</span>
+                <span className="min-w-0 flex-1 truncate">{t('settings.tab.appearance')}</span>
               </button>
 
               <button
@@ -411,7 +411,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 )}
               >
                 <Terminal className="h-3.5 w-3.5" />
-                <span>{t('settings.tab.git')}</span>
+                <span className="min-w-0 flex-1 truncate">{t('settings.tab.git')}</span>
               </button>
 
               <button
@@ -424,7 +424,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 )}
               >
                 <Sparkles className="h-3.5 w-3.5 text-git-branch" />
-                <span>{t('settings.tab.ai')}</span>
+                <span className="min-w-0 flex-1 truncate">{t('settings.tab.ai')}</span>
               </button>
 
               <button
@@ -437,7 +437,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 )}
               >
                 <Github className="h-3.5 w-3.5" />
-                <span>{t('settings.tab.github')}</span>
+                <span className="min-w-0 flex-1 truncate">{t('settings.tab.github')}</span>
               </button>
 
               <button
@@ -450,7 +450,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 )}
               >
                 <Keyboard className="h-3.5 w-3.5" />
-                <span>{t('settings.tab.shortcuts')}</span>
+                <span className="min-w-0 flex-1 truncate">{t('settings.tab.shortcuts')}</span>
               </button>
             </div>
           </div>
@@ -793,25 +793,25 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {activeTab === 'github' && (
               <div className="space-y-4">
                 {isAuthenticated && user ? (
-                  <div className="p-4 rounded-xl border border-border bg-accent/20 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                  <div className="p-4 rounded-xl border border-border bg-accent/20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <img
                         src={user.avatar_url}
                         alt={user.login}
-                        className="w-10 h-10 rounded-full border border-border/80 shadow-xs"
+                        className="w-10 h-10 rounded-full border border-border/80 shadow-xs shrink-0"
                       />
-                      <div>
-                        <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                          <span>{user.name || user.login}</span>
-                          <Badge variant="success" className="h-3.5 text-[10px] px-1 gap-0.5">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-xs text-foreground flex items-center gap-1.5 min-w-0">
+                          <span className="truncate">{user.name || user.login}</span>
+                          <Badge variant="success" className="h-3.5 text-[10px] px-1 gap-0.5 shrink-0">
                             <CheckCircle2 className="h-2.5 w-2.5" />
                             <span>{t('common.connected')}</span>
                           </Badge>
                         </div>
-                        <div className="text-[12px] text-muted-foreground font-mono">@{user.login}</div>
+                        <div className="text-[12px] text-muted-foreground font-mono truncate">@{user.login}</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                       <Button
                         size="xs"
                         variant="outline"
