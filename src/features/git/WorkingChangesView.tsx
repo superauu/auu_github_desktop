@@ -412,7 +412,7 @@ export const WorkingChangesView: React.FC = () => {
         {activeFile.staged && !isUntracked ? (
           <button
             onClick={() => handleHunkAction(hunkIdx, 'unstage')}
-            className={cn(btnBase, 'text-sky-500/70 hover:text-sky-400 hover:bg-sky-500/10')}
+            className={cn(btnBase, 'text-sky-600/70 hover:text-sky-500 hover:bg-sky-500/10')}
             title={t('changes.unstageHunk')}
           >
             <Minus className="h-3 w-3" />
@@ -657,7 +657,7 @@ export const WorkingChangesView: React.FC = () => {
                               <Button
                                 variant="ghost"
                                 size="xs"
-                                className="h-7 w-7 p-0 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
+                                className="h-7 w-7 p-0 text-cyan-700 dark:text-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10"
                                 title={t('changes.takeTheirs')}
                                 onClick={async (e) => {
                                   e.stopPropagation();

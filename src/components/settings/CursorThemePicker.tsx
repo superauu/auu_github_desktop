@@ -20,7 +20,7 @@ export function CursorThemePicker() {
     </select>
     {style ? <div className="space-y-2" aria-label={t('settings.cursor.preview')}>
       <div className="grid grid-cols-2 gap-3">
-        {[false, true].map(dark => <div key={String(dark)} className={dark ? 'min-w-0 rounded-md border border-slate-700 bg-[#14171b] p-3 text-slate-100' : 'min-w-0 rounded-md border border-slate-300 bg-slate-50 p-3 text-slate-900'}>
+        {[false, true].map(dark => <div key={String(dark)} className={dark ? 'min-w-0 rounded-md border border-slate-700 bg-neutral-900 p-3 text-slate-100' : 'min-w-0 rounded-md border border-slate-300 bg-slate-50 p-3 text-slate-900'}>
           <div className="text-[12px]">{t(dark ? 'settings.cursor.darkPreview' : 'settings.cursor.lightPreview')}</div>
           <div className="flex justify-evenly items-center gap-2 pt-2">
             <img src={style.arrow} width={64} height={64} className="h-16 w-16" alt={t('settings.cursor.arrow')} draggable={false} />

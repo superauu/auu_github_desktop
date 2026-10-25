@@ -545,7 +545,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={cycleTheme}
                   aria-label={t('header.toggleThemeTooltip')}
                 >
-                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-git-tag" /> : <Moon className="h-3.5 w-3.5 text-indigo-500 dark:text-git-branch" />}
+                  {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5 text-git-tag" /> : <Moon className="h-3.5 w-3.5 text-git-branch" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">{t('header.toggleThemeTooltip')}</TooltipContent>

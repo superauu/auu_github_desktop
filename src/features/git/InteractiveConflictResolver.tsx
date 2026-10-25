@@ -327,7 +327,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     const meta: Record<ConflictSide, { label: string; tone: string; missing: string }> = {
       base: { label: t('conflictBase.columnBase'), tone: 'text-muted-foreground', missing: t('conflictBase.baseMissing') },
       ours: { label: t('conflictBase.columnOurs'), tone: 'text-emerald-400', missing: t('conflictBase.sideMissing') },
-      theirs: { label: t('conflictBase.columnTheirs'), tone: 'text-sky-400', missing: t('conflictBase.sideMissing') },
+      theirs: { label: t('conflictBase.columnTheirs'), tone: 'text-cyan-700 dark:text-cyan-300', missing: t('conflictBase.sideMissing') },
     };
     const info = meta[side];
     return (
@@ -352,7 +352,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                     'px-3 whitespace-pre font-mono leading-relaxed select-text',
                     side === 'base' && (highlighted ? 'bg-rose-500/15 text-foreground cursor-pointer' : 'text-muted-foreground/80'),
                     side === 'ours' && (highlighted ? 'bg-emerald-500/15 text-foreground cursor-pointer' : 'text-foreground/85'),
-                    side === 'theirs' && (highlighted ? 'bg-sky-500/15 text-foreground cursor-pointer' : 'text-foreground/85'),
+                    side === 'theirs' && (highlighted ? 'bg-cyan-500/15 text-foreground cursor-pointer' : 'text-foreground/85'),
                   )}
                 >
                   {line.length === 0 ? '\u00A0' : line}
@@ -454,7 +454,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
         )}
         {shell(
           t('conflictBase.blockTheirs').replace('{name}', block.incomingBranchName),
-          'text-sky-400',
+          'text-cyan-700 dark:text-cyan-300',
           null,
           sideBody(regionLines(block.incomingContent))
         )}
@@ -561,7 +561,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 variant="ghost"
                 size="xs"
                 onClick={() => handleResolveAll('incoming')}
-                className="h-7 text-[11px] px-2 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
+                className="h-7 text-[11px] px-2 text-cyan-700 dark:text-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10"
                 title={t('resolver.takeAllTheirsTitle')}
               >
                 {t('resolver.takeAllTheirs')}
@@ -582,7 +582,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 size="xs"
                 onClick={handleQuickTheirs}
                 disabled={isSaving}
-                className="h-7 text-[11px] px-2 text-sky-400/80 hover:text-sky-300 hover:bg-sky-500/10 gap-1"
+                className="h-7 text-[11px] px-2 text-cyan-700/80 dark:text-cyan-400/80 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10 gap-1"
                 title={t('resolver.theirsFileTitle')}
               >
                 <Download className="h-3 w-3" />
@@ -645,7 +645,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
       {aiBlock && <AiTaskDialog key={`${filePath}-${aiBlock.index}`} title={t('flow.aiConflict')} task="conflict" context={aiBlock.context} onClose={() => setAiBlock(null)}>{raw => <ConflictAiSuggestion key={raw} raw={raw} onApply={resolution => { if (content !== aiBlock.snapshot) { toast.error(t('safety.stale')); setAiBlock(null); return; } setContent(resolveSingleBlock(content, aiBlock.index, 'custom', resolution)); setAiBlock(null); }} />}</AiTaskDialog>}
       {/* Editor Content Area */}
-      <div className="flex-1 overflow-auto bg-[#0c0c0e] text-foreground font-mono text-xs select-text">
+      <div className="flex-1 overflow-auto bg-card dark:bg-sunken text-foreground font-mono text-xs select-text">
         {!hasConflicts && initialConflictCount > 0 && (
           <div className="p-4 mx-4 my-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -768,7 +768,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       variant="outline"
                       size="xs"
                       onClick={() => handleResolveBlock(block.index, 'incoming')}
-                      className="h-6 px-2 text-[11px] border-sky-500/40 text-sky-400 hover:bg-sky-500/15 hover:text-sky-300 font-medium"
+                      className="h-6 px-2 text-[11px] border-cyan-500/40 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/15 hover:text-cyan-600 dark:hover:text-cyan-300 font-medium"
                       title={t('resolver.keepTheirsTitle')}
                     >
                       {t('resolver.takeTheirs')}
@@ -821,8 +821,8 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                   )}
 
                   {/* Incoming Section */}
-                  <div className="bg-sky-950/25 border-l-4 border-sky-500 p-2.5 space-y-1">
-                    <div className="flex items-center justify-between text-[11px] text-sky-400 font-semibold select-none">
+                  <div className="bg-cyan-500/10 dark:bg-cyan-950/25 border-l-4 border-cyan-500 p-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-cyan-700 dark:text-cyan-400 font-semibold select-none">
                       <span className="flex items-center gap-1">
                         <span>{t('resolver.theirsHeader')}</span>
                         <span className="font-mono opacity-75">({block.incomingBranchName})</span>
@@ -834,7 +834,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                         {t('resolver.takeSegment')}
                       </button>
                     </div>
-                    <pre className="text-sky-200/90 whitespace-pre-wrap font-mono text-[12px] leading-relaxed select-text">
+                    <pre className="text-cyan-800 dark:text-cyan-200/90 whitespace-pre-wrap font-mono text-[12px] leading-relaxed select-text">
                       {block.incomingContent || <span className="italic opacity-50">{t('resolver.emptyLine')}</span>}
                     </pre>
                   </div>

@@ -190,11 +190,11 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
           <div className="space-y-1.5 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <GitPullRequest className={cn('h-4 w-4 shrink-0',
-                pr.state === 'open' ? 'text-git-added' : isMerged ? 'text-violet-400' : 'text-git-deleted')} />
+                pr.state === 'open' ? 'text-git-added' : isMerged ? 'text-git-branch' : 'text-git-deleted')} />
               <span className="text-sm font-bold text-foreground">{pr.title}</span>
               <span className="text-xs font-mono text-muted-foreground">#{pr.number}</span>
               <Badge variant={pr.state === 'open' ? 'success' : isMerged ? 'secondary' : 'outline'}
-                className={cn('h-4 text-[10px] px-1', isMerged && 'bg-violet-500/15 text-git-branch border-violet-500/30')}>
+                className={cn('h-4 text-[10px] px-1', isMerged && 'bg-git-branch/15 text-git-branch border-git-branch/30')}>
                 {stateLabel}
               </Badge>
             </div>
@@ -226,7 +226,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
           <div role="status" data-pr-review-readonly="true"
             className="px-4 py-1.5 text-[11px] bg-muted/40 border-b border-border/40 text-muted-foreground flex items-center gap-1.5 shrink-0">
             {capability.reason === 'readonlyMerged'
-              ? <GitMerge className="h-3 w-3 text-violet-400 shrink-0" />
+              ? <GitMerge className="h-3 w-3 text-git-branch shrink-0" />
               : capability.reason === 'readonlyClosed'
                 ? <XCircle className="h-3 w-3 text-git-deleted shrink-0" />
                 : <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />}

@@ -75,10 +75,10 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
         </div>
 
         {/* Patch Body */}
-        <div className="flex-1 overflow-auto font-mono text-[12px] leading-relaxed bg-card dark:bg-[#0c0c0e] text-foreground select-text p-2">
+        <div className="flex-1 overflow-auto font-mono text-[12px] leading-relaxed bg-card dark:bg-sunken text-foreground select-text p-2">
           {isLoading ? (
             <div className="py-20 flex items-center justify-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <span className="text-xs">{t('changes.loadingData')}</span>
             </div>
           ) : patchLines.length === 0 ? (

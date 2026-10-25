@@ -295,7 +295,7 @@ export const PullRequestsView: React.FC = () => {
                               isOpen
                                 ? "text-git-added"
                                 : isMerged
-                                ? "text-violet-400"
+                                ? "text-git-branch"
                                 : "text-git-deleted"
                             )}
                           />
@@ -328,7 +328,7 @@ export const PullRequestsView: React.FC = () => {
                           variant={isOpen ? 'success' : isMerged ? 'secondary' : 'outline'}
                           className={cn(
                             "h-3.5 text-[10px] px-1",
-                            isMerged && "bg-violet-500/15 text-git-branch border-violet-500/30"
+                            isMerged && "bg-git-branch/15 text-git-branch border-git-branch/30"
                           )}
                         >
                           {isOpen ? t('pr.stateOpen') : isMerged ? t('pr.stateMerged') : t('pr.stateClosed')}

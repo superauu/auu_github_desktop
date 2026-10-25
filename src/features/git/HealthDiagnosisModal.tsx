@@ -90,7 +90,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
       case 'warning':
         return <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />;
       case 'info':
-        return <Info className="h-4 w-4 text-sky-500 shrink-0 mt-0.5" />;
+        return <Info className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />;
       case 'success':
         return <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />;
     }

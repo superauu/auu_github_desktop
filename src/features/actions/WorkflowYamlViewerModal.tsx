@@ -39,7 +39,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
         {/* Header */}
         <div className="h-10 px-4 border-b border-border/80 bg-accent/20 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <FileCode className="h-4 w-4 text-sky-400" />
+            <FileCode className="h-4 w-4 text-primary" />
             <span className="text-xs font-mono font-semibold text-foreground">
               {activeWorkflowYaml.path}
             </span>
@@ -67,7 +67,7 @@ export const WorkflowYamlViewerModal: React.FC = () => {
         </div>
 
         {/* YAML Code Area */}
-        <div className="flex-1 overflow-auto p-4 font-mono text-[12px] leading-relaxed text-foreground/90 dark:text-indigo-100/90 select-text bg-background dark:bg-[#0c0c0e]">
+        <div className="flex-1 overflow-auto p-4 font-mono text-[12px] leading-relaxed text-foreground/90 select-text bg-background dark:bg-sunken">
           <pre className="whitespace-pre">{activeWorkflowYaml.content}</pre>
         </div>
       </div>

@@ -800,7 +800,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         /* GitKraken-style AI Agents Assistant Panel */
         <div className="flex-1 p-3 space-y-3 overflow-y-auto">
           <button disabled={!currentRepo} onClick={() => setRecoveryOpen(true)} className="w-full rounded-md border border-border px-3 py-2 text-xs text-left hover:bg-accent">{t('recovery.title')}</button>
-          <div className="p-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 space-y-1.5">
+          <div className="p-2.5 rounded-xl border border-git-branch/30 bg-git-branch/10 space-y-1.5">
             <div className="flex items-center gap-1.5 text-git-branch font-semibold text-xs">
               <Bot className="h-4 w-4" />
               <span>{t('sidebar.gitAiAgent')}</span>
@@ -879,7 +879,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-6 w-6 p-0 hover:text-git-branch hover:bg-indigo-500/10 text-muted-foreground"
+                      className="h-6 w-6 p-0 hover:text-git-branch hover:bg-git-branch/10 text-muted-foreground"
                       title={t('sidebar.mergeBranchTitle')}
                       onClick={(e) => {
                         e.stopPropagation();

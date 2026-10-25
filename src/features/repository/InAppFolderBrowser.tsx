@@ -129,9 +129,9 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {dir.hasGit ? (
-                  <FolderGit2 className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                  <FolderGit2 className="h-3.5 w-3.5 text-primary shrink-0" />
                 ) : !currentPath ? (
-                  <HardDrive className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                  <HardDrive className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 ) : (
                   <Folder className="h-3.5 w-3.5 text-amber-400/80 shrink-0" />
                 )}
@@ -139,7 +139,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
                   {dir.name}
                 </span>
                 {dir.hasGit && (
-                  <span className="text-[10px] px-1 py-0.2 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                  <span className="text-[10px] px-1 py-0.2 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
                     {t('browser.gitRepo')}
                   </span>
                 )}

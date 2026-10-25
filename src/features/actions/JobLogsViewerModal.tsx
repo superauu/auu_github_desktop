@@ -220,7 +220,7 @@ export const JobLogsViewerModal: React.FC = () => {
         {/* Terminal Content Screen */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-auto p-4 font-mono text-[12px] leading-relaxed bg-background dark:bg-[#08080a] text-foreground dark:text-muted-foreground select-text"
+          className="flex-1 overflow-auto p-4 font-mono text-[12px] leading-relaxed bg-background dark:bg-sunken text-foreground dark:text-muted-foreground select-text"
         >
           {loading || waiting || failed ? <div role={failed ? 'alert' : 'status'} className="py-16 text-center space-y-3">
             {loading && <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />}

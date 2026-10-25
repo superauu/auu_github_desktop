@@ -98,9 +98,9 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
       {/* 居中的高亮细线 */}
       <div
         className={cn(
-          'w-[1.5px] h-full transition-all duration-150',
+          'w-[1.5px] h-full transition-[background-color,box-shadow] duration-150',
           isDragging
-            ? 'bg-primary shadow-[0_0_8px_rgba(59,130,246,0.8)]'
+            ? 'bg-primary shadow-[0_0_8px_rgba(0,229,255,0.8)]'
             : 'bg-transparent group-hover:bg-primary/80'
         )}
       />

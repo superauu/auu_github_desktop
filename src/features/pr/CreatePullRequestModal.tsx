@@ -313,7 +313,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
                 type="button"
                 onClick={handleGenerateDesc}
                 disabled={isGeneratingDesc || isSubmitting || !ready || sameBranch}
-                className="h-5 px-1.5 text-[11px] gap-1 border-sky-500/40 text-sky-300 hover:bg-sky-500/15"
+                className="h-5 px-1.5 text-[11px] gap-1 border-git-branch/40 text-git-branch hover:bg-git-branch/10"
                 title={t('pr.aiGenerateTitle')}
               >
                 <Sparkles className="h-2.5 w-2.5" />

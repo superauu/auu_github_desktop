@@ -423,7 +423,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                 )}
               >
-                <Sparkles className="h-3.5 w-3.5 text-sky-400" />
+                <Sparkles className="h-3.5 w-3.5 text-git-branch" />
                 <span>{t('settings.tab.ai')}</span>
               </button>
 
@@ -704,7 +704,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       )}
                     >
                       <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-sky-400" />
+                        <Sparkles className="h-3.5 w-3.5 text-git-branch" />
                         <span>{t('settings.ai.api.name')}</span>
                       </div>
                       <div className="text-[12px] text-muted-foreground">
