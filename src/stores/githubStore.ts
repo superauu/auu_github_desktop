@@ -15,39 +15,106 @@ import { toast } from '@/stores/toastStore';
 import { tNow } from '@/i18n';
 
 const GITHUB_TOKEN_KEY = 'auu_github_token';
-let browserToken: string | null = null;
+// 浏览器开发模式的内存 token，按 Profile 隔离（桌面端走 keyring，无需内存缓存）
+const browserTokens = new Map<string, string>();
 let credentialWrites: Promise<void> = Promise.resolve();
 // 旧版本 demo 模式的遗留键，initAuth 时统一清理
 const LEGACY_DEMO_KEY = 'auu_github_demo_mode';
 
+// ===== 多账号 Profile =====
+// Profile = 一个独立的 GitHub 凭据槽位。token 在 keyring 中按 profileId 隔离
+// （默认账号沿用旧条目实现无缝迁移），Profile 列表与活跃项持久化到 localStorage。
+export const DEFAULT_PROFILE_ID = 'default';
+const PROFILES_KEY = 'auu_git_profiles';
+
+export interface GitHubProfile {
+  id: string;
+  label: string;
+}
+
+/** 生成去连字符 UUID（32 位 hex），供新 Profile 的 id 使用 */
+function newProfileId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID().replace(/-/g, '');
+  }
+  let hex = '';
+  for (let i = 0; i < 32; i++) hex += Math.floor(Math.random() * 16).toString(16);
+  return hex;
+}
+
+/** 恢复 localStorage 中的 Profile 数据；形状非法时整体回退到空态，避免脏数据污染会话 */
+export function parseStoredProfiles(raw: string | null): { profiles: GitHubProfile[]; activeProfileId: string | null } {
+  if (!raw) return { profiles: [], activeProfileId: null };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { profiles: [], activeProfileId: null };
+    const { profiles: rawProfiles, activeProfileId: rawActiveId } = parsed as Record<string, unknown>;
+    if (!Array.isArray(rawProfiles)) return { profiles: [], activeProfileId: null };
+    const cleaned: GitHubProfile[] = [];
+    for (const item of rawProfiles) {
+      if (!item || typeof item !== 'object') continue;
+      const { id, label } = item as Record<string, unknown>;
+      if (typeof id !== 'string' || !id.trim()) continue;
+      cleaned.push({ id, label: typeof label === 'string' && label.trim() ? label : id });
+    }
+    const activeProfileId = typeof rawActiveId === 'string' && cleaned.some((p) => p.id === rawActiveId)
+      ? rawActiveId
+      : (cleaned[0]?.id ?? null);
+    return { profiles: cleaned, activeProfileId };
+  } catch {
+    return { profiles: [], activeProfileId: null };
+  }
+}
+
+function saveProfiles(profiles: GitHubProfile[], activeProfileId: string | null): void {
+  try {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify({ version: 1, profiles, activeProfileId }));
+  } catch { /* 隐私模式/配额失败不阻断登录流程 */ }
+}
+
+/** 确保某 Profile 存在并以刚验证过的 GitHub login 命名（登录/恢复会话后调用） */
+function withProfileLabel(profiles: GitHubProfile[], id: string, label: string): GitHubProfile[] {
+  const existing = profiles.find((p) => p.id === id);
+  if (!existing) return [...profiles, { id, label }];
+  if (existing.label === label) return profiles;
+  return profiles.map((p) => (p.id === id ? { ...p, label } : p));
+}
+
+const storedProfiles = typeof localStorage !== 'undefined'
+  ? parseStoredProfiles(localStorage.getItem(PROFILES_KEY))
+  : { profiles: [] as GitHubProfile[], activeProfileId: null };
+
 // ===== Token 持久化：桌面端走系统凭据管理器（keyring），浏览器开发模式仅在内存保留凭据 =====
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+const profileKey = (profileId: string | null | undefined) => profileId || DEFAULT_PROFILE_ID;
 
 async function invokeKeyring<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core');
   return invoke<T>(command, args);
 }
 
-async function persistToken(token: string): Promise<void> {
+async function persistToken(token: string, profileId: string | null): Promise<void> {
   if (isTauri()) {
     credentialWrites = credentialWrites.catch(() => {}).then(async () => {
-      await invokeKeyring('store_github_token', { token });
+      await invokeKeyring('store_github_token', { token, profileId });
     });
     await credentialWrites;
-  } else { browserToken = token; }
+  } else { browserTokens.set(profileKey(profileId), token); }
   localStorage.removeItem(GITHUB_TOKEN_KEY);
 }
 
-async function loadToken(): Promise<string | null> {
+async function loadToken(profileId: string | null): Promise<string | null> {
   await credentialWrites.catch(() => {});
+  const isDefaultProfile = profileKey(profileId) === DEFAULT_PROFILE_ID;
   if (isTauri()) {
     try {
-      const stored = await invokeKeyring<string | null>('get_github_token');
+      const stored = await invokeKeyring<string | null>('get_github_token', { profileId });
       if (stored) return stored;
-      // 迁移：把旧版本明文 localStorage token 搬进凭据管理器
-      const legacy = localStorage.getItem(GITHUB_TOKEN_KEY);
+      // 迁移：把旧版本明文 localStorage token 搬进凭据管理器（仅默认账号，避免复制进其他 Profile）
+      const legacy = isDefaultProfile ? localStorage.getItem(GITHUB_TOKEN_KEY) : null;
       if (legacy) {
-        await invokeKeyring('store_github_token', { token: legacy });
+        await invokeKeyring('store_github_token', { token: legacy, profileId });
         localStorage.removeItem(GITHUB_TOKEN_KEY);
         return legacy;
       }
@@ -56,17 +123,18 @@ async function loadToken(): Promise<string | null> {
       throw new Error(tNow('err.keyringReadFailed').replace('{m}', String(err)));
     }
   }
-  const legacy = localStorage.getItem(GITHUB_TOKEN_KEY);
+  const legacy = isDefaultProfile ? localStorage.getItem(GITHUB_TOKEN_KEY) : null;
   localStorage.removeItem(GITHUB_TOKEN_KEY);
-  browserToken = browserToken || legacy;
-  return browserToken;
+  const key = profileKey(profileId);
+  if (legacy && !browserTokens.has(key)) browserTokens.set(key, legacy);
+  return browserTokens.get(key) ?? null;
 }
 
-async function clearToken(): Promise<void> {
-  browserToken = null;
+async function clearToken(profileId: string | null): Promise<void> {
+  browserTokens.delete(profileKey(profileId));
   localStorage.removeItem(GITHUB_TOKEN_KEY);
   if (isTauri()) {
-    credentialWrites = credentialWrites.catch(() => {}).then(() => invokeKeyring<void>('delete_github_token'));
+    credentialWrites = credentialWrites.catch(() => {}).then(() => invokeKeyring<void>('delete_github_token', { profileId }));
     await credentialWrites;
   }
 }
@@ -76,6 +144,13 @@ interface GitHubState {
   user: GitHubUser | null;
   isAuthenticated: boolean;
   repoDetails: GitHubRepoDetails | null;
+
+  // Multi-Account Profiles（按 Profile 隔离 token）
+  profiles: GitHubProfile[];
+  activeProfileId: string | null;
+  // “添加账号”进行中标记；addProfileReturnId 记录取消时要回退到的 Profile
+  isAddingProfile: boolean;
+  addProfileReturnId: string | null;
 
   // Active Bound Repo
   currentOwner: string | null;
@@ -121,6 +196,12 @@ interface GitHubState {
   selectRun: (run: GitHubWorkflowRun | null) => Promise<void>;
   fetchCommitChecks: (sha: string) => Promise<GitHubCheckRun[]>;
   refreshActions: () => Promise<void>;
+
+  // Profile Controls
+  addProfile: () => void;
+  cancelAddProfile: () => void;
+  switchProfile: (id: string) => Promise<void>;
+  removeProfile: (id: string) => Promise<void>;
 
   // Deep Actions Controls
   openJobLogs: (jobId: number, jobName?: string) => Promise<void>;
@@ -169,8 +250,20 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
     if (pushWatchTimer) clearTimeout(pushWatchTimer);
     pushWatchTimer = null; pushWatchedSha = null;
   };
+  const persistProfiles = () => saveProfiles(get().profiles, get().activeProfileId);
+  /** 退出当前账号态（不动 Profile 列表），供切换/登出/取消添加复用 */
+  const resetAuthState = () => {
+    get().clearRepo();
+    authGeneration++;
+    githubService.setToken(null);
+    set({ token: null, user: null, isAuthenticated: false });
+  };
   return {
     ...emptyRepo, token: null, user: null, isAuthenticated: false, prFilterState: 'open',
+    profiles: storedProfiles.profiles,
+    activeProfileId: storedProfiles.activeProfileId,
+    isAddingProfile: false,
+    addProfileReturnId: null,
     clearRepo: () => {
       generation++; requests.clear(); stopWatch();
       set({ ...emptyRepo });
@@ -179,18 +272,22 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       const attempt = ++authGeneration;
       localStorage.removeItem(LEGACY_DEMO_KEY);
       try {
-        const token = await loadToken();
+        const token = await loadToken(get().activeProfileId);
         if (!token || attempt !== authGeneration) return;
         const user = await githubService.verifyToken(token);
         if (attempt !== authGeneration) return;
         githubService.setToken(token);
-        set({ token, user, isAuthenticated: true });
+        // 首次成功认证会把默认 Profile（沿用旧 keyring 条目）登记进列表，完成旧用户迁移
+        const profileId = get().activeProfileId ?? DEFAULT_PROFILE_ID;
+        const profiles = withProfileLabel(get().profiles, profileId, user.login);
+        set({ token, user, isAuthenticated: true, profiles, activeProfileId: profileId });
+        persistProfiles();
         const { currentOwner, currentRepoName } = get();
         if (currentOwner && currentRepoName) await get().loadRepoData(currentOwner, currentRepoName);
       } catch (error) {
         if (attempt !== authGeneration) return;
         if (error instanceof GitHubApiError && error.status === 401) {
-          await clearToken(); githubService.setToken(null);
+          await clearToken(get().activeProfileId); githubService.setToken(null);
         }
         // Network, rate-limit and server errors must not delete saved credentials.
         set({ error: String(error) });
@@ -202,10 +299,16 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       try {
         const user = await githubService.verifyToken(token);
         if (attempt !== authGeneration) return;
-        await persistToken(token);
+        const profileId = get().activeProfileId ?? DEFAULT_PROFILE_ID;
+        await persistToken(token, profileId);
         if (attempt !== authGeneration) return;
         githubService.setToken(token);
-        set({ token, user, isAuthenticated: true, isLoading: false });
+        const profiles = withProfileLabel(get().profiles, profileId, user.login);
+        set({
+          token, user, isAuthenticated: true, isLoading: false, profiles, activeProfileId: profileId,
+          isAddingProfile: false, addProfileReturnId: null,
+        });
+        persistProfiles();
         const { currentOwner, currentRepoName } = get();
         if (currentOwner && currentRepoName) await get().loadRepoData(currentOwner, currentRepoName);
       } catch (error: any) {
@@ -214,10 +317,78 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       }
     },
     logout: () => {
-      authGeneration++; get().clearRepo();
-      void clearToken().catch((error) => toast.error(tNow('err.credentialCleanupFailed'), String(error)));
-      githubService.setToken(null);
-      set({ token: null, user: null, isAuthenticated: false });
+      const { activeProfileId, profiles } = get();
+      const profileId = activeProfileId ?? DEFAULT_PROFILE_ID;
+      if (profiles.some((p) => p.id === profileId)) {
+        // 与 removeProfile 同路径：删除凭据 + 移除槽位 + 自动切到剩余第一个 Profile
+        void get().removeProfile(profileId);
+        return;
+      }
+      // 列表中没有对应槽位（异常态兜底）：仅清除当前凭据与登录态
+      resetAuthState();
+      void clearToken(profileId).catch((error) => toast.error(tNow('err.credentialCleanupFailed'), String(error)));
+    },
+    addProfile: () => {
+      const { profiles, activeProfileId, isAddingProfile } = get();
+      if (isAddingProfile) return;
+      const id = newProfileId();
+      const label = tNow('profiles.defaultLabel').replace('{n}', String(profiles.length + 1));
+      resetAuthState();
+      set({
+        profiles: [...profiles, { id, label }],
+        activeProfileId: id,
+        isAddingProfile: true,
+        addProfileReturnId: activeProfileId ?? DEFAULT_PROFILE_ID,
+        error: null, isLoading: false,
+      });
+      persistProfiles();
+    },
+    cancelAddProfile: () => {
+      const { isAddingProfile, activeProfileId, profiles, addProfileReturnId } = get();
+      if (!isAddingProfile) return;
+      const remaining = profiles.filter((p) => p.id !== activeProfileId);
+      const nextActive = remaining.some((p) => p.id === addProfileReturnId)
+        ? addProfileReturnId
+        : (remaining[0]?.id ?? null);
+      resetAuthState();
+      set({
+        profiles: remaining,
+        activeProfileId: nextActive,
+        isAddingProfile: false,
+        addProfileReturnId: null,
+        error: null, isLoading: false,
+      });
+      persistProfiles();
+      toast.info(tNow('profiles.addCancelled'));
+      if (nextActive) void get().initAuth();
+    },
+    switchProfile: async (id) => {
+      const { activeProfileId, profiles } = get();
+      if (id === activeProfileId) return;
+      if (id !== DEFAULT_PROFILE_ID && !profiles.some((p) => p.id === id)) return;
+      const target = profiles.find((p) => p.id === id);
+      resetAuthState();
+      set({ activeProfileId: id, isAddingProfile: false, addProfileReturnId: null });
+      persistProfiles();
+      await get().initAuth();
+      if (get().isAuthenticated) toast.success(tNow('profiles.switchedTo').replace('{label}', target?.label || id));
+    },
+    removeProfile: async (id) => {
+      const { profiles, activeProfileId } = get();
+      if (!profiles.some((p) => p.id === id)) return;
+      void clearToken(id).catch((error) => toast.error(tNow('err.credentialCleanupFailed'), String(error)));
+      const remaining = profiles.filter((p) => p.id !== id);
+      if (activeProfileId !== id) {
+        set({ profiles: remaining });
+        persistProfiles();
+        return;
+      }
+      // 移除的是活跃 Profile：切到剩余第一个或登出态，并尝试恢复该 Profile 的登录
+      const nextActive = remaining[0]?.id ?? null;
+      resetAuthState();
+      set({ profiles: remaining, activeProfileId: nextActive, isAddingProfile: false, addProfileReturnId: null, error: null, isLoading: false });
+      persistProfiles();
+      if (nextActive) await get().initAuth();
     },
     syncRepo: async (owner, repo) => {
       if (get().currentOwner === owner && get().currentRepoName === repo) return;

@@ -34,6 +34,7 @@ import {
   X,
   MoreHorizontal,
   Shield,
+  Check,
 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useI18n } from '@/i18n';
@@ -106,7 +107,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
   const { resolvedTheme, setTheme } = useThemeStore();
-  const { user, isAuthenticated } = useGitHubStore();
+  const {
+    user, isAuthenticated, profiles, activeProfileId, switchProfile, addProfile,
+  } = useGitHubStore();
   const { t } = useI18n();
   useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
   useEffect(() => {
@@ -355,28 +358,68 @@ export const Header: React.FC<HeaderProps> = ({
               <TooltipContent side="bottom">{t('header.toggleThemeTooltip')}</TooltipContent>
             </Tooltip>
 
-            {/* GitHub Auth Profile */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onOpenGitHubAuth}
-                  aria-label={t('header.manageGithubCreds')}
-                  className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
-                >
-                  {user?.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.login} className="h-3.5 w-3.5 rounded-full border border-border" />
-                  ) : (
+            {/* GitHub Auth Profile：未登录保持 Sign In；已登录变为多账号菜单（Profile 切换 / 添加账号 / 管理入口） */}
+            {isAuthenticated ? (
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    aria-label={t('profiles.accountMenuLabel')}
+                    className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
+                  >
+                    {user?.avatar_url ? (
+                      <img src={user.avatar_url} alt={user.login} className="h-3.5 w-3.5 rounded-full border border-border" />
+                    ) : (
+                      <Github className="h-3 w-3 text-foreground" />
+                    )}
+                    <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
+                      {profiles.find((profile) => profile.id === activeProfileId)?.label || user?.login}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content align="end" sideOffset={8} aria-label={t('profiles.accountMenuLabel')}
+                    className="z-50 w-56 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto"
+                  >
+                    <DropdownMenu.Label className="px-3 py-2 text-[12px] text-muted-foreground">{t('profiles.menuTitle')}</DropdownMenu.Label>
+                    {profiles.map((profile) => {
+                      const isActive = profile.id === activeProfileId;
+                      return (
+                        <DropdownMenu.Item key={profile.id} className="menu-item" disabled={isActive}
+                          onSelect={() => { if (!isActive) void switchProfile(profile.id); }}
+                        >
+                          <Check className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'opacity-0')} />
+                          <span className="truncate max-w-[150px]" title={profile.label}>{profile.label}</span>
+                        </DropdownMenu.Item>
+                      );
+                    })}
+                    <DropdownMenu.Separator className="my-1 border-t border-border" />
+                    <DropdownMenu.Item className="menu-item" onSelect={() => { addProfile(); onOpenGitHubAuth?.(); }}>
+                      <Plus className="h-4 w-4" />{t('profiles.addAccount')}
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item className="menu-item" onSelect={() => onOpenSettings?.()}>
+                      <SettingsIcon className="h-4 w-4" />{t('profiles.manage')}
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onOpenGitHubAuth}
+                    aria-label={t('header.manageGithubCreds')}
+                    className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
+                  >
                     <Github className="h-3 w-3 text-foreground" />
-                  )}
-                  <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
-                    {isAuthenticated ? user?.login : t('header.login')}
-                  </span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {isAuthenticated ? `${t('header.loggedInAs')}: ${user?.login}` : t('header.manageGithubCreds')}
-              </TooltipContent>
-            </Tooltip>
+                    <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
+                      {t('header.login')}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t('header.manageGithubCreds')}</TooltipContent>
+              </Tooltip>
+            )}
 
             {/* Settings Dialog */}
             <Tooltip>

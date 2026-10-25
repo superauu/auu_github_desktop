@@ -509,20 +509,29 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
 }
 
 // GitHub tokens use the platform's native credential store.
-// 优先走 keyring；无对应条目时返回 Ok(None)，不视为错误
-fn github_token_entry() -> Result<keyring::Entry, String> {
-    keyring::Entry::new("auugit", "github_token").map_err(|e| e.to_string())
+// 优先走 keyring；无对应条目时返回 Ok(None)，不视为错误。
+// 多账号 Profile：默认账号（profileId 为 None / "default" / 空串）沿用旧条目 "github_token"，
+// 保证老用户无缝迁移不做凭据拷贝；其余 Profile 使用 "github_token:<profileId>" 按账号隔离。
+fn github_token_entry_name(profile_id: Option<&str>) -> String {
+    match profile_id {
+        Some(id) if !id.is_empty() && id != "default" => format!("github_token:{}", id),
+        _ => "github_token".to_string(),
+    }
+}
+
+fn github_token_entry(profile_id: Option<&str>) -> Result<keyring::Entry, String> {
+    keyring::Entry::new("auugit", &github_token_entry_name(profile_id)).map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
-fn store_github_token(token: String) -> Result<(), String> {
-    let entry = github_token_entry()?;
+fn store_github_token(token: String, profile_id: Option<String>) -> Result<(), String> {
+    let entry = github_token_entry(profile_id.as_deref())?;
     entry.set_password(&token).map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
-fn get_github_token() -> Result<Option<String>, String> {
-    let entry = github_token_entry()?;
+fn get_github_token(profile_id: Option<String>) -> Result<Option<String>, String> {
+    let entry = github_token_entry(profile_id.as_deref())?;
     match entry.get_password() {
         Ok(token) => Ok(Some(token)),
         Err(keyring::Error::NoEntry) => Ok(None),
@@ -531,8 +540,8 @@ fn get_github_token() -> Result<Option<String>, String> {
 }
 
 #[tauri::command(async)]
-fn delete_github_token() -> Result<(), String> {
-    let entry = github_token_entry()?;
+fn delete_github_token(profile_id: Option<String>) -> Result<(), String> {
+    let entry = github_token_entry(profile_id.as_deref())?;
     match entry.delete_credential() {
         Ok(_) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
@@ -623,5 +632,18 @@ mod tests {
         assert!(header_value("\n").is_err());
         assert!(header_value("\u{1}").is_err());
         assert!(header_value("\u{7f}").is_err());
+    }
+
+    #[test]
+    fn github_token_entry_names_isolate_profiles_and_keep_legacy_default() {
+        // 旧用户迁移：无 profileId / "default" / 空串都必须落在原有条目上
+        assert_eq!(github_token_entry_name(None), "github_token");
+        assert_eq!(github_token_entry_name(Some("default")), "github_token");
+        assert_eq!(github_token_entry_name(Some("")), "github_token");
+        // 其余 Profile 按账号隔离
+        assert_eq!(
+            github_token_entry_name(Some("0f2a4c8e6b1d4f3a9c8e7b2d1a0f9e8c")),
+            "github_token:0f2a4c8e6b1d4f3a9c8e7b2d1a0f9e8c"
+        );
     }
 }

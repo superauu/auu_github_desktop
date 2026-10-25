@@ -56,11 +56,12 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     isAuthenticated,
     currentOwner,
     currentRepoName,
+    isAddingProfile,
     login,
     logout,
     refreshActions,
     isLoading: isStoreLoading,
-  } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, login: state.login, logout: state.logout, refreshActions: state.refreshActions, isLoading: state.isLoading })));
+  } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isAddingProfile: state.isAddingProfile, login: state.login, logout: state.logout, refreshActions: state.refreshActions, isLoading: state.isLoading })));
   const { t } = useI18n();
 
   const [authMode, setAuthMode] = useState<'oauth' | 'pat'>('oauth');
@@ -88,12 +89,13 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     setPollInfo(null);
   }, []);
 
-  // Clean up polling if dialog is closed
+  // Clean up polling if dialog is closed；若正处于“添加账号”流程且未完成登录，则回退到原账号
   useEffect(() => {
     if (!open) {
       handleCancelOAuth();
       setOauthError(null);
       setPatError(null);
+      useGitHubStore.getState().cancelAddProfile();
     }
   }, [open, handleCancelOAuth]);
 
@@ -209,9 +211,11 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 </Badge>
               </div>
               <div className="text-[12px] text-muted-foreground mt-0.5">
-                {currentOwner && currentRepoName
-                  ? `${t('auth.boundRepo')}: ${currentOwner}/${currentRepoName}`
-                  : t('auth.boundNone')}
+                {isAddingProfile
+                  ? t('profiles.addingHint')
+                  : currentOwner && currentRepoName
+                    ? `${t('auth.boundRepo')}: ${currentOwner}/${currentRepoName}`
+                    : t('auth.boundNone')}
               </div>
             </div>
           </div>
@@ -258,6 +262,8 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                   onClick={() => {
                     logout();
                     toast.info(t('auth.logoutToast'));
+                    // 登出会按 Profile 语义移除当前凭据并自动切到剩余账号，关闭对话框避免中间态闪烁
+                    onOpenChange(false);
                   }}
                   className="h-7 text-xs gap-1"
                 >
