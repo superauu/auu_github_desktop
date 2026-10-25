@@ -309,7 +309,6 @@ export function parseGitBranches(output: string): GitBranch[] {
 export function parseGitTags(output: string): GitTag[] {
   const lines = output.split(/\r?\n/);
   const tags: GitTag[] = [];
-
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -341,7 +340,39 @@ export function parseGitTags(output: string): GitTag[] {
     });
   }
 
-  return tags;
+  return sortTagsDescending(tags);
+}
+
+/** 从标签名提取语义化版本元组（v0.3.10 → [0,3,10]；尾缀 rc/beta 按 -1 权重排在正式版后）。 */
+function versionTuple(name: string): number[] | null {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-?rc\.?(\d+))?/i.exec(name.trim());
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] !== undefined ? -Number(match[4]) : 0];
+}
+
+/**
+ * 标签降序（最新在最上，与提交历史的方向一致）：`git tag -l` 默认字母序，
+ * 既会把最旧的 v0.2.0 排在最上，也会把 v0.3.10 错排在 v0.3.9 之前。
+ * 版本命名的标签按语义化版本降序；非版本命名按打标时间降序，兜底名称倒序。
+ */
+export function sortTagsDescending(tags: GitTag[]): GitTag[] {
+  return [...tags].sort((a, b) => {
+    const va = versionTuple(a.name);
+    const vb = versionTuple(b.name);
+    if (va && vb) {
+      for (let index = 0; index < Math.max(va.length, vb.length); index++) {
+        const diff = (vb[index] || 0) - (va[index] || 0);
+        if (diff) return diff;
+      }
+      return b.name.localeCompare(a.name);
+    }
+    if (va && !vb) return -1;
+    if (!va && vb) return 1;
+    const dateA = a.tagger?.date ? Date.parse(a.tagger.date) : NaN;
+    const dateB = b.tagger?.date ? Date.parse(b.tagger.date) : NaN;
+    if (!Number.isNaN(dateA) && !Number.isNaN(dateB) && dateA !== dateB) return dateB - dateA;
+    return b.name.localeCompare(a.name);
+  });
 }
 
 export interface ParsedDiffLine {
