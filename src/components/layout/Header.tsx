@@ -223,6 +223,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [isUndoing, setIsUndoing] = useState(false);
   const [isRedoing, setIsRedoing] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
+  // fetch/pull/push 互斥防重入：连点会触发重叠的 git 网络操作
+  const [remoteBusy, setRemoteBusy] = useState<'fetch' | 'pull' | 'push' | null>(null);
 
   // ===== 仓库分组 Workspaces（T6）=====
   const groups = useWorkspaceGroupsStore((state) => state.groups);
@@ -244,40 +246,56 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleFetch = async () => {
+    if (remoteBusy) return;
+    setRemoteBusy('fetch');
     toast.info(t('header.fetching'));
     try {
       await fetchRemote();
       toast.success(t('header.fetchQuietDone'), t('header.fetchQuietDesc'));
     } catch (err: any) {
       toast.error(t('header.fetchFailed'), err.message);
+    } finally {
+      setRemoteBusy(null);
     }
   };
 
   const handlePull = async () => {
+    if (remoteBusy) return;
+    setRemoteBusy('pull');
     toast.info(t('header.pulling'));
     try {
       await pull();
       toast.success(t('header.pulled'));
     } catch (err: any) {
       toast.error(t('header.pullFailed'), err.message);
+    } finally {
+      setRemoteBusy(null);
     }
   };
 
   const handlePush = async (alwaysChoose = false) => {
+    if (remoteBusy) return;
+    setRemoteBusy('push');
     try {
       if (!await pushFromUi(undefined, false, alwaysChoose)) return;
       toast.success(t('header.pushed'));
     } catch (err: any) {
       toast.error(t('header.pushFailed'), err.message);
+    } finally {
+      setRemoteBusy(null);
     }
   };
 
   const handleForcePush = async () => {
+    if (remoteBusy) return;
+    setRemoteBusy('push');
     try {
       if (!await pushFromUi(undefined, true)) return;
       toast.success(t('header.pushed'));
     } catch (err: any) {
       toast.error(t('header.pushFailed'), err.message);
+    } finally {
+      setRemoteBusy(null);
     }
   };
 
@@ -773,12 +791,12 @@ export const Header: React.FC<HeaderProps> = ({
                                   </button>
                                   <button
                                     onClick={() => void handlePull()}
-                                    disabled={!canPull}
+                                    disabled={!canPull || remoteBusy !== null}
                                     title={canPull ? t('workspaces.groupPullAll') : t('workspaces.groupPullDisabled')}
                                     aria-label={`${t('workspaces.groupPullAll')}: ${group.name}`}
                                     className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
-                                    <ArrowDownToLine className="h-3 w-3" />
+                                    {remoteBusy === 'pull' ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowDownToLine className="h-3 w-3" />}
                                   </button>
                                 </span>
                               </div>
@@ -1047,12 +1065,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
-            <Button variant="outline" className="gap-2 px-3" onClick={handleFetch} title={t('header.fetchAll')}>
-              <RefreshCw className="h-4 w-4" />
+            <Button variant="outline" className="gap-2 px-3" onClick={handleFetch} disabled={remoteBusy !== null} title={t('header.fetchAll')}>
+              {remoteBusy === 'fetch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               <span className="hidden font-medium lg:inline">{t('composer.fetch')}</span>
             </Button>
-            <Button variant="outline" className="gap-2 px-3" onClick={handlePull} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}>
-              <ArrowDownToLine className="h-4 w-4" />
+            <Button variant="outline" className="gap-2 px-3" onClick={handlePull} disabled={remoteBusy !== null} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}>
+              {remoteBusy === 'pull' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
               <span className="font-medium">{t('header.pull')}</span>
               {behindCount > 0 && (
                 <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-semibold leading-none text-muted-foreground tabular-nums">
@@ -1065,9 +1083,10 @@ export const Header: React.FC<HeaderProps> = ({
               data-pending-commits={pushAheadCount > 0}
               className={cn('gap-2 px-3', pushAheadCount > 0 && 'border-primary/25 bg-primary/5 hover:border-primary/40 hover:bg-primary/10')}
               onClick={() => void handlePush()}
+              disabled={remoteBusy !== null}
               title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}
             >
-              <ArrowUpToLine className={cn('h-4 w-4', pushAheadCount > 0 && 'text-primary')} />
+              {remoteBusy === 'push' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpToLine className={cn('h-4 w-4', pushAheadCount > 0 && 'text-primary')} />}
               <span className="inline-flex min-w-0 items-baseline gap-1.5">
                 <span className="font-medium">{t('header.push')}</span>
                 {pushTarget && <span className="max-w-24 truncate text-[11px] text-muted-foreground">→ {pushTarget.remote}</span>}
@@ -1101,8 +1120,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <DropdownMenu.Item className="menu-item" disabled={isRedoing || !canRedo} onSelect={() => void handleRedo()}><RotateCw className="h-4 w-4" />{t('header.redo')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 border-t border-border" />
                 <DropdownMenu.Item className="menu-item" onSelect={async () => { try { await pull(true); toast.success(t('header.rebasePulled')); } catch (error: any) { toast.error(t('header.rebasePullFailed'), error?.message); } }}><GitPullRequest className="h-4 w-4" />{t('header.pullRebase')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item" onSelect={() => void handlePush(true)}><ArrowUpToLine className="h-4 w-4" />{t('remote.chooseDestination')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item text-destructive" onSelect={() => void handleForcePush()}><AlertTriangle className="h-4 w-4" />{t('header.forcePush')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" disabled={remoteBusy !== null} onSelect={() => void handlePush(true)}><ArrowUpToLine className="h-4 w-4" />{t('remote.chooseDestination')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item text-destructive" disabled={remoteBusy !== null} onSelect={() => void handleForcePush()}><AlertTriangle className="h-4 w-4" />{t('header.forcePush')}</DropdownMenu.Item>
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>
           </div>}
