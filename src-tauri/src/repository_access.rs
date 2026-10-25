@@ -6,7 +6,7 @@ use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 static ROOTS: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
-fn roots() -> &'static Mutex<HashSet<PathBuf>> {
+pub(crate) fn roots() -> &'static Mutex<HashSet<PathBuf>> {
     ROOTS.get_or_init(Mutex::default)
 }
 

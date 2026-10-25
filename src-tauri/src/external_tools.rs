@@ -219,7 +219,7 @@ fn read_tools(store: &Path) -> Result<Vec<ExternalTool>, String> {
 
 /// Caller holds FILE_WRITES（与 git_binary.rs / repository_access.rs 相同的写闸约定）。
 fn write_tools(store: &Path, tools: &mut Vec<ExternalTool>) -> Result<(), String> {
-    tools.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    tools.sort_by_key(|tool| tool.name.to_lowercase());
     fs::create_dir_all(store.parent().ok_or("Missing application data directory")?)
         .map_err(|error| error.to_string())?;
     crate::file_io::atomic_write(
@@ -230,7 +230,7 @@ fn write_tools(store: &Path, tools: &mut Vec<ExternalTool>) -> Result<(), String
 }
 
 fn sorted(mut tools: Vec<ExternalTool>) -> Vec<ExternalTool> {
-    tools.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    tools.sort_by_key(|tool| tool.name.to_lowercase());
     tools
 }
 
