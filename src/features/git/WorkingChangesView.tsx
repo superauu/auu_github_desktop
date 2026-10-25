@@ -221,13 +221,19 @@ export const WorkingChangesView: React.FC = () => {
 
   const totalChanges = stagedFiles.length + unstagedFiles.length + untrackedFiles.length;
 
-  // 统一处理暂存/取消暂存/放弃修改：等待真实结果后再提示，失败弹错误 toast
+  // 统一处理暂存/取消暂存/放弃修改：等待真实结果后再提示，失败弹错误 toast；
+  // 互斥防重入——并发改索引会撞 git index 锁
+  const [listBusy, setListBusy] = useState(false);
   const runGitAction = async (action: () => Promise<void>, successMsg: string, failMsg: string) => {
+    if (listBusy) return;
+    setListBusy(true);
     try {
       await action();
       toast.success(successMsg);
     } catch (err: any) {
       toast.error(failMsg, err?.message);
+    } finally {
+      setListBusy(false);
     }
   };
 
@@ -496,6 +502,7 @@ export const WorkingChangesView: React.FC = () => {
               <Button
                 variant="ghost"
                 size="xs"
+                disabled={listBusy}
                 onClick={() => {
                   runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                 }}
@@ -507,6 +514,7 @@ export const WorkingChangesView: React.FC = () => {
               <Button
                 variant="ghost"
                 size="xs"
+                disabled={listBusy}
                 onClick={() => {
                   runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                 }}
@@ -546,7 +554,8 @@ export const WorkingChangesView: React.FC = () => {
                       onClick={() => {
                         runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                       }}
-                      className="text-[12px] text-muted-foreground hover:text-foreground"
+                      disabled={listBusy}
+                      className="text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {t('changes.unstageAll')}
                     </button>
