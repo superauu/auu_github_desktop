@@ -130,7 +130,7 @@ test('the wizard flow finds the known first bad commit and reset clears the bise
   // 收敛但未 reset：git 语义上会话仍存活（BISECT_LOG 保留），日志含机器格式结论。
   assert.equal(await service.isBisecting(repository), true);
   const log = await service.log(repository);
-  assert.match(log, new RegExp(`# first bad commit: \\[${outcome.firstBad.hash}\\]`));
+  assert.match(log, new RegExp(`# first '?bad'? commit: \\[${outcome.firstBad.hash}\\]`));
   assert.equal(await service.resultHash(repository), outcome.firstBad.hash);
   // 剩余步数在收敛后为可解析的估算值。
   assert.equal(typeof await service.stepsRemaining(repository), 'number');

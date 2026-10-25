@@ -10,7 +10,7 @@ import { tNow } from '@/i18n';
  * 状态探测不依赖 .git/BISECT_LOG 文件读取（repo_file 拒绝 .git 组件、
  * paths_exist 只探测四个已知操作文件），统一用 git 自身语义：
  * - 会话存在性：`git bisect log` 的退出码（未在 bisect 中时非 0，与本地化文案无关）。
- * - 收敛结果：BISECT_LOG 末尾的机器格式注释 `# first bad commit: [<hash>]`，
+ * - 收敛结果：BISECT_LOG 末尾的机器格式注释 `# first 'bad' commit: [<hash>]`（部分 git 版本会给默认 term 加引号，正则两种形态都容忍），
  *   或 stdout 的 `<hash> is the first <term> commit`（两者互为备份以抗 git 本地化）。
  */
 export interface BisectCandidate {
@@ -33,7 +33,7 @@ interface BisectSession {
 }
 
 // BISECT_LOG 的机器格式注释（replay 数据源，git 不做本地化，最可靠）。
-const FIRST_BAD_LOG = /^# first bad commit: \[([0-9a-f]{40})(?:[0-9a-f]{24})?\]/mi;
+const FIRST_BAD_LOG = /^# first '?bad'? commit: \[([0-9a-f]{40})(?:[0-9a-f]{24})?\]/mi;
 // 会话恢复时从日志还原初始 good 边界（第一条 `# good:` 注释即 start 时的好提交）。
 const FIRST_GOOD_LOG = /^# good: \[([0-9a-f]{40})(?:[0-9a-f]{24})?\]/mi;
 const HASH_ONLY = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i;
