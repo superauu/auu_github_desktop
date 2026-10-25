@@ -11,6 +11,9 @@ import { externalToolsZh } from './externalTools';
 import { profilesZh } from './profiles';
 import { bisectZh } from './bisect';
 import { releaseNotesZh } from './releaseNotes';
+import { prReviewZh } from './prReview';
+import { notificationsZh } from './notifications';
+import { workspacesZh } from './workspaces';
 /**
  * 中文资源包（基准语言）
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
@@ -44,6 +47,9 @@ export const zh = {
   ...profilesZh,
   ...bisectZh,
   ...releaseNotesZh,
+  ...prReviewZh,
+  ...notificationsZh,
+  ...workspacesZh,
   'layout.pinNavigation': '固定左侧导航',
   'layout.unpinNavigation': '取消固定并收起导航',
   'layout.pinNavigationDesc': '保持导航常驻并记住选择；关闭后立即收起，可从左上角临时打开。',

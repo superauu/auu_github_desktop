@@ -11,6 +11,9 @@ import { externalToolsEn } from './externalTools';
 import { profilesEn } from './profiles';
 import { bisectEn } from './bisect';
 import { releaseNotesEn } from './releaseNotes';
+import { prReviewEn } from './prReview';
+import { notificationsEn } from './notifications';
+import { workspacesEn } from './workspaces';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
@@ -44,6 +47,9 @@ export const en = {
   ...profilesEn,
   ...bisectEn,
   ...releaseNotesEn,
+  ...prReviewEn,
+  ...notificationsEn,
+  ...workspacesEn,
   'layout.pinNavigation': 'Pin left navigation',
   'layout.unpinNavigation': 'Unpin and hide navigation',
   'layout.pinNavigationDesc': 'Keep navigation visible and remember this choice. Turn off to hide it immediately; use the top-left button to open it temporarily.',
