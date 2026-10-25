@@ -36,12 +36,10 @@ const TERMINAL_DEVICE_FLOW_ERRORS: ReadonlySet<string> = new Set([
 ]);
 
 export class GitHubOAuthService {
-  // NOTE: this is GitHub CLI's public OAuth client ID, reused because AuuGit does not
-  // ship its own registered OAuth App yet. It works with the device flow but is not
-  // compliant for a third-party app long-term. To migrate: register an OAuth App with
-  // the device flow enabled (https://github.com/settings/developers) and replace the
-  // ID below — the authorization flow itself stays unchanged.
-  private static readonly CLIENT_ID = '178c6fc778ccc68e1d6a';
+  // AuuGit 自己注册的 OAuth App（https://github.com/settings/developers，已启用
+  // device flow）。授权页显示该应用名，用户可在 GitHub 的 Settings → Applications
+  // 中查看与撤销授权。
+  private static readonly CLIENT_ID = 'Ov23liAzBMxR3hnHnV4L';
   private static readonly SCOPES = 'repo,workflow,read:user';
 
   /**
