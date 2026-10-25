@@ -803,7 +803,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       <div>
                         <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                           <span>{user.name || user.login}</span>
-                          <Badge variant="success" className="h-3.5 text-[8px] px-1 gap-0.5">
+                          <Badge variant="success" className="h-3.5 text-[10px] px-1 gap-0.5">
                             <CheckCircle2 className="h-2.5 w-2.5" />
                             <span>{t('common.connected')}</span>
                           </Badge>
