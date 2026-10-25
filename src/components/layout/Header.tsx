@@ -463,7 +463,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex h-full items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar">
             {/* Logo */}
             <div className="flex items-center gap-1.5 px-2 mr-1 shrink-0 select-none">
-              <img src="/logo.svg" alt="AuuGit" draggable={false} className="h-4 w-4 rounded drop-shadow-sm" />
+              <img src="/logo.svg" alt="AuuGit" draggable={false} className="h-5 w-5 shrink-0" />
               <span className="font-display font-bold text-[12px] tracking-[0.14em] bg-gradient-to-r from-cyan-600 to-sky-400 dark:from-cyan-200 dark:to-sky-300 bg-clip-text text-transparent hidden sm:inline-block">
                 AuuGit
               </span>

@@ -31,9 +31,8 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
       <div className="max-w-xl w-full space-y-8 animate-in fade-in-50 duration-300 relative z-10">
         {/* Hero Section */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-cyan-400/15 to-fuchsia-500/5 border border-cyan-400/25 dark:border-cyan-300/25 mb-1 neon-edge relative">
-            <img src="/logo.svg" alt="AuuGit" className="h-10 w-10 drop-shadow-[0_0_12px_rgba(0,229,255,0.55)]" />
-            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-neon-green dark:bg-[#00ff9c] neon-breathe shadow-[0_0_8px_rgba(0,255,156,0.8)]" />
+          <div className="inline-flex items-center justify-center mb-1">
+            <img src="/logo.svg" alt="AuuGit" className="h-20 w-20" />
           </div>
           <h1 className="font-display text-2xl font-bold uppercase tracking-[0.12em] text-foreground dark:text-glow-cyan">
             {t('welcome.title')}

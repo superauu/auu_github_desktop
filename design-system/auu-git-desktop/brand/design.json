@@ -1,0 +1,18 @@
+{
+  "name": "AuuGit — Converge",
+  "concept": "A monogram built from converging Git paths; two commits form its crossbar.",
+  "source": "public/logo.svg",
+  "generateIcons": "npm run icons",
+  "conceptGenerator": "Built-in image_gen tool via imagegen skill; native SVG production artwork authored separately.",
+  "prompt": "Use case: logo-brand.\nAsset type: a single production-minded desktop application icon for AuuGit, a polished Git client with visual branch management.\nPrimary request: design an original exceptionally refined geometric monogram that fuses a capital A with two Git branches converging. A bold ascending left diagonal and a bold right diagonal form an open-bottom A silhouette, with a short curved cross-connection resembling a merging branch; incorporate exactly two small circular commit terminals as intentional structural details, not decoration. The silhouette must read as a confident A first and a branching path second. Make the shape cohesive, distinctive, balanced and memorable.\nStyle: minimal vector-like brand design, exact smooth geometry, confident generous strokes, clean negative space. This should feel like an expertly art-directed developer tool identity. Restrained turquoise through ice cyan coloring; a very subtle color transition only. No purple.\nComposition: one centered icon only, straight front view, square canvas. Dark midnight rounded-square tile with generous corner radius, very subtle upper-left illumination, symbol fills about 65 percent of tile. Clean edges, no surrounding layout.\nConstraints: no wordmark, no letters other than the abstract A shape, no typography, no mockup, no extra symbols, no sparkle, no glowing halo, no strong bloom, no Git or GitHub brand symbol, no octopus, no tiny circuitry, no thin strokes, no ornamental borders. Keep extremely readable when scaled down.",
+  "references": [
+    "https://learn.microsoft.com/en-us/windows/apps/design/iconography/app-icon-design",
+    "https://developer.apple.com/design/human-interface-guidelines/app-icons/"
+  ],
+  "colors": {
+    "tile": "#0C182A",
+    "teal": "#05B5C7",
+    "cyan": "#38D6F0",
+    "ice": "#B0FFF5"
+  }
+}

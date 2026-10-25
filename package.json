@@ -9,6 +9,7 @@
     "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "tauri": "tauri",
+    "icons": "tauri icon public/logo.svg --ios-color \"#0c182a\"",
     "test": "node --test tests/",
     "check:release": "node scripts/check-release.mjs"
   },
