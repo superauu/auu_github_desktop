@@ -83,12 +83,15 @@ interface HeaderProps {
 const EMPTY_IGNORE_PATHS: string[] = [];
 
 /**
- * 菜单 select → 打开弹窗必须延迟一拍：DropdownMenu 卸载收尾（焦点归还/事件清理）
- * 与 Dialog 的 DismissibleLayer 监听存在竞态，WebView2 上弹窗会被同一轮交互误判为
- * 外部点击而立即关闭（表现为“点击没反应”）。齿轮按钮不经菜单，无此问题。
+ * 菜单 select → 打开弹窗必须延迟到菜单卸载完全落定之后。两条卸载级联：
+ * 1. Radix 的 select 自身收尾（菜单关闭、焦点归还触发器、事件层拆除）；
+ * 2. “添加账号”会同步置 isAuthenticated=false，整个账号菜单随条件渲染卸载。
+ * 两者都与 Dialog 挂载相撞时，WebView2 上弹窗会被瞬间关闭（用户侧“点击没反应”）；
+ * Chromium 时序不同故本地浏览器难以复现。30ms 宏任务足以让卸载与焦点归还全部
+ * 完成，且对交互无感知。所有“菜单项打开 ModalSurface 弹窗”的条目一律走此助手。
  */
 const openDialogAfterMenuTeardown = (open?: () => void): void => {
-  if (open) window.setTimeout(open, 0);
+  if (open) window.setTimeout(open, 30);
 };
 
 /**
@@ -1113,16 +1116,16 @@ export const Header: React.FC<HeaderProps> = ({
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
                 <DropdownMenu.Label className="px-3 py-2 text-[12px] text-muted-foreground">{t('composer.repositoryActions')}</DropdownMenu.Label>
-                <DropdownMenu.Item className="menu-item" onSelect={() => setCreateBranchModalOpen(true)}><GitBranchIcon className="h-4 w-4" />{t('header.branchAction')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => openDialogAfterMenuTeardown(() => setCreateBranchModalOpen(true))}><GitBranchIcon className="h-4 w-4" />{t('header.branchAction')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" disabled={isRefreshing} onSelect={() => void handleRefresh()}><RefreshCw className="h-4 w-4" />{t('header.refresh')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={() => void handleOpenTerminal()}><Terminal className="h-4 w-4" />{t('header.terminal')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item" onSelect={() => setIgnoreRepoPath(currentRepo.path)}><Shield className="h-4 w-4" />{t('ignore.manage')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => openDialogAfterMenuTeardown(() => setIgnoreRepoPath(currentRepo.path))}><Shield className="h-4 w-4" />{t('ignore.manage')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" onSelect={async () => {
                   const path = currentRepo.path;
                   try { await gitService.fetch(path, undefined, true); if (useRepoStore.getState().currentRepo?.path === path) await refreshAll(); toast.success(t('remote.pruneDone')); }
                   catch (error: any) { toast.error(t('header.fetchFailed'), error?.message); }
                 }}><RefreshCw className="h-4 w-4" />{t('remote.prune')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item" onSelect={() => setWorktreesRepoPath(currentRepo.path)}><FolderGit2 className="h-4 w-4" />{t('worktree.title')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => openDialogAfterMenuTeardown(() => setWorktreesRepoPath(currentRepo.path))}><FolderGit2 className="h-4 w-4" />{t('worktree.title')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="my-1 border-t border-border" />
                 <DropdownMenu.Item className="menu-item" disabled={isStashing || !hasChanges} onSelect={() => void handleQuickStash()}><Archive className="h-4 w-4" />{t('header.stash')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="menu-item" disabled={!stashes.length} onSelect={() => void handleQuickPop()}><Inbox className="h-4 w-4" />{t('header.pop')}</DropdownMenu.Item>
