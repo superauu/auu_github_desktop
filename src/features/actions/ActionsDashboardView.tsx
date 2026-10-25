@@ -20,6 +20,7 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
+import { confirmAction } from '@/stores/confirmStore';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
@@ -233,7 +234,14 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                     <Button
                       variant="destructive"
                       size="xs"
-                      onClick={() => cancelWorkflowRun(selectedRun.id)}
+                      onClick={async () => {
+                        if (await confirmAction({
+                          title: t('actions.cancelRunConfirmTitle'),
+                          description: t('actions.cancelRunConfirmDesc'),
+                          confirmLabel: t('actions.cancelRun'),
+                          danger: true,
+                        })) cancelWorkflowRun(selectedRun.id);
+                      }}
                       className="h-5 px-2 text-[11px] gap-1"
                     >
                       <Ban className="h-2.5 w-2.5" />

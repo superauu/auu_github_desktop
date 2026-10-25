@@ -848,6 +848,8 @@ export const zh = {
   'actions.resizeHint': '按住拖拽调节工作流列表宽度，双击恢复默认',
   'actions.runHistory': '运行历史记录 (Workflow Runs)',
   'actions.cancelRun': '取消运行',
+  'actions.cancelRunConfirmTitle': '确认取消此次运行？',
+  'actions.cancelRunConfirmDesc': '将终止进行中的 CI 运行，已完成步骤不会回滚；之后可重新运行整个工作流。',
   'actions.rerunFailed': '重跑失败',
   'actions.rerunAll': '重新运行全部',
   'actions.autoTriggered': '自动触发',

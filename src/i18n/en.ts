@@ -840,6 +840,8 @@ export const en = {
   'actions.resizeHint': 'Drag to resize the workflow list, double-click to reset',
   'actions.runHistory': 'Workflow Runs',
   'actions.cancelRun': 'Cancel run',
+  'actions.cancelRunConfirmTitle': 'Cancel this run?',
+  'actions.cancelRunConfirmDesc': 'This terminates the in-progress CI run. Completed steps will not be rolled back; you can re-run the whole workflow afterwards.',
   'actions.rerunFailed': 'Re-run failed jobs',
   'actions.rerunAll': 'Re-run all jobs',
   'actions.autoTriggered': 'Auto triggered',
