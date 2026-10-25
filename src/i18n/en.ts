@@ -14,6 +14,10 @@ import { releaseNotesEn } from './releaseNotes';
 import { prReviewEn } from './prReview';
 import { notificationsEn } from './notifications';
 import { workspacesEn } from './workspaces';
+import { repoToolsEn } from './repoTools';
+import { submodulesEn } from './submodules';
+import { lfsEn } from './lfs';
+import { signingEn } from './signing';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
@@ -50,6 +54,10 @@ export const en = {
   ...prReviewEn,
   ...notificationsEn,
   ...workspacesEn,
+  ...repoToolsEn,
+  ...submodulesEn,
+  ...lfsEn,
+  ...signingEn,
   'layout.pinNavigation': 'Pin left navigation',
   'layout.unpinNavigation': 'Unpin and hide navigation',
   'layout.pinNavigationDesc': 'Keep navigation visible and remember this choice. Turn off to hide it immediately; use the top-left button to open it temporarily.',

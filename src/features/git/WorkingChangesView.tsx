@@ -3,6 +3,7 @@ import { WorkingDiffContent } from './WorkingDiffContent';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import { stageSelectedLines } from '@/services/git/LineStagingService';
 import { CommitSplitDialog } from './CommitSplitDialog';
+import { RepositoryToolsDialog } from './RepositoryToolsDialog';
 import { useShallow } from 'zustand/react/shallow';
 import { VirtualRows } from '@/components/ui/VirtualRows';
 import { DiffFontControl } from '@/components/ui/DiffFontControl';
@@ -26,6 +27,7 @@ import {
   FileCode,
   Copy,
   Archive,
+  Boxes,
   Split,
   Shield,
   Download,
@@ -93,6 +95,7 @@ export const WorkingChangesView: React.FC = () => {
   const [selectedLines, setSelectedLines] = useState<Set<number>>(() => new Set());
   const [lineBusy, setLineBusy] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
+  const [repoToolsOpen, setRepoToolsOpen] = useState(false);
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
   const [copiedPath, setCopiedPath] = useState(false);
   const [showResolver, setShowResolver] = useState(true);
@@ -463,6 +466,7 @@ export const WorkingChangesView: React.FC = () => {
       {/* Top Conflict In-Progress Banner */}
       <ConflictBanner />
       {splitOpen && currentRepo && <CommitSplitDialog repoPath={currentRepo.path} onClose={() => setSplitOpen(false)} />}
+      {repoToolsOpen && currentRepo && <RepositoryToolsDialog repoPath={currentRepo.path} onClose={() => setRepoToolsOpen(false)} />}
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Changes File List Sub-panel */}
@@ -478,6 +482,9 @@ export const WorkingChangesView: React.FC = () => {
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="xs" title={t('ignore.manage')} onClick={() => setIgnorePaths([])}>
               <Shield className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="xs" title={t('repoTools.open')} onClick={() => setRepoToolsOpen(true)}>
+              <Boxes className="h-3.5 w-3.5" />
             </Button>
             {totalChanges > 0 && (
               <Button
