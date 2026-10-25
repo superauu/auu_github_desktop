@@ -18,6 +18,7 @@ import { repoToolsEn } from './repoTools';
 import { submodulesEn } from './submodules';
 import { lfsEn } from './lfs';
 import { signingEn } from './signing';
+import { forgeEn } from './forge';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
@@ -58,6 +59,7 @@ export const en = {
   ...submodulesEn,
   ...lfsEn,
   ...signingEn,
+  ...forgeEn,
   'layout.pinNavigation': 'Pin left navigation',
   'layout.unpinNavigation': 'Unpin and hide navigation',
   'layout.pinNavigationDesc': 'Keep navigation visible and remember this choice. Turn off to hide it immediately; use the top-left button to open it temporarily.',

@@ -19,6 +19,7 @@ import {
   X,
   Trash2,
   GitPullRequest,
+  Gitlab,
   Archive,
   GitMerge,
   UploadCloud,
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
+import { useForgeStore } from '@/stores/forgeStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { GitBranch, GitStash, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
@@ -79,6 +81,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
   } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
 
   const { pullRequests, selectPR } = useGitHubStore();
+  const forgePulls = useForgeStore((state) => state.pulls);
   const { panels } = useWorkspaceLayout();
   const { navigationPinned, setNavigationPinned } = useLayoutStore();
 
@@ -738,6 +741,30 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           </div>
           <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono">
             {pullRequests.length}
+          </Badge>
+        </button>
+
+        <button
+          aria-current={activeTab === 'forge' ? 'page' : undefined}
+          onClick={() => { setActiveTab('forge'); onNavigate?.(); }}
+          className={cn(
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
+            activeTab === 'forge'
+              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <Gitlab
+              className={cn(
+                "h-3.5 w-3.5",
+                activeTab === 'forge' ? "text-primary" : "text-muted-foreground"
+              )}
+            />
+            <span>{t('forge.nav')}</span>
+          </div>
+          <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono">
+            {forgePulls.length}
           </Badge>
         </button>
 
