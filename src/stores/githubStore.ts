@@ -91,21 +91,25 @@ function saveProfiles(profiles: GitHubProfile[], activeProfileId: string | null)
   } catch { /* 隐私模式/配额失败不阻断登录流程 */ }
 }
 
-/** 确保某 Profile 存在并登记刚验证过的 GitHub 账号摘要（label 即 login，登录/恢复会话后调用） */
+/** 确保某 Profile 存在并登记刚验证过的 GitHub 账号摘要（label 即 login，登录/恢复会话后调用）。
+ *  摘要登记门槛与 parseStoredProfiles 的读取门槛一致：login 与 avatarUrl 均非空才落盘，
+ *  避免"存得进、下次加载被剥掉"的往返不一致；拿不到有效摘要时仅更新 label、保留旧摘要。 */
 function withProfileIdentity(profiles: GitHubProfile[], id: string, verified: GitHubUser): GitHubProfile[] {
-  const summary: GitHubProfileUser = {
-    login: verified.login,
-    name: verified.name ?? null,
-    avatarUrl: verified.avatar_url,
-  };
+  const login = (verified.login ?? '').trim();
+  const avatarUrl = (verified.avatar_url ?? '').trim();
+  const summary: GitHubProfileUser | null = login && avatarUrl
+    ? { login, name: verified.name?.trim() || null, avatarUrl }
+    : null;
+  const sameSummary = (existing?: GitHubProfileUser) =>
+    (summary === null && existing === undefined)
+    || (summary !== null && existing !== undefined
+      && existing.login === summary.login
+      && existing.name === summary.name
+      && existing.avatarUrl === summary.avatarUrl);
   const existing = profiles.find((p) => p.id === id);
-  if (!existing) return [...profiles, { id, label: summary.login, user: summary }];
-  const unchanged = existing.label === summary.login
-    && existing.user?.login === summary.login
-    && existing.user?.name === summary.name
-    && existing.user?.avatarUrl === summary.avatarUrl;
-  if (unchanged) return profiles;
-  return profiles.map((p) => (p.id === id ? { ...p, label: summary.login, user: summary } : p));
+  if (!existing) return [...profiles, { id, label: login || id, ...(summary ? { user: summary } : {}) }];
+  if (existing.label === login && (summary === null ? existing.user === undefined : sameSummary(existing.user))) return profiles;
+  return profiles.map((p) => (p.id === id ? { ...p, label: login, ...(summary ? { user: summary } : {}) } : p));
 }
 
 const storedProfiles = typeof localStorage !== 'undefined'

@@ -6,6 +6,8 @@
  * 4. addProfile → 登录成功落新 Profile，取消（cancelAddProfile）回退原账号；
  * 5. removeProfile 删除对应 keyring 条目；移除活跃 Profile 时自动切到剩余第一个；
  * 6. logout 走 removeProfile 同路径；持久化数据形状非法时安全回退到空态。
+ * 7. 登录登记账号摘要（name/avatarUrl）：仅 login 与 avatarUrl 均有效时落盘，
+ *    与 parseStoredProfiles 的读取门槛一致；持久化的脏 user 形状在加载时剥离。
  */
 import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -223,6 +225,23 @@ test('login without any profile writes to the legacy default entry', async () =>
   assert.equal(store().activeProfileId, 'default');
 });
 
+test('login registers the account summary only when login and avatar are both present', async () => {
+  const original = app.githubService.verifyToken;
+  // API 返回完整资料 → 摘要与 label 一起登记并持久化，供账号列表离线渲染头像
+  app.githubService.verifyToken = async () => ({ login: 'carol', name: 'Carol Doe', avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' });
+  app.useGitHubStore.setState({ profiles: [], activeProfileId: null, isAuthenticated: false, token: null, user: null });
+  await store().login('carol-token');
+  const expectedSummary = { login: 'carol', name: 'Carol Doe', avatarUrl: 'https://avatars.githubusercontent.com/u/1?v=4' };
+  assert.deepEqual(store().profiles, [{ id: 'default', label: 'carol', user: expectedSummary }]);
+  assert.deepEqual(JSON.parse(saved.get('auu_git_profiles')).profiles[0].user, expectedSummary);
+  // API 缺 avatar（异常场景）→ 不创建摘要、仅登记 label，与 parseStoredProfiles 读取门槛一致
+  app.githubService.verifyToken = async () => ({ login: 'dave', avatar_url: '' });
+  app.useGitHubStore.setState({ profiles: [], activeProfileId: null, isAuthenticated: false, token: null, user: null });
+  await store().login('dave-token');
+  assert.deepEqual(store().profiles, [{ id: 'default', label: 'dave' }]);
+  app.githubService.verifyToken = original;
+});
+
 test('corrupted persisted profiles fall back to a safe empty state on a fresh module load', () => {
   assert.deepEqual(app.parseStoredProfiles('not-json'), { profiles: [], activeProfileId: null });
   const requireFresh = () => {
@@ -246,4 +265,27 @@ test('corrupted persisted profiles fall back to a safe empty state on a fresh mo
   saved.set('auu_git_profiles', JSON.stringify({ profiles: [{ id: 'p1', label: 'Work' }], activeProfileId: 'p1' }));
   fresh = requireFresh();
   assert.equal(fresh.useGitHubStore.getState().activeProfileId, 'p1');
+});
+
+test('persisted user summaries survive only with a valid shape (login + avatarUrl required)', () => {
+  const raw = JSON.stringify({
+    profiles: [
+      { id: 'p1', label: 'alice', user: { login: 'alice', name: 'Alice', avatarUrl: 'https://x/a.png' } },
+      { id: 'p2', label: 'bob', user: { login: 'bob', avatarUrl: '' } },
+      { id: 'p3', label: 'carol', user: 'junk' },
+      { id: 'p4', label: 'dave', user: { login: '', avatarUrl: 'https://x/d.png' } },
+      { id: 'p5', label: 'erin', user: { login: 'erin', name: 42, avatarUrl: 'https://x/e.png' } },
+    ],
+    activeProfileId: 'p1',
+  });
+  assert.deepEqual(app.parseStoredProfiles(raw), {
+    profiles: [
+      { id: 'p1', label: 'alice', user: { login: 'alice', name: 'Alice', avatarUrl: 'https://x/a.png' } },
+      { id: 'p2', label: 'bob' },
+      { id: 'p3', label: 'carol' },
+      { id: 'p4', label: 'dave' },
+      { id: 'p5', label: 'erin', user: { login: 'erin', name: null, avatarUrl: 'https://x/e.png' } },
+    ],
+    activeProfileId: 'p1',
+  });
 });
