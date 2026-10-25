@@ -95,6 +95,21 @@ const openDialogAfterMenuTeardown = (open?: () => void): void => {
 };
 
 /**
+ * 账号菜单在 WebView2 上的真实点击存在焦点振荡：菜单打开后 Radix 以每帧频率反复
+ * focus 当前 item，真实 pointerdown 打进这个振荡后 4ms 内焦点被夺走（focusout），
+ * Radix 判定焦点离开菜单并立即关闭——pointerup/click 落在已卸载的 DOM 上，onSelect
+ * 永远不触发（用户侧表现为点击没反应；CDP 合成输入与 Chromium 无此振荡，故本地
+ * 难以复现）。因此动作必须绑定在 onPointerDown 同步执行（此刻事件必达）；
+ * onSelect 保留原逻辑兜底——全部动作均为幂等 setState/有守卫的 store action，
+ * 双路径叠加无害。
+ */
+const selectOnPointerDown = (action: () => void) => ({
+  onPointerDown: (event: React.PointerEvent) => {
+    if (event.button === 0 && !event.ctrlKey && !event.metaKey) action();
+  },
+});
+
+/**
  * 仓库菜单里的单行仓库条目。
  * showGroupControl=false 时渲染与旧版完全一致的扁平行（无分组功能的零变化保证）；
  * true 时行尾追加“分组”入口，点击在行内展开二级指派面板（列出所有组，点击即指派/移出）。
@@ -613,6 +628,7 @@ export const Header: React.FC<HeaderProps> = ({
                       return (
                         <DropdownMenu.Item key={profile.id} className="menu-item" disabled={isActive}
                           onSelect={() => { if (!isActive) void switchProfile(profile.id); }}
+                          {...(isActive ? {} : selectOnPointerDown(() => void switchProfile(profile.id)))}
                         >
                           <Check className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'opacity-0')} />
                           <span className="truncate max-w-[150px]" title={profile.label}>{profile.label}</span>
@@ -620,10 +636,16 @@ export const Header: React.FC<HeaderProps> = ({
                       );
                     })}
                     <DropdownMenu.Separator className="my-1 border-t border-border" />
-                    <DropdownMenu.Item className="menu-item" onSelect={() => { addProfile(); openDialogAfterMenuTeardown(onOpenGitHubAuth); }}>
+                    <DropdownMenu.Item className="menu-item"
+                      onSelect={() => { addProfile(); openDialogAfterMenuTeardown(onOpenGitHubAuth); }}
+                      {...selectOnPointerDown(() => { addProfile(); openDialogAfterMenuTeardown(onOpenGitHubAuth); })}
+                    >
                       <Plus className="h-4 w-4" />{t('profiles.addAccount')}
                     </DropdownMenu.Item>
-                    <DropdownMenu.Item className="menu-item" onSelect={() => openDialogAfterMenuTeardown(onOpenAccountSettings ?? onOpenSettings)}>
+                    <DropdownMenu.Item className="menu-item"
+                      onSelect={() => openDialogAfterMenuTeardown(onOpenAccountSettings ?? onOpenSettings)}
+                      {...selectOnPointerDown(() => openDialogAfterMenuTeardown(onOpenAccountSettings ?? onOpenSettings))}
+                    >
                       <SettingsIcon className="h-4 w-4" />{t('profiles.manage')}
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>
