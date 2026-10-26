@@ -5,11 +5,11 @@ import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { version } from './package.json';
-import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io';
-import { directoryScope } from './scripts/dev-directory-scope';
-import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, submoduleAddSource, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy';
-import { createGitBinaryResolver } from './scripts/git-binary';
-import { AI_REQUEST_TIMEOUT_MS } from './src/services/ai/aiLimits';
+import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io.ts';
+import { directoryScope } from './scripts/dev-directory-scope.ts';
+import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, submoduleAddSource, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy.ts';
+import { createGitBinaryResolver } from './scripts/git-binary.ts';
+import { AI_REQUEST_TIMEOUT_MS } from './src/services/ai/aiLimits.ts';
 
 const MAX_BODY = 8 * 1024 * 1024;
 const json = (res: ServerResponse, status: number, data: unknown) => {

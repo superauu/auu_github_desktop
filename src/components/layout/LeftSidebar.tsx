@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { confirmAction } from '@/stores/confirmStore';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useRef, useEffect } from 'react';
 import { Gitlab } from '@/components/ui/brandIcons';
 import {
   GitBranch as GitBranchIcon,
@@ -53,7 +53,7 @@ import { MergeBranchModal } from '@/features/git/MergeBranchModal';
 import { RebaseBranchModal } from '@/features/git/RebaseBranchModal';
 import { HealthDiagnosisModal } from '@/features/git/HealthDiagnosisModal';
 import { DragDropActionModal } from '@/features/git/DragDropActionModal';
-import { RecoveryCenterDialog } from '@/features/git/RecoveryCenterDialog';
+const RecoveryCenterDialog = lazy(() => import('@/features/git/RecoveryCenterDialog').then(m => ({ default: m.RecoveryCenterDialog })));
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 
@@ -1593,7 +1593,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         open={healthModalOpen}
         onOpenChange={setHealthModalOpen}
       />
-      {recoveryOpen && currentRepo && <RecoveryCenterDialog key={currentRepo.path} repoPath={currentRepo.path} onClose={() => setRecoveryOpen(false)} />}
+      {recoveryOpen && currentRepo && <Suspense fallback={null}><RecoveryCenterDialog key={currentRepo.path} repoPath={currentRepo.path} onClose={() => setRecoveryOpen(false)} /></Suspense>}
       <DragDropActionModal
         open={dragDropModalOpen}
         onOpenChange={setDragDropModalOpen}
