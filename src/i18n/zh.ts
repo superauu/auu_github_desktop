@@ -19,6 +19,7 @@ import { submodulesZh } from './submodules';
 import { lfsZh } from './lfs';
 import { signingZh } from './signing';
 import { forgeZh } from './forge';
+import { reviewZh } from './review';
 /**
  * 中文资源包（基准语言）
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
@@ -60,6 +61,7 @@ export const zh = {
   ...lfsZh,
   ...signingZh,
   ...forgeZh,
+  ...reviewZh,
   'layout.pinNavigation': '固定左侧导航',
   'layout.unpinNavigation': '取消固定并收起导航',
   'layout.pinNavigationDesc': '保持导航常驻并记住选择；关闭后立即收起，可从左上角临时打开。',
