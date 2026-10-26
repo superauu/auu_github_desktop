@@ -167,6 +167,65 @@ test('history editor supports reorder and fixup, rejects published commits and m
   assert.equal(git(repo, 'log', '-1', '--format=%s').trim(), 'one'); assert.equal(git(repo, 'rev-list', '--count', 'HEAD').trim(), '3');
 });
 
+test('reword rewrites one message and preserves the rest of the history', async () => {
+  const repo = await fixture(); await change(repo, 'one.txt', 'one\n', 'one'); await change(repo, 'two.txt', 'two\n', 'two'); await change(repo, 'three.txt', 'three\n', 'three');
+  const plan = await app.historyWorkflowService.plan(repo, 3);
+  assert.equal(plan.published, false);
+  await app.historyWorkflowService.rewrite(repo, plan, plan.commits.map(commit => commit.subject === 'two'
+    ? { hash: commit.hash, action: 'reword', message: 'two (rewritten)\n\nnew body' }
+    : { hash: commit.hash, action: 'pick' }));
+  assert.deepEqual(git(repo, 'log', '--format=%s', '--reverse').trim().split(/\r?\n/), ['initial', 'one', 'two (rewritten)', 'three']);
+  assert.match(git(repo, 'log', '--reverse', '--format=%B').trim(), /new body/);
+  assert.equal(git(repo, 'rev-list', '--count', 'HEAD').trim(), '4');
+  assert.equal(git(repo, 'show', 'HEAD:one.txt'), 'one\n'); assert.equal(git(repo, 'show', 'HEAD:three.txt'), 'three\n');
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+  assert.equal(git(repo, 'status', '--porcelain').trim(), '');
+});
+
+test('drop removes a commit with its changes; mixed loop keeps remaining content', async () => {
+  const repo = await fixture(); await change(repo, 'one.txt', 'one\n', 'one'); await change(repo, 'two.txt', 'two\n', 'two'); await change(repo, 'three.txt', 'three\n', 'three');
+  const plan = await app.historyWorkflowService.plan(repo, 3);
+  const two = plan.commits.find(commit => commit.subject === 'two');
+  await app.historyWorkflowService.rewrite(repo, plan, plan.commits.map(commit => commit.hash === two.hash ? { hash: commit.hash, action: 'drop' } : { hash: commit.hash, action: 'pick' }));
+  assert.deepEqual(git(repo, 'log', '--format=%s', '--reverse').trim().split(/\r?\n/), ['initial', 'one', 'three']);
+  assert.equal(git(repo, 'rev-list', '--count', 'HEAD').trim(), '3');
+  assert.throws(() => git(repo, 'show', 'HEAD:two.txt'));
+  assert.equal(git(repo, 'show', 'HEAD:three.txt'), 'three\n');
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+});
+
+test('loop path rejects squash-first plans and reword without a usable message', async () => {
+  const repo = await fixture(); await change(repo, 'one.txt', 'one\n', 'one'); await change(repo, 'two.txt', 'two\n', 'two');
+  const plan = await app.historyWorkflowService.plan(repo, 2);
+  const steps = plan.commits.map(commit => ({ hash: commit.hash, action: commit === plan.commits[0] ? 'reword' : 'pick' }));
+  steps[0].message = '   ';
+  await assert.rejects(app.historyWorkflowService.rewrite(repo, plan, steps));
+  steps[0] = { hash: steps[0].hash, action: 'squash' };
+  await assert.rejects(app.historyWorkflowService.rewrite(repo, plan, steps));
+  steps[0] = { hash: steps[0].hash, action: 'reword', message: '-looks-like-an-option' };
+  await assert.rejects(app.historyWorkflowService.rewrite(repo, plan, steps));
+  // 失败重放不破坏现场：分支仍在原提交上、无 cherry-pick 残留
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+  assert.equal(git(repo, 'status', '--porcelain').trim(), '');
+});
+
+test('a conflicting replay is aborted and the branch is restored to its original head', async () => {
+  const repo = await fixture();
+  await change(repo, 'base.txt', 'base\n', 'base');
+  await change(repo, 'one.txt', 'one\n', 'one');            // 创建 one.txt
+  await change(repo, 'one.txt', 'one\ntwo\n', 'two');       // 基于其上的追加——丢弃创建提交后必然冲突
+  const plan = await app.historyWorkflowService.plan(repo, 2);
+  const original = git(repo, 'rev-parse', 'HEAD').trim();
+  const steps = plan.commits.map(commit => commit.subject === 'one' ? { hash: commit.hash, action: 'drop' } : { hash: commit.hash, action: 'pick' });
+  await assert.rejects(app.historyWorkflowService.rewrite(repo, plan, steps));
+  assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), original);
+  assert.equal(git(repo, 'branch', '--show-current').trim(), 'main');
+  assert.equal(git(repo, 'status', '--porcelain').trim(), '');
+  let cherryPickHead = '';
+  try { cherryPickHead = git(repo, 'rev-parse', '-q', '--verify', 'CHERRY_PICK_HEAD').trim(); } catch { /* 已随中止清理 */ }
+  assert.equal(cherryPickHead, '');
+});
+
 test('reflog recovery finds deleted branch commits and never overwrites an existing branch', async () => {
   const repo = await fixture(); git(repo, 'switch', '-c', 'lost'); await change(repo, 'lost.txt', 'recover me\n'); const hash = git(repo, 'rev-parse', 'HEAD').trim();
   git(repo, 'switch', 'main'); git(repo, 'branch', '-D', 'lost');

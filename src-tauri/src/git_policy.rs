@@ -1395,6 +1395,22 @@ mod tests {
         assert!(worktree_move_targets(&args(&["worktree", "add", "--", "dest"]), 0).is_empty());
     }
     #[test]
+    fn allows_history_replay_building_blocks() {
+        // 历史编辑器 reword/drop 的 cherry-pick 重放路径所用的全部命令与选项形态。
+        // 任一形态被未来收紧拒绝时，此测试先红，避免功能静默损坏。
+        let hex = |c: char| c.to_string().repeat(40);
+        for values in [
+            vec!["cherry-pick", "--keep-redundant-commits", &hex('a')],
+            vec!["cherry-pick", "--no-commit", &hex('b')],
+            vec!["checkout", "--detach", &hex('c')],
+            vec!["checkout", "-B", "feature"],
+            vec!["commit", "--allow-empty", "-m", "reworded message"],
+            vec!["commit", "--amend", "--no-edit"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+    }
+    #[test]
     fn classifies_local_transport_targets() {
         assert_eq!(local_transport_path("plain"), Some("plain".into()));
         assert_eq!(local_transport_path("./x"), Some("./x".into()));

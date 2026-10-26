@@ -4,12 +4,24 @@ import { parseGitLog } from './PorcelainParser';
 import { tNow } from '@/i18n';
 import type { GitCommit } from './types';
 
-export interface HistoryPlan { branch: string; head: string; base: string; commits: GitCommit[] }
-export interface HistoryStep { hash: string; action: 'pick' | 'squash' | 'fixup' }
+export interface HistoryPlan { branch: string; head: string; base: string; commits: GitCommit[]; published: boolean }
+export interface HistoryStep { hash: string; action: 'pick' | 'squash' | 'fixup' | 'reword' | 'drop'; message?: string }
 export interface ReflogEntry { hash: string; selector: string; subject: string; timestamp: number }
 /** Options for searchContents: pickaxe variant and an optional repository-relative pathspec filter. */
 export interface ContentSearchOptions { regex?: boolean; path?: string }
 const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
+/** 哈希与动作白名单：rebase 编辑器脚本路径与 cherry-pick 重放路径共用。 */
+const HASH = /^[0-9a-f]{40,64}$/;
+const REBASE_ACTIONS = ['pick', 'squash', 'fixup'];
+const ALL_ACTIONS = [...REBASE_ACTIONS, 'reword', 'drop'];
+/** reword 新信息的硬上限；防误粘贴超长文本，也与其余用户参数边界保持一致。 */
+const MESSAGE_LIMIT = 2000;
+
+/** reword 步骤必须携带一条可直接作为提交信息的新文本（argv 传递，不经 shell）。 */
+function validMessage(message: unknown): message is string {
+  return typeof message === 'string' && message.trim().length > 0 && message.length <= MESSAGE_LIMIT && !message.startsWith('-');
+}
+
 export const historyWorkflowService = {
   async plan(repoPath: string, count: number): Promise<HistoryPlan> {
     const branch = (await executeGit(['symbolic-ref', '--quiet', '--short', 'HEAD'], repoPath)).stdout.trim();
@@ -17,11 +29,24 @@ export const historyWorkflowService = {
     // The root has no parent onto which Git can replay; leave it as the base.
     if (commits[0]?.parents.length === 0) commits.shift();
     if (!commits.length || commits.some(commit => commit.parents.length !== 1)) throw new Error(tNow('flow.linearOnly'));
-    return { branch, head: commits[commits.length - 1].hash, base: commits[0].parents[0], commits };
+    // 已发布预检：与 rewrite 内的强制拒绝同一判定，供对话框提前警示而非事后失败。
+    const published = !!(await executeGit(['for-each-ref', `--contains=${commits[0].hash}`, '--format=%(refname)', 'refs/remotes/'], repoPath)).stdout.trim();
+    return { branch, head: commits[commits.length - 1].hash, base: commits[0].parents[0], commits, published };
   },
   async rewrite(repoPath: string, plan: HistoryPlan, steps: HistoryStep[]): Promise<void> {
-    if (!/^[0-9a-f]{40,64}$/.test(plan.base) || !/^[0-9a-f]{40,64}$/.test(plan.head)) throw new Error(tNow('flow.invalidPlan'));
-    if (!steps.length || steps[0].action !== 'pick' || steps.length !== plan.commits.length || new Set(steps.map(step => step.hash)).size !== steps.length || steps.some(step => !['pick', 'squash', 'fixup'].includes(step.action) || !/^[0-9a-f]{40,64}$/.test(step.hash) || !plan.commits.some(commit => commit.hash === step.hash))) throw new Error(tNow('flow.invalidPlan'));
+    if (!HASH.test(plan.base) || !HASH.test(plan.head)) throw new Error(tNow('flow.invalidPlan'));
+    const commonInvalid = !steps.length
+      || steps.length !== plan.commits.length
+      || new Set(steps.map(step => step.hash)).size !== steps.length
+      || steps.some(step => !ALL_ACTIONS.includes(step.action) || !HASH.test(step.hash) || !plan.commits.some(commit => commit.hash === step.hash))
+      || steps.some(step => step.action === 'reword' && !validMessage(step.message));
+    // 纯 pick/squash/fixup 走 rebase 编辑器脚本路径（首条必须保留，rebase 语义）；
+    // 含 reword/drop 走 cherry-pick 重放路径（首条不得为合并类——没有可并入的上一条）。
+    const loop = steps.some(step => step.action === 'reword' || step.action === 'drop');
+    const pathInvalid = loop
+      ? ['squash', 'fixup'].includes(steps[0].action)
+      : steps[0].action !== 'pick' || steps.some(step => !REBASE_ACTIONS.includes(step.action));
+    if (commonInvalid || pathInvalid) throw new Error(tNow('flow.invalidPlan'));
     return executeGitTransaction(repoPath, async git => {
       await requireClean(repoPath, git);
       const branch = (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'])).stdout.trim();
@@ -33,10 +58,38 @@ export const historyWorkflowService = {
       const published = await git(['for-each-ref', `--contains=${plan.commits[0].hash}`, '--format=%(refname)', 'refs/remotes/']);
       if (published.stdout.trim()) throw new Error(tNow('flow.published'));
       await savePoint(git, branch, head, 'rewrite');
-      // Only validated actions and hexadecimal OIDs enter this fixed editor script.
-      // Git supplies the todo path as $1. The final ':' consumes its appended argument.
-      const editor = `printf '%s\\n' ${steps.map(step => `'${step.action} ${step.hash}'`).join(' ')} > "$1"; :`;
-      await git(['-c', `sequence.editor=${editor}`, '-c', 'core.editor=true', '-c', 'rebase.updateRefs=false', 'rebase', '--interactive', plan.base]);
+      if (!loop) {
+        // Only validated actions and hexadecimal OIDs enter this fixed editor script.
+        // Git supplies the todo path as $1. The final ':' consumes its appended argument.
+        const editor = `printf '%s\\n' ${steps.map(step => `'${step.action} ${step.hash}'`).join(' ')} > "$1"; :`;
+        await git(['-c', `sequence.editor=${editor}`, '-c', 'core.editor=true', '-c', 'rebase.updateRefs=false', 'rebase', '--interactive', plan.base]);
+        return;
+      }
+      // reword/drop 重放：从基点分离后逐条 cherry-pick 重建，最后把分支指到新头。
+      // 全部参数为白名单内的固定选项与已校验哈希；reword 信息经 argv 传递，不进任何 shell。
+      // --keep-redundant-commits 让重放中变空的提交保持为空提交而不是中断。
+      try {
+        await git(['checkout', '--detach', plan.base]);
+        for (const step of steps) {
+          if (step.action === 'drop') continue;
+          if (step.action === 'reword') {
+            await git(['cherry-pick', '--no-commit', step.hash]);
+            await git(['commit', '--allow-empty', '-m', (step.message ?? '').replace(/\r\n/g, '\n')]);
+          } else if (step.action === 'pick') {
+            await git(['cherry-pick', '--keep-redundant-commits', step.hash]);
+          } else {
+            // squash/fixup：并入上一条并沿用其信息（与 rebase 路径在 core.editor=true 下行为一致）。
+            await git(['cherry-pick', '--no-commit', step.hash]);
+            await git(['commit', '--amend', '--no-edit']);
+          }
+        }
+      } catch (error) {
+        // 尽力把现场还原为原始分支（cherry-pick 中止 + 分支指回原头），失败不掩盖原始错误。
+        try { await git(['cherry-pick', '--abort']); } catch { /* 无进行中的 cherry-pick */ }
+        try { await git(['checkout', '-B', branch, head]); } catch { /* 分支还原失败时保留现场供恢复中心处理 */ }
+        throw error;
+      }
+      await git(['checkout', '-B', branch]);
     });
   },
   async reflog(repoPath: string): Promise<ReflogEntry[]> {
