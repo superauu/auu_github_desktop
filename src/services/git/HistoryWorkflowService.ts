@@ -23,15 +23,25 @@ function validMessage(message: unknown): message is string {
 }
 
 export const historyWorkflowService = {
-  async plan(repoPath: string, count: number): Promise<HistoryPlan> {
+  async plan(repoPath: string, count: number, base?: string): Promise<HistoryPlan> {
     const branch = (await executeGit(['symbolic-ref', '--quiet', '--short', 'HEAD'], repoPath)).stdout.trim();
-    const commits = parseGitLog((await executeGit(['log', '--first-parent', `--max-count=${Math.max(2, Math.min(30, count))}`, `--format=${format}`, 'HEAD', '--'], repoPath)).stdout).reverse();
+    // 显式 base(如审查检查点):整理范围锁定为 base..HEAD,超出整理上限时要求分批。
+    let range = 'HEAD';
+    let baseHash = '';
+    if (base !== undefined) {
+      if (!HASH.test(base)) throw new Error(tNow('flow.invalidPlan'));
+      baseHash = (await executeGit(['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`], repoPath)).stdout.trim();
+      const total = Number((await executeGit(['rev-list', '--count', `${baseHash}..HEAD`], repoPath)).stdout.trim());
+      if (total > 30) throw new Error(tNow('review.tidyRangeTooLarge'));
+      range = `${baseHash}..HEAD`;
+    }
+    const commits = parseGitLog((await executeGit(['log', '--first-parent', `--max-count=${Math.max(2, Math.min(30, count))}`, `--format=${format}`, range, '--'], repoPath)).stdout).reverse();
     // The root has no parent onto which Git can replay; leave it as the base.
     if (commits[0]?.parents.length === 0) commits.shift();
     if (!commits.length || commits.some(commit => commit.parents.length !== 1)) throw new Error(tNow('flow.linearOnly'));
     // 已发布预检：与 rewrite 内的强制拒绝同一判定，供对话框提前警示而非事后失败。
     const published = !!(await executeGit(['for-each-ref', `--contains=${commits[0].hash}`, '--format=%(refname)', 'refs/remotes/'], repoPath)).stdout.trim();
-    return { branch, head: commits[commits.length - 1].hash, base: commits[0].parents[0], commits, published };
+    return { branch, head: commits[commits.length - 1].hash, base: baseHash || commits[0].parents[0], commits, published };
   },
   async rewrite(repoPath: string, plan: HistoryPlan, steps: HistoryStep[]): Promise<void> {
     if (!HASH.test(plan.base) || !HASH.test(plan.head)) throw new Error(tNow('flow.invalidPlan'));

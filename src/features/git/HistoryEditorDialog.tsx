@@ -8,7 +8,7 @@ import { confirmAction } from '@/stores/confirmStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { toast } from '@/stores/toastStore';
 
-export function HistoryEditorDialog({ repoPath, onClose }: { repoPath: string; onClose: () => void }) {
+export function HistoryEditorDialog({ repoPath, onClose, baseHash, baseLabel }: { repoPath: string; onClose: () => void; baseHash?: string; baseLabel?: string }) {
   const { t } = useI18n();
   const [count, setCount] = useState(10);
   const [plan, setPlan] = useState<HistoryPlan | null>(null);
@@ -19,9 +19,9 @@ export function HistoryEditorDialog({ repoPath, onClose }: { repoPath: string; o
   const [drag, setDrag] = useState<number | null>(null);
   useEffect(() => {
     let active = true; setLoading(true); setError(''); setPlan(null);
-    historyWorkflowService.plan(repoPath, count).then(value => { if (active) { setPlan(value); setSteps(value.commits.map(commit => ({ hash: commit.hash, action: 'pick' }))); } }).catch(error => { if (active) setError(error.message); }).finally(() => { if (active) setLoading(false); });
+    historyWorkflowService.plan(repoPath, count, baseHash).then(value => { if (active) { setPlan(value); setSteps(value.commits.map(commit => ({ hash: commit.hash, action: 'pick' }))); } }).catch(error => { if (active) setError(error.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [repoPath, count]);
+  }, [repoPath, count, baseHash]);
   const move = (from: number, to: number) => {
     if (busy || to < 0 || to >= steps.length) return;
     setSteps(previous => { const next = [...previous]; const [step] = next.splice(from, 1); next.splice(to, 0, step); return next; });
@@ -53,7 +53,9 @@ export function HistoryEditorDialog({ repoPath, onClose }: { repoPath: string; o
   return <ModalSurface label={t('flow.historyEditor')} onDismiss={onClose} dismissible={!busy} className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4"><div className="w-full max-w-3xl max-h-[88dvh] flex flex-col gap-4 bg-card border border-border rounded-xl shadow-2xl p-5">
     <header className="flex justify-between items-center"><h2 className="font-semibold">{t('flow.historyEditor')}</h2><Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.close')} onClick={onClose}><X className="w-4 h-4" /></Button></header>
     <p className="text-sm text-muted-foreground">{t('flow.historyEditorHint')}</p>
-    <label className="text-sm flex gap-3 items-center">{t('flow.recentCommits')}<select disabled={busy} value={count} onChange={e => setCount(Number(e.target.value))} className="border border-input bg-background p-2 rounded">{[2, 5, 10, 20, 30].map(n => <option key={n}>{n}</option>)}</select></label>
+    {baseHash
+      ? <p className="text-sm text-muted-foreground">{t('review.tidyRangeHint').replace('{n}', String(plan?.commits.length ?? 0))}{baseLabel ? ` · ${baseLabel}` : ''}</p>
+      : <label className="text-sm flex gap-3 items-center">{t('flow.recentCommits')}<select disabled={busy} value={count} onChange={e => setCount(Number(e.target.value))} className="border border-input bg-background p-2 rounded">{[2, 5, 10, 20, 30].map(n => <option key={n}>{n}</option>)}</select></label>}
     {plan?.published && <p role="status" className="text-sm rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300 p-3">{t('flow.publishedWarn')}</p>}
     {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap wrap-break-word">{error}</p>}
     <ol className="min-h-0 overflow-y-auto space-y-2">{loading ? <p role="status">{t('common.loading')}</p> : plan && steps.map((step, index) => <li key={step.hash} draggable={!busy} onDragStart={() => setDrag(index)} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (drag !== null) move(drag, index); setDrag(null); }} onDragEnd={() => setDrag(null)} className="border border-border rounded-lg p-2 text-sm">
