@@ -45,7 +45,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
 
   return (
     <ModalSurface onDismiss={onClose} dismissible label={t('stashPreview.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-3xl max-h-[80vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col animate-in zoom-in-95"

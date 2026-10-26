@@ -172,7 +172,7 @@ const ConnectForm: React.FC<{ kind: 'gitlab' | 'gitea'; onDone: () => void }> = 
         value={server}
         onChange={(event) => setServer(event.target.value)}
         placeholder={t('forge.serverUrl')}
-        className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+        className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
       />
       <input
         type="password"
@@ -180,7 +180,7 @@ const ConnectForm: React.FC<{ kind: 'gitlab' | 'gitea'; onDone: () => void }> = 
         onChange={(event) => setToken(event.target.value)}
         placeholder={t('forge.token')}
         autoComplete="off"
-        className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+        className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
       />
       <p className="text-[11px] text-muted-foreground/70">{t('forge.tokenHint')}</p>
       <div className="flex justify-end">

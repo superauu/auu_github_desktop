@@ -196,7 +196,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
 
   return (
     <ModalSurface onDismiss={() => onOpenChange(false)} dismissible label={'GitHub'}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5 animate-in zoom-in-95"
@@ -242,7 +242,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 <img
                   src={user.avatar_url}
                   alt={user.login}
-                  className="w-12 h-12 rounded-full border-2 border-primary/20 shadow-sm"
+                  className="w-12 h-12 rounded-full border-2 border-primary/20 shadow-xs"
                 />
                 <div>
                   <div className="font-semibold text-sm text-foreground flex items-center gap-2">
@@ -298,7 +298,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 className={cn(
                   'flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                   authMode === 'oauth'
-                    ? 'bg-background text-foreground shadow-xs'
+                    ? 'bg-background text-foreground shadow-2xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -314,7 +314,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                 className={cn(
                   'flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                   authMode === 'pat'
-                    ? 'bg-background text-foreground shadow-xs'
+                    ? 'bg-background text-foreground shadow-2xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -359,7 +359,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                     <Button
                       onClick={handleStartOAuth}
                       disabled={isStartingOAuth}
-                      className="w-full text-xs h-9 gap-2 shadow-sm font-medium"
+                      className="w-full text-xs h-9 gap-2 shadow-xs font-medium"
                     >
                       {isStartingOAuth ? (
                         <>

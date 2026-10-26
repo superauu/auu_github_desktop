@@ -41,5 +41,5 @@ export function AppTextContextMenu() {
   if (context.content !== null) items.push({ id: 'copy-content', label: t('textMenu.copyContent'), icon: <Copy className="h-3.5 w-3.5" />, disabled: !context.content, onClick: run(() => navigator.clipboard.writeText(context.content!)) });
   if (context.editable) items.push({ id: 'paste', label: t('textMenu.paste'), icon: <ClipboardPaste className="h-3.5 w-3.5" />, shortcut: 'Ctrl+V', onClick: run(async () => { const text = await navigator.clipboard.readText(); if (text) context.replace(text); }) });
   items.push({ id: 'select-all', label: t(context.content !== null ? 'textMenu.selectContent' : 'textMenu.selectAll'), icon: <TextSelect className="h-3.5 w-3.5" />, onClick: context.selectAll });
-  return <ContextMenu open x={menu.x} y={menu.y} items={items} onClose={() => setMenu(null)} portalTarget={context.portalTarget} className="z-[110]" label={t('textMenu.title')} />;
+  return <ContextMenu open x={menu.x} y={menu.y} items={items} onClose={() => setMenu(null)} portalTarget={context.portalTarget} className="z-110" label={t('textMenu.title')} />;
 }

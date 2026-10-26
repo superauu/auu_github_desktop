@@ -875,7 +875,7 @@ export const WorkingChangesView: React.FC = () => {
                   className={cn(
                     "px-2 py-0.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'diff'
-                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                      ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -887,7 +887,7 @@ export const WorkingChangesView: React.FC = () => {
                   className={cn(
                     "px-2 py-0.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'blame'
-                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                      ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -899,7 +899,7 @@ export const WorkingChangesView: React.FC = () => {
                   className={cn(
                     "px-2 py-0.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
                     contentMode === 'history'
-                      ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                      ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -928,7 +928,7 @@ export const WorkingChangesView: React.FC = () => {
                     className={cn(
                       "px-2 py-0.5 rounded text-[12px] font-medium transition-colors",
                       !showResolver
-                        ? "bg-accent text-accent-foreground font-semibold shadow-xs"
+                        ? "bg-accent text-accent-foreground font-semibold shadow-2xs"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -945,7 +945,7 @@ export const WorkingChangesView: React.FC = () => {
                     className={cn(
                       "px-2 py-0.5 rounded text-[12px] font-medium transition-colors",
                       diffMode === 'unified'
-                        ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                        ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -956,7 +956,7 @@ export const WorkingChangesView: React.FC = () => {
                     className={cn(
                       "px-2 py-0.5 rounded text-[12px] font-medium transition-colors",
                       diffMode === 'split'
-                        ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                        ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >

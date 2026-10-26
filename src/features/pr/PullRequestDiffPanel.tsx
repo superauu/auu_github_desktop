@@ -182,7 +182,7 @@ export const PullRequestDiffPanel: React.FC<PullRequestDiffPanelProps> = ({
             placeholder={t('prReview.commentPlaceholder')}
             aria-label={t('prReview.commentPlaceholder')}
             rows={2}
-            className="w-full resize-none rounded-md border border-input bg-background/80 p-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full resize-none rounded-md border border-input bg-background/80 p-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
           />
           <div className="flex items-center justify-end gap-1.5">
             <Button type="button" variant="ghost" size="xs" className="h-6 text-[11px]" onClick={() => { setDraftTarget(null); setDraftText(''); }}>

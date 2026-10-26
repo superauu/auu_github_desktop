@@ -37,7 +37,7 @@ function ErrorFallback({ error, stack, retry }: { error: Error; stack: string; r
     </div>
     {copyStatus && <p role="status" className="text-xs">{t(copyStatus)}</p>}
     <details className="max-w-full text-xs"><summary className="cursor-pointer">{t('resilience.details')}</summary>
-      <pre className="mt-2 whitespace-pre-wrap break-words max-h-64 overflow-auto">{details}</pre>
+      <pre className="mt-2 whitespace-pre-wrap wrap-break-word max-h-64 overflow-auto">{details}</pre>
     </details>
   </div>;
 }

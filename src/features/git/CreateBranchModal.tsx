@@ -99,7 +99,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
 
   return (
     <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isSubmitting} label={t('header.branchAction')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -160,7 +160,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
                 onClick={() => setBaseType('current')}
                 className={`py-1.5 px-2 rounded-md transition-colors ${
                   baseType === 'current'
-                    ? 'bg-card text-foreground shadow-xs font-semibold'
+                    ? 'bg-card text-foreground shadow-2xs font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -171,7 +171,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
                 onClick={() => setBaseType('branch')}
                 className={`py-1.5 px-2 rounded-md transition-colors ${
                   baseType === 'branch'
-                    ? 'bg-card text-foreground shadow-xs font-semibold'
+                    ? 'bg-card text-foreground shadow-2xs font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -182,7 +182,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
                 onClick={() => setBaseType('commit')}
                 className={`py-1.5 px-2 rounded-md transition-colors ${
                   baseType === 'commit'
-                    ? 'bg-card text-foreground shadow-xs font-semibold'
+                    ? 'bg-card text-foreground shadow-2xs font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -200,7 +200,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
               <select
                 value={selectedBaseBranch}
                 onChange={(e) => setSelectedBaseBranch(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-hidden focus:ring-1 focus:ring-ring"
               >
                 {branches.map((b) => (
                   <option key={b.name} value={b.name}>
@@ -215,7 +215,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
                 <select
                   value={selectedCommitHash}
                   onChange={(e) => setSelectedCommitHash(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-ring truncate"
+                  className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground font-mono focus:outline-hidden focus:ring-1 focus:ring-ring truncate"
                 >
                   {commits.map((c) => (
                     <option key={c.hash} value={c.hash}>

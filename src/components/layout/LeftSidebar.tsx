@@ -677,7 +677,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'changes'
-              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -705,7 +705,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'history'
-              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -726,7 +726,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'pullRequests'
-              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -750,7 +750,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'forge'
-              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -774,7 +774,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
             activeTab === 'actions'
-              ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
         >
@@ -801,7 +801,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             className={cn(
               "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-colors",
               sidebarMode === 'list'
-                ? "bg-background text-foreground shadow-xs font-semibold"
+                ? "bg-background text-foreground shadow-2xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -813,7 +813,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             className={cn(
               "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-colors",
               sidebarMode === 'agents'
-                ? "bg-background text-foreground shadow-xs font-semibold"
+                ? "bg-background text-foreground shadow-2xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -996,7 +996,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                       branch.isCurrent
                                         ? "bg-primary/15 text-primary font-medium border border-primary/30"
                                         : isSelected
-                                        ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
+                                        ? "bg-accent text-foreground font-medium border border-border/80 shadow-2xs"
                                         : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                                     )}
                                     title={branch.name}
@@ -1067,9 +1067,9 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                             draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                             branch.isCurrent
-                              ? "bg-primary/20 text-primary font-semibold border border-primary/40 shadow-xs"
+                              ? "bg-primary/20 text-primary font-semibold border border-primary/40 shadow-2xs"
                               : isSelected
-                              ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
+                              ? "bg-accent text-foreground font-medium border border-border/80 shadow-2xs"
                               : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                           )}
                           title={branch.name}
@@ -1174,7 +1174,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                             draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                             isSelected
-                              ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
+                              ? "bg-accent text-foreground font-medium border border-border/80 shadow-2xs"
                               : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                           )}
                           title={`${t('sidebar.viewRemoteBranch')}: ${branch.name} (${t('sidebar.viewRemoteHint')})`}
@@ -1236,7 +1236,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                 dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                                 draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                                 isSelected
-                                  ? "bg-accent text-foreground font-medium border border-border/80 shadow-xs"
+                                  ? "bg-accent text-foreground font-medium border border-border/80 shadow-2xs"
                                   : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                               )}
                               title={`${t('sidebar.viewRemoteBranch')}: ${branch.name} (${t('sidebar.viewRemoteHint')})`}

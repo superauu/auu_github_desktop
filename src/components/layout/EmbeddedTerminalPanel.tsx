@@ -322,7 +322,7 @@ export const EmbeddedTerminalPanel: React.FC<EmbeddedTerminalPanelProps> = ({
             aria-busy={isExecuting}
             aria-label={t('terminal.placeholder')}
             placeholder={t('terminal.placeholder')}
-            className="min-w-0 flex-1 bg-transparent border-none outline-none text-foreground font-mono text-[12px] p-0 placeholder:text-muted-foreground focus:ring-0"
+            className="min-w-0 flex-1 bg-transparent border-none outline-hidden text-foreground font-mono text-[12px] p-0 placeholder:text-muted-foreground focus:ring-0"
             autoFocus
           />
         </form>

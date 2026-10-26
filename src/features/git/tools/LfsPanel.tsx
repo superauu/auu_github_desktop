@@ -142,7 +142,7 @@ export const LfsPanel: React.FC<{ repoPath: string }> = ({ repoPath }) => {
             value={pattern}
             onChange={(event) => setPattern(event.target.value)}
             placeholder={t('lfs.trackPattern')}
-            className="flex-1 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+            className="flex-1 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
           />
           <Button variant="default" size="xs" disabled={busy} onClick={submitTrack}>
             {t('lfs.addTrack')}

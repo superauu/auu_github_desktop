@@ -78,7 +78,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
     }
   };
 
-  return <ModalSurface label={t('releaseNotes.title')} onDismiss={onClose} dismissible={!generating} className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+  return <ModalSurface label={t('releaseNotes.title')} onDismiss={onClose} dismissible={!generating} className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
     <div className="w-full max-w-3xl max-h-[90dvh] bg-card border border-border rounded-xl shadow-2xl flex flex-col">
       <header className="flex items-center justify-between gap-3 p-5 border-b border-border">
         <h2 className="font-semibold flex gap-2 items-center"><Sparkles className="h-4 w-4 text-primary" />{t('releaseNotes.title')}</h2>
@@ -95,7 +95,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
             <span className="text-muted-foreground">{t('releaseNotes.from')}</span>
             <span className="relative block">
               <select
-                className="w-full h-9 appearance-none truncate border border-input rounded-md bg-background pl-3 pr-8 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="w-full h-9 appearance-none truncate border border-input rounded-md bg-background pl-3 pr-8 text-sm focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                 value={fromChoice}
                 disabled={generating}
                 onChange={event => { touched.current = true; setFromChoice(event.target.value); }}
@@ -109,7 +109,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
           <label className="block space-y-1 text-xs">
             <span className="text-muted-foreground">{t('releaseNotes.to')}</span>
             <input
-              className="w-full h-9 px-3 border border-input bg-background rounded-md text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40"
+              className="w-full h-9 px-3 border border-input bg-background rounded-md text-sm focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40"
               value={toRef}
               placeholder={t('releaseNotes.toPlaceholder')}
               disabled={generating}
@@ -120,7 +120,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
         {fromChoice === CUSTOM_REF && <label className="block space-y-1 text-xs">
           <span className="text-muted-foreground">{t('releaseNotes.customRef')}</span>
           <input
-            className="w-full h-9 px-3 border border-input bg-background rounded-md font-mono text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40"
+            className="w-full h-9 px-3 border border-input bg-background rounded-md font-mono text-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40"
             value={customFrom}
             placeholder={t('releaseNotes.customRefPlaceholder')}
             disabled={generating}
@@ -135,7 +135,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
                 <p className="text-destructive">{t('releaseNotes.aiFailed')}</p>
                 <details className="text-xs text-muted-foreground">
                   <summary className="cursor-pointer min-h-7">{t('ui.error.details')}</summary>
-                  <pre className="whitespace-pre-wrap break-words max-h-48 overflow-auto">{error}</pre>
+                  <pre className="whitespace-pre-wrap wrap-break-word max-h-48 overflow-auto">{error}</pre>
                 </details>
               </div>}
           {error === t('releaseNotes.configureAi') && onOpenSettings && <Button variant="outline" onClick={() => { onClose(); onOpenSettings(); }}>{t('releaseNotes.openSettings')}</Button>}
@@ -148,7 +148,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
             </p>
             <Button size="sm" variant="outline" onClick={() => void copy()}><Copy className="h-3.5 w-3.5" />{t('releaseNotes.copy')}</Button>
           </div>
-          <pre className="max-h-[46dvh] overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-mono text-xs leading-5 select-text">{result.markdown}</pre>
+          <pre className="max-h-[46dvh] overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md bg-muted p-3 font-mono text-xs leading-5 select-text">{result.markdown}</pre>
         </section>}
       </div>
       <footer className="flex flex-wrap items-center justify-end gap-2 p-4 border-t border-border">

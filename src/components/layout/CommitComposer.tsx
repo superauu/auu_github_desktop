@@ -169,12 +169,12 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     </details>
     {amend && <div role="status" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-2">
       <p className="font-semibold">{t('rightPane.commitAmend')} · {status?.currentBranch}</p>
-      <p className="break-words">{amendCommit?.shortHash} · {amendCommit?.subject}</p>
+      <p className="wrap-break-word">{amendCommit?.shortHash} · {amendCommit?.subject}</p>
       <p className="text-[12px] text-muted-foreground leading-relaxed">{t('composer.amendWarning')}</p>
       <button className="text-primary min-h-7" onClick={() => void toggleAmend(false)}>{t('composer.cancelAmend')}</button>
     </div>}
     </div>
-    <div className="commit-actions sticky bottom-0 z-10 mt-auto space-y-2 border-t border-border bg-card/95 backdrop-blur p-4">
+    <div className="commit-actions sticky bottom-0 z-10 mt-auto space-y-2 border-t border-border bg-card/95 backdrop-blur-sm p-4">
       <Button variant="outline" className="w-full min-h-9" disabled={busy || generating || amend || !currentRepo || !status || !(status.staged.length + status.unstaged.length + status.untracked.length)} title={t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => currentRepo && status && setBatchContext({ path: currentRepo.path, branch: status.currentBranch })}><Sparkles className="h-4 w-4 text-muted-foreground" />{t('batch.button')}</Button>
       <Button disabled={disabled} className="w-full h-10 font-semibold" onClick={() => void submit()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="truncate">{actionLabel}{scope.files.length ? ` (${scope.files.length})` : ''}</span></Button>
       <Button disabled={disabled} variant="outline" className="w-full h-9" onClick={() => void submit(true)}><Send className="h-4 w-4" />{t(amend ? 'composer.amendPush' : scope.stageAll ? 'rightPane.stageAllCommitPush' : 'rightPane.commitPush')}</Button>
@@ -184,7 +184,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
       <div className="w-full max-w-2xl rounded-xl border border-border bg-popover p-6 shadow-2xl space-y-4">
         <h2 className="font-semibold text-base">{t('composer.preview')}</h2>
         <p className="text-[12px] text-muted-foreground">{sourceLabel(preview)} · {t('composer.included').replace('{n}', String(scope.files.length))}</p>
-        <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed rounded-lg border border-border bg-muted/30 p-4">{preview.message}</pre>
+        <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap wrap-break-word font-sans text-[13px] leading-relaxed rounded-lg border border-border bg-muted/30 p-4">{preview.message}</pre>
         <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPreview(null)}>{t('composer.keepDraft')}</Button><Button onClick={() => { setMessage(preview.message); setOrigin(preview); setPreview(null); }}>{t(draft.current.trim() ? 'composer.replaceDraft' : 'composer.useMessage')}</Button></div>
       </div>
     </ModalSurface>}

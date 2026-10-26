@@ -478,7 +478,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background select-none">
       {/* Top Toolbar */}
-      <div className="h-10 px-3 border-b border-border flex items-center justify-between gap-2 bg-card/60 backdrop-blur-sm shrink-0">
+      <div className="h-10 px-3 border-b border-border flex items-center justify-between gap-2 bg-card/60 backdrop-blur-xs shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="p-1 rounded bg-rose-500/10 text-rose-400 shrink-0">
             <Split className="h-3.5 w-3.5" />
@@ -609,7 +609,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
             onClick={handleSaveAndStage}
             disabled={isSaving || hasConflicts || originalContent.current === undefined}
             className={cn(
-              "h-7 text-xs px-3 gap-1.5 shadow-sm transition-[background-color,border-color,box-shadow]",
+              "h-7 text-xs px-3 gap-1.5 shadow-xs transition-[background-color,border-color,box-shadow]",
               !hasConflicts
                 ? "bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse"
                 : "bg-primary hover:bg-primary/90 text-primary-foreground"

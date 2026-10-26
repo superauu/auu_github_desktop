@@ -197,7 +197,7 @@ export const PullRequestsView: React.FC = () => {
               className={cn(
                 "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
                 prFilterState === 'open'
-                  ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                  ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -208,7 +208,7 @@ export const PullRequestsView: React.FC = () => {
               className={cn(
                 "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
                 prFilterState === 'closed'
-                  ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                  ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -219,7 +219,7 @@ export const PullRequestsView: React.FC = () => {
               className={cn(
                 "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
                 prFilterState === 'all'
-                  ? "bg-accent text-accent-foreground shadow-xs font-semibold"
+                  ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -283,7 +283,7 @@ export const PullRequestsView: React.FC = () => {
                       className={cn(
                         "p-3 rounded-lg border text-xs cursor-pointer transition-[background-color,border-color,box-shadow] group space-y-2",
                         isSelected
-                          ? "bg-accent border-primary/40 shadow-xs"
+                          ? "bg-accent border-primary/40 shadow-2xs"
                           : "bg-card/40 border-border/60 hover:bg-accent/40"
                       )}
                     >
@@ -441,7 +441,7 @@ export const PullRequestsView: React.FC = () => {
                       <select
                         value={mergeMethod}
                         onChange={(e) => setMergeMethod(e.target.value as 'merge' | 'squash' | 'rebase')}
-                        className="h-7 rounded-md border border-border/70 bg-background/80 px-1.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="h-7 rounded-md border border-border/70 bg-background/80 px-1.5 text-[12px] text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
                         title={t('pr.mergeMethod')}
                         aria-label={t('pr.mergeMethod')}
                       >

@@ -179,7 +179,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
 
   return (
     <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isProcessing} label={t(mode === 'clone' ? 'repo.title.clone' : mode === 'init' ? 'repo.title.init' : 'repo.title.open')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none p-4"
     >
       <div
         className="w-full max-w-xl rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -216,7 +216,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             }}
             className={cn(
               "py-1.5 rounded text-xs font-medium transition-colors",
-              mode === 'open' ? "bg-accent text-accent-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              mode === 'open' ? "bg-accent text-accent-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t('repo.tab.open')}
@@ -228,7 +228,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             }}
             className={cn(
               "py-1.5 rounded text-xs font-medium transition-colors",
-              mode === 'clone' ? "bg-accent text-accent-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              mode === 'clone' ? "bg-accent text-accent-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t('repo.tab.clone')}
@@ -240,7 +240,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             }}
             className={cn(
               "py-1.5 rounded text-xs font-medium transition-colors",
-              mode === 'init' ? "bg-accent text-accent-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              mode === 'init' ? "bg-accent text-accent-foreground shadow-2xs" : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t('repo.tab.init')}

@@ -512,13 +512,13 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Logo */}
             <div className="flex items-center gap-1.5 px-2 mr-1 shrink-0 select-none">
               <img src="/logo.svg" alt="AuuGit" draggable={false} className="h-5 w-5 shrink-0" />
-              <span className="font-display font-bold text-[12px] tracking-[0.14em] bg-gradient-to-r from-cyan-600 to-sky-400 dark:from-cyan-200 dark:to-sky-300 bg-clip-text text-transparent hidden sm:inline-block">
+              <span className="font-display font-bold text-[12px] tracking-[0.14em] bg-linear-to-r from-cyan-600 to-sky-400 dark:from-cyan-200 dark:to-sky-300 bg-clip-text text-transparent hidden sm:inline-block">
                 AuuGit
               </span>
             </div>
 
             {/* Vertical divider */}
-            <div className="h-4 w-[1px] bg-border/60 mx-1 shrink-0" />
+            <div className="h-4 w-px bg-border/60 mx-1 shrink-0" />
 
             {/* Repo Tabs Container */}
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5" role="list" data-keyboard-list>
@@ -888,7 +888,7 @@ export const Header: React.FC<HeaderProps> = ({
                             onKeyDown={(event) => { if (event.key === 'Enter') handleCreateGroup(); }}
                             placeholder={t('workspaces.createPlaceholder')}
                             aria-label={t('workspaces.create')}
-                            className="flex-1 min-w-0 h-7 px-2 text-xs bg-background/60 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                            className="flex-1 min-w-0 h-7 px-2 text-xs bg-background/60 border border-border/50 rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                           />
                           <button
                             onClick={handleCreateGroup}
@@ -1013,7 +1013,7 @@ export const Header: React.FC<HeaderProps> = ({
                         value={branchFilter}
                         onChange={(e) => setBranchFilter(e.target.value)}
                         placeholder={t('header.branchMenu.searchPlaceholder')} aria-label={t('header.branchMenu.searchPlaceholder')}
-                        className="w-full h-7 pl-7 pr-6 text-xs bg-secondary/40 border border-border/50 rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                        className="w-full h-7 pl-7 pr-6 text-xs bg-secondary/40 border border-border/50 rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                         autoFocus
                       />
                       {branchFilter && (

@@ -175,13 +175,13 @@ export const SigningPanel: React.FC<{ repoPath: string }> = ({ repoPath }) => {
                 value={genName}
                 onChange={(event) => setGenName(event.target.value)}
                 placeholder={t('signing.generateName')}
-                className="flex-1 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+                className="flex-1 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
               />
               <input
                 value={genComment}
                 onChange={(event) => setGenComment(event.target.value)}
                 placeholder={t('signing.generateComment')}
-                className="w-44 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+                className="w-44 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
               />
             </div>
             <div className="flex justify-end">
@@ -226,7 +226,7 @@ export const SigningPanel: React.FC<{ repoPath: string }> = ({ repoPath }) => {
           value={manualKey}
           onChange={(event) => { setManualKey(event.target.value); setSelected(''); }}
           placeholder={t('signing.manualKey')}
-          className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+          className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
         />
       </section>
 

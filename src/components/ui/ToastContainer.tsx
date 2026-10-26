@@ -21,7 +21,7 @@ export const ToastContainer: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return createPortal(
-    <div data-auugit-toast className="fixed bottom-9 right-4 z-[100] flex flex-col gap-2 pointer-events-none max-w-sm w-full select-none">
+    <div data-auugit-toast className="fixed bottom-9 right-4 z-100 flex flex-col gap-2 pointer-events-none max-w-sm w-full select-none">
       {toasts.map((toast) => (
         <ToastCard key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
       ))}
@@ -73,7 +73,7 @@ const ToastCard: React.FC<{ toast: ToastItem; onClose: () => void }> = ({ toast,
             {toast.title}
           </div>
           {toast.type === 'error' && toast.description ? <ErrorNotice error={toast.description} compact /> : toast.description && (
-            <div className="text-[12px] text-muted-foreground leading-relaxed break-words">
+            <div className="text-[12px] text-muted-foreground leading-relaxed wrap-break-word">
               {toast.description}
             </div>
           )}

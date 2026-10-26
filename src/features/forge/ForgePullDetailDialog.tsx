@@ -39,7 +39,7 @@ export const ForgePullDetailDialog: React.FC<{ pull: ForgePullRequest; onClose: 
       onDismiss={onClose}
       dismissible
       label={t('forge.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-2xl max-h-[85vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col animate-in zoom-in-95"
@@ -74,7 +74,7 @@ export const ForgePullDetailDialog: React.FC<{ pull: ForgePullRequest; onClose: 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-4">
           <section className="space-y-1.5">
             <h3 className="text-[12px] font-semibold text-foreground">{t('forge.detail.description')}</h3>
-            <pre className="rounded border border-border bg-accent/10 px-3 py-2 text-[12px] text-muted-foreground whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+            <pre className="rounded border border-border bg-accent/10 px-3 py-2 text-[12px] text-muted-foreground whitespace-pre-wrap wrap-break-word max-h-48 overflow-y-auto">
               {detail?.description || '—'}
             </pre>
           </section>
@@ -91,7 +91,7 @@ export const ForgePullDetailDialog: React.FC<{ pull: ForgePullRequest; onClose: 
                       <span className="font-mono">{comment.author}</span>
                       <span>{new Date(comment.createdAt).toLocaleString()}</span>
                     </div>
-                    <p className="text-[12px] text-foreground whitespace-pre-wrap break-words mt-1">{comment.body}</p>
+                    <p className="text-[12px] text-foreground whitespace-pre-wrap wrap-break-word mt-1">{comment.body}</p>
                   </li>
                 ))}
               </ul>

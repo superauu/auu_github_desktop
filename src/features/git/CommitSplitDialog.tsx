@@ -40,7 +40,7 @@ export function CommitSplitDialog({ repoPath, onClose }: { repoPath: string; onC
       toast.success(t('flow.groupStaged')); onClose();
     } catch (error: any) { setError(error.message); } finally { setBusy(false); }
   };
-  return <ModalSurface label={t('flow.splitCommits')} onDismiss={onClose} dismissible={!busy} className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"><div className="w-full max-w-3xl max-h-[88dvh] flex flex-col gap-4 bg-card border border-border rounded-xl shadow-2xl p-5">
+  return <ModalSurface label={t('flow.splitCommits')} onDismiss={onClose} dismissible={!busy} className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4"><div className="w-full max-w-3xl max-h-[88dvh] flex flex-col gap-4 bg-card border border-border rounded-xl shadow-2xl p-5">
     <header className="flex items-center justify-between"><h2 className="font-semibold">{t('flow.splitCommits')}</h2><Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.close')} onClick={onClose}><X className="w-4 h-4" /></Button></header>
     <p className="text-sm text-muted-foreground">{t('flow.splitHint')}</p>
     <div className="flex gap-2"><Button variant="outline" disabled={busy || !plan?.files.length} onClick={() => setAi(true)}><Sparkles className="w-4 h-4" />{t('flow.aiGroups')}</Button><Button variant="ghost" disabled={busy || groups.length >= 12 || !plan} onClick={() => setGroups(previous => [...previous, { id: `split-g${++splitGroupSeq}`, title: `chore: ${t('flow.updateGroup')}`, files: [] }])}><Plus className="w-4 h-4" />{t('flow.addGroup')}</Button></div>

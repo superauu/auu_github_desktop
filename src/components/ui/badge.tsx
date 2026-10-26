@@ -11,7 +11,7 @@ function Badge({
   ...props
 }: BadgeProps) {
   const variantClasses = {
-    default: "border-transparent bg-primary text-primary-foreground shadow",
+    default: "border-transparent bg-primary text-primary-foreground shadow-sm",
     secondary: "border-transparent bg-secondary text-secondary-foreground",
     destructive: "border-transparent bg-destructive/15 text-destructive border border-destructive/20",
     outline: "text-foreground border border-border",
@@ -23,7 +23,7 @@ function Badge({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-[12px] leading-none min-h-[18px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 select-none",
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[12px] leading-none min-h-[18px] font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 select-none",
         variantClasses[variant],
         className
       )}

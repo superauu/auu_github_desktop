@@ -59,10 +59,10 @@ function DispatchForm({ owner, repo, workflow }: { owner: string; repo: string; 
   };
   const selectClass = 'w-full h-8 px-2.5 rounded-md text-xs bg-background border border-border';
   return <ModalSurface onDismiss={close} dismissible={!submitting} label={t('dispatch.title')}
-    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs">
     <div className="w-full max-w-md max-h-[85vh] overflow-y-auto bg-card border border-border rounded-xl shadow-2xl p-5 space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0"><h2 className="text-sm font-semibold">{t('dispatch.title')}</h2><p className="text-xs text-muted-foreground break-words">{workflow.name}</p></div>
+        <div className="min-w-0"><h2 className="text-sm font-semibold">{t('dispatch.title')}</h2><p className="text-xs text-muted-foreground wrap-break-word">{workflow.name}</p></div>
         <Button variant="ghost" size="xs" disabled={submitting} onClick={close} aria-label={t('common.close')}><X className="h-4 w-4" /></Button>
       </div>
       <form onSubmit={submit} className="space-y-4">
@@ -72,13 +72,13 @@ function DispatchForm({ owner, repo, workflow }: { owner: string; repo: string; 
           </select>
         </label>
         {loading && <p role="status" className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />{t('dispatch.loadingInputs')}</p>}
-        {error && <div role="alert" className="text-xs text-destructive space-y-2"><p className="break-words">{t(error.startsWith('dispatch.') ? error : 'dispatch.loadOrRunFailed')}{!error.startsWith('dispatch.') && `: ${error}`}</p>
+        {error && <div role="alert" className="text-xs text-destructive space-y-2"><p className="wrap-break-word">{t(error.startsWith('dispatch.') ? error : 'dispatch.loadOrRunFailed')}{!error.startsWith('dispatch.') && `: ${error}`}</p>
           {!ready && <Button type="button" variant="outline" size="xs" onClick={() => setAttempt(a => a + 1)}>{t('resilience.retry')}</Button>}
         </div>}
         {ready && !inputs.length && <p className="text-xs text-muted-foreground">{t('dispatch.noInputs')}</p>}
         {ready && inputs.map(input => <label key={input.name} className="block space-y-1.5 text-xs" htmlFor={`workflow-input-${input.name}`}>
           <span className="font-medium">{input.name}{input.required ? ' *' : ''}</span>
-          {input.description && <span className="block text-muted-foreground whitespace-pre-wrap break-words">{input.description}</span>}
+          {input.description && <span className="block text-muted-foreground whitespace-pre-wrap wrap-break-word">{input.description}</span>}
           {input.type === 'choice' || input.type === 'boolean' ?
             <select id={`workflow-input-${input.name}`} disabled={submitting} required={input.required} className={selectClass} value={values[input.name] ?? ''}
               onChange={e => setValues(v => ({ ...v, [input.name]: e.target.value }))}>

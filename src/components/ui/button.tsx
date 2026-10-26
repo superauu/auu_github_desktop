@@ -21,13 +21,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
 
     const variantClasses = {
-      default: "glass-button glass-button-primary bg-primary text-primary-foreground shadow hover:bg-primary/90 active:scale-[0.98]",
-      destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 active:scale-[0.98]",
-      outline: "glass-button glass-button-outline border border-border bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground active:scale-[0.98]",
-      secondary: "glass-button glass-button-secondary bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 active:scale-[0.98]",
+      default: "glass-button glass-button-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98]",
+      destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90 active:scale-[0.98]",
+      outline: "glass-button glass-button-outline border border-border bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground active:scale-[0.98]",
+      secondary: "glass-button glass-button-secondary bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80 active:scale-[0.98]",
       ghost: "hover:bg-accent hover:text-accent-foreground active:scale-[0.98]",
       link: "text-primary underline-offset-4 hover:underline",
-      glass: "glass-button glass-button-outline border border-border text-foreground hover:bg-accent/50 shadow-sm",
+      glass: "glass-button glass-button-outline border border-border text-foreground hover:bg-accent/50 shadow-xs",
     };
 
     const sizeClasses = {
@@ -41,7 +41,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-[color,background-color,border-color,box-shadow,opacity] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none select-none",
+          "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-[color,background-color,border-color,box-shadow,opacity] focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none select-none",
           variantClasses[variant],
           sizeClasses[size],
           className

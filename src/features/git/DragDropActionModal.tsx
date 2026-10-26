@@ -59,7 +59,7 @@ export function DragDropActionModal({ open, onOpenChange, sourceBranch: source, 
       setBusy(false);
     }
   };
-  return <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!busy} label={t('drag.title')} className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+  return <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!busy} label={t('drag.title')} className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4">
     <div className="w-full max-w-2xl max-h-[90dvh] rounded-xl border border-border bg-card shadow-2xl p-5 flex flex-col gap-4">
       <header className="flex items-center justify-between gap-2"><h2 className="font-semibold flex items-center gap-2"><GitMerge className="w-5 h-5 text-primary" />{t('drag.title')}</h2><Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.close')} onClick={() => onOpenChange(false)}><X className="w-4 h-4" /></Button></header>
       <div className="min-h-0 overflow-y-auto space-y-4">
@@ -78,7 +78,7 @@ export function DragDropActionModal({ open, onOpenChange, sourceBranch: source, 
               <svg viewBox="0 0 280 48" className="w-full h-12 text-primary" aria-hidden="true">
                 {action !== 'merge' || (preview.targetOnly === 0 && !noFf) || preview.sourceOnly === 0 ? <><path d="M12 24 H264" fill="none" stroke="currentColor" strokeWidth="2" />{[18, 76, 134, 192, 256].map((x, i) => <circle key={x} cx={x} cy="24" r="5" fill={i > 2 ? 'currentColor' : 'hsl(var(--background))'} stroke="currentColor" strokeWidth="2" />)}</> : <><path d="M18 32 H256 M76 32 C94 32 90 10 116 10 H190 C218 10 218 32 240 32" fill="none" stroke="currentColor" strokeWidth="2" />{[[18,32],[76,32],[140,10],[190,10],[190,32],[240,32]].map(([x,y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="4" fill="currentColor" />)}</>}
               </svg>
-              <p className="break-words">{t(action !== 'merge' ? 'safety.rebaseHistory' : preview.sourceOnly === 0 ? 'safety.upToDate' : preview.targetOnly === 0 && !noFf ? 'safety.fastForward' : 'safety.mergeHistory')}</p>
+              <p className="wrap-break-word">{t(action !== 'merge' ? 'safety.rebaseHistory' : preview.sourceOnly === 0 ? 'safety.upToDate' : preview.targetOnly === 0 && !noFf ? 'safety.fastForward' : 'safety.mergeHistory')}</p>
               <p className="text-muted-foreground">{t('safety.diagramHint')}</p>
             </div>
             <p className={`text-sm ${preview.conflictCheck === 'conflicts' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{t(`safety.conflict.${preview.conflictCheck}`)}</p>
@@ -90,7 +90,7 @@ export function DragDropActionModal({ open, onOpenChange, sourceBranch: source, 
         </section>
         <p className="text-xs text-muted-foreground">{t('safety.recoveryHint')}</p>
         {affected.isRemote && <p role="alert" className="text-sm text-destructive">{t('safety.localRequired')}</p>}
-        {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap break-words">{error}</p>}
+        {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap wrap-break-word">{error}</p>}
         {error && <AiExplanationButton repoPath={repoPath} scope={{ kind: 'error', message: error }} />}
       </div>
       <footer className="flex items-center justify-between gap-3 border-t border-border pt-3"><p className="text-xs text-muted-foreground break-all">{action === 'merge' ? `${upstream.name} → ${affected.name}` : `${affected.name} → ${t('safety.onto')} ${upstream.name}`}</p><Button disabled={busy || !ready || affected.isRemote} onClick={() => void execute()}>{busy && <Loader2 className="w-4 h-4 animate-spin" />}{t('drag.confirm')}</Button></footer>

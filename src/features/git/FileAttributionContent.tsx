@@ -47,7 +47,7 @@ export function FileAttributionContent({ contentMode, diffFontSize, loadingFileD
               blameLines.map((bl, idx) => (
                 <div
                   key={idx}
-                  className="flex items-stretch border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/[0.03] transition-colors"
+                  className="flex items-stretch border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/3 transition-colors"
                 >
                   <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 bg-muted/40 dark:bg-background/20">
                     {bl.lineNo}
@@ -93,7 +93,7 @@ export function FileAttributionContent({ contentMode, diffFontSize, loadingFileD
                 <div
                   key={c.hash}
                   onClick={() => jumpToCommit(c.hash)}
-                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/[0.03] cursor-pointer transition-colors text-[12px]"
+                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/25 hover:bg-accent/40 dark:hover:bg-white/3 cursor-pointer transition-colors text-[12px]"
                 >
                   <span className="font-mono text-cyan-600 dark:text-cyan-400 shrink-0">
                     {c.shortHash}

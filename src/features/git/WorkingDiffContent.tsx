@@ -57,7 +57,7 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, currentRepo, ac
                   return (
                     <div
                       key={idx}
-                      className="grid grid-cols-2 divide-x divide-border/60 hover:bg-accent/40 dark:hover:bg-white/[0.03] transition-colors"
+                      className="grid grid-cols-2 divide-x divide-border/60 hover:bg-accent/40 dark:hover:bg-white/3 transition-colors"
                     >
                       {/* Left Column (Original / Deletions) */}
                       <div
@@ -121,7 +121,7 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, currentRepo, ac
                   <div
                     key={idx}
                     className={cn(
-                      "flex items-stretch hover:bg-accent/40 dark:hover:bg-white/[0.03] transition-colors border-l-2",
+                      "flex items-stretch hover:bg-accent/40 dark:hover:bg-white/3 transition-colors border-l-2",
                       isAdd
                         ? "diff-line-add font-medium dark:font-normal"
                         : isDel

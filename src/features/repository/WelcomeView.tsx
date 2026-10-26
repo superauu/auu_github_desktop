@@ -100,7 +100,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
                 {t('welcome.initRepoDesc')}
               </div>
             </div>
-            <span className="absolute bottom-0 left-0 h-[2px] w-full origin-left scale-x-0 group-hover:scale-x-100 bg-gradient-to-r from-emerald-400 to-cyan-400 transition-transform duration-300" aria-hidden />
+            <span className="absolute bottom-0 left-0 h-[2px] w-full origin-left scale-x-0 group-hover:scale-x-100 bg-linear-to-r from-emerald-400 to-cyan-400 transition-transform duration-300" aria-hidden />
           </button>
         </div>
 
@@ -114,7 +114,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
               </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-card/30 divide-y divide-border/60 overflow-hidden shadow-sm" role="list" data-keyboard-list>
+            <div className="rounded-xl border border-border bg-card/30 divide-y divide-border/60 overflow-hidden shadow-xs" role="list" data-keyboard-list>
               {recentRepos.map((repo) => (
                 <div
                   key={repo.path}

@@ -216,7 +216,7 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
       onDismiss={requestClose}
       dismissible
       label={t('bisect.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-2xl max-h-[85vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col animate-in zoom-in-95"

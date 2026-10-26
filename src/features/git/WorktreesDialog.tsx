@@ -56,7 +56,7 @@ export function WorktreesDialog({ repoPath, onClose }: { repoPath: string; onClo
   };
   const fieldClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
   return <ModalSurface label={t('worktree.title')} onDismiss={onClose} dismissible={!busy}
-    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs">
     <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl p-5 gap-4">
       <div className="flex items-center justify-between shrink-0"><h2 className="font-semibold flex items-center gap-2"><FolderGit2 className="h-4 w-4" />{t('worktree.title')}</h2><Button size="icon" variant="ghost" disabled={busy} onClick={onClose} aria-label={t('common.close')}><X className="h-4 w-4" /></Button></div>
       <div className="overflow-y-auto min-h-0 space-y-4 pr-1">
@@ -79,7 +79,7 @@ export function WorktreesDialog({ repoPath, onClose }: { repoPath: string; onClo
         </> : <label className="block text-sm space-y-1"><span>{t('worktree.branchName')}</span><select className={fieldClass} value={existingBranch} disabled={busy} onChange={event => setExistingBranch(event.target.value)}><option value="" disabled>{t('worktree.pickFree')}</option>{freeBranches.map(branch => <option key={branch.name} value={branch.name}>{branch.name}</option>)}</select></label>}
         <label className="block text-sm space-y-1"><span>{t('worktree.path')}</span><input className={`${fieldClass} font-mono`} disabled={busy} value={targetPath} onChange={event => setManualPath(event.target.value)} /></label>
         <label className="text-xs flex items-center gap-2"><input type="checkbox" checked={openAfter} disabled={busy} onChange={event => setOpenAfter(event.target.checked)} />{t('worktree.openAfter')}</label>
-        {error && <p role="alert" className="text-sm text-destructive break-words">{error}</p>}
+        {error && <p role="alert" className="text-sm text-destructive wrap-break-word">{error}</p>}
       </div>
       <div className="flex justify-end gap-2 border-t border-border pt-3 shrink-0"><Button variant="outline" disabled={busy} onClick={onClose}>{t('common.close')}</Button><Button disabled={busy || loading || !name || !targetPath || (!newMode && !freeBranches.some(branch => branch.name === existingBranch))} onClick={() => void create()}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}{t('worktree.create')}</Button></div>
     </div>

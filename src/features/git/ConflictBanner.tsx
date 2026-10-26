@@ -62,7 +62,7 @@ export const ConflictBanner: React.FC = () => {
   };
 
   return (
-    <div className="shrink-0 border-b border-border bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/5 dark:from-amber-950/40 dark:via-rose-950/30 dark:to-card px-4 py-2.5 flex items-center justify-between gap-4 select-none animate-in fade-in-0 duration-200">
+    <div className="shrink-0 border-b border-border bg-linear-to-r from-amber-500/10 via-rose-500/10 to-amber-500/5 dark:from-amber-950/40 dark:via-rose-950/30 dark:to-card px-4 py-2.5 flex items-center justify-between gap-4 select-none animate-in fade-in-0 duration-200">
       {/* Left info area */}
       <div className="flex items-center gap-3 min-w-0">
         <div
@@ -162,7 +162,7 @@ export const ConflictBanner: React.FC = () => {
           size="xs"
           onClick={handleComplete}
           disabled={!isAllResolved || isSubmitting}
-          className={`h-7 text-xs gap-1.5 shadow-sm transition-[background-color,border-color,box-shadow] ${
+          className={`h-7 text-xs gap-1.5 shadow-xs transition-[background-color,border-color,box-shadow] ${
             isAllResolved
               ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
               : 'opacity-60 cursor-not-allowed'

@@ -387,7 +387,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
   return (
     <ModalSurface onDismiss={() => onOpenChange(false)} dismissible label={t('settings.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-2xl h-[500px] rounded-xl border border-border bg-card shadow-2xl flex overflow-hidden animate-in zoom-in-95"
@@ -516,7 +516,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         className={cn(
                           "p-3 rounded-lg border text-left transition-[background-color,border-color,box-shadow] relative",
                           theme === item.id
-                            ? "border-primary bg-primary/10 text-foreground shadow-sm"
+                            ? "border-primary bg-primary/10 text-foreground shadow-xs"
                             : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -692,7 +692,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       className={cn(
                         "p-3 rounded-lg border text-left transition-[background-color,border-color,box-shadow] relative space-y-1",
                         aiConfig.provider === 'builtin'
-                          ? "border-primary bg-primary/10 text-foreground shadow-sm"
+                          ? "border-primary bg-primary/10 text-foreground shadow-xs"
                           : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
                       )}
                     >
@@ -713,7 +713,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       className={cn(
                         "p-3 rounded-lg border text-left transition-[background-color,border-color,box-shadow] relative space-y-1",
                         aiConfig.provider === 'openai-compatible'
-                          ? "border-primary bg-primary/10 text-foreground shadow-sm"
+                          ? "border-primary bg-primary/10 text-foreground shadow-xs"
                           : "border-border hover:bg-accent/40 text-muted-foreground hover:text-foreground"
                       )}
                     >
@@ -796,7 +796,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     </div>
                     {aiTestResult && <div ref={aiTestResultRef} role={aiTestResult.type === 'error' ? 'alert' : 'status'} className={cn('rounded-lg border p-3 text-xs select-text', aiTestResult.type === 'error' ? 'border-destructive/40 bg-destructive/10' : 'border-emerald-500/40 bg-emerald-500/10')}>
                       <p className="font-medium">{aiTestResult.title}</p>
-                      {aiTestResult.detail && <pre className="mt-1 max-h-64 overflow-auto text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-mono text-xs">{aiTestResult.detail}</pre>}
+                      {aiTestResult.detail && <pre className="mt-1 max-h-64 overflow-auto text-muted-foreground whitespace-pre-wrap wrap-break-word wrap-anywhere font-mono text-xs">{aiTestResult.detail}</pre>}
                     </div>}
                   </div>
                 )}
@@ -840,7 +840,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             )}
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <ProfileAvatar src={avatarSrc} login={login} className="w-8 h-8 rounded-full border border-border/80 shadow-xs shrink-0" />
+                              <ProfileAvatar src={avatarSrc} login={login} className="w-8 h-8 rounded-full border border-border/80 shadow-2xs shrink-0" />
                               <div className="min-w-0">
                                 <div className="font-semibold text-xs text-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
                                   <span className="truncate min-w-16">{login}</span>

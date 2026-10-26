@@ -178,7 +178,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
 
   return (
     <ModalSurface onDismiss={onClose} dismissible={!submitting} label={t('prReview.dialogLabel')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-4xl h-[88vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95"
@@ -311,7 +311,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                           )}
                         </div>
                         {entry.body && (
-                          <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap break-words">{entry.body}</div>
+                          <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap wrap-break-word">{entry.body}</div>
                         )}
                       </div>
                     );
@@ -440,7 +440,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                   placeholder={t('prReview.bodyPlaceholder')}
                   aria-label={t('prReview.bodyLabel')}
                   rows={2}
-                  className="w-full resize-none rounded-lg border border-input bg-background/80 p-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="w-full resize-none rounded-lg border border-input bg-background/80 p-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
                 />
 
                 {pending.length > 0 ? (

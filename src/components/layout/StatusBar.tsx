@@ -38,7 +38,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
               <span className="max-w-48 truncate">{currentRepo.name}</span>
             </div>
 
-            <div className="h-3 w-[1px] bg-border" />
+            <div className="h-3 w-px bg-border" />
 
             <div className="flex min-w-0 items-center gap-1 text-foreground/80" title={currentBranchName}>
               <GitBranchIcon className="h-3 w-3 shrink-0" />
@@ -47,7 +47,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
 
             {status && (
               <>
-                <div className="h-3 w-[1px] bg-border" />
+                <div className="h-3 w-px bg-border" />
                 <div className="statusbar-tracking flex shrink-0 items-center gap-2 font-mono text-[12px]" title={t('remote.outgoingHint')}>
                   <span className="max-w-36 truncate">{status.trackingBranch || t('remote.noUpstream')}</span>
                   <span className="text-git-added">↑ {status.ahead}</span>
@@ -76,7 +76,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
           </>}
         </div>
 
-        <div className="h-3 w-[1px] bg-border" />
+        <div className="h-3 w-px bg-border" />
 
         <div className="flex items-center gap-1 text-[12px] text-muted-foreground/80 font-mono">
           <Terminal className="h-3 w-3" />

@@ -131,7 +131,7 @@ export const JobLogsViewerModal: React.FC = () => {
 
   return (
     <ModalSurface onDismiss={closeJobLogs} label={t('actions.viewLogs')}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs animate-in fade-in duration-150 select-none"
     >
       <div
         className={cn(
@@ -229,7 +229,7 @@ export const JobLogsViewerModal: React.FC = () => {
             {loading && <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />}
             <p className={failed ? 'text-destructive' : 'text-muted-foreground'}>{t(loading ? 'logs.loading' : waiting ? 'logs.waiting' : 'logs.failed')}</p>
             {waiting && <p className="text-muted-foreground">{t('logs.waitingHint')}</p>}
-            {failed && <p className="text-muted-foreground break-words select-text">{activeJobLogs.error}</p>}
+            {failed && <p className="text-muted-foreground wrap-break-word select-text">{activeJobLogs.error}</p>}
           </div> : filteredLines.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground/50">
               {t(searchQuery.trim() ? 'logs.noMatch' : 'logs.empty')}

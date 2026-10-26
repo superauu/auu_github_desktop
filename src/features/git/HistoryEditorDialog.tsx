@@ -50,12 +50,12 @@ export function HistoryEditorDialog({ repoPath, onClose }: { repoPath: string; o
     catch (error: any) { setError(`${error.message}\n${t('flow.rewriteFailure')}`); }
     finally { if (useRepoStore.getState().currentRepo?.path === repoPath) await useRepoStore.getState().refreshAll(); setBusy(false); }
   };
-  return <ModalSurface label={t('flow.historyEditor')} onDismiss={onClose} dismissible={!busy} className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"><div className="w-full max-w-3xl max-h-[88dvh] flex flex-col gap-4 bg-card border border-border rounded-xl shadow-2xl p-5">
+  return <ModalSurface label={t('flow.historyEditor')} onDismiss={onClose} dismissible={!busy} className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4"><div className="w-full max-w-3xl max-h-[88dvh] flex flex-col gap-4 bg-card border border-border rounded-xl shadow-2xl p-5">
     <header className="flex justify-between items-center"><h2 className="font-semibold">{t('flow.historyEditor')}</h2><Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.close')} onClick={onClose}><X className="w-4 h-4" /></Button></header>
     <p className="text-sm text-muted-foreground">{t('flow.historyEditorHint')}</p>
     <label className="text-sm flex gap-3 items-center">{t('flow.recentCommits')}<select disabled={busy} value={count} onChange={e => setCount(Number(e.target.value))} className="border border-input bg-background p-2 rounded">{[2, 5, 10, 20, 30].map(n => <option key={n}>{n}</option>)}</select></label>
     {plan?.published && <p role="status" className="text-sm rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300 p-3">{t('flow.publishedWarn')}</p>}
-    {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap break-words">{error}</p>}
+    {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap wrap-break-word">{error}</p>}
     <ol className="min-h-0 overflow-y-auto space-y-2">{loading ? <p role="status">{t('common.loading')}</p> : plan && steps.map((step, index) => <li key={step.hash} draggable={!busy} onDragStart={() => setDrag(index)} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (drag !== null) move(drag, index); setDrag(null); }} onDragEnd={() => setDrag(null)} className="border border-border rounded-lg p-2 text-sm">
       <div className="flex items-center gap-2">
         <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" /><span className="text-xs text-muted-foreground">{index + 1}</span><div className="min-w-0 flex-1"><p className={step.action === 'drop' ? 'truncate line-through text-muted-foreground' : 'truncate'}>{plan.commits.find(commit => commit.hash === step.hash)?.subject}</p><code className="text-xs text-muted-foreground">{step.hash.slice(0, 8)}</code></div>

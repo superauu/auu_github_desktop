@@ -91,7 +91,7 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
   };
 
   return <ModalSurface onDismiss={onClose} dismissible={!busy} label={t(managing ? 'ignore.manage' : 'ignore.title')}
-    className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+    className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4">
     <div className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl p-5 gap-4">
       <div className="flex items-center justify-between gap-2 shrink-0">
         <h2 className="font-semibold">{t(managing ? 'ignore.manage' : 'ignore.title')}</h2>
@@ -142,7 +142,7 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
         <p className="text-xs text-muted-foreground">{t('ignore.checkHint')}</p>
         {queryResult && <p className="text-xs font-mono break-all select-text" role="status">{queryResult}</p>}
       </div>}
-      {(error || built.error) && <div role="alert" className="text-sm text-destructive break-words space-y-2">
+      {(error || built.error) && <div role="alert" className="text-sm text-destructive wrap-break-word space-y-2">
         <p>{error.includes('changed on disk') ? t('ignore.changed') : error || built.error}</p>
         {error && <Button size="sm" variant="outline" disabled={busy} onClick={() => { delete drafts.current[scope]; setReload(value => value + 1); }}>{t('ignore.reload')}</Button>}
       </div>}

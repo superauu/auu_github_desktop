@@ -42,7 +42,7 @@ function HistoryRow({ entry, lang, onRecovery }: { entry: OperationEntry; lang: 
     <div className="flex flex-wrap justify-between gap-2"><strong className={entry.type === 'error' ? 'text-destructive' : ''}>{entry.title}</strong>
       <span className="text-muted-foreground">{new Date(entry.createdAt).toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en')} · {t(`operationLog.${entry.type}`)}{entry.elapsedMs != null && ` · ${(entry.elapsedMs / 1000).toFixed(1)}s`}</span></div>
     {entry.repoPath && <p className="text-muted-foreground break-all">{entry.repoPath}</p>}
-    {entry.description && <details open={entry.type === 'error'}><summary className="cursor-pointer text-muted-foreground">{t('operationLog.details')}</summary><pre className="mt-2 whitespace-pre-wrap break-words max-h-48 overflow-auto font-mono">{entry.description}</pre></details>}
+    {entry.description && <details open={entry.type === 'error'}><summary className="cursor-pointer text-muted-foreground">{t('operationLog.details')}</summary><pre className="mt-2 whitespace-pre-wrap wrap-break-word max-h-48 overflow-auto font-mono">{entry.description}</pre></details>}
     <div className="flex flex-wrap gap-2">
       <Button size="xs" variant="ghost" onClick={async () => {
         try { await navigator.clipboard.writeText([entry.title, entry.repoPath, entry.description].filter(Boolean).join('\n')); setFeedback(t('resilience.copied')); }
@@ -56,6 +56,6 @@ function HistoryRow({ entry, lang, onRecovery }: { entry: OperationEntry; lang: 
       }}>{entry.action.label}</Button>}
       {entry.repoPath && <Button size="xs" variant="outline" onClick={() => onRecovery(entry.repoPath!)}>{t('operationLog.recovery')}</Button>}
     </div>
-    {feedback && <p role="status" className="break-words">{feedback}</p>}
+    {feedback && <p role="status" className="wrap-break-word">{feedback}</p>}
   </article>;
 }

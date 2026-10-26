@@ -98,7 +98,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
 
   return (
     <ModalSurface onDismiss={() => onOpenChange(false)} dismissible label={t('diag.title')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none p-4"
     >
       <div
         className="w-full max-w-xl max-h-[85vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-4 animate-in zoom-in-95 overflow-hidden"

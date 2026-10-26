@@ -146,20 +146,20 @@ export const SubmodulesPanel: React.FC<{ repoPath: string }> = ({ repoPath }) =>
             value={addUrl}
             onChange={(event) => setAddUrl(event.target.value)}
             placeholder={t('submodules.addUrl')}
-            className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+            className="w-full h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
           />
           <div className="flex items-center gap-2">
             <input
               value={addPath}
               onChange={(event) => setAddPath(event.target.value)}
               placeholder={t('submodules.addPath')}
-              className="flex-1 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+              className="flex-1 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
             />
             <input
               value={addBranch}
               onChange={(event) => setAddBranch(event.target.value)}
               placeholder={t('submodules.addBranch')}
-              className="w-40 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary"
+              className="w-40 h-7 px-2 rounded border border-border bg-background text-[12px] text-foreground placeholder:text-muted-foreground/70 focus:outline-hidden focus:border-primary"
             />
           </div>
           <div className="flex justify-end">

@@ -100,8 +100,8 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
           <button className="font-mono text-primary min-h-8 flex items-center gap-2" title={t('rightPane.copyHashTitle')} onClick={async () => { try { await navigator.clipboard.writeText(selectedCommit.hash); toast.success(t('rightPane.copyHash')); } catch { toast.error(t('rightPane.operationFailed')); } }}>{selectedCommit.shortHash}<Copy className="h-3.5 w-3.5" /></button>
           <Button variant="outline" size="xs" onClick={async () => { if ((draft.title.trim() || draft.body.trim()) && !await confirmAction({ title: t('composer.replaceDraft'), description: t('composer.replaceDraftDesc'), danger: false })) return; if (useRepoStore.getState().currentRepo?.path !== currentRepo.path) return; draft.setTitle(selectedCommit.subject); draft.setBody(selectedCommit.body || ''); draft.setOrigin(null); useRepoStore.getState().setActiveTab('changes'); }}>{t('composer.copyMessage')}</Button>
         </div>
-        <div className="select-text space-y-3"><h3 className="font-semibold text-[14px] leading-relaxed break-words">{selectedCommit.subject}</h3>
-          {selectedCommit.body && <details><summary className="text-muted-foreground cursor-pointer min-h-7">{t('composer.commitBody')}</summary><p className="mt-2 whitespace-pre-wrap leading-relaxed break-words">{selectedCommit.body}</p></details>}
+        <div className="select-text space-y-3"><h3 className="font-semibold text-[14px] leading-relaxed wrap-break-word">{selectedCommit.subject}</h3>
+          {selectedCommit.body && <details><summary className="text-muted-foreground cursor-pointer min-h-7">{t('composer.commitBody')}</summary><p className="mt-2 whitespace-pre-wrap leading-relaxed wrap-break-word">{selectedCommit.body}</p></details>}
           <p className="text-[12px] text-muted-foreground">{selectedCommit.author.name} · {selectedCommit.author.relativeDate}</p>
           {selectedCommit.parents.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.parentLabel')} <span className="font-mono">{selectedCommit.parents.map(hash => hash.slice(0, 7)).join(', ')}</span></p>}
         </div>
@@ -117,7 +117,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
           {!checks.length ? <p className="text-[12px] text-muted-foreground">{t('rightPane.noChecks')}</p> : checks.map(check => {
             const Icon = check.conclusion === 'success' ? CheckCircle2 : check.status === 'completed' ? AlertCircle : Clock;
             const color = check.conclusion === 'success' ? 'text-git-added' : ['failure', 'timed_out', 'action_required'].includes(check.conclusion || '') ? 'text-destructive' : 'text-muted-foreground';
-            return <div key={check.id} className="flex items-start gap-2 py-1"><Icon className={`h-4 w-4 shrink-0 ${color}`} /><span className="min-w-0 break-words">{check.name} · {check.conclusion || check.status}</span></div>;
+            return <div key={check.id} className="flex items-start gap-2 py-1"><Icon className={`h-4 w-4 shrink-0 ${color}`} /><span className="min-w-0 wrap-break-word">{check.name} · {check.conclusion || check.status}</span></div>;
           })}
         </section>
       </div> : <p className="text-muted-foreground">{t('composer.selectCommit')}</p>)}

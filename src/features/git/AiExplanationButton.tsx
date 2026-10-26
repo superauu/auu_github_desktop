@@ -40,17 +40,17 @@ export function AiExplanationButton({ repoPath, scope, onOpenSettings }: { repoP
   };
   return <>
     <Button variant="outline" size="sm" onClick={() => void inspect()}><Sparkles className="w-3.5 h-3.5" />{heading}</Button>
-    {open && <ModalSurface label={heading} onDismiss={close} className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+    {open && <ModalSurface label={heading} onDismiss={close} className="fixed inset-0 z-60 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="w-full max-w-2xl max-h-[85dvh] flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-2xl">
         <header className="flex items-center justify-between"><h2 className="font-semibold flex gap-2 items-center"><Sparkles className="w-5 h-5 text-primary" />{heading}</h2><Button variant="ghost" size="icon" aria-label={t('common.close')} onClick={close}><X className="w-4 h-4" /></Button></header>
         <div className="min-h-0 overflow-y-auto space-y-4">
           <p className="text-sm text-muted-foreground">{t('explain.consent')} <span className="font-mono break-all">{config.model} · {config.endpoint}</span></p>
           {!configured && <div className="text-sm space-y-2"><p>{t('explain.configure')}</p>{onOpenSettings && <Button variant="outline" onClick={() => { close(); onOpenSettings(); }}>{t('explain.settings')}</Button>}</div>}
           {scope.kind === 'error' && <div className="rounded-lg border border-border p-3 text-sm whitespace-pre-wrap"><h3 className="font-medium mb-2">{t('flow.localDiagnosis')}</h3>{diagnoseGitError(scope.message)}</div>}
-          {context && <details open={!answer}><summary className="text-sm cursor-pointer">{t('explain.context')} · {context.text.length.toLocaleString()} {t('explain.characters')}</summary>{context.truncated && <p className="text-xs text-amber-600 dark:text-amber-400 my-2">{t('explain.truncated')}</p>}<pre className="mt-2 text-xs whitespace-pre-wrap break-words max-h-56 overflow-y-auto rounded-lg bg-muted p-3 select-text">{context.text}</pre></details>}
+          {context && <details open={!answer}><summary className="text-sm cursor-pointer">{t('explain.context')} · {context.text.length.toLocaleString()} {t('explain.characters')}</summary>{context.truncated && <p className="text-xs text-amber-600 dark:text-amber-400 my-2">{t('explain.truncated')}</p>}<pre className="mt-2 text-xs whitespace-pre-wrap wrap-break-word max-h-56 overflow-y-auto rounded-lg bg-muted p-3 select-text">{context.text}</pre></details>}
           {busy && <p role="status" className="text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />{t('common.loading')}</p>}
-          {error && <p role="alert" className="text-sm text-destructive break-words">{error}</p>}
-          {answer && <div className="text-sm whitespace-pre-wrap break-words leading-relaxed select-text" aria-live="polite">{answer}</div>}
+          {error && <p role="alert" className="text-sm text-destructive wrap-break-word">{error}</p>}
+          {answer && <div className="text-sm whitespace-pre-wrap wrap-break-word leading-relaxed select-text" aria-live="polite">{answer}</div>}
         </div>
         <footer className="flex justify-end gap-2"><Button variant="ghost" onClick={close}>{t('common.close')}</Button><Button disabled={busy || !context || !configured} onClick={() => void generate()}>{t(answer ? 'explain.again' : 'explain.generate')}</Button></footer>
       </div>

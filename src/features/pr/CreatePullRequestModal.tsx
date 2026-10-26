@@ -195,7 +195,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
 
   return (
     <ModalSurface onDismiss={() => onOpenChange(false)} dismissible={!isSubmitting} label={t('pr.createTitle')}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in-0 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
       <div
         className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-card shadow-2xl p-5 space-y-4 animate-in zoom-in-95"
@@ -236,7 +236,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
                 value={headBranch}
                 disabled={isSubmitting}
                 onChange={(e) => setHeadBranch(e.target.value)}
-                className="w-full h-8 rounded-lg border border-input bg-background/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full h-8 rounded-lg border border-input bg-background/80 px-2 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
               >
                 {localBranchNames.map((name) => (
                   <option key={name} value={name}>
@@ -254,7 +254,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
                 value={baseBranch}
                 onChange={(e) => setBaseBranch(e.target.value)}
                 disabled={loadingBase || isSubmitting || baseFor !== targetKey}
-                className="w-full h-8 rounded-lg border border-input bg-background/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                className="w-full h-8 rounded-lg border border-input bg-background/80 px-2 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring disabled:opacity-50"
               >
                 {loadingBase ? (
                   <option value="">{t('pr.loadingBase')}</option>
@@ -325,7 +325,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               onChange={(e) => setBody(e.target.value)}
               placeholder={t('pr.descPlaceholder')}
               rows={4}
-              className="w-full resize-none rounded-lg border border-input bg-background/80 p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors font-mono"
+              className="w-full resize-none rounded-lg border border-input bg-background/80 p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-ring transition-colors font-mono"
             />
           </div>
 

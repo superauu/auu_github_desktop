@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { version } from './package.json' with { type: 'json' };
+import auugitPackage from './package.json' with { type: 'json' };
 import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io.ts';
 import { directoryScope } from './scripts/dev-directory-scope.ts';
 import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, submoduleAddSource, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy.ts';
@@ -215,7 +215,7 @@ export function gitApiPlugin(): Plugin {
               json(res, 400, { error: 'AI endpoint must use HTTPS or local HTTP' }); return;
             }
             const payload = JSON.parse(data.body);
-            const headers: Record<string, string> = { 'Content-Type': 'application/json', 'User-Agent': `AuuGit/${version}` };
+            const headers: Record<string, string> = { 'Content-Type': 'application/json', 'User-Agent': `AuuGit/${auugitPackage.version}` };
             if (typeof data.authorization === 'string' && data.authorization) headers.Authorization = data.authorization;
             for (const [name, value] of Object.entries(data.extraHeaders || {})) {
               if (!['x-api-key', 'anthropic-version', 'x-opencode-session'].includes(name) || typeof value !== 'string') {

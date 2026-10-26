@@ -479,7 +479,7 @@ export const CommitHistoryView: React.FC = () => {
                       "h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors group",
                       isSelected
                         ? "bg-sky-500/15 dark:bg-sky-500/20 border-l-2 border-sky-600 dark:border-sky-400  text-foreground font-medium"
-                        : "hover:bg-accent/50 dark:hover:bg-white/[0.03] border-l-2 border-transparent text-muted-foreground hover:text-foreground"
+                        : "hover:bg-accent/50 dark:hover:bg-white/3 border-l-2 border-transparent text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {/* Spacer for Graph column */}
@@ -521,7 +521,7 @@ export const CommitHistoryView: React.FC = () => {
                                   onDrop={e => { e.preventDefault(); e.stopPropagation(); const target = branches.find(branch => branch.name === cleanName && !branch.isRemote); if (!target) return; const name = e.dataTransfer.getData('text/plain'); const source = branches.find(branch => branch.name === name); if (source && source.name !== target.name) { setBranchDrop({ source, target }); return; } const hash = e.dataTransfer.getData('application/x-auugit-commit'); if (target.isCurrent && /^[0-9a-f]{40,64}$/.test(hash)) { void (async () => { if (await confirmAction({ title: t('history.ctx.cherryPick'), description: `${hash.slice(0, 8)} → ${target.name}`, danger: false })) await runCommitAction(() => cherryPickCommit(hash), t('history.cherryPicked').replace('{h}', hash.slice(0, 8)), t('history.cherryPickFailed')); })(); } }}
                                   title={`${ref} · ${t('flow.graphDragHint')}`}
                                   className={cn(
-                                    "h-5 px-1.5 text-[12px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-xs border transition-colors",
+                                    "h-5 px-1.5 text-[12px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-2xs border transition-colors",
                                     isTag && "bg-amber-500/15 text-git-tag border-amber-500/40",
                                     isHead && "bg-primary/10 text-primary border-primary/30",
                                     isRemote && "bg-secondary text-secondary-foreground border-border",

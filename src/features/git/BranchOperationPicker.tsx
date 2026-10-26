@@ -17,7 +17,7 @@ export function BranchOperationPicker({ open, onOpenChange, initialBranch, mode 
   if (!open) return null;
   const source = candidates.find(branch => branch.name === selection);
   if (preview && source && current) return <DragDropActionModal open onOpenChange={onOpenChange} sourceBranch={source} targetBranch={current} initialAction={mode === 'merge' ? 'merge' : 'rebase-target'} fixedAction />;
-  return <ModalSurface label={t(`${mode}.title`)} onDismiss={() => onOpenChange(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+  return <ModalSurface label={t(`${mode}.title`)} onDismiss={() => onOpenChange(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-xs">
     <div className="w-full max-w-lg rounded-xl border border-border bg-card p-5 space-y-4 shadow-2xl">
       <h2 className="font-semibold">{t(`${mode}.title`)}</h2>
       <p className="text-sm text-muted-foreground">{t('flow.currentBranch')}: <code>{current?.name || '—'}</code></p>

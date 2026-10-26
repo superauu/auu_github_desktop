@@ -136,7 +136,7 @@ export function CommitSnapshotTree({ repoPath, commitHash, onViewDiff, canViewDi
                 aria-current={selected?.path === node.path ? 'true' : undefined}
                 aria-selected={selected?.path === node.path}
                 title={`${node.path}${isChanged ? ` · ${t('fileTree.changedInCommit')}` : ''}`}
-                className={cn('flex h-6 w-full items-stretch text-left text-[12px] hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none',
+                className={cn('flex h-6 w-full items-stretch text-left text-[12px] hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-hidden',
                   selected?.path === node.path && 'bg-accent text-accent-foreground')}
                 style={{ paddingLeft: 8, paddingRight: 8 }}>
                 <span aria-hidden className="flex shrink-0">
