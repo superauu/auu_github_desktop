@@ -1,7 +1,6 @@
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Github,
   Key,
   X,
   Sparkles,
@@ -15,6 +14,7 @@ import {
   ShieldCheck,
   ArrowRight,
 } from 'lucide-react';
+import { Github } from '@/components/ui/brandIcons';
 import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';

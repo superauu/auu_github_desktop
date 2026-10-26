@@ -7,6 +7,7 @@ import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { useState, useRef, useEffect } from 'react';
+import { Gitlab } from '@/components/ui/brandIcons';
 import {
   GitBranch as GitBranchIcon,
   Tag as TagIcon,
@@ -19,7 +20,6 @@ import {
   X,
   Trash2,
   GitPullRequest,
-  Gitlab,
   Archive,
   GitMerge,
   UploadCloud,

@@ -6,6 +6,7 @@ import { gitService } from '@/services/git/GitService';
 import { useShallow } from 'zustand/react/shallow';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import React, { useEffect, useState } from 'react';
+import { Github } from '@/components/ui/brandIcons';
 import {
   GitBranch as GitBranchIcon,
   RefreshCw,
@@ -19,7 +20,6 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
-  Github,
   RotateCcw,
   RotateCw,
   ArrowDownToLine,

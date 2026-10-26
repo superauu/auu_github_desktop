@@ -18,7 +18,7 @@ tauri = { version = "~2.12.0", features = [] }
 tauri-plugin-shell = "2.0.0"
 tauri-plugin-dialog = "2.0.0"
 # Updates use signed raw NSIS/MSI installers; ZIP support would pull withdrawn zip 4.x releases.
-tauri-plugin-updater = { version = "~2.11.0", default-features = false, features = ["rustls-tls", "system-proxy"] }
+tauri-plugin-updater = { version = "~2.14.0", default-features = false, features = ["rustls-tls", "system-proxy"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.22"

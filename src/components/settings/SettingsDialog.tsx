@@ -6,7 +6,6 @@ import {
   Terminal,
   Palette,
   Languages,
-  Github,
   Keyboard,
   X,
   Check,
@@ -21,6 +20,7 @@ import {
   GitCompare,
   GitMerge,
 } from 'lucide-react';
+import { Github } from '@/components/ui/brandIcons';
 import { useShallow } from 'zustand/react/shallow';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
