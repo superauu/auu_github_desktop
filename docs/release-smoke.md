@@ -6,9 +6,14 @@
 ## 1. 本地发布构建
 
 ```bash
-cd src-tauri && cargo build --release
+npm run tauri -- build --no-bundle -- --locked
 ```
 
+- **必须走 tauri CLI，不能用裸 `cargo build --release`**：生产嵌入模式由 tauri CLI 启用的
+  `custom-protocol` feature 切换，裸 cargo 构建的 exe 会去加载 devUrl（`localhost:5173`），
+  仅当本机恰好开着 dev server 时才"能用"（v0.5.4 冒烟踩坑：dev server 全停后窗口报
+  `localhost 拒绝连接`，ERR_CONNECTION_REFUSED）。`--no-bundle` 跳过安装包与更新器签名
+  环节，只出冒烟用的裸 exe；完整安装包由 CI 的 tag 构建产出。
 - 构建必须零 error 零 warning（clippy 门在 CI，但本地先跑一遍更快：`cargo clippy --locked --all-targets -- -D warnings`）。
 - 产物：`src-tauri/target/release/auugit.exe`。
 
