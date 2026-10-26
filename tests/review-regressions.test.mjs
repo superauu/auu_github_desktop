@@ -6,9 +6,11 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { createServer } from 'vite';
+import { retryDevFetch } from './dev-fetch-retry.mjs';
 
 const root = process.cwd();
 const nativeFetch = globalThis.fetch;
+const routedFetch = retryDevFetch(nativeFetch);
 const values = new Map();
 globalThis.localStorage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) };
 let tmp, app, server, base;
@@ -39,7 +41,7 @@ before(async () => {
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
-  globalThis.fetch = (url, init) => nativeFetch(typeof url === 'string' && url.startsWith('/api/') ? base + url : url, init);
+  globalThis.fetch = (url, init) => routedFetch(typeof url === 'string' && url.startsWith('/api/') ? base + url : url, init);
 });
 after(async () => {
   app?.useGitHubStore.getState().clearRepo(); globalThis.fetch = nativeFetch;

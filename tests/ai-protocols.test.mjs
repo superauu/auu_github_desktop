@@ -6,8 +6,10 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { createServer as createViteServer } from 'vite';
 import { createServer as createHttpServer } from 'node:http';
+import { retryDevFetch } from './dev-fetch-retry.mjs';
 
 const root = process.cwd(), originalFetch = globalThis.fetch;
+const relayFetch = retryDevFetch(originalFetch);
 const saved = new Map([['auu_git_settings', JSON.stringify({ aiConfig: { provider: 'openai-compatible', endpoint: 'https://legacy.invalid/v1', model: 'legacy' } })]]);
 globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
 let app, tmp, devServer, devBase;
@@ -251,7 +253,7 @@ test('local relay forwards API headers and full errors without CORS support, and
     assert(!captured.some(request => request.url === '/sink'));
     // Exercise the complete browser adapter -> local relay -> provider response path.
     globalThis.window = {};
-    globalThis.fetch = (url, init) => originalFetch(typeof url === 'string' && url.startsWith('/api/') ? devBase + url : url, init);
+    globalThis.fetch = (url, init) => relayFetch(typeof url === 'string' && url.startsWith('/api/') ? devBase + url : url, init);
     await assert.rejects(app.requestAiText({ ...config('anthropic-messages'), endpoint: target + '/v1/messages' }, messages), error => error.message.endsWith(longError));
     assert.equal(captured[2].headers['x-api-key'], 'test-secret');
   } finally {

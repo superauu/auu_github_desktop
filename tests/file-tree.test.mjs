@@ -6,9 +6,11 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { createServer } from 'vite';
+import { retryDevFetch } from './dev-fetch-retry.mjs';
 
 const root = process.cwd();
 const nativeFetch = globalThis.fetch;
+const routedFetch = retryDevFetch(nativeFetch);
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 let tmp, app, server, base, index = 0;
 const git = (cwd, ...args) => {
@@ -37,7 +39,7 @@ before(async () => {
   app = createRequire(import.meta.url)(outfile);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
-  globalThis.fetch = (url, init) => nativeFetch(typeof url === 'string' && url.startsWith('/api/') ? base + url : url, init);
+  globalThis.fetch = (url, init) => routedFetch(typeof url === 'string' && url.startsWith('/api/') ? base + url : url, init);
 });
 after(async () => {
   globalThis.fetch = nativeFetch; await server?.close();

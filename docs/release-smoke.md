@@ -56,4 +56,3 @@ CI（build-windows.yml）自动构建并创建 Release；回到第 3 步复查 l
 
 - 签名私钥 `C:/Users/super/.tauri/auugit.key` 必须有离线备份（已备份，2026-10-26 确认）。
 - 仓库必须保持公开，否则更新检查静默失败（tauri updater 404）。
-- 全量 `npm test` 偶发 signing 网络抖动，单独复跑 `node --test tests/signing.test.mjs` 判定。

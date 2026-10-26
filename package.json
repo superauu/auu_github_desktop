@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "icons": "tauri icon public/logo.svg --ios-color \"#0c182a\"",
-    "test": "node --test tests/",
+    "test": "node --test --test-concurrency=4 tests/",
     "check:release": "node scripts/check-release.mjs"
   },
   "dependencies": {

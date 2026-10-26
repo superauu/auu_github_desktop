@@ -6,9 +6,12 @@ import os from 'node:os';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { createServer } from 'vite';
+import { retryDevFetch } from './dev-fetch-retry.mjs';
 import { execFileSync } from 'node:child_process';
 
 const root = process.cwd();
+const nativeFetch = globalThis.fetch;
+const routedFetch = retryDevFetch(nativeFetch);
 const headers = { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' };
 let temporary, outside, server, base, app;
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
@@ -28,7 +31,7 @@ after(async () => {
   if (temporary && path.dirname(temporary) === root && path.basename(temporary).startsWith('.test-tmp-security-')) await fs.rm(temporary, { recursive: true, force: true });
   if (outside && path.dirname(outside) === os.tmpdir() && path.basename(outside).startsWith('auugit-outside-')) await fs.rm(outside, { recursive: true, force: true });
 });
-const post = (endpoint, data) => fetch(base + '/api/' + endpoint, { method: 'POST', headers, body: JSON.stringify(data) });
+const post = (endpoint, data) => routedFetch(base + '/api/' + endpoint, { method: 'POST', headers, body: JSON.stringify(data) });
 
 test('native terminal passes paths as data and reports spawn failures without silently copying', async () => {
   const calls = [];

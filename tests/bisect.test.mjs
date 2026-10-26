@@ -12,6 +12,7 @@ import os from 'node:os';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { createServer } from 'vite';
+import { retryDevFetch } from './dev-fetch-retry.mjs';
 import { execFileSync } from 'node:child_process';
 
 const root = process.cwd();
@@ -29,9 +30,10 @@ before(async () => {
   base = `http://127.0.0.1:${server.httpServer.address().port}`;
   // 服务层走浏览器语义的相对路径 fetch('/api/git')；Node 里没有文档 base URL，这里补一层。
   originalFetch = globalThis.fetch;
+  const retriedFetch = retryDevFetch(originalFetch);
   globalThis.fetch = (input, init) => {
     const url = typeof input === 'string' && input.startsWith('/') ? base + input : input;
-    return originalFetch(url, init);
+    return retriedFetch(url, init);
   };
 });
 after(async () => {

@@ -13,6 +13,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { createServer } from 'vite';
+import { retryDevFetch } from './dev-fetch-retry.mjs';
 import { execFileSync } from 'node:child_process';
 
 const root = process.cwd();
@@ -28,9 +29,10 @@ before(async () => {
   await server.listen();
   base = `http://127.0.0.1:${server.httpServer.address().port}`;
   originalFetch = globalThis.fetch;
+  const retriedFetch = retryDevFetch(originalFetch);
   globalThis.fetch = (input, init) => {
     const url = typeof input === 'string' && input.startsWith('/') ? base + input : input;
-    return originalFetch(url, init);
+    return retriedFetch(url, init);
   };
 });
 after(async () => {
