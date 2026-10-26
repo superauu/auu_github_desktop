@@ -43,13 +43,13 @@ Git 写操作会在状态栏显示当前操作、已用时间和排队数量。�
 
 ## 安装与使用
 
-当前发布流程提供 **Windows x64** 安装包和独立可执行文件。
+当前发布流程提供三平台安装包：**Windows x64**（安装包 / MSI / 独立可执行文件）、**macOS**（Intel 与 Apple Silicon 的 dmg）和 **Linux**（AppImage / deb / rpm）。自动更新当前仅覆盖 Windows，macOS 与 Linux 需要升级时请从 Releases 手动下载新版本。
 
 1. 安装 [Git](https://git-scm.com/downloads)，并确保应用能够找到 Git。
-2. 在 [Releases](https://github.com/superauu/auu_github_desktop/releases/latest) 下载 `AuuGit_<版本>_x64-setup.exe`，按提示安装；也可选择 MSI。
+2. 在 [Releases](https://github.com/superauu/auu_github_desktop/releases/latest) 下载对应平台的安装包：Windows 为 `AuuGit_<版本>_x64-setup.exe`（或 MSI），macOS 为 `<版本>_x64.dmg`（Intel）或 `<版本>_aarch64.dmg`（Apple Silicon），Linux 为 AppImage、deb 或 rpm。
 3. 打开已有仓库或克隆仓库。GitHub 协作功能可通过应用中的账号设置连接 GitHub。
 
-Release 中的 `auugit.exe` 是独立可执行文件。需要自动升级时，建议使用安装包版本。
+Release 中的 `auugit.exe` 是 Windows 独立可执行文件。需要自动升级时，建议使用安装包版本。
 
 ### 自动更新
 
@@ -141,7 +141,7 @@ scripts/         发布版本校验
 1. 同步更新 `package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中的应用版本号。
 2. 运行测试、版本校验和前端构建。
 3. 配置 GitHub Actions Secrets：`TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，并保持私钥与应用内更新公钥匹配。
-4. 推送匹配应用版本号的 `v<版本>` 标签。Windows 发布工作流会构建、签名并上传安装包及更新清单到 GitHub Release。
+4. 推送匹配应用版本号的 `v<版本>` 标签。Windows 发布工作流会构建、签名并上传安装包及更新清单到 GitHub Release；macOS 与 Linux 构建矩阵会把对应平台安装包挂载到同一个 Release（更新清单 `latest.json` 暂只覆盖 Windows）。
 
 手动触发构建会生成 Actions 构建产物；只有推送版本标签才会执行当前流程中的 Release 发布步骤。
 

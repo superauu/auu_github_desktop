@@ -43,13 +43,13 @@ Merge, rebase, and history editing include previews or recovery mechanisms. Hist
 
 ## Installation
 
-The current release workflow provides **Windows x64** installers and a standalone executable.
+The release workflow provides packages for three platforms: **Windows x64** (installer / MSI / standalone executable), **macOS** (dmg for Intel and Apple Silicon), and **Linux** (AppImage / deb / rpm). Automatic updates currently cover Windows only; macOS and Linux users should download new versions from Releases manually.
 
 1. Install [Git](https://git-scm.com/downloads) and ensure the app can find it.
-2. Download `AuuGit_<version>_x64-setup.exe` from [Releases](https://github.com/superauu/auu_github_desktop/releases/latest) and run the installer. An MSI installer is also available.
+2. Download the package for your platform from [Releases](https://github.com/superauu/auu_github_desktop/releases/latest): `AuuGit_<version>_x64-setup.exe` (or MSI) on Windows, `<version>_x64.dmg` (Intel) or `<version>_aarch64.dmg` (Apple Silicon) on macOS, and AppImage, deb, or rpm on Linux.
 3. Open an existing repository or clone one. Connect a GitHub account in the app settings to use authenticated GitHub features.
 
-The `auugit.exe` release asset is a standalone executable. Use an installer build if you want automatic upgrades.
+The `auugit.exe` release asset is a standalone executable for Windows. Use an installer build if you want automatic upgrades.
 
 ### Automatic updates
 
@@ -139,7 +139,7 @@ scripts/         Release version validation
 1. Keep the application version consistent across `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`.
 2. Run tests, release version validation, and the frontend build.
 3. Configure the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The signing key must match the updater public key embedded in the app.
-4. Push a `v<version>` tag matching the application version. The Windows release workflow builds, signs, and uploads installers and update metadata to a GitHub Release.
+4. Push a `v<version>` tag matching the application version. The Windows release workflow builds, signs, and uploads installers and update metadata to a GitHub Release; the macOS and Linux build matrix attaches its platform packages to the same Release (the `latest.json` update manifest currently covers Windows only).
 
 A manual workflow run produces Actions artifacts. The current workflow publishes a GitHub Release only when triggered by a version tag push.
 
