@@ -188,6 +188,11 @@ export interface IGitService {
   getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean): Promise<any[]>;
   getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]>;
   getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]>;
+  getCommitsInRange(repoPath: string, base: string, head: string, limit?: number): Promise<{ commits: GitCommit[]; linear: boolean; truncated: boolean }>;
+  getRangeDiffSummary(repoPath: string, base: string, head: string): Promise<{ files: GitFileChange[]; insertions: number; deletions: number }>;
+  getRangeFileDiff(repoPath: string, base: string, head: string, filePath: string, ignoreWhitespace?: boolean): Promise<ParsedDiffLine[]>;
+  getRangePatch(repoPath: string, base: string, head: string, capChars: number): Promise<string>;
+  isAncestor(repoPath: string, base: string, head: string): Promise<boolean>;
   blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]>;
   getCommitsForFile(repoPath: string, filePath: string, limit?: number): Promise<GitCommit[]>;
   createTag(repoPath: string, name: string, commitHash?: string, message?: string): Promise<void>;

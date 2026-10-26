@@ -42,6 +42,8 @@ import { authorizeRepository } from '@/services/fs/RepositoryAccess';
  * another git repository (path prefix handling mangles it).
  */
 const NULL_DEVICE = '/dev/null';
+/** 十六进制提交哈希:审查范围方法的入参门槛,保证范围/计数参数无法携带选项形态的输入。 */
+const COMMIT_HASH = /^[0-9a-f]{40,64}$/;
 
 export class GitService implements IGitService {
   private readonly diffCache = new DiffCache();
@@ -662,6 +664,85 @@ export class GitService implements IGitService {
   async getCommitFileDiff(repoPath: string, commitHash: string, filePath: string, ignoreWhitespace = false): Promise<ParsedDiffLine[]> {
     const res = await executeGit(['show', '--format=', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--first-parent', '--diff-merges=first-parent', commitHash, '--', filePath], repoPath);
     return parseDiffOutput(res.stdout);
+  }
+
+  // ---- 审查视图:已审查检查点之后的范围查询(base/head 一律为已解析的十六进制提交哈希) ----
+
+  /**
+   * 审查范围内的提交(first-parent 链,旧→新)。linear=false 表示含合并提交,
+   * 进入历史整理前需提示;truncated 表示提交数达到上限,列表可能不完整。
+   */
+  async getCommitsInRange(repoPath: string, base: string, head: string, limit = 500): Promise<{ commits: GitCommit[]; linear: boolean; truncated: boolean }> {
+    if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
+    const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
+    const res = await executeGit(['log', '--first-parent', '-n', String(limit), `--format=${format}`, `${base}..${head}`, '--'], repoPath);
+    const commits = parseGitLog(res.stdout).reverse();
+    return {
+      commits,
+      linear: commits.every((commit) => commit.parents.length === 1),
+      truncated: commits.length >= limit,
+    };
+  }
+
+  /**
+   * 审查范围的净差异(两点 diff):文件清单与每文件/总计增删行数。
+   * 关闭重命名检测让 name-status 与 numstat 在 -z 模式下都能按路径稳定配对;
+   * -z 输出路径不经 C 转义,无需 unquoteGitPath。
+   */
+  async getRangeDiffSummary(repoPath: string, base: string, head: string): Promise<{ files: GitFileChange[]; insertions: number; deletions: number }> {
+    if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
+    const [statusRes, numstatRes] = await Promise.all([
+      executeGit(['diff', '--no-renames', '--name-status', '-z', base, head, '--'], repoPath),
+      executeGit(['diff', '--no-renames', '--numstat', '-z', base, head, '--'], repoPath),
+    ]);
+    const counts = new Map<string, { insertions: number; deletions: number }>();
+    for (const record of numstatRes.stdout.split('\0')) {
+      if (!record) continue;
+      const [addStr, delStr, path] = record.split('\t');
+      if (!path) continue;
+      counts.set(path, {
+        insertions: addStr === '-' ? 0 : Number(addStr) || 0,
+        deletions: delStr === '-' ? 0 : Number(delStr) || 0,
+      });
+    }
+    const fields = statusRes.stdout.split('\0');
+    const files: GitFileChange[] = [];
+    for (let i = 0; i + 1 < fields.length; i += 2) {
+      const statusCode = fields[i]?.charAt(0) || 'M';
+      const path = fields[i + 1];
+      if (!path) continue;
+      let status: 'modified' | 'added' | 'deleted' = 'modified';
+      if (statusCode === 'A') status = 'added';
+      else if (statusCode === 'D') status = 'deleted';
+      files.push({ path, status, staged: false, ...counts.get(path) });
+    }
+    return {
+      files,
+      insertions: files.reduce((sum, file) => sum + (file.insertions ?? 0), 0),
+      deletions: files.reduce((sum, file) => sum + (file.deletions ?? 0), 0),
+    };
+  }
+
+  /** 审查范围内单个文件的净差异(两点 diff) */
+  async getRangeFileDiff(repoPath: string, base: string, head: string, filePath: string, ignoreWhitespace = false): Promise<ParsedDiffLine[]> {
+    if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
+    const args = ['--literal-pathspecs', 'diff', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), base, head, '--', filePath];
+    const res = await executeGit(args, repoPath);
+    return this.diffCache.parse(JSON.stringify(['range', repoPath, filePath, base, head, ignoreWhitespace]), res.stdout);
+  }
+
+  /** 审查范围完整 patch(按字符截断)——供风险扫描与 AI 上下文 */
+  async getRangePatch(repoPath: string, base: string, head: string, capChars: number): Promise<string> {
+    if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
+    const res = await executeGit(['diff', '--no-color', '--no-ext-diff', '--no-textconv', base, head, '--'], repoPath);
+    return res.stdout.slice(0, capChars);
+  }
+
+  /** base 是否为 head 的祖先或与 head 相等(rev-list --count 判定,免 merge-base 白名单) */
+  async isAncestor(repoPath: string, base: string, head: string): Promise<boolean> {
+    if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
+    const res = await executeGit(['rev-list', '--count', `${head}..${base}`], repoPath);
+    return Number(res.stdout.trim()) === 0;
   }
 
   async blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]> {
