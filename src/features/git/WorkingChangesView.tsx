@@ -853,7 +853,7 @@ export const WorkingChangesView: React.FC = () => {
                 >
                   {copiedPath ? <Check className="h-3 w-3 text-git-added" /> : <Copy className="h-3 w-3" />}
                 </button>
-                <Badge variant="outline" className="h-4 px-1.5 text-[12px] uppercase font-mono">
+                <Badge variant="outline" className="h-4 px-1.5 text-[12px] uppercase font-mono shrink-0 whitespace-nowrap">
                   {t(`fileStatus.${activeFile.status}`)} {activeFile.staged ? t('changes.stagedSuffix') : ''}
                 </Badge>
                 {(addCount > 0 || delCount > 0) && (
