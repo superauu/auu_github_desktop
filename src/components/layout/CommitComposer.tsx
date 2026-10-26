@@ -138,10 +138,10 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
 
   const disabled = busy || generating || !title.trim() || (!scope.files.length && !amend);
   const actionLabel = amend ? t('rightPane.commitAmend') : scope.stageAll ? t('rightPane.stageAllCommit') : t('rightPane.commit');
-  return <div className="h-full min-h-0 flex flex-col text-[13px]" onKeyDown={(event) => {
+  return <div className="h-full min-h-0 flex flex-col text-[13px] overflow-y-auto" onKeyDown={(event) => {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !batchContext && !disabled) { event.preventDefault(); void submit(); }
   }}>
-    <section className="mx-4 mt-4 max-h-[35%] shrink-0 overflow-y-auto rounded-lg border border-border bg-muted/30 p-3 space-y-1" aria-label={t('composer.scope')}>
+    <section className="mx-4 mt-4 shrink-0 rounded-lg border border-border bg-muted/30 p-3 space-y-1" aria-label={t('composer.scope')}>
       <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4 text-muted-foreground" />{t('composer.scope')}</span><span>{t('composer.included').replace('{n}', String(scope.files.length))}</span></div>
       <p className="text-[12px] text-muted-foreground leading-relaxed">{scope.stageAll ? t('composer.stageAllHint') : t('composer.excluded').replace('{n}', String(scope.excluded.length))}</p>
       {!!scope.files.length && <>
@@ -149,7 +149,9 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
         {scopeOpen && <ul className="max-h-48 overflow-auto space-y-2 border-t border-border pt-2">{scope.files.map(file => <li key={file.path}><FilePath path={file.path} /></li>)}</ul>}
       </>}
     </section>
-    <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+    {/* 单滚动模型：根容器整体滚动，按钮区粘底——矮面板下表单不再被挤成碎条，
+        高度充裕时布局与之前完全一致（mt-auto 保证按钮区贴底） */}
+    <div className="p-4 space-y-4">
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2"><label htmlFor="commit-title" className="font-medium">{t('composer.title')}</label><Button variant="outline" size="xs" onClick={generate} disabled={generating || busy || !scope.files.length}><Sparkles className="h-3.5 w-3.5" />{t(generating ? 'composer.generating' : 'composer.generate')}</Button></div>
       <div className="flex items-center justify-between gap-2 text-[12px] text-muted-foreground">
@@ -172,7 +174,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
       <button className="text-primary min-h-7" onClick={() => void toggleAmend(false)}>{t('composer.cancelAmend')}</button>
     </div>}
     </div>
-    <div className="commit-actions shrink-0 space-y-2 border-t border-border p-4">
+    <div className="commit-actions sticky bottom-0 z-10 mt-auto space-y-2 border-t border-border bg-card/95 backdrop-blur p-4">
       <Button variant="outline" className="w-full min-h-9" disabled={busy || generating || amend || !currentRepo || !status || !(status.staged.length + status.unstaged.length + status.untracked.length)} title={t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => currentRepo && status && setBatchContext({ path: currentRepo.path, branch: status.currentBranch })}><Sparkles className="h-4 w-4 text-muted-foreground" />{t('batch.button')}</Button>
       <Button disabled={disabled} className="w-full h-10 font-semibold" onClick={() => void submit()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="truncate">{actionLabel}{scope.files.length ? ` (${scope.files.length})` : ''}</span></Button>
       <Button disabled={disabled} variant="outline" className="w-full h-9" onClick={() => void submit(true)}><Send className="h-4 w-4" />{t(amend ? 'composer.amendPush' : scope.stageAll ? 'rightPane.stageAllCommitPush' : 'rightPane.commitPush')}</Button>
