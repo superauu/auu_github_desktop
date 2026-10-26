@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import React from 'react';
+import './react19-test-env.mjs';
 import { create, act } from 'react-test-renderer';
 
 const root = process.cwd();

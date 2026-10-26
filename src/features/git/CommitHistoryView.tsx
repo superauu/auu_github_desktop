@@ -90,7 +90,7 @@ export const CommitHistoryView: React.FC = () => {
   const [searchError, setSearchError] = useState('');
   const [searchComplete, setSearchComplete] = useState(false);
   const searchRequest = useRef(0);
-  const scrollSave = useRef<ReturnType<typeof setTimeout>>();
+  const scrollSave = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastScroll = useRef(savedView.scrollTop);
   const previousQuery = useRef(searchQuery);
   const previousPath = useRef('');

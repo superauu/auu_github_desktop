@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 import { createServer } from 'vite';
 import { retryDevFetch } from './dev-fetch-retry.mjs';
 import React from 'react';
+import './react19-test-env.mjs';
 import { create, act } from 'react-test-renderer';
 
 const root = process.cwd(), nativeFetch = globalThis.fetch;

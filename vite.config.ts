@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { version } from './package.json';
+import { version } from './package.json' with { type: 'json' };
 import { atomicWrite, readText, withFileWrite } from './scripts/dev-file-io.ts';
 import { directoryScope } from './scripts/dev-directory-scope.ts';
 import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, submoduleAddSource, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy.ts';
@@ -414,7 +414,7 @@ if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encodin
 }
 export default defineConfig({
   plugins: [react(), gitApiPlugin()],
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   build: {
     rollupOptions: {
       output: {
