@@ -86,7 +86,8 @@ export function VirtualRows<T>({ items, renderRow, rowHeight = 24, threshold = 3
     return () => observer.disconnect();
   }, [start, end, measured, virtual, contentWidth]);
 
-  return <div ref={root} data-virtual-count={items.length} style={virtual ? { position: 'relative', height: offsets[items.length], minWidth: '100%', width: contentWidth && width ? width : undefined, overflowAnchor: 'none' } : undefined}>
+  // Short lists also need a shared content width so row backgrounds cover horizontal overflow.
+  return <div ref={root} data-virtual-count={items.length} style={virtual ? { position: 'relative', height: offsets[items.length], minWidth: '100%', width: contentWidth && width ? width : undefined, overflowAnchor: 'none' } : contentWidth ? { minWidth: '100%', width: 'max-content' } : undefined}>
     {items.slice(start, end).map((item, offset) => {
       const index = start + offset;
       return <div key={index} data-virtual-row-index={index} style={virtual ? { position: 'absolute', top: offsets[index], minWidth: '100%', width: contentWidth ? 'max-content' : '100%' } : undefined}>{renderRow(item, index)}</div>;

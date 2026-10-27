@@ -725,6 +725,9 @@ button:disabled { box-shadow: none !important; cursor: not-allowed; }
 [data-file-path] > div > button:first-child { min-width: 28px; min-height: 28px; display: flex; align-items: center; justify-content: center; }
 [data-file-path][data-picked='true'] { box-shadow: inset 0 0 0 1px hsl(var(--primary) / .5); background: hsl(var(--accent)); }
 .diff-wrap [data-diff-content] { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+/* Keep the entire hunk approval bar in view while its code scrolls horizontally. */
+.review-diff-viewport { container-type: inline-size; }
+.review-diff-hunk { position: sticky; left: 0; width: 100cqw; max-width: 100%; }
 
 /* Native cursors preserve the exact hotspot without adding a per-frame mouse tracker. */
 body, .cursor-default { cursor: var(--app-cursor-default); }

@@ -35,7 +35,7 @@ before(async () => {
   const stubs = {
     '@/stores/repoStore': `import { create } from 'zustand'; export const useRepoStore = create(() => ({ currentRepo: null, status: null }));`,
     '@/stores/layoutStore': `const state = {reviewFilesWidth:240,changesFileListWidth:220,setChangesFileListWidth(){},setReviewFilesWidth(){}}; export const useLayoutStore = Object.assign(fn=>fn(state),{getState:()=>state});`,
-    '@/stores/settingsStore': `export const useSettingsStore = Object.assign(fn=>fn({diffFontSize:13}),{getState:()=>({aiConfig:{},language:'zh'})});`,
+    '@/stores/settingsStore': `import { create } from 'zustand'; export const useSettingsStore = create(set=>({diffFontSize:13,diffWrapLines:false,aiConfig:{},language:'zh',setDiffWrapLines:diffWrapLines=>set({diffWrapLines})}));`,
     '@/hooks/useWorkspaceLayout': `export const useWorkspaceLayout = () => ({panels:{files:220}});`,
     '@/stores/confirmStore': `export const confirmations=[]; export const confirmAction = async options => {confirmations.push(options); return true;};`,
     '@/i18n': `import {reviewZh} from '@/i18n/review'; export const tNow = k => reviewZh[k] ?? k; export const useI18n = () => ({t:tNow});`,
@@ -52,14 +52,14 @@ before(async () => {
     '@/components/ui/ErrorNotice': `import React from 'react'; export const ErrorNotice = ({error}) => <div>{error}</div>;`,
     '@/components/ui/ModalSurface': `export const ModalSurface = ({children}) => children;`,
     '@/components/ui/scroll-area': `import React from 'react'; export const ScrollArea = ({children}) => <div>{children}</div>;`,
-    '@/components/ui/VirtualRows': `import React from 'react'; export const VirtualRows = ({items,renderRow}) => <div>{items.map((item,index)=><React.Fragment key={index}>{renderRow(item,index)}</React.Fragment>)}</div>;`,
+    '@/components/ui/VirtualRows': `import React from 'react'; export const VirtualRows = ({items,renderRow,contentWidth}) => <div data-content-width={contentWidth}>{items.map((item,index)=><React.Fragment key={index}>{renderRow(item,index)}</React.Fragment>)}</div>;`,
     '@/components/ui/ResizeHandle': `export const ResizeHandle = () => null;`,
     '@/components/ui/DiffTools': `export const DiffTools = () => null; export const highlightDiff = content => content;`,
     '@/components/ui/DiffFontControl': `export const DiffFontControl = () => null;`,
   };
   const bundle = path.join(tmp, 'workbench.cjs');
   await build({
-    stdin: { contents: `export {confirmations} from '@/stores/confirmStore'; export {ReviewView} from './src/features/review/ReviewView'; export {useReviewStore} from './src/stores/reviewStore'; export * from './src/stores/reviewProgressStore'; export {useRepoStore} from '@/stores/repoStore'; export {useToastStore} from '@/stores/toastStore'; export {fixture,gitService} from '@/services/git/GitService'; export {points,pointKey,reviewCheckpointService} from '@/services/git/ReviewCheckpointService';`, resolveDir: root },
+    stdin: { contents: `export {confirmations} from '@/stores/confirmStore'; export {useSettingsStore} from '@/stores/settingsStore'; export {ReviewView} from './src/features/review/ReviewView'; export {useReviewStore} from './src/stores/reviewStore'; export * from './src/stores/reviewProgressStore'; export {useRepoStore} from '@/stores/repoStore'; export {useToastStore} from '@/stores/toastStore'; export {fixture,gitService} from '@/services/git/GitService'; export {points,pointKey,reviewCheckpointService} from '@/services/git/ReviewCheckpointService';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom', 'react/jsx-runtime'],
     alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
     plugins: [{ name: 'headless-review-workbench', setup(b) {
@@ -76,6 +76,7 @@ after(async () => {
 });
 
 beforeEach(async () => {
+  app.useSettingsStore.setState({ diffWrapLines: false });
   app.useReviewStore.getState().reset();
   app.useReviewProgressStore.setState({ entries: {} });
   app.useToastStore.getState().toasts.length = 0;
@@ -98,6 +99,30 @@ async function addComment(renderer, line, text) {
   await act(async () => renderer.root.findByType('textarea').props.onChange({ target: { value: text } }));
   await act(async () => click(byId(renderer, 'review-comment-save')));
 }
+
+test('review diff reacts to wrap settings in unified and split modes without losing diff styling', async () => {
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    const diff = () => renderer.root.findByProps({ id: 'review-diff' });
+    const contentList = () => diff().findAll(node => node.type === 'div' && node.props['data-content-width'] !== undefined)[0];
+    assert.equal(contentList().props['data-content-width'], true);
+    assert.doesNotMatch(diff().props.className, /diff-wrap/);
+    await act(async () => app.useSettingsStore.getState().setDiffWrapLines(true));
+    assert.match(diff().props.className, /diff-wrap/);
+    assert.equal(contentList().props['data-content-width'], false, 'wrapped rows must use the viewport width');
+    assert.ok(diff().findAll(node => node.type === 'div' && node.props.className?.includes('diff-line-add')).length);
+    assert.ok(diff().findAll(node => node.type === 'div' && node.props.className?.includes('diff-line-del')).length);
+    await act(async () => app.useReviewStore.setState({ diffMode: 'split' }));
+    assert.match(diff().props.className, /diff-wrap/);
+    await act(async () => {
+      app.useSettingsStore.getState().setDiffWrapLines(false);
+      app.useReviewStore.setState({ diffMode: 'unified' });
+    });
+    assert.doesNotMatch(diff().props.className, /diff-wrap/);
+    assert.equal(contentList().props['data-content-width'], true);
+  } finally { await act(async () => renderer?.unmount()); }
+});
 
 test('new HEAD cannot inherit legacy approvals without evidence; original comments survive as outdated', async () => {
   const p = app.useReviewProgressStore;

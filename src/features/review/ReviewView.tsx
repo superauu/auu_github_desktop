@@ -123,6 +123,7 @@ export function ReviewView() {
   /** 变基失效后手动选择「重新选择基准」时,强制回到引导界面。 */
   const [forceBootstrap, setForceBootstrap] = useState(false);
   const diffFontSize = useSettingsStore((state) => state.diffFontSize);
+  const wrapLines = useSettingsStore((state) => state.diffWrapLines);
 
   const repoPath = currentRepo?.path ?? '';
   const branch = status?.currentBranch ?? '';
@@ -446,7 +447,7 @@ export function ReviewView() {
         const hunk = hunks.find((item) => item.index === row.sourceIndex) ?? null;
         const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && !comment.anchorStale && comment.startLine === hunk.newStart) : [];
         return (
-          <div key={idx} className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] w-full flex items-center justify-between gap-2">
+          <div key={idx} className="review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2">
             <span className="truncate">{row.headerContent}</span>
             {hunk && selectedPath && (
               <HunkActions
@@ -480,13 +481,13 @@ export function ReviewView() {
         </div>
       )} />
     ) : (
-      <VirtualRows items={review.diffLines} contentWidth rowHeight={24} renderRow={(line, idx) => {
+      <VirtualRows items={review.diffLines} contentWidth={!wrapLines} rowHeight={24} renderRow={(line, idx) => {
         const hunk = line.type === 'header' ? hunks.find((item) => item.index === idx) ?? null : null;
         const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && !comment.anchorStale && comment.startLine === hunk.newStart) : [];
         return (
         <div key={idx} className={cn(
           'flex items-stretch hover:bg-accent/40 dark:hover:bg-white/3 transition-colors border-l-2',
-          line.type === 'add' ? 'diff-line-add font-medium dark:font-normal' : line.type === 'delete' ? 'diff-line-del font-medium dark:font-normal' : line.type === 'header' ? 'diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px]' : 'border-transparent text-foreground/85',
+          line.type === 'add' ? 'diff-line-add font-medium dark:font-normal' : line.type === 'delete' ? 'diff-line-del font-medium dark:font-normal' : line.type === 'header' ? 'review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px]' : 'border-transparent text-foreground/85',
         )}>
           {line.type !== 'header' && (<>
             <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20">{line.oldNo ?? ''}</div>
@@ -880,7 +881,7 @@ export function ReviewView() {
                   <Button variant="ghost" size="xs" onClick={() => repoPath && void useReviewStore.getState().requestAiSummary()}>{t('composer.retry')}</Button>
                 </div>
               )}
-              <div id="review-diff" data-text-context style={{ fontSize: diffFontSize }} className="glass-editor flex-1 overflow-auto font-mono leading-relaxed text-foreground select-text">
+              <div id="review-diff" data-text-context style={{ fontSize: diffFontSize }} className={cn('review-diff-viewport glass-editor flex-1 min-h-0 overflow-auto font-mono leading-relaxed text-foreground select-text', wrapLines && 'diff-wrap')}>
                 {renderDiffBody()}
               </div>
               </div>
