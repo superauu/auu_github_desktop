@@ -201,3 +201,17 @@ test('getRangeFileDiff, getRangePatch and isAncestor construct whitelisted read-
   await assert.rejects(service.isAncestor(REPO, H1, BAD));
   assert.equal(app.__calls().length, 0);
 });
+
+test('getRangeCommitCount counts the first-parent range and validates hex input', async () => {
+  const service = new app.GitService();
+  app.__reset(() => ({ stdout: '7\n' }));
+  assert.equal(await service.getRangeCommitCount(REPO, H1, H2), 7);
+  assert.deepEqual(app.__calls(), [['rev-list', '--first-parent', '--count', `${H1}..${H2}`]]);
+
+  app.__reset(() => ({ stdout: '\n' }));
+  assert.equal(await service.getRangeCommitCount(REPO, H1, H2), 0, 'empty output maps to zero');
+
+  app.__reset();
+  await assert.rejects(service.getRangeCommitCount(REPO, BAD, H2));
+  assert.equal(app.__calls().length, 0);
+});

@@ -193,6 +193,7 @@ export interface IGitService {
   getRangeFileDiff(repoPath: string, base: string, head: string, filePath: string, ignoreWhitespace?: boolean): Promise<ParsedDiffLine[]>;
   getRangePatch(repoPath: string, base: string, head: string, capChars: number): Promise<string>;
   isAncestor(repoPath: string, base: string, head: string): Promise<boolean>;
+  getRangeCommitCount(repoPath: string, base: string, head: string): Promise<number>;
   blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]>;
   getCommitsForFile(repoPath: string, filePath: string, limit?: number): Promise<GitCommit[]>;
   createTag(repoPath: string, name: string, commitHash?: string, message?: string): Promise<void>;

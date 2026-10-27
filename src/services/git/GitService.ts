@@ -745,6 +745,13 @@ export class GitService implements IGitService {
     return Number(res.stdout.trim()) === 0;
   }
 
+  /** 审查范围内提交数(导航徽标等轻量场景;first-parent 链) */
+  async getRangeCommitCount(repoPath: string, base: string, head: string): Promise<number> {
+    if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
+    const res = await executeGit(['rev-list', '--first-parent', '--count', `${base}..${head}`], repoPath);
+    return Number(res.stdout.trim()) || 0;
+  }
+
   async blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]> {
     try {
       const res = await executeGit(['blame', '--line-porcelain', '--', filePath], repoPath);

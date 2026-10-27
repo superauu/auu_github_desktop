@@ -509,6 +509,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
         if (activeRepo.gitHubOwner && activeRepo.gitHubRepo) {
           void useGitHubStore.getState().syncRepo(activeRepo.gitHubOwner, activeRepo.gitHubRepo);
         } else { useGitHubStore.getState().clearRepo(); }
+
+        // 审查导航徽标:检查点之后的待审提交数(轻量查询,不阻塞刷新)
+        const badgeBranch = status.currentBranch || activeRepo.currentBranch;
+        if (badgeBranch && status.headOid) {
+          void useReviewStore.getState().refreshBadge(activeRepo.path, badgeBranch, status.headOid);
+        }
       } catch (err: any) {
         if (valid()) set({ errorMessage: err.message, isLoading: false });
         throw err;

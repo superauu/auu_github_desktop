@@ -20,6 +20,8 @@ export interface ReviewState {
   errorMessage: string | null;
   branch: string;
   headHash: string;
+  /** 导航徽标:检查点之后的待审提交数;null = 无检查点/检查点失效/未知。 */
+  badgeCount: number | null;
   checkpoint: ReviewCheckpoint | null;
   /** 检查点已不在当前分支历史(变基/强制推送后),需重建基准。 */
   stale: boolean;
@@ -45,6 +47,7 @@ export interface ReviewState {
 
   load: (repoPath: string, branch: string, headHash: string) => Promise<void>;
   reset: () => void;
+  refreshBadge: (repoPath: string, branch: string, headHash: string) => Promise<void>;
   setTarget: (repoPath: string, target: ReviewTarget) => Promise<void>;
   selectFile: (repoPath: string, path: string) => Promise<void>;
   setDiffMode: (mode: 'unified' | 'split') => void;
@@ -57,6 +60,7 @@ export interface ReviewState {
 
 let loadEpoch = 0;
 let diffEpoch = 0;
+let badgeEpoch = 0;
 let aiController: AbortController | null = null;
 /** 「标记已审查」前的检查点,供撤销恢复。 */
 let checkpointBeforeMark: ReviewCheckpoint | null = null;
@@ -64,6 +68,7 @@ let checkpointBeforeMark: ReviewCheckpoint | null = null;
 const initialData = {
   checkpoint: null,
   stale: false,
+  badgeCount: null as number | null,
   commits: [] as GitCommit[],
   linear: true,
   truncated: false,
@@ -93,10 +98,28 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
   markBusy: false,
 
   reset: () => {
-    loadEpoch++; diffEpoch++;
+    loadEpoch++; diffEpoch++; badgeEpoch++;
     aiController?.abort(); aiController = null;
     checkpointBeforeMark = null;
     set({ status: 'idle', errorMessage: null, branch: '', headHash: '', ...initialData, aiBusy: false, markBusy: false });
+  },
+
+  /** 导航徽标专用轻量刷新:只查检查点与计数,不加载差异细节(refreshAll 高频调用)。 */
+  refreshBadge: async (repoPath, branch, headHash) => {
+    if (!repoPath || !branch || !/^[0-9a-f]{40,64}$/.test(headHash)) return;
+    const epoch = ++badgeEpoch;
+    try {
+      const checkpoint = await reviewCheckpointService.get(repoPath, branch);
+      if (epoch !== badgeEpoch) return;
+      if (!checkpoint || checkpoint.hash === headHash) { set({ badgeCount: checkpoint ? 0 : null }); return; }
+      const stale = !(await gitService.isAncestor(repoPath, checkpoint.hash, headHash));
+      if (epoch !== badgeEpoch) return;
+      if (stale) { set({ badgeCount: null }); return; }
+      const count = await gitService.getRangeCommitCount(repoPath, checkpoint.hash, headHash);
+      if (epoch === badgeEpoch) set({ badgeCount: count });
+    } catch {
+      if (epoch === badgeEpoch) set({ badgeCount: null });
+    }
   },
 
   load: async (repoPath, branch, headHash) => {
@@ -110,7 +133,7 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
       const stale = !(await gitService.isAncestor(repoPath, checkpoint.hash, headHash));
       if (epoch !== loadEpoch) return;
       if (stale) { set({ status: 'ready', checkpoint, stale: true }); return; }
-      if (checkpoint.hash === headHash) { set({ status: 'ready', checkpoint, stale: false }); return; }
+      if (checkpoint.hash === headHash) { set({ status: 'ready', checkpoint, stale: false, badgeCount: 0 }); return; }
       const [range, patch] = await Promise.all([
         gitService.getCommitsInRange(repoPath, checkpoint.hash, headHash),
         gitService.getRangePatch(repoPath, checkpoint.hash, headHash, RISK_PATCH_CAP),
@@ -122,6 +145,7 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
         status: 'ready',
         checkpoint,
         stale: false,
+        badgeCount: range.commits.length,
         commits: range.commits,
         linear: range.linear,
         truncated: range.truncated,

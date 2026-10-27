@@ -41,6 +41,7 @@ import {
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useForgeStore } from '@/stores/forgeStore';
+import { useReviewStore } from '@/stores/reviewStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { GitBranch, GitStash, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
@@ -586,6 +587,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     (status?.staged.length || 0) +
     (status?.unstaged.length || 0) +
     (status?.untracked.length || 0);
+  const reviewBadgeCount = useReviewStore((state) => state.badgeCount);
 
   const localBranches = branches.filter((b) => !b.isRemote);
   const remoteBranches = branches.filter((b) => b.isRemote);
@@ -702,6 +704,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
         <button
           aria-current={activeTab === 'review' ? 'page' : undefined}
+          title={reviewBadgeCount ? t('review.pendingCount').replace('{n}', String(reviewBadgeCount)) : undefined}
           onClick={() => { setActiveTab('review'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
@@ -719,6 +722,11 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             />
             <span>{t('sidebar.review')}</span>
           </div>
+          {(reviewBadgeCount ?? 0) > 0 && (
+            <Badge variant="warning" className="h-4 px-1.5 text-[12px] font-mono">
+              {reviewBadgeCount}
+            </Badge>
+          )}
         </button>
 
         <button
