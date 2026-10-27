@@ -1,5 +1,14 @@
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
 
+/** Parsing can return a new array after cache eviction without changing the displayed patch. */
+export function sameDiffLines(left: readonly ParsedDiffLine[], right: readonly ParsedDiffLine[]) {
+  return left === right || left.length === right.length && left.every((line, index) => {
+    const other = right[index];
+    const sameHeader = line.patchHeader === other.patchHeader || !!line.patchHeader && !!other.patchHeader && line.patchHeader.length === other.patchHeader.length && line.patchHeader.every((part, i) => part === other.patchHeader![i]);
+    return line.type === other.type && line.content === other.content && line.oldNo === other.oldNo && line.newNo === other.newNo && line.patchContent === other.patchContent && sameHeader;
+  });
+}
+
 export interface SplitRow {
   isHeader?: boolean;
   headerContent?: string;

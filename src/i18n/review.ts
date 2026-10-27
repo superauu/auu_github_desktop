@@ -3,7 +3,9 @@
  */
 export const reviewZh = {
   // 导航与头部
-  'review.title': '审查',
+  'review.title': '阶段复核',
+  'review.stageHint': '按检查点复核多次提交的最终改动；提交前审核请前往工作区变更。',
+  'review.backHistory': '返回提交历史',
   'review.since': '自 {hash} 以来',
   'review.baseCurrent': '检查点:{hash}',
   'review.pendingCount': '本轮包含 {n} 次提交',
@@ -151,7 +153,9 @@ export const reviewZh = {
 
 export const reviewEn = {
   // Navigation & header
-  'review.title': 'Review',
+  'review.title': 'Checkpoint review',
+  'review.stageHint': 'Review the combined changes across commits since a checkpoint. Review uncommitted changes in Working Changes.',
+  'review.backHistory': 'Back to commit history',
   'review.since': 'Since {hash}',
   'review.baseCurrent': 'Checkpoint: {hash}',
   'review.pendingCount': '{n} commits in this round',

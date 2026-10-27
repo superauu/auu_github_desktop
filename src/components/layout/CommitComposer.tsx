@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { FilePath } from '@/components/ui/FilePath';
 import { AiCommitBatchDialog } from '@/features/git/AiCommitBatchDialog';
+import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
 
 export function useComposerDraft(repoPath?: string, branch?: string) {
   const [busy, setBusy] = useState(false);
@@ -115,6 +116,11 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
       }
       if (amend && await gitService.getBranchCommitHash(path, 'HEAD') !== amendCommit?.hash) { toast.warning(t('composer.scopeChanged'), t('composer.scopeChangedDesc')); setAmend(false); return; }
       if (amend && !await confirmAction({ title: t('rightPane.commitAmend'), description: t('composer.amendWarning'), detail: `${amendCommit?.shortHash} ${amendCommit?.subject}` })) return;
+      if (!await confirmWorkingReview(path, latestStatus.currentBranch, latestScope.files, false, latestStatus.headOid)) return;
+      const reviewedStatus = await gitService.getStatus(path);
+      if (useRepoStore.getState().currentRepo?.path !== path || reviewedStatus.currentBranch !== latestStatus.currentBranch || reviewedStatus.headOid !== latestStatus.headOid || JSON.stringify(getCommitScope(reviewedStatus, amend).files) !== scopeKey) {
+        toast.warning(t('composer.scopeChanged'), t('composer.scopeChangedDesc')); return;
+      }
       if (latestScope.stageAll) await gitService.stageAll(path);
       await gitService.commit(path, message, amend);
       useRepoStore.setState({ redoStack: [] });

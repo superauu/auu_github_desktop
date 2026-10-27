@@ -10,6 +10,7 @@ import { confirmAction } from '@/stores/confirmStore';
 import { Button } from '@/components/ui/button';
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
+import { useReviewStore } from '@/stores/reviewStore';
 import { gitService } from '@/services/git/GitService';
 import {
   GitCommit as GitCommitIcon,
@@ -25,6 +26,7 @@ import {
   ArrowUpFromLine,
   ArrowDownToLine,
   Split,
+  ScanEye,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -43,6 +45,7 @@ const DEFAULT_HISTORY_VIEW = { query: '', scrollTop: 0, metadataWidth: 176, colu
 
 export const CommitHistoryView: React.FC = () => {
   const { t } = useI18n();
+  const reviewBadgeCount = useReviewStore(state => state.badgeCount);
   const {
     commits,
     selectedCommit,
@@ -334,6 +337,10 @@ export const CommitHistoryView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1">
+          <Button variant="outline" size="xs" disabled={!repoPath} data-testid="history-stage-review" onClick={() => setActiveTab('review')} title={t('review.stageHint')}>
+            <ScanEye className="h-3.5 w-3.5" />{t('review.title')}
+            {(reviewBadgeCount ?? 0) > 0 && <Badge variant="warning" className="h-4 px-1.5 text-[12px] font-mono" title={t('review.pendingCount').replace('{n}', String(reviewBadgeCount))}>{reviewBadgeCount}</Badge>}
+          </Button>
           <Button variant="ghost" size="xs" disabled={!repoPath} onClick={() => setBisectOpen(true)} aria-label={t('bisect.open')} title={t('bisect.open')}>
             <Split className="h-3.5 w-3.5" />
           </Button>

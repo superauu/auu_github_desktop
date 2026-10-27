@@ -22,6 +22,7 @@ import { watchPushedCommit } from '@/services/git/PushChecks';
 import { sameWorktreePath } from '@/services/git/worktrees';
 import { tNow } from '@/i18n';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
+import { sameDiffLines } from '@/utils/diffRows';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
@@ -43,6 +44,8 @@ export interface RepoState {
   recentRepos: RepositoryInfo[];
   activeTab: MainNavTab;
   status: GitStatusResult | null;
+  /** Successful workspace reads, including same-status external content edits. */
+  workingChangesRevision: number;
   selectedFile: GitFileChange | null;
   selectedCommit: GitCommit | null;
   fileDiffLines: ParsedDiffLine[];
@@ -177,6 +180,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     openingRepoPath: null,
     activeTab: 'changes',
     status: null,
+    workingChangesRevision: 0,
     selectedFile: null,
     selectedCommit: null,
     fileDiffLines: [],
@@ -396,7 +400,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         const operationState = await gitService.getRepoOperationState(repo.path, status);
         if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
         const statusChanged = JSON.stringify(status) !== JSON.stringify(get().status);
-        if (statusChanged) set({ status });
+        set(state => ({ ...(statusChanged ? { status } : {}), workingChangesRevision: state.workingChangesRevision + 1 }));
         if (JSON.stringify(operationState) !== JSON.stringify(get().operationState)) set({ operationState });
         const changes = [...status.staged, ...status.unstaged, ...status.untracked];
         const selected = get().selectedFile;
@@ -487,6 +491,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
             openTabs: updatedTabs,
             recentRepos: updatedRecent,
             status,
+            workingChangesRevision: state.workingChangesRevision + 1,
             commits,
             commitsLoadedAll: commits.length < commitsLimit,
             branches,
@@ -547,6 +552,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
             isLoading: false,
             currentRepo: { ...currentRepo, currentBranch: status.currentBranch },
             status,
+            workingChangesRevision: state.workingChangesRevision + 1,
             operationState,
             commits,
             commitsLoadedAll: commits.length < commitsLimit,
@@ -676,7 +682,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
           );
         }
         if (valid()) {
-          const changed = diffLines !== get().fileDiffLines;
+          const changed = !sameDiffLines(diffLines, get().fileDiffLines);
           set({ ...(changed ? { fileDiffLines: diffLines } : {}), fileDiffLoading: false, fileDiffError: null });
         }
       } catch (err: any) {

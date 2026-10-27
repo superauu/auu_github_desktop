@@ -154,7 +154,15 @@ test('file selection ignores stale diffs and repeated edits refresh even with un
   const repo = await repository(); await fs.writeFile(file(repo, 'a.txt'), 'base\n'); await commit(repo); await fs.writeFile(file(repo, 'a.txt'), 'first\n');
   app.useRepoStore.getState().setCurrentRepo(info(repo)); await app.useRepoStore.getState().refreshAll();
   await eventually(() => app.useRepoStore.getState().fileDiffLines.some((l) => l.content === '+first'));
+  const stableLines = app.useRepoStore.getState().fileDiffLines;
+  const restoreParserCacheMiss = stub(app.gitService, { getFileDiff: async () => structuredClone(stableLines) });
+  try {
+    await app.useRepoStore.getState().loadFileDiff(app.useRepoStore.getState().selectedFile, undefined, true);
+    assert.equal(app.useRepoStore.getState().fileDiffLines, stableLines, 'unchanged parsed content must not replace visible diff rows after a parser cache miss');
+  } finally { restoreParserCacheMiss(); }
+  const revision = app.useRepoStore.getState().workingChangesRevision;
   await fs.writeFile(file(repo, 'a.txt'), 'second\n'); await app.useRepoStore.getState().checkExternalChanges();
+  assert.ok(app.useRepoStore.getState().workingChangesRevision > revision, 'same-status content changes must invalidate cached file review states');
   await eventually(() => app.useRepoStore.getState().fileDiffLines.some((l) => l.content === '+second'));
   const a = deferred(), b = deferred(); const restore = stub(app.gitService, { getFileDiff: (repo, name) => name === 'A' ? a.promise : b.promise });
   try {

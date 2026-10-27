@@ -28,7 +28,7 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-commit-batch-'));
   const outfile = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/CommitBatchService'; export { getGitWriteActivity } from './src/services/git/GitQueue'; export * from './src/services/ai/AiCommitBatchService'; export { AiCommitBatchDialog } from './src/features/git/AiCommitBatchDialog'; export { CommitPlanningProgress } from './src/features/git/CommitPlanningProgress'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useSettingsStore } from './src/stores/settingsStore'; export { useWorkspaceSessionStore, draftKey } from './src/stores/workspaceSessionStore'; export { useRemoteDialogStore } from './src/stores/remoteDialogStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'batch-ui', setup(build) {
+  await build({ stdin: { contents: `export { useConfirmStore } from './src/stores/confirmStore'; export * from './src/services/git/CommitBatchService'; export { getGitWriteActivity } from './src/services/git/GitQueue'; export * from './src/services/ai/AiCommitBatchService'; export { AiCommitBatchDialog } from './src/features/git/AiCommitBatchDialog'; export { CommitPlanningProgress } from './src/features/git/CommitPlanningProgress'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useSettingsStore } from './src/stores/settingsStore'; export { useWorkspaceSessionStore, draftKey } from './src/stores/workspaceSessionStore'; export { useRemoteDialogStore } from './src/stores/remoteDialogStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'batch-ui', setup(build) {
     build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
     build.onLoad({ filter: /AiClient\.ts$/ }, () => ({ contents: 'export const requestAiText = (...args) => globalThis.__batchAiRequest(...args);' }));
   } }] });
@@ -245,16 +245,16 @@ test('planning progress distinguishes file collection, model waiting and complet
 });
 
 async function uiFixture() {
-  const originals = { capture: app.commitBatchService.capture, execute: app.commitBatchService.execute, status: app.gitService.getStatus, push: app.gitService.push, context: app.gitService.getPushContext, refresh: app.useRepoStore.getState().refreshAll, config: app.useSettingsStore.getState().aiConfig };
+  const originals = { capture: app.commitBatchService.capture, execute: app.commitBatchService.execute, status: app.gitService.getStatus, push: app.gitService.push, context: app.gitService.getPushContext, refresh: app.useRepoStore.getState().refreshAll, config: app.useSettingsStore.getState().aiConfig, review: app.useSettingsStore.getState().reviewBeforeCommit };
   const plan = { repoPath: '/batch-ui', branch: 'main', head: 'before', files: [{ path: 'a' }, { path: 'b' }], skipped: [], context: 'working changes', truncated: false };
   app.useRepoStore.setState({ currentRepo: { path: '/batch-ui', currentBranch: 'main' }, status: { currentBranch: 'main' }, refreshAll: async () => {} });
-  app.useSettingsStore.setState({ aiConfig: { ...originals.config, provider: 'openai-compatible', apiKey: 'test', model: 'test' } });
+  app.useSettingsStore.setState({ reviewBeforeCommit: false, aiConfig: { ...originals.config, provider: 'openai-compatible', apiKey: 'test', model: 'test' } });
   app.commitBatchService.capture = async () => plan;
   globalThis.__batchAiRequest = async () => JSON.stringify({ summary: 'Two independent changes', groups: [group('feat: a', ['a']), group('docs: b', ['b'])] });
   app.gitService.getStatus = async () => ({ currentBranch: 'main', headOid: 'after' });
   app.gitService.getPushContext = async () => ({ remotes: [] });
   let renderer; await act(async () => { renderer = create(React.createElement(app.AiCommitBatchDialog, { repoPath: '/batch-ui', branch: 'main', onClose() {}, onOpenAiSettings() {} })); });
-  return { renderer, async cleanup() { await act(async () => { renderer.unmount(); app.useRemoteDialogStore.getState().settle(null); }); app.commitBatchService.capture = originals.capture; app.commitBatchService.execute = originals.execute; app.gitService.getStatus = originals.status; app.gitService.push = originals.push; app.gitService.getPushContext = originals.context; app.useRepoStore.setState({ currentRepo: null, refreshAll: originals.refresh }); app.useSettingsStore.setState({ aiConfig: originals.config }); } };
+  return { renderer, async cleanup() { await act(async () => { renderer.unmount(); app.useRemoteDialogStore.getState().settle(null); }); app.commitBatchService.capture = originals.capture; app.commitBatchService.execute = originals.execute; app.gitService.getStatus = originals.status; app.gitService.push = originals.push; app.gitService.getPushContext = originals.context; app.useRepoStore.setState({ currentRepo: null, refreshAll: originals.refresh }); app.useSettingsStore.setState({ aiConfig: originals.config, reviewBeforeCommit: originals.review }); } };
 }
 
 test('preview supports editing messages, file reassignment and merging without committing before confirmation', async () => {
@@ -286,6 +286,25 @@ test('cancelling destination creates no commits; failed push retries only push a
     await act(async () => { button(renderer, '重试推送').props.onClick(); button(renderer, '重试推送').props.onClick(); });
     assert.equal(executions, 1); assert.equal(pushes, 2); assert.match(JSON.stringify(renderer.toJSON()), /全部提交已推送/);
   } finally { await fixture.cleanup(); }
+});
+
+test('batch review reminder opens before creating commits and allows continuing without code approval', async () => {
+  const fixture = await uiFixture(), { renderer } = fixture;
+  app.useSettingsStore.setState({ reviewBeforeCommit: true });
+  app.gitService.getStatus = async () => ({ currentBranch: 'main', headOid: 'before' });
+  let executions = 0;
+  app.commitBatchService.execute = async () => { executions++; return { completed: [] }; };
+  try {
+    await act(async () => {
+      button(renderer, '确认创建 2 个提交').props.onClick();
+      for (let i = 0; i < 100 && !app.useConfirmStore.getState().pending; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    });
+    assert.equal(executions, 0, 'no commit may be created before the reminder is answered');
+    assert.equal(app.useConfirmStore.getState().pending.confirmLabel, '继续提交');
+    assert.match(JSON.stringify(renderer.toJSON()), /正在检查本次提交的审核状态/);
+    await act(async () => { app.useConfirmStore.getState().settle(true); for (let i = 0; i < 100 && !executions; i++) await new Promise(resolve => setTimeout(resolve, 20)); });
+    assert.equal(executions, 1, 'unreviewed files may still be committed');
+  } finally { app.useConfirmStore.getState().settle(false); await fixture.cleanup(); }
 });
 
 test('batch execution displays completed commits and the current group while later checks are still running', async () => {

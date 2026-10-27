@@ -30,7 +30,6 @@ import {
   Search,
   Bot,
   ListFilter,
-  ScanEye,
   Sparkles,
   Copy,
   Eye,
@@ -41,7 +40,6 @@ import {
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useForgeStore } from '@/stores/forgeStore';
-import { useReviewStore } from '@/stores/reviewStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { GitBranch, GitStash, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
@@ -84,7 +82,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
   const { pullRequests, selectPR } = useGitHubStore();
   const forgePulls = useForgeStore((state) => state.pulls);
-  const reviewBadgeCount = useReviewStore((state) => state.badgeCount);
   const { panels } = useWorkspaceLayout();
   const { navigationPinned, setNavigationPinned } = useLayoutStore();
 
@@ -703,38 +700,11 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         </button>
 
         <button
-          aria-current={activeTab === 'review' ? 'page' : undefined}
-          title={reviewBadgeCount ? t('review.pendingCount').replace('{n}', String(reviewBadgeCount)) : undefined}
-          onClick={() => { setActiveTab('review'); onNavigate?.(); }}
-          className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
-            activeTab === 'review'
-              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <ScanEye
-              className={cn(
-                "h-3.5 w-3.5",
-                activeTab === 'review' ? "text-primary" : "text-muted-foreground"
-              )}
-            />
-            <span>{t('sidebar.review')}</span>
-          </div>
-          {(reviewBadgeCount ?? 0) > 0 && (
-            <Badge variant="warning" className="h-4 px-1.5 text-[12px] font-mono">
-              {reviewBadgeCount}
-            </Badge>
-          )}
-        </button>
-
-        <button
-          aria-current={activeTab === 'history' ? 'page' : undefined}
+          aria-current={activeTab === 'history' || activeTab === 'review' ? 'page' : undefined}
           onClick={() => { setActiveTab('history'); onNavigate?.(); }}
           className={cn(
             "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
-            activeTab === 'history'
+            activeTab === 'history' || activeTab === 'review'
               ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
           )}
@@ -743,7 +713,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             <Clock
               className={cn(
                 "h-3.5 w-3.5",
-                activeTab === 'history' ? "text-primary" : "text-muted-foreground"
+                activeTab === 'history' || activeTab === 'review' ? "text-primary" : "text-muted-foreground"
               )}
             />
             <span>{t('sidebar.history')}</span>

@@ -20,6 +20,7 @@ import { lfsEn } from './lfs';
 import { signingEn } from './signing';
 import { forgeEn } from './forge';
 import { reviewEn } from './review';
+import { workingReviewEn } from './workingReview';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
@@ -280,7 +281,7 @@ export const en = {
 
   // ============ Sidebar ============
   'sidebar.changes': 'Working Changes',
-  'sidebar.review': 'Review',
+  'sidebar.review': 'History · Checkpoint review',
   'sidebar.changes.clean': 'Clean',
   'sidebar.history': 'History & Graph',
   'sidebar.pullRequests': 'Pull Requests',
@@ -1392,6 +1393,7 @@ export const en = {
   ...workflowEn,
   ...resilienceEn,
   ...optimizationEn,
+  ...workingReviewEn,
 } as const;
 
 export type TranslationKey = keyof typeof en;

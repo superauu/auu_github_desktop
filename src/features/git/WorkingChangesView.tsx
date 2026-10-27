@@ -1,5 +1,10 @@
 import { FileAttributionContent } from './FileAttributionContent';
 import { WorkingDiffContent } from './WorkingDiffContent';
+import { useWorkingReview } from '@/features/review/useWorkingReview';
+import { WorkingReviewPanel, WorkingReviewHunkActions } from '@/features/review/WorkingReviewPanel';
+import { WorkingReviewReport } from '@/features/review/WorkingReviewReport';
+import { useWorkingReviewFileList } from '@/features/review/useWorkingReviewFileList';
+import { WorkingReviewFileStatus, workingFileReviewLabel } from '@/features/review/WorkingReviewFileStatus';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import { stageSelectedLines } from '@/services/git/LineStagingService';
 import { CommitSplitDialog } from './CommitSplitDialog';
@@ -63,6 +68,7 @@ export const WorkingChangesView: React.FC = () => {
   const diffFontSize = useSettingsStore(state => state.diffFontSize);
   const wrap = useSettingsStore(state => state.diffWrapLines);
   const ignoreWhitespace = useSettingsStore(state => state.diffIgnoreWhitespace);
+  const workingChangesRevision = useRepoStore(state => state.workingChangesRevision);
   const [diffQuery, setDiffQuery] = useState('');
   const diffId = useId();
   const {
@@ -111,7 +117,9 @@ export const WorkingChangesView: React.FC = () => {
   const untrackedFiles = status?.untracked || [];
 
   const activeFile = selectedFile || stagedFiles[0] || unstagedFiles[0] || untrackedFiles[0];
+  const workingReview = useWorkingReview(currentRepo?.path ?? '', status, activeFile, fileDiffLines, fileDiffLoading, ignoreWhitespace, fileDiffError, workingChangesRevision);
   const allFiles = useMemo(() => [...stagedFiles, ...unstagedFiles, ...untrackedFiles], [stagedFiles, unstagedFiles, untrackedFiles]);
+  const fileReviews = useWorkingReviewFileList(currentRepo?.path ?? '', status, allFiles, workingChangesRevision, { file: activeFile, snapshot: workingReview.verifiedSnapshot });
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const selectionAnchor = useRef(0);
   const [batchBusy, setBatchBusy] = useState(false);
@@ -279,11 +287,12 @@ export const WorkingChangesView: React.FC = () => {
       row?.focus();
     });
   };
-  const fileRowProps = (file: GitFileChange): React.HTMLAttributes<HTMLDivElement> & { 'data-list-row': string; 'data-file-path': string; 'data-picked': string } => {
+  const fileRowProps = (file: GitFileChange): React.HTMLAttributes<HTMLDivElement> & { 'data-list-row': string; 'data-file-path': string; 'data-picked': string; 'data-review-state': string; 'data-file-staged': string } => {
     const selected = activeFile?.path === file.path && activeFile?.staged === file.staged;
     return {
       role: 'listitem', tabIndex: selected ? 0 : -1, 'aria-current': selected ? 'true' : undefined,
-      'aria-label': file.path, 'data-list-row': '', 'data-file-path': file.path,
+      'aria-label': `${file.path} · ${workingFileReviewLabel(fileReviews.stateFor(file), t)}`, 'data-list-row': '', 'data-file-path': file.path,
+      'data-review-state': fileReviews.stateFor(file).kind, 'data-file-staged': String(!!file.staged),
       'data-picked': String(picked.has(fileKey(file))),
       onClick: event => {
         const index = allFiles.indexOf(file);
@@ -418,6 +427,7 @@ export const WorkingChangesView: React.FC = () => {
       'h-7 w-7 rounded flex items-center justify-center shrink-0 transition-colors';
     return (
       <div className="flex items-center gap-0.5 shrink-0">
+        <WorkingReviewHunkActions review={workingReview} header={hunks[hunkIdx][0].content} />
         {activeFile.staged && !isUntracked ? (
           <button
             onClick={() => handleHunkAction(hunkIdx, 'unstage')}
@@ -533,6 +543,11 @@ export const WorkingChangesView: React.FC = () => {
           </div>
         </div>
 
+        {totalChanges > 0 && <div aria-label={t('workingReview.listProgress')} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 border-b border-border text-[12px]">
+          <span className="text-emerald-700 dark:text-emerald-400">{t('workingReview.approved')} {fileReviews.approved}</span>
+          <span className="text-amber-700 dark:text-amber-400">{t('workingReview.pending')} {fileReviews.pending}</span>
+          {!!fileReviews.checking && <span className="text-muted-foreground">{t('workingReview.listChecking')} {fileReviews.checking}</span>}
+        </div>}
         {totalChanges > 0 && <div className="px-2 py-1 border-b border-border"><Button variant="ghost" size="xs" className="w-full justify-start gap-2" onClick={() => setSplitOpen(true)}><Split className="w-3.5 h-3.5" />{t('flow.splitCommits')}</Button></div>}
         {selectedFiles.length > 0 && <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border text-[12px]" role="toolbar" aria-label={t('changes.selectionActions')}>
           <span>{selectedFiles.length} {t('changes.selected')}</span>
@@ -573,16 +588,17 @@ export const WorkingChangesView: React.FC = () => {
                         key={file.path}
                         {...fileRowProps(file)}
                         className={cn(
-                          "flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
+                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
                           activeFile?.path === file.path && activeFile?.staged === file.staged
                             ? "bg-accent text-accent-foreground font-medium"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
-                        <div className="flex items-center gap-2 truncate min-w-0">
+                        <div className="flex flex-1 items-center gap-2 min-w-0">
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} />
                         </div>
                         <Button
                           variant="ghost"
@@ -626,16 +642,17 @@ export const WorkingChangesView: React.FC = () => {
                         key={file.path}
                         {...fileRowProps(file)}
                         className={cn(
-                          "flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
+                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
                           activeFile?.path === file.path && activeFile?.staged === file.staged
                             ? "bg-accent text-accent-foreground font-medium"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
-                        <div className="flex items-center gap-2 truncate min-w-0">
+                        <div className="flex flex-1 items-center gap-2 min-w-0">
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} />
                         </div>
                         <div className="hidden items-center gap-1 group-hover:flex group-focus-within:flex shrink-0">
                           {file.status === 'conflicted' ? (
@@ -789,16 +806,17 @@ export const WorkingChangesView: React.FC = () => {
                         key={file.path}
                         {...fileRowProps(file)}
                         className={cn(
-                          "flex items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
+                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
                           activeFile?.path === file.path && activeFile?.staged === file.staged
                             ? "bg-accent text-accent-foreground font-medium"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
-                        <div className="flex items-center gap-2 truncate min-w-0">
+                        <div className="flex flex-1 items-center gap-2 min-w-0">
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} />
                         </div>
                         <Button
                           variant="ghost"
@@ -837,7 +855,7 @@ export const WorkingChangesView: React.FC = () => {
       />
 
       {/* Diff Viewer Pane */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">
+      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-card/10">
         {/* Diff Toolbar */}
         <div className="workspace-divider px-3 py-2 border-b border-border flex flex-wrap gap-2 text-xs bg-card/40 shrink-0">
           <div className="flex items-center gap-2 min-w-0 w-full">
@@ -864,6 +882,7 @@ export const WorkingChangesView: React.FC = () => {
                 )}
               </>
             )}
+            <WorkingReviewReport key={JSON.stringify([currentRepo?.path, status?.currentBranch])} repoPath={currentRepo?.path ?? ''} branch={status?.currentBranch ?? currentRepo?.currentBranch ?? ''} />
           </div>
 
           {activeFile && (
@@ -995,6 +1014,7 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
+        {activeFile && activeFile.status !== 'conflicted' && contentMode === 'diff' && <WorkingReviewPanel review={workingReview} filtered={ignoreWhitespace} />}
         {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && <div className="workspace-divider px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
         {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
         {activeFile?.status === 'conflicted' && showResolver ? (

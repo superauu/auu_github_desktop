@@ -20,6 +20,7 @@ import { lfsZh } from './lfs';
 import { signingZh } from './signing';
 import { forgeZh } from './forge';
 import { reviewZh } from './review';
+import { workingReviewZh } from './workingReview';
 /**
  * 中文资源包（基准语言）
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
@@ -280,7 +281,7 @@ export const zh = {
 
   // ============ 左侧边栏 ============
   'sidebar.changes': '工作区变更',
-  'sidebar.review': '审查',
+  'sidebar.review': '提交历史 · 阶段复核',
   'sidebar.changes.clean': '干净',
   'sidebar.history': '提交历史',
   'sidebar.pullRequests': '拉取请求',
@@ -1408,4 +1409,5 @@ export const zh = {
   ...workflowZh,
   ...resilienceZh,
   ...optimizationZh,
+  ...workingReviewZh,
 } as const;

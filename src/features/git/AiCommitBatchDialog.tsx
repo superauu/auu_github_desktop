@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
@@ -17,7 +18,7 @@ import { watchPushedCommit } from '@/services/git/PushChecks';
 import { openGitSettings } from '@/utils/errorGuidance';
 import { useGitOperationStatus } from '@/hooks/useGitOperationStatus';
 
-type Phase = 'ready' | 'collecting' | 'analyzing' | 'review' | 'choosing' | 'committing' | 'done' | 'stopped';
+type Phase = 'ready' | 'collecting' | 'analyzing' | 'review' | 'choosing' | 'checking-review' | 'committing' | 'done' | 'stopped';
 // 分组在移动/合并/重命名间保持稳定 key，避免输入状态错绑到错误分组
 let batchGroupSeq = 0;
 const withBatchGroupIds = (groups: BatchCommitGroup[]) => groups.map(group => ({ ...group, id: group.id ?? `batch-g${++batchGroupSeq}` }));
@@ -46,7 +47,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
   const latest = useRef({ config, lang }); latest.current = { config, lang };
   const current = () => { const state = useRepoStore.getState(); return state.currentRepo?.path === repoPath && (state.status?.currentBranch || state.currentRepo.currentBranch) === branch; };
   const analyzing = phase === 'collecting' || phase === 'analyzing';
-  const writing = phase === 'committing' || phase === 'choosing' || pushState === 'pushing';
+  const writing = phase === 'committing' || phase === 'choosing' || phase === 'checking-review' || pushState === 'pushing';
   const explainedError = ['batch.cancelled', 'batch.analysisTimeout', 'batch.stale', 'batch.invalid', 'batch.localBranch', 'batch.tooMany', 'batch.renameOverlap', 'batch.submodule', 'batch.noNetChanges', 'safety.operationActive', 'explain.configure'].some(key => t(key) === error);
   let valid = false;
   try { if (plan && groups.length) { validateBatchGroups(groups, plan.files.map(file => file.path)); valid = true; } } catch { /* Inline guidance is shown below. */ }
@@ -98,10 +99,12 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
     if (!plan || !valid || phase !== 'review' || submitting.current) return;
     submitting.current = true; setErrorOrigin('git'); setError('');
     try {
-      setPhase(andPush ? 'choosing' : 'committing');
+      setPhase(andPush ? 'choosing' : 'checking-review');
       const target = andPush ? await chooseRemoteTarget(repoPath, branch) : null;
       if (andPush && !target) { if (mounted.current) setPhase('review'); return; }
       if (!current()) throw new Error(t('batch.stale'));
+      if (mounted.current) setPhase('checking-review');
+      if (!await confirmWorkingReview(repoPath, branch, plan.files, true, plan.head)) { if (mounted.current) { setPhase('review'); onClose(); } return; }
       if (mounted.current) { setPushTarget(target); setPhase('committing'); }
       const result = await commitBatchService.execute(plan, groups, { canContinue: current, onProgress: commits => { if (useRepoStore.getState().currentRepo?.path === repoPath) useRepoStore.setState({ redoStack: [] }); if (mounted.current) setCompleted(commits); } });
       if (mounted.current) { setCompleted(result.completed); setRecoveryRef(result.recoveryRef || ''); setPhase('done'); }
@@ -131,6 +134,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
         {!configured && <div className="space-y-2"><p>{t('batch.configure')}</p><Button variant="outline" onClick={() => { onClose(); onOpenAiSettings(); }}>{t('composer.configureAi')}</Button></div>}
         {timing && <CommitPlanningProgress phase={phase} progress={captureProgress} timing={timing} />}
         {phase === 'choosing' && <p role="status">{t('batch.choosing')}</p>}
+        {phase === 'checking-review' && <p role="status">{t('workingReview.checking')}</p>}
         {phase === 'committing' && <div className="space-y-2 rounded-lg bg-muted p-3"><p role="status">{t('batch.committing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))} {groups[completed.length]?.title}</p><p className="text-xs text-muted-foreground">{t('batch.hookHint')}</p></div>}
         {(phase === 'committing' || pushState === 'pushing') && activity && <div className="space-y-1 text-sm"><p role="status">{operationLabel} · {elapsed}s</p>{waitHint && <p className="text-xs text-git-tag">{waitHint}</p>}</div>}
         {error && <div role="alert">{explainedError ? <p className="text-sm text-destructive">{error}</p> : errorOrigin === 'ai' ? <div className="space-y-2 text-sm"><p className="text-destructive">{t('batch.analysisFailed')}</p><details className="text-xs text-muted-foreground"><summary className="cursor-pointer min-h-7">{t('ui.error.details')}</summary><pre className="whitespace-pre-wrap wrap-break-word max-h-48 overflow-auto">{error}</pre></details><Button variant="outline" onClick={() => { onClose(); onOpenAiSettings(); }}>{t('composer.configureAi')}</Button></div> : <ErrorNotice error={error} onOpenSettings={() => { onClose(); openGitSettings(); }} />}</div>}
@@ -141,7 +145,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
           {plan?.truncated && <p className="text-xs text-git-tag">{t('batch.truncated')}</p>}
           {plan?.skipped.length ? <p className="text-xs text-muted-foreground wrap-break-word">{t('batch.skipped')} {plan.skipped.join(', ')}</p> : null}
         </>}
-        {(phase === 'review' || phase === 'committing' || phase === 'choosing') && groups.map((group, index) => <section key={group.id ?? index} aria-label={`${index + 1}. ${group.title}`} className="p-4 border border-border rounded-lg space-y-3">
+        {(phase === 'review' || phase === 'committing' || phase === 'choosing' || phase === 'checking-review') && groups.map((group, index) => <section key={group.id ?? index} aria-label={`${index + 1}. ${group.title}`} className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{index + 1} / {groups.length} · {group.files.length} {t('batch.files')}</strong><div className="flex flex-wrap gap-1">
             <Button size="icon" variant="ghost" disabled={writing || index === 0} aria-label={t('batch.up')} onClick={() => move(index, -1)}><ArrowUp className="h-4 w-4" /></Button>
             <Button size="icon" variant="ghost" disabled={writing || index === groups.length - 1} aria-label={t('batch.down')} onClick={() => move(index, 1)}><ArrowDown className="h-4 w-4" /></Button>

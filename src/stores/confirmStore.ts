@@ -5,6 +5,8 @@ interface Confirmation {
   title: string;
   description: string;
   confirmLabel?: string;
+  cancelLabel?: string;
+  checkbox?: { label: string; onChange: (checked: boolean) => void };
   danger?: boolean;
   detail?: string;
 }

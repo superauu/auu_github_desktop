@@ -21,6 +21,7 @@ export interface SettingsState {
   diffFontSize: number;
   diffWrapLines: boolean;
   diffIgnoreWhitespace: boolean;
+  reviewBeforeCommit: boolean;
   autoFetchInterval: 'never' | '5m' | '10m' | '30m';
   aiConfig: AiApiConfig;
   language: Language;
@@ -38,6 +39,7 @@ export interface SettingsState {
   setDiffFontSize: (size: number) => void;
   setDiffWrapLines: (enabled: boolean) => void;
   setDiffIgnoreWhitespace: (enabled: boolean) => void;
+  setReviewBeforeCommit: (enabled: boolean) => void;
   setAutoFetchInterval: (interval: 'never' | '5m' | '10m' | '30m') => void;
   setAiConfig: (config: Partial<AiApiConfig>) => void;
   setLanguage: (lang: Language) => void;
@@ -61,6 +63,7 @@ const DEFAULT_SETTINGS = {
   diffFontSize: 13,
   diffWrapLines: false,
   diffIgnoreWhitespace: false,
+  reviewBeforeCommit: true,
   autoFetchInterval: '10m' as const,
   language: 'zh' as const,
   externalTools: [] as ExternalToolConfig[],
@@ -85,6 +88,7 @@ function loadSettings() {
         ...parsed,
         cursorTheme: normalizeCursorTheme(parsed.cursorTheme),
         diffFontSize: typeof parsed.diffFontSize === 'number' && [12, 13, 14, 16, 18].includes(parsed.diffFontSize) ? parsed.diffFontSize : 13,
+        reviewBeforeCommit: typeof parsed.reviewBeforeCommit === 'boolean' ? parsed.reviewBeforeCommit : true,
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
           ...(parsed.aiConfig || {}),
@@ -114,6 +118,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
         diffFontSize: get().diffFontSize,
         diffWrapLines: get().diffWrapLines,
         diffIgnoreWhitespace: get().diffIgnoreWhitespace,
+        reviewBeforeCommit: get().reviewBeforeCommit,
         autoFetchInterval: get().autoFetchInterval,
         aiConfig: get().aiConfig,
         language: get().language,
@@ -208,6 +213,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       set({ diffFontSize: size }); persist({ diffFontSize: size });
     },
     setDiffWrapLines: (diffWrapLines) => { set({ diffWrapLines }); persist({ diffWrapLines }); },
+    setReviewBeforeCommit: (reviewBeforeCommit) => { set({ reviewBeforeCommit }); persist({ reviewBeforeCommit }); },
     setDiffIgnoreWhitespace: (diffIgnoreWhitespace) => { set({ diffIgnoreWhitespace }); persist({ diffIgnoreWhitespace }); },
 
     setAutoFetchInterval: (autoFetchInterval: 'never' | '5m' | '10m' | '30m') => {

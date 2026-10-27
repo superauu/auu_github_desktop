@@ -128,6 +128,8 @@ test('same-repository PRs use an unqualified head and reject the identical targe
 
 test('Commit and Push reports a preference warning alongside push success without reporting a push failure', async () => {
   const methods = ['getStatus', 'commit', 'getBranchCommitHash', 'push', 'getPushContext'];
+  const reviewBeforeCommit = app.useSettingsStore.getState().reviewBeforeCommit;
+  app.useSettingsStore.setState({ reviewBeforeCommit: false });
   const originals = Object.fromEntries(methods.map(name => [name, app.gitService[name]]));
   const refreshStatus = app.useRepoStore.getState().refreshStatus;
   const status = { currentBranch: 'main', ahead: 0, behind: 0, isClean: false, staged: [{ path: 'a.txt', status: 'modified', staged: true }], unstaged: [], untracked: [] };
@@ -156,6 +158,7 @@ test('Commit and Push reports a preference warning alongside push success withou
   } finally {
     await act(async () => renderer?.unmount());
     Object.assign(app.gitService, originals);
+    app.useSettingsStore.setState({ reviewBeforeCommit });
     app.useRepoStore.setState({ currentRepo: null, refreshStatus });
     app.useRemoteDialogStore.getState().settle(null);
   }
@@ -382,7 +385,7 @@ test('push CI observation follows the actual destination repository and never tu
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ux-'));
   const bundle = path.join(tmp, 'ux.cjs');
-  await build({ stdin: { contents: `export { CommitComposer } from './src/components/layout/CommitComposer'; export { CreatePullRequestModal } from './src/features/pr/CreatePullRequestModal'; export { useToastStore } from './src/stores/toastStore'; export * from './src/services/git/PushChecks'; export * from './src/stores/remoteDialogStore'; export * from './src/services/git/RemoteActions'; export { RemoteOperationDialog } from './src/features/git/RemoteOperationDialog'; export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
+  await build({ stdin: { contents: `export { useSettingsStore } from './src/stores/settingsStore'; export { CommitComposer } from './src/components/layout/CommitComposer'; export { CreatePullRequestModal } from './src/features/pr/CreatePullRequestModal'; export { useToastStore } from './src/stores/toastStore'; export * from './src/services/git/PushChecks'; export * from './src/stores/remoteDialogStore'; export * from './src/services/git/RemoteActions'; export { RemoteOperationDialog } from './src/features/git/RemoteOperationDialog'; export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
     plugins: [{ name: 'headless-modal', setup(build) { build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' })); } }],
   });

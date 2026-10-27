@@ -282,6 +282,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setCompactMode,
     autoFetchInterval,
     setAutoFetchInterval,
+    reviewBeforeCommit,
+    setReviewBeforeCommit,
     aiConfig,
     credentialError,
     setAiConfig,
@@ -673,6 +675,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   </div>
                 </div>
 
+                <label className="flex items-start justify-between gap-4 rounded-lg border border-border p-3 cursor-pointer">
+                  <span><span className="block font-medium text-foreground">{t('workingReview.setting')}</span><span className="block text-[12px] text-muted-foreground mt-1">{t('workingReview.settingDesc')}</span></span>
+                  <input type="checkbox" checked={reviewBeforeCommit} onChange={event => setReviewBeforeCommit(event.target.checked)} aria-label={t('workingReview.setting')} />
+                </label>
                 <RemotesManager />
                 <RepositoryPermissions />
                 <ExternalToolsSection />

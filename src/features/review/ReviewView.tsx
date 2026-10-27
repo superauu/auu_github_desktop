@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Bot, Check, CheckCheck, ChevronRight, Copy, FileCheck2, FileCode2, GitMerge, Image as ImageIcon, Loader2, MessageSquare, RefreshCw, ScanEye, Sparkles, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, CheckCheck, ChevronRight, Copy, FileCheck2, FileCode2, GitMerge, Image as ImageIcon, Loader2, MessageSquare, RefreshCw, ScanEye, Sparkles, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -1111,6 +1111,8 @@ function ReviewHeader({ children }: { children?: ReactNode }) {
   const { t } = useI18n();
   return (
     <div className="min-h-10 px-3 py-1 border-b border-border flex flex-wrap items-center gap-2 shrink-0">
+      <Button variant="ghost" size="xs" data-testid="review-back-history" aria-label={t('review.backHistory')} onClick={() => useRepoStore.getState().setActiveTab('history')}><ArrowLeft className="h-3.5 w-3.5" />{t('sidebar.history')}</Button>
+      <span aria-hidden="true" className="text-muted-foreground">/</span>
       <ScanEye className="h-4 w-4 text-primary shrink-0" />
       <span className="font-semibold text-sm shrink-0">{t('review.title')}</span>
       {children}

@@ -156,7 +156,8 @@ test('sidebar can repeatedly collapse and expand while the review badge updates 
       await act(async () => app.useReviewStore.setState({ badgeCount: i + 1 }));
       await act(async () => repo.getState().toggleLeftSidebar());
       assert.notEqual(renderer.toJSON(), null);
-      assert.match(JSON.stringify(renderer.toJSON()), /审查/);
+      assert.match(JSON.stringify(renderer.toJSON()), /提交历史/);
+      assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /提交历史 · 阶段复核/);
     }
     await act(async () => repo.getState().toggleLeftSidebar());
     await act(async () => renderer.update(React.createElement(app.LeftSidebar, { inDrawer: true })));
