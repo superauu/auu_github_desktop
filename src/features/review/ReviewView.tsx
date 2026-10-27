@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Bot, CheckCheck, GitMerge, Image as ImageIcon, Loader2, RefreshCw, ScanEye, Sparkles, TriangleAlert } from 'lucide-react';
+import { Bot, Check, CheckCheck, Copy, FileCheck2, GitMerge, Image as ImageIcon, Loader2, MessageSquare, RefreshCw, ScanEye, Sparkles, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
+import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { VirtualRows } from '@/components/ui/VirtualRows';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
@@ -16,6 +17,7 @@ import { useI18n } from '@/i18n';
 import { cn } from '@/utils/cn';
 import { useRepoStore } from '@/stores/repoStore';
 import { useReviewStore, isAiInvolved, type ReviewTarget } from '@/stores/reviewStore';
+import { useReviewProgressStore, progressKey } from '@/stores/reviewProgressStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
@@ -23,7 +25,12 @@ import { gitService } from '@/services/git/GitService';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import type { GitCommit, GitFileChange } from '@/services/git/types';
 import { computeSplitRows } from '@/utils/diffRows';
-import type { ReviewRiskFinding } from './reviewLogic';
+import { confirmAction } from '@/stores/confirmStore';
+import { toast } from '@/stores/toastStore';
+import {
+  buildReviewReport, isFileApproved, isHunkApproved, parseHunks, toggleFileApproval, toggleHunkApproval,
+  type ReportFile, type ReviewComment, type ReviewHunk, type ReviewRiskFinding,
+} from './reviewLogic';
 
 const RISK_LABEL: Record<ReviewRiskFinding['kind'], string> = {
   secret: 'review.riskSecret',
@@ -112,6 +119,139 @@ export function ReviewView() {
   const branch = status?.currentBranch ?? '';
   const headHash = status?.headOid ?? '';
 
+  // ---- 分级审查:通过进度与注释 ----
+  const progressEntry = useReviewProgressStore((state) => state.entries[progressKey(repoPath, branch)]);
+  const setProgress = useReviewProgressStore((state) => state.setProgress);
+  const approval = progressEntry?.approval ?? { approvedFiles: [], approvedHunks: {} };
+  const comments = progressEntry?.comments ?? [];
+  /** 正在编辑的注释目标:path + 行范围(文件级两个值为 null);draft 为输入内容,编辑已有注释时带 id。 */
+  const [commentEditor, setCommentEditor] = useState<{ path: string; startLine: number | null; endLine: number | null; draft: string; id?: string } | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+
+  const selectedPath = review.selectedFile;
+  const hunks = useMemo(() => parseHunks(review.diffLines), [review.diffLines]);
+  const fileComments = useMemo(() => comments.filter((comment) => comment.path === selectedPath), [comments, selectedPath]);
+  const fileApproved = selectedPath ? isFileApproved(approval, selectedPath) : false;
+  const approvedCount = review.rangeFiles.filter((file) => isFileApproved(approval, file.path)).length;
+
+  const updateApproval = (next: typeof approval) => {
+    if (!repoPath || !branch) return;
+    setProgress(repoPath, branch, { approval: next, comments });
+  };
+
+  const onToggleHunk = (path: string, hunk: ReviewHunk) => {
+    const next = toggleHunkApproval(approval, path, hunk.newStart);
+    // 代码块全部通过后自动升级为文件通过
+    if (!isFileApproved(next, path) && hunks.length > 0 && hunks.every((h) => isHunkApproved(next, path, h.newStart))) {
+      next.approvedFiles.push(path);
+    }
+    updateApproval(next);
+  };
+
+  const onToggleFile = (path: string) => {
+    setCommentEditor(null);
+    const willApprove = !isFileApproved(approval, path);
+    let next = toggleFileApproval(approval, path);
+    if (willApprove && selectedPath === path && hunks.length > 0) {
+      // 把当前 diff 的全部代码块写入记录,保证后续单独取消某个代码块时可精确降级
+      const current = next.approvedHunks[path] ?? [];
+      next = { ...next, approvedHunks: { ...next.approvedHunks, [path]: [...new Set([...current, ...hunks.map((hunk) => hunk.newStart)])] } };
+    } else if (!willApprove) {
+      const { [path]: _cleared, ...rest } = next.approvedHunks;
+      next = { ...next, approvedHunks: rest };
+    }
+    updateApproval(next);
+  };
+
+  /** 打开代码块注释编辑:已有注释则预填,否则新建(一个代码块一条)。 */
+  const openHunkComment = (path: string, hunk: ReviewHunk) => {
+    const existing = comments.find((comment) => comment.path === path && comment.startLine === hunk.newStart);
+    setCommentEditor({
+      path,
+      startLine: hunk.newStart,
+      endLine: hunk.newStart + hunk.count - 1,
+      draft: existing?.text ?? '',
+      id: existing?.id,
+    });
+  };
+
+  const openFileComment = (path: string) => {
+    const existing = comments.find((comment) => comment.path === path && comment.startLine === null);
+    setCommentEditor({ path, startLine: null, endLine: null, draft: existing?.text ?? '', id: existing?.id });
+  };
+
+  const saveComment = () => {
+    if (!repoPath || !branch || !commentEditor) return;
+    const text = commentEditor.draft.trim();
+    if (!text) return;
+    const id = commentEditor.id ?? `${commentEditor.path}:${commentEditor.startLine}:${commentEditor.endLine}`;
+    const comment: ReviewComment = { id, path: commentEditor.path, startLine: commentEditor.startLine, endLine: commentEditor.endLine, text };
+    const next = comments.filter((item) => item.id !== id).concat(comment).sort((a, b) => a.path.localeCompare(b.path) || (a.startLine ?? 0) - (b.startLine ?? 0));
+    setProgress(repoPath, branch, { approval, comments: next });
+    setCommentEditor(null);
+  };
+
+  const deleteComment = (id: string) => {
+    if (!repoPath || !branch) return;
+    setProgress(repoPath, branch, { approval, comments: comments.filter((item) => item.id !== id) });
+  };
+
+  const buildReportText = () => {
+    const reportFiles: ReportFile[] = review.rangeFiles
+      .map((file) => ({
+        path: file.path,
+        lines: comments
+          .filter((comment) => comment.path === file.path)
+          .map((comment) => ({
+            location: comment.startLine === null
+              ? t('review.reportWholeFile')
+              : t('review.reportLines').replace('{a}', String(comment.startLine)).replace('{b}', String(comment.endLine ?? comment.startLine)),
+            text: comment.text,
+          }))
+          .filter((line) => line.text),
+      }))
+      .filter((file) => file.lines.length > 0);
+    return buildReviewReport([
+      t('review.reportTitle'),
+      t('review.reportIntro')
+        .replace('{base}', review.checkpoint?.hash.slice(0, 10) ?? '')
+        .replace('{head}', review.headHash.slice(0, 10))
+        .replace('{n}', String(reportFiles.reduce((sum, file) => sum + file.lines.length, 0))),
+    ], reportFiles);
+  };
+
+  const copyReport = async () => {
+    const text = buildReportText();
+    if (!text) { toast.warning(t('review.reportEmpty')); return; }
+    try { await navigator.clipboard.writeText(text); toast.success(t('review.reportCopied')); }
+    catch (error: any) { toast.error(t('review.reportCopyFailed'), error?.message ?? String(error)); }
+  };
+
+  const handleMarkReviewed = async () => {
+    if (!repoPath || !branch) return;
+    const total = review.rangeFiles.length;
+    if (approvedCount > 0 && approvedCount < total) {
+      const ok = await confirmAction({
+        title: t('review.markReviewed'),
+        description: t('review.markPartial').replace('{a}', String(approvedCount)).replace('{b}', String(total)),
+      });
+      if (!ok) return;
+    }
+    await useReviewStore.getState().markReviewed(repoPath, branch);
+    setCommentEditor(null);
+    setReportOpen(false);
+  };
+
+  const selectTargetSafe = (target: ReviewTarget) => {
+    setCommentEditor(null);
+    if (repoPath) void useReviewStore.getState().setTarget(repoPath, target);
+  };
+
+  const selectFileSafe = (path: string) => {
+    setCommentEditor(null);
+    if (repoPath) void useReviewStore.getState().selectFile(repoPath, path);
+  };
+
   useEffect(() => {
     if (!repoPath || !branch || !headHash) return;
     const state = useReviewStore.getState();
@@ -189,9 +329,27 @@ export function ReviewView() {
       </div>
     );
     return review.diffMode === 'split' ? (
-      <VirtualRows items={splitRows} rowHeight={24} renderRow={(row, idx) => row.isHeader ? (
-        <div key={idx} className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] w-full flex items-center"><span className="truncate">{row.headerContent}</span></div>
-      ) : (
+      <VirtualRows items={splitRows} rowHeight={24} renderRow={(row, idx) => row.isHeader ? (() => {
+        const hunk = hunks.find((item) => item.index === idx) ?? null;
+        const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && comment.startLine === hunk.newStart) : [];
+        return (
+          <div key={idx} className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] w-full flex items-center justify-between gap-2">
+            <span className="truncate">{row.headerContent}</span>
+            {hunk && selectedPath && (
+              <HunkActions
+                path={selectedPath}
+                hunk={hunk}
+                approved={isHunkApproved(approval, selectedPath, hunk.newStart)}
+                commentCount={hunkComments.length}
+                onToggle={onToggleHunk}
+                onComment={openHunkComment}
+                approveTitle={t('review.approveHunk')}
+                commentTitle={t('review.commentHunk')}
+              />
+            )}
+          </div>
+        );
+      })() : (
         <div key={idx} className="grid grid-cols-2 divide-x divide-border/60 hover:bg-accent/40 dark:hover:bg-white/3 transition-colors">
           {([row.left, row.right] as const).map((side, columnIndex) => {
             const isDel = side?.type === 'delete';
@@ -209,7 +367,10 @@ export function ReviewView() {
         </div>
       )} />
     ) : (
-      <VirtualRows items={review.diffLines} contentWidth rowHeight={24} renderRow={(line, idx) => (
+      <VirtualRows items={review.diffLines} contentWidth rowHeight={24} renderRow={(line, idx) => {
+        const hunk = line.type === 'header' ? hunks.find((item) => item.index === idx) ?? null : null;
+        const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && comment.startLine === hunk.newStart) : [];
+        return (
         <div key={idx} className={cn(
           'flex items-stretch hover:bg-accent/40 dark:hover:bg-white/3 transition-colors border-l-2',
           line.type === 'add' ? 'diff-line-add font-medium dark:font-normal' : line.type === 'delete' ? 'diff-line-del font-medium dark:font-normal' : line.type === 'header' ? 'diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px]' : 'border-transparent text-foreground/85',
@@ -219,35 +380,69 @@ export function ReviewView() {
             <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] border-r border-border/60 dark:border-border/20 bg-muted/40 dark:bg-background/20">{line.newNo ?? ''}</div>
             <div data-diff-content className="px-3 whitespace-pre font-mono flex-1">{highlightDiff(line.content, diffQuery)}</div>
           </>)}
-          {line.type === 'header' && <span className="truncate">{line.content}</span>}
+          {line.type === 'header' && (
+            <>
+              <span className="truncate flex-1">{line.content}</span>
+              {hunk && selectedPath && (
+                <HunkActions
+                  path={selectedPath}
+                  hunk={hunk}
+                  approved={isHunkApproved(approval, selectedPath, hunk.newStart)}
+                  commentCount={hunkComments.length}
+                  onToggle={onToggleHunk}
+                  onComment={openHunkComment}
+                  approveTitle={t('review.approveHunk')}
+                  commentTitle={t('review.commentHunk')}
+                />
+              )}
+            </>
+          )}
         </div>
-      )} />
+        );
+      }} />
     );
   };
 
   const fileChip = (file: GitFileChange) => {
     const active = review.selectedFile === file.path;
     const ins = file.insertions, del = file.deletions;
+    const approved = isFileApproved(approval, file.path);
     return (
-      <button
+      <div
         key={file.path}
-        data-list-row
-        onClick={() => repoPath && void useReviewStore.getState().selectFile(repoPath, file.path)}
-        title={file.path}
         className={cn(
-          'flex items-center gap-1.5 h-6 px-2 rounded-md border text-[12px] shrink-0 max-w-56 transition-colors',
-          active ? 'border-primary/60 bg-accent text-accent-foreground' : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent/40',
+          'flex items-center h-6 rounded-md border text-[12px] shrink-0 max-w-56 transition-colors overflow-hidden',
+          approved ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-border',
+          active ? (approved ? 'text-emerald-600 dark:text-emerald-300' : 'border-primary/60 bg-accent text-accent-foreground') : 'text-muted-foreground',
         )}
       >
-        {isImagePath(file.path) && <ImageIcon className="h-3 w-3 shrink-0" />}
-        <span className="truncate">{file.path.split('/').pop()}</span>
-        {(ins || del) ? <span className="font-mono text-[12px] shrink-0"><span className="text-git-added">+{ins ?? 0}</span> <span className="text-git-deleted">-{del ?? 0}</span></span> : null}
-      </button>
+        <button
+          data-list-row
+          onClick={() => selectFileSafe(file.path)}
+          title={file.path}
+          className="flex items-center gap-1.5 h-full px-2 min-w-0 flex-1 hover:bg-accent/40"
+        >
+          {approved ? <FileCheck2 className="h-3 w-3 shrink-0 text-emerald-500" /> : isImagePath(file.path) ? <ImageIcon className="h-3 w-3 shrink-0" /> : null}
+          <span className="truncate">{file.path.split('/').pop()}</span>
+          {(ins || del) ? <span className="font-mono text-[12px] shrink-0"><span className="text-git-added">+{ins ?? 0}</span> <span className="text-git-deleted">-{del ?? 0}</span></span> : null}
+        </button>
+        {!isImagePath(file.path) && (
+          <button
+            type="button"
+            data-testid={`review-file-approve-${file.path}`}
+            aria-pressed={approved}
+            title={approved ? t('review.unapproveFile') : t('review.approveFile')}
+            onClick={() => onToggleFile(file.path)}
+            className={cn(
+              'flex items-center h-full px-1.5 shrink-0 border-l transition-colors',
+              approved ? 'border-emerald-500/40 text-emerald-500' : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent/40',
+            )}
+          >
+            <Check className="h-3 w-3" />
+          </button>
+        )}
+      </div>
     );
-  };
-
-  const selectTarget = (target: ReviewTarget) => {
-    if (repoPath) void useReviewStore.getState().setTarget(repoPath, target);
   };
 
   // ---------- 引导:尚未建立检查点(或失效后手动重选) ----------
@@ -342,11 +537,23 @@ export function ReviewView() {
             <span>{t('review.tidy')}</span>
           </Button>
           <Button
+            variant="ghost"
+            size="xs"
+            disabled={!review.checkpoint || review.stale || comments.length === 0}
+            onClick={() => setReportOpen(true)}
+            className="gap-1.5"
+            title={t('review.reportTitle')}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>{t('review.reportButton').replace('{n}', String(comments.length))}</span>
+          </Button>
+          <Button
             variant="default"
             size="xs"
             disabled={!review.checkpoint || review.stale || review.commits.length === 0 || review.markBusy}
-            onClick={() => repoPath && void useReviewStore.getState().markReviewed(repoPath, branch)}
+            onClick={() => void handleMarkReviewed()}
             className="gap-1.5"
+            title={approvedCount > 0 && approvedCount < review.rangeFiles.length ? t('review.markPartial').replace('{a}', String(approvedCount)).replace('{b}', String(review.rangeFiles.length)) : t('review.markReviewed')}
           >
             {review.markBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
             <span>{t('review.markReviewed')}</span>
@@ -390,7 +597,7 @@ export function ReviewView() {
               <ScrollArea className="flex-1 p-2">
                 <div role="list" aria-label={t('review.pendingTitle')} className="space-y-1">
                   <button
-                    onClick={() => selectTarget({ kind: 'net' })}
+                    onClick={() => selectTargetSafe({ kind: 'net' })}
                     className={cn(
                       'w-full text-left px-2 py-1.5 rounded-md transition-colors',
                       review.target.kind === 'net' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
@@ -410,7 +617,7 @@ export function ReviewView() {
                         selected={review.target.kind === 'commit' && review.target.hash === commit.hash}
                         aiSummary={aiByHash.get(commit.hash)}
                         aiLabel={t('review.aiBadge')}
-                        onSelect={() => selectTarget({ kind: 'commit', hash: commit.hash })}
+                        onSelect={() => selectTargetSafe({ kind: 'commit', hash: commit.hash })}
                       />
                     )}
                   />
@@ -431,6 +638,35 @@ export function ReviewView() {
                 <span className="text-xs font-medium truncate" title={targetTitle}>{targetTitle}</span>
                 {review.selectedFile && <span className="text-[12px] text-muted-foreground truncate" title={review.selectedFile}>{review.selectedFile}</span>}
                 <div className="ml-auto flex items-center gap-1 shrink-0">
+                  {review.selectedFile && !isImagePath(review.selectedFile) && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        data-testid="review-file-approve-current"
+                        aria-pressed={fileApproved}
+                        onClick={() => onToggleFile(review.selectedFile!)}
+                        className={cn('gap-1', fileApproved && 'text-emerald-600 dark:text-emerald-300')}
+                        title={fileApproved ? t('review.unapproveFile') : t('review.approveFile')}
+                      >
+                        <FileCheck2 className="h-3.5 w-3.5" />
+                        <span>{fileApproved ? t('review.fileApproved') : t('review.approveFile')}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => openFileComment(review.selectedFile!)}
+                        className="gap-1"
+                        title={t('review.commentFile')}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>{t('review.commentFile')}</span>
+                      </Button>
+                    </>
+                  )}
+                  <span className="text-[12px] text-muted-foreground shrink-0" title={t('review.progressTitle')}>
+                    {t('review.progress').replace('{a}', String(approvedCount)).replace('{b}', String(review.rangeFiles.length))}
+                  </span>
                   <div className="glass-segmented flex items-center">
                     <button
                       aria-pressed={review.diffMode === 'unified'}
@@ -462,6 +698,48 @@ export function ReviewView() {
                 </div>
               )}
               <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={review.diffLines.map((line) => line.content)} targetId="review-diff" />
+              {commentEditor && (
+                <div className="px-3 py-2 border-b border-border space-y-1.5 shrink-0" role="form" aria-label={t('review.commentEditor')}>
+                  <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                    <MessageSquare className="h-3 w-3 text-primary shrink-0" />
+                    <span className="truncate" title={commentEditor.path}>
+                      {commentEditor.path}
+                      {' · '}
+                      {commentEditor.startLine === null
+                        ? t('review.reportWholeFile')
+                        : t('review.reportLines').replace('{a}', String(commentEditor.startLine)).replace('{b}', String(commentEditor.endLine ?? commentEditor.startLine))}
+                    </span>
+                    <Button variant="ghost" size="icon" className="ml-auto h-5 w-5" aria-label={t('common.close')} onClick={() => setCommentEditor(null)}><X className="h-3 w-3" /></Button>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={commentEditor.draft}
+                    onChange={(event) => setCommentEditor({ ...commentEditor, draft: event.target.value })}
+                    placeholder={t('review.commentPlaceholder')}
+                    aria-label={t('review.commentPlaceholder')}
+                    className="w-full rounded-md border border-input bg-background p-2 text-[13px] leading-relaxed font-sans"
+                  />
+                  <div className="flex justify-end gap-1.5">
+                    <Button variant="outline" size="xs" onClick={() => setCommentEditor(null)}>{t('common.cancel')}</Button>
+                    <Button size="xs" disabled={!commentEditor.draft.trim()} onClick={saveComment} data-testid="review-comment-save">{commentEditor.id ? t('review.commentUpdate') : t('review.commentSave')}</Button>
+                  </div>
+                </div>
+              )}
+              {!commentEditor && selectedPath && fileComments.length > 0 && (
+                <div className="px-3 py-1.5 border-b border-border flex items-center gap-1.5 shrink-0 overflow-x-auto" role="list" aria-label={t('review.fileComments')}>
+                  <MessageSquare className="h-3 w-3 text-primary shrink-0" />
+                  {fileComments.map((comment) => (
+                    <span key={comment.id} className="flex items-center gap-1 h-5 px-1.5 rounded border border-primary/40 bg-primary/10 text-[12px] shrink-0 max-w-64" role="listitem">
+                      <span className="truncate" title={comment.text}>
+                        {comment.startLine === null ? t('review.reportWholeFile') : t('review.reportLines').replace('{a}', String(comment.startLine)).replace('{b}', String(comment.endLine ?? comment.startLine))}
+                        {' · '}
+                        {comment.text}
+                      </span>
+                      <button type="button" aria-label={t('review.commentDelete')} onClick={() => deleteComment(comment.id)} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
               {review.aiSummary && aiPanelOpen && (
                 <div className="px-3 py-2 border-b border-border text-sm space-y-1 shrink-0" role="region" aria-label={t('review.aiSummary')}>
                   <div className="flex items-center gap-1.5 font-medium"><Sparkles className="h-3.5 w-3.5 text-primary" />{t('review.aiOverview')}</div>
@@ -482,9 +760,78 @@ export function ReviewView() {
         )
       )}
 
+      {reportOpen && (
+        <ModalSurface label={t('review.reportTitle')} onDismiss={() => setReportOpen(false)} className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl max-h-[85dvh] flex flex-col gap-3 bg-card border border-border rounded-xl shadow-2xl p-5">
+            <header className="flex items-center justify-between shrink-0">
+              <h2 className="font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" />{t('review.reportTitle')}</h2>
+              <Button variant="ghost" size="icon" aria-label={t('common.close')} onClick={() => setReportOpen(false)}><X className="w-4 h-4" /></Button>
+            </header>
+            <p className="text-sm text-muted-foreground">{t('review.reportHint')}</p>
+            {(() => {
+              const text = buildReportText();
+              if (!text) return <div className="flex-1 min-h-0"><EmptyState variant="check" title={t('review.reportEmpty')} desc={t('review.reportEmptyDesc')} /></div>;
+              return (
+                <>
+                  <ScrollArea className="flex-1 min-h-0 border border-border rounded-lg">
+                    <pre data-testid="review-report-text" className="p-3 text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-words select-text">{text}</pre>
+                  </ScrollArea>
+                  <footer className="flex justify-end gap-2 shrink-0">
+                    <Button variant="outline" onClick={() => setReportOpen(false)}>{t('common.close')}</Button>
+                    <Button data-testid="review-report-copy" onClick={() => void copyReport()} className="gap-1.5"><Copy className="h-3.5 w-3.5" />{t('review.reportCopy')}</Button>
+                  </footer>
+                </>
+              );
+            })()}
+          </div>
+        </ModalSurface>
+      )}
       {tidyOpen && review.checkpoint && repoPath && (
         <HistoryEditorDialog repoPath={repoPath} baseHash={review.checkpoint.hash} onClose={() => setTidyOpen(false)} />
       )}
+    </div>
+  );
+}
+
+/** 代码块头行右侧的通过/注释动作(hunk 级审查入口)。 */
+function HunkActions({ path, hunk, approved, commentCount, onToggle, onComment, approveTitle, commentTitle }: {
+  path: string;
+  hunk: ReviewHunk;
+  approved: boolean;
+  commentCount: number;
+  onToggle: (path: string, hunk: ReviewHunk) => void;
+  onComment: (path: string, hunk: ReviewHunk) => void;
+  approveTitle: string;
+  commentTitle: string;
+}) {
+  return (
+    <div className="flex items-center gap-1 shrink-0 ml-2">
+      <button
+        type="button"
+        data-testid={`review-hunk-approve-${path}-${hunk.newStart}`}
+        aria-pressed={approved}
+        title={approveTitle}
+        onClick={(event) => { event.stopPropagation(); onToggle(path, hunk); }}
+        className={cn(
+          'flex items-center gap-0.5 h-5 px-1.5 rounded text-[12px] border transition-colors',
+          approved ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent/40',
+        )}
+      >
+        <Check className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        data-testid={`review-hunk-comment-${path}-${hunk.newStart}`}
+        title={commentTitle}
+        onClick={(event) => { event.stopPropagation(); onComment(path, hunk); }}
+        className={cn(
+          'flex items-center gap-0.5 h-5 px-1.5 rounded text-[12px] border transition-colors',
+          commentCount > 0 ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent/40',
+        )}
+      >
+        <MessageSquare className="h-3 w-3" />
+        {commentCount > 0 && <span className="font-mono">{commentCount}</span>}
+      </button>
     </div>
   );
 }

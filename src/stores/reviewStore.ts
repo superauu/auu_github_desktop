@@ -7,6 +7,7 @@ import { computeRiskFindings, detectAiAuthorship, type ReviewRiskFinding } from 
 import { summarizeReviewRange, type AiReviewSummary } from '@/services/ai/AiReviewSummaryService';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast, useToastStore } from '@/stores/toastStore';
+import { useReviewProgressStore } from '@/stores/reviewProgressStore';
 import { tNow } from '@/i18n';
 
 /** 审查范围 patch 的两档用途:风险扫描取全量(1MB 封顶),AI 上下文另行截断到 16k。 */
@@ -200,6 +201,8 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
     try {
       await reviewCheckpointService.set(repoPath, branch, headHash, checkpoint?.hash ?? null);
       checkpointBeforeMark = checkpoint;
+      // 检查点推进后,该分支的分级审查进度(通过状态与注释)随之完成
+      useReviewProgressStore.getState().clearProgress(repoPath, branch);
       useToastStore.getState().addToast({
         type: 'success',
         title: tNow('review.markReviewedDone'),
@@ -232,6 +235,8 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
     const { checkpoint, headHash } = get();
     try {
       await reviewCheckpointService.set(repoPath, branch, hash, checkpoint?.hash ?? null);
+      // 基准变化后旧的分级审查进度不再适用
+      useReviewProgressStore.getState().clearProgress(repoPath, branch);
       await get().load(repoPath, branch, headHash);
     } catch (error: any) {
       toast.error(tNow('review.baseFailed'), error?.message ?? String(error));

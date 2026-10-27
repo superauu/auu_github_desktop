@@ -115,3 +115,100 @@ export function detectAiAuthorship(body: string | undefined, email: string): boo
   const text = body ?? '';
   return AI_COAUTHOR.test(text) || AI_FOOTER.test(text);
 }
+
+// ---- 分级审查:代码块解析、通过进度与面向 AI 的报告 ----
+
+export interface ReviewHunk {
+  /** 新起始行(diff 头 +c 的 c),作为稳定的代码块标识 */
+  newStart: number;
+  /** 新侧行数 */
+  count: number;
+  /** 在 ParsedDiffLine 数组中的下标(header 行) */
+  index: number;
+}
+
+const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+
+/** 从 ParsedDiffLine 列表解析代码块边界(unified/split 共用 header 行)。 */
+export function parseHunks(diffLines: { type: string; content: string }[]): ReviewHunk[] {
+  const hunks: ReviewHunk[] = [];
+  diffLines.forEach((line, index) => {
+    if (line.type !== 'header') return;
+    const match = HUNK_HEADER.exec(line.content);
+    if (match) hunks.push({ newStart: Number(match[1]), count: match[2] === undefined ? 1 : Number(match[2]), index });
+  });
+  return hunks;
+}
+
+export interface ReviewComment {
+  id: string;
+  path: string;
+  /** hunk 注释为新侧行范围;文件级注释两个值为 null */
+  startLine: number | null;
+  endLine: number | null;
+  text: string;
+}
+
+/** 通过进度:文件级通过集合 + 代码块级通过记录(按新起始行)。 */
+export interface ReviewApproval {
+  approvedFiles: string[];
+  approvedHunks: Record<string, number[]>;
+}
+
+export function isFileApproved(approval: ReviewApproval, path: string): boolean {
+  return approval.approvedFiles.includes(path);
+}
+
+export function isHunkApproved(approval: ReviewApproval, path: string, newStart: number): boolean {
+  return isFileApproved(approval, path) || (approval.approvedHunks[path] ?? []).includes(newStart);
+}
+
+/** 代码块级通过是否已覆盖该文件全部代码块(用于自动升级为文件通过)。 */
+export function coversAllHunks(approval: ReviewApproval, path: string, hunks: ReviewHunk[]): boolean {
+  return hunks.length > 0 && hunks.every((hunk) => isHunkApproved(approval, path, hunk.newStart));
+}
+
+/** toggle 单个代码块;返回新状态(不可变)。取消时文件级通过随之降级,其余代码块记录保留。 */
+export function toggleHunkApproval(approval: ReviewApproval, path: string, newStart: number): ReviewApproval {
+  const approved = isHunkApproved(approval, path, newStart);
+  const current = approval.approvedHunks[path] ?? [];
+  if (approved) {
+    return {
+      approvedFiles: approval.approvedFiles.filter((value) => value !== path),
+      approvedHunks: { ...approval.approvedHunks, [path]: current.filter((value) => value !== newStart) },
+    };
+  }
+  return {
+    approvedFiles: approval.approvedFiles,
+    approvedHunks: { ...approval.approvedHunks, [path]: [...current, newStart] },
+  };
+}
+
+export function toggleFileApproval(approval: ReviewApproval, path: string): ReviewApproval {
+  const has = approval.approvedFiles.includes(path);
+  return {
+    approvedFiles: has ? approval.approvedFiles.filter((value) => value !== path) : [...approval.approvedFiles, path],
+    approvedHunks: approval.approvedHunks,
+  };
+}
+
+export interface ReportLine {
+  /** 已翻译的「行 a-b」或「文件整体」标签 */
+  location: string;
+  text: string;
+}
+export interface ReportFile {
+  path: string;
+  lines: ReportLine[];
+}
+
+/**
+ * 组装面向 AI 的审查报告:只收录带注释的条目(无注释文件整段省略),文件保持传入顺序。
+ * 模板文字(标题/导语)由调用方传入,保证 i18n 与纯函数解耦。
+ */
+export function buildReviewReport(header: string[], files: ReportFile[]): string {
+  const commented = files.filter((file) => file.lines.length > 0);
+  if (!commented.length) return '';
+  const sections = commented.map((file) => [`## ${file.path}`, ...file.lines.map((line) => `- ${line.location}${line.location ? ':' : ''}${line.text}`)].join('\n'));
+  return [header.join('\n'), '', ...sections, ''].join('\n');
+}
