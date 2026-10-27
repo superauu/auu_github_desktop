@@ -8,6 +8,7 @@ export interface LayoutState {
   changesFileListWidth: number;
   actionsWorkflowsWidth: number;
   prListWidth: number;
+  reviewFilesWidth: number;
   isEmbeddedTerminalOpen: boolean;
   navigationPinned: boolean;
   inspectorPresentation: 'auto' | 'inline' | 'drawer';
@@ -18,6 +19,7 @@ export interface LayoutState {
   setChangesFileListWidth: (width: number) => void;
   setActionsWorkflowsWidth: (width: number) => void;
   setPrListWidth: (width: number) => void;
+  setReviewFilesWidth: (width: number) => void;
   toggleEmbeddedTerminal: () => void;
   setEmbeddedTerminalOpen: (open: boolean) => void;
   setNavigationPinned: (pinned: boolean) => void;
@@ -33,6 +35,7 @@ export const DEFAULT_LAYOUT = {
   changesFileListWidth: 260,
   actionsWorkflowsWidth: 260,
   prListWidth: 320,
+  reviewFilesWidth: 230,
   isEmbeddedTerminalOpen: false,
   navigationPinned: true,
   inspectorPresentation: 'auto' as const,
@@ -57,6 +60,9 @@ export const useLayoutStore = create<LayoutState>()(
 
       setPrListWidth: (width: number) =>
         set({ prListWidth: Math.max(200, Math.min(550, width)) }),
+
+      setReviewFilesWidth: (width: number) =>
+        set({ reviewFilesWidth: Math.max(170, Math.min(420, width)) }),
 
       toggleEmbeddedTerminal: () =>
         set((state) => ({ isEmbeddedTerminalOpen: !state.isEmbeddedTerminalOpen })),

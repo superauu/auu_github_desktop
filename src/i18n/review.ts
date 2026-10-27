@@ -48,6 +48,12 @@ export const reviewZh = {
   'review.pickFile': '从上方选择文件查看差异',
   'review.emptyDiff': '该文件没有文本差异(可能是二进制或纯移动)',
   'review.files': '文件',
+  // 文件面板(分组与过滤)
+  'review.filterFiles': '过滤文件…',
+  'review.pendingGroup': '待审',
+  'review.approvedGroup': '已通过',
+  'review.pendingEmpty': '没有待审文件,全部已通过',
+  'review.approvedEmpty': '还没有已通过的文件',
   // AI 摘要
   'review.aiSummary': 'AI 总结',
   'review.aiOverview': '这段时间的变更',
@@ -138,6 +144,12 @@ export const reviewEn = {
   'review.pickFile': 'Select a file above to view its diff',
   'review.emptyDiff': 'No text diff for this file (binary or pure move)',
   'review.files': 'Files',
+  // File panel (grouping & filter)
+  'review.filterFiles': 'Filter files…',
+  'review.pendingGroup': 'Pending',
+  'review.approvedGroup': 'Approved',
+  'review.pendingEmpty': 'Nothing pending; everything is approved',
+  'review.approvedEmpty': 'No approved files yet',
   // AI summary
   'review.aiSummary': 'AI summary',
   'review.aiOverview': 'What changed in this range',
