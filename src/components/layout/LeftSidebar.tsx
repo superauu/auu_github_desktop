@@ -84,6 +84,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
   const { pullRequests, selectPR } = useGitHubStore();
   const forgePulls = useForgeStore((state) => state.pulls);
+  const reviewBadgeCount = useReviewStore((state) => state.badgeCount);
   const { panels } = useWorkspaceLayout();
   const { navigationPinned, setNavigationPinned } = useLayoutStore();
 
@@ -587,7 +588,6 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     (status?.staged.length || 0) +
     (status?.unstaged.length || 0) +
     (status?.untracked.length || 0);
-  const reviewBadgeCount = useReviewStore((state) => state.badgeCount);
 
   const localBranches = branches.filter((b) => !b.isRemote);
   const remoteBranches = branches.filter((b) => b.isRemote);

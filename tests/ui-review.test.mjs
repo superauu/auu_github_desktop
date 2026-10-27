@@ -17,7 +17,7 @@ const pr = (id, title) => ({ id, number: id, title, state: 'open', head: { ref: 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ui-review-'));
   const bundle = path.join(tmp, 'review.cjs');
-  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export { useWindowChrome } from './src/hooks/useWindowChrome'; export { WindowControls } from './src/components/layout/WindowControls'; export { StatusBar } from './src/components/layout/StatusBar'; export { useToastStore } from './src/stores/toastStore'; export { RightPane } from './src/components/layout/RightPane'; export { EmbeddedTerminalPanel } from './src/components/layout/EmbeddedTerminalPanel'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
+  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export { useWindowChrome } from './src/hooks/useWindowChrome'; export { WindowControls } from './src/components/layout/WindowControls'; export { StatusBar } from './src/components/layout/StatusBar'; export { useToastStore } from './src/stores/toastStore'; export { RightPane } from './src/components/layout/RightPane'; export { LeftSidebar } from './src/components/layout/LeftSidebar'; export { useReviewStore } from './src/stores/reviewStore'; export { EmbeddedTerminalPanel } from './src/components/layout/EmbeddedTerminalPanel'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
     build.onResolve({ filter: /^@tauri-apps\/api\/window$/ }, () => ({ path: 'window', namespace: 'test-window' }));
     build.onLoad({ filter: /.*/, namespace: 'test-window' }, () => ({ contents: 'export const getCurrentWindow = () => globalThis.__nativeWindow;' }));
     build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
@@ -141,6 +141,27 @@ test('laptop layout keeps the inspector inline and honors explicit drawer and in
     assert.equal(result.inspectorOverlay, false);
     assert.ok(900 - result.panels.left - result.panels.right - result.panels.files - 18 >= 320);
   } finally { await act(async () => renderer?.unmount()); app.useLayoutStore.getState().resetLayout(); app.useRepoStore.setState({ currentRepo: null }); delete globalThis.window; }
+});
+
+test('sidebar can repeatedly collapse and expand while the review badge updates without changing hook order', async () => {
+  const repo = app.useRepoStore, previous = repo.getState();
+  globalThis.window = { innerWidth: 1412, addEventListener() {}, removeEventListener() {} };
+  repo.setState({ currentRepo: null, status: null, branches: [], tags: [], stashes: [], isLeftSidebarCollapsed: false });
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.LeftSidebar)); });
+    for (let i = 0; i < 3; i++) {
+      await act(async () => repo.getState().toggleLeftSidebar());
+      assert.equal(renderer.toJSON(), null);
+      await act(async () => app.useReviewStore.setState({ badgeCount: i + 1 }));
+      await act(async () => repo.getState().toggleLeftSidebar());
+      assert.notEqual(renderer.toJSON(), null);
+      assert.match(JSON.stringify(renderer.toJSON()), /审查/);
+    }
+    await act(async () => repo.getState().toggleLeftSidebar());
+    await act(async () => renderer.update(React.createElement(app.LeftSidebar, { inDrawer: true })));
+    assert.notEqual(renderer.toJSON(), null, 'drawer navigation remains available when inline navigation is collapsed');
+  } finally { await act(async () => renderer?.unmount()); repo.setState(previous, true); delete globalThis.window; }
 });
 
 test('Git diagnostics identify recoverable causes without recommending destructive operations', () => {

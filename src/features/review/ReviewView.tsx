@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Bot, Check, CheckCheck, ChevronRight, Copy, FileCheck2, FileCode2, GitMerge, Image as ImageIcon, Loader2, MessageSquare, RefreshCw, ScanEye, Sparkles, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { useI18n } from '@/i18n';
 import { cn } from '@/utils/cn';
 import { useRepoStore } from '@/stores/repoStore';
 import { useReviewStore, isAiInvolved, type ReviewTarget } from '@/stores/reviewStore';
-import { useReviewProgressStore, progressKey, getRangeProgress } from '@/stores/reviewProgressStore';
+import { useReviewProgressStore, useReviewStorageStatus, progressKey, getRangeProgress } from '@/stores/reviewProgressStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
@@ -26,12 +26,12 @@ import { isImagePath } from '@/services/git/ImageDiffService';
 import type { GitCommit, GitFileChange } from '@/services/git/types';
 import { computeSplitRows } from '@/utils/diffRows';
 import { confirmAction } from '@/stores/confirmStore';
-import { toast } from '@/stores/toastStore';
+import { toast, useToastStore } from '@/stores/toastStore';
 import { ReviewIssuesDialog, REVIEW_STATUS_KEYS, type ReviewIssue } from './ReviewIssuesDialog';
 import { ReviewDiffText } from './ReviewDiffText';
 import {
   buildReviewReport, commentStatus, isFileApproved, isHunkApproved, parseHunks, toggleFileApproval, toggleHunkApproval,
-  type ReportFile, type ReviewApproval, type ReviewComment, type ReviewHunk, type ReviewRiskFinding,
+  type ReportFile, type ReviewApproval, type ReviewComment, type ReviewCommentStatus, type ReviewHunk, type ReviewRiskFinding,
 } from './reviewLogic';
 
 const RISK_LABEL: Record<ReviewRiskFinding['kind'], string> = {
@@ -74,6 +74,8 @@ function CommitRow({ commit, selected, aiSummary, onSelect, aiLabel }: {
   return (
     <button
       data-list-row
+      data-testid={`review-commit-${commit.hash}`}
+      aria-pressed={selected}
       onClick={onSelect}
       className={cn(
         'w-full text-left px-2 py-1.5 rounded-md transition-colors group',
@@ -112,6 +114,8 @@ export function ReviewView() {
 
   const [tidyOpen, setTidyOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [commitsExpanded, setCommitsExpanded] = useState(false);
+  const commitRecordsId = useId();
   const [diffQuery, setDiffQuery] = useState('');
   const [pickerCommits, setPickerCommits] = useState<GitCommit[]>([]);
   const [recentN, setRecentN] = useState(20);
@@ -131,6 +135,7 @@ export function ReviewView() {
   const rangeProgress = getRangeProgress(progressEntries, repoPath, branch, scope.baseHash, scope.headHash);
   const reportCommentCount = rangeProgress.reduce((sum, entry) => sum + entry.progress.comments.length, 0);
   const setProgress = useReviewProgressStore((state) => state.setProgress);
+  const storageFailed = useReviewStorageStatus((state) => state.unavailable);
   const approval = progressEntry?.approval ?? { approvedFiles: [], approvedHunks: {} };
   const comments = progressEntry?.comments ?? [];
   /** 正在编辑的注释目标:path + 行范围(文件级两个值为 null);draft 为输入内容,编辑已有注释时带 id。 */
@@ -164,7 +169,6 @@ export function ReviewView() {
   const fileApproved = selectedPath ? isFileApproved(approval, selectedPath) : false;
   const netApproval = progressEntries[progressKey(repoPath, branch, { ...scope, target: 'net' })]?.approval;
   const approvedCount = review.rangeFiles.filter((file) => netApproval && isFileApproved(netApproval, file.path)).length;
-  const targetApprovedCount = review.targetFiles.filter((file) => isFileApproved(approval, file.path)).length;
 
   const updateApproval = (next: typeof approval, path: string) => {
     if (!repoPath || !branch || !isCurrentScope() || review.diffLoading) return;
@@ -248,6 +252,24 @@ export function ReviewView() {
     const store = useReviewProgressStore.getState();
     const progress = store.getProgress(repoPath, branch, issueScope);
     store.setProgress(repoPath, branch, { ...progress, comments: progress.comments.map((comment) => comment.id === issue.comment.id ? { ...comment, ...patch } : comment) }, issueScope);
+  };
+
+  const bulkStatus = (selected: ReviewIssue[], status: ReviewCommentStatus) => {
+    if (!isCurrentScope()) return;
+    const range = { baseHash: scope.baseHash, headHash: scope.headHash };
+    const changes = useReviewProgressStore.getState().setCommentStatuses(repoPath, branch, range,
+      selected.map(({ target, comment }) => ({ target, id: comment.id })), status);
+    if (!changes.length) return;
+    useToastStore.getState().addToast({
+      type: 'success', title: t('review.bulkDone').replace('{n}', String(changes.length)),
+      action: { label: t('review.markUndo'), onClick: () => {
+        const current = useReviewStore.getState();
+        if (current.repoPath !== repoPath || current.branch !== branch || current.headHash !== range.headHash || current.checkpoint?.hash !== range.baseHash) {
+          toast.warning(t('review.rangeChanged')); return;
+        }
+        useReviewProgressStore.getState().restoreCommentStatuses(repoPath, branch, range, changes);
+      } },
+    });
   };
 
   const openIssueDiff = async ({ target, comment }: ReviewIssue) => {
@@ -339,6 +361,8 @@ export function ReviewView() {
 
   // 版本或仓库变化时不能把旧行号的草稿写入新范围。
   useEffect(() => { setCommentEditor(null); }, [repoPath, branch, scope.baseHash, scope.headHash, scope.target]);
+  // 从意见跳转到单提交时,同步展开其辅助导航。
+  useEffect(() => { if (scope.target !== 'net') setCommitsExpanded(true); }, [scope.target]);
 
   // 无检查点时加载基准选择用的提交清单
   useEffect(() => {
@@ -397,7 +421,15 @@ export function ReviewView() {
       return <ImageDiffView key={`${review.selectedFile}-${before}-${after}`} repoPath={repoPath} path={review.selectedFile} beforePath={selectedFileRecord.oldPath} before={before} after={after} />;
     }
     if (review.diffLoading) return <p role="status" className="p-6 text-muted-foreground animate-pulse">{t('common.loading')}</p>;
-    if (review.diffError) return <div role="alert" className="p-6"><ErrorNotice error={review.diffError} /></div>;
+    if (review.diffError) return (
+      <div role="alert" className="p-6 space-y-3">
+        <ErrorNotice error={review.diffError} />
+        <Button variant="outline" size="sm" data-testid="review-diff-retry" onClick={() => {
+          if (review.selectedFile) void useReviewStore.getState().selectFile(repoPath, review.selectedFile);
+          else void useReviewStore.getState().setTarget(repoPath, review.target);
+        }}><RefreshCw className="h-3.5 w-3.5" />{t('composer.retry')}</Button>
+      </div>
+    );
     if (!review.selectedFile) return (
       <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
         <ScanEye className="h-8 w-8 mx-auto text-muted-foreground/30" />
@@ -424,7 +456,7 @@ export function ReviewView() {
                 commentCount={hunkComments.length}
                 onToggle={onToggleHunk}
                 onComment={openHunkComment}
-                approveTitle={t('review.approveHunk')}
+                approveTitle={t(review.target.kind === 'net' ? 'review.approveHunk' : 'review.commitViewHunk')}
                 commentTitle={t('review.commentHunk')}
               />
             )}
@@ -472,7 +504,7 @@ export function ReviewView() {
                   commentCount={hunkComments.length}
                   onToggle={onToggleHunk}
                   onComment={openHunkComment}
-                  approveTitle={t('review.approveHunk')}
+                  approveTitle={t(review.target.kind === 'net' ? 'review.approveHunk' : 'review.commitViewHunk')}
                   commentTitle={t('review.commentHunk')}
                 />
               )}
@@ -600,10 +632,11 @@ export function ReviewView() {
           <Button
             variant="default"
             size="xs"
+            data-testid="review-complete-round"
             disabled={!review.checkpoint || review.stale || review.commits.length === 0 || review.markBusy}
             onClick={() => void handleMarkReviewed()}
             className="gap-1.5"
-            title={approvedCount > 0 && approvedCount < review.rangeFiles.length ? t('review.markPartial').replace('{a}', String(approvedCount)).replace('{b}', String(review.rangeFiles.length)) : t('review.markReviewed')}
+            title={t('review.completeHint')}
           >
             {review.markBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
             <span>{t('review.markReviewed')}</span>
@@ -611,6 +644,24 @@ export function ReviewView() {
         </div>
       </ReviewHeader>
 
+      {review.status === 'ready' && review.checkpoint && !review.stale && review.commits.length > 0 && (
+        <div className="px-3 py-2 border-b border-border bg-primary/5 flex flex-wrap items-center gap-x-3 gap-y-1 shrink-0">
+          <p data-testid="review-round-progress" className="text-xs font-medium" title={t('review.progressTitle')}>
+            {t('review.progress').replace('{a}', String(approvedCount)).replace('{b}', String(review.rangeFiles.length))}
+          </p>
+          <p className="text-xs text-muted-foreground flex-1 min-w-48">{t('review.roundHint')}</p>
+          {review.target.kind === 'commit' && <Button size="xs" variant="outline" data-testid="review-return-final" onClick={() => selectTargetSafe({ kind: 'net' })}>{t('review.returnFinal')}</Button>}
+        </div>
+      )}
+      {storageFailed && (
+        <div role="status" className="mx-3 mt-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 flex items-center gap-3 shrink-0 text-xs">
+          <p className="flex-1 min-w-0">{t('review.progressNotSaved')}</p>
+          <Button variant="outline" size="xs" data-testid="review-progress-retry-save" onClick={() => {
+            if (useReviewProgressStore.getState().retrySave()) toast.success(t('review.progressSaved'));
+            else toast.warning(t('review.progressNotSaved'));
+          }}>{t('review.retrySave')}</Button>
+        </div>
+      )}
       {review.status === 'loading' && <div className="flex-1 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
       {review.status === 'ready' && review.retainedFiles > 0 && <p role="status" className="px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-300 border-b border-border">{t('review.incrementalKept').replace('{n}', String(review.retainedFiles))}</p>}
       {review.status === 'error' && (
@@ -638,27 +689,37 @@ export function ReviewView() {
           </div>
         ) : (
           <div className="flex-1 min-h-0 flex overflow-hidden">
-            {/* 提交列表子栏 */}
+            {/* 最终改动为主入口,提交记录是可折叠的辅助导航。 */}
             <div style={{ width: panels.files }} className="glass-file-list border-r border-border flex flex-col shrink-0 h-full overflow-hidden">
-              <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
-                <span className="whitespace-nowrap">{t('review.pendingTitle')} ({review.commits.length})</span>
-                {!review.linear && <Badge variant="warning" className="h-4 px-1 text-[12px] shrink-0" title={t('review.linearWarn')}><GitMerge className="h-3 w-3" /></Badge>}
-              </div>
-              {review.truncated && <p role="status" className="px-3 py-1 text-[12px] text-amber-600 dark:text-amber-300 border-b border-border">{t('review.truncatedWarn').replace('{n}', String(review.commits.length))}</p>}
-              <ScrollArea className="flex-1 p-2">
-                <div role="list" aria-label={t('review.pendingTitle')} className="space-y-1">
+              <div className="p-2 shrink-0">
                   <button
+                    data-testid="review-final-changes"
+                    aria-pressed={review.target.kind === 'net'}
                     onClick={() => selectTargetSafe({ kind: 'net' })}
                     className={cn(
-                      'w-full text-left px-2 py-1.5 rounded-md transition-colors',
-                      review.target.kind === 'net' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/40',
+                      'w-full text-left px-2 py-2 rounded-md border transition-colors',
+                      review.target.kind === 'net' ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent/40',
                     )}
                   >
-                    <div className="text-xs font-medium">{t('review.netChanges')}</div>
+                    <div className="text-xs font-semibold flex items-center gap-1.5"><ScanEye className="h-3.5 w-3.5 text-primary shrink-0" />{t('review.netChanges')}</div>
+                    <p className="text-xs text-muted-foreground mt-1">{t('review.finalChangesHint').replace('{n}', String(review.commits.length))}</p>
                     <div className="text-[12px] font-mono text-muted-foreground mt-0.5">
                       <span className="text-git-added">+{review.insertions}</span> <span className="text-git-deleted">-{review.deletions}</span> · {t('review.statsFiles').replace('{n}', String(review.rangeFiles.length))}
                     </div>
                   </button>
+              </div>
+              <button type="button" data-testid="review-commits-toggle" aria-expanded={commitsExpanded} aria-controls={commitRecordsId} onClick={() => setCommitsExpanded((open) => !open)} className="px-3 py-2 border-y border-border flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0">
+                <ChevronRight className={cn('h-3 w-3 transition-transform', commitsExpanded && 'rotate-90')} aria-hidden="true" />
+                <span className="font-medium">{t('review.pendingTitle')} ({review.commits.length})</span>
+                <span className="ml-auto text-[12px]">{t('review.commitsOptional')}</span>
+                {!review.linear && <Badge variant="warning" className="h-4 px-1 text-[12px] shrink-0" title={t('review.linearWarn')}><GitMerge className="h-3 w-3" /></Badge>}
+              </button>
+              {review.truncated && <p role="status" className="px-3 py-1 text-[12px] text-amber-600 dark:text-amber-300 border-b border-border">{t('review.truncatedWarn').replace('{n}', String(review.commits.length))}</p>}
+              <div id={commitRecordsId} hidden={!commitsExpanded} className={cn('flex-1 min-h-0', commitsExpanded ? 'flex flex-col' : 'hidden')}>
+                {commitsExpanded && <>
+                <p className="px-3 py-2 text-xs text-muted-foreground shrink-0">{t('review.commitRecordsHint')}</p>
+                <ScrollArea className="flex-1 min-h-0 p-2 pt-0">
+                <div role="list" aria-label={t('review.pendingTitle')} className="space-y-1">
                   <VirtualRows
                     items={review.commits}
                     rowHeight={44}
@@ -673,7 +734,9 @@ export function ReviewView() {
                     )}
                   />
                 </div>
-              </ScrollArea>
+                </ScrollArea>
+                </>}
+              </div>
             </div>
             <ResizeHandle
               currentSize={panels.files}
@@ -687,6 +750,7 @@ export function ReviewView() {
             <div className="flex-1 min-w-0 flex overflow-hidden">
               <div style={{ width: reviewFilesWidth }} className="glass-file-list border-r border-border flex flex-col shrink-0 h-full overflow-hidden">
                 <ReviewFilePanel
+                  commitView={review.target.kind === 'commit'}
                   files={review.targetFiles}
                   approval={approval}
                   comments={comments}
@@ -717,10 +781,10 @@ export function ReviewView() {
                         aria-pressed={fileApproved}
                         onClick={() => onToggleFile(review.selectedFile!)}
                         className={cn('gap-1', fileApproved && 'text-emerald-600 dark:text-emerald-300')}
-                        title={fileApproved ? t('review.unapproveFile') : t('review.approveFile')}
+                        title={review.target.kind === 'commit' ? t(fileApproved ? 'review.commitUnviewFile' : 'review.commitViewFile') : t(fileApproved ? 'review.unapproveFile' : 'review.approveFile')}
                       >
                         <FileCheck2 className="h-3.5 w-3.5" />
-                        <span>{fileApproved ? t('review.fileApproved') : t('review.approveFile')}</span>
+                        <span>{review.target.kind === 'commit' ? t(fileApproved ? 'review.commitFileViewed' : 'review.commitViewFile') : t(fileApproved ? 'review.fileApproved' : 'review.approveFile')}</span>
                       </Button>
                       <Button
                         variant="ghost"
@@ -734,9 +798,6 @@ export function ReviewView() {
                       </Button>
                     </>
                   )}
-                  <span className="text-[12px] text-muted-foreground shrink-0" title={t('review.progressTitle')}>
-                    {t('review.progress').replace('{a}', String(targetApprovedCount)).replace('{b}', String(review.targetFiles.length))}
-                  </span>
                   <div className="glass-segmented flex items-center">
                     <button
                       aria-pressed={review.diffMode === 'unified'}
@@ -762,6 +823,7 @@ export function ReviewView() {
                   <DiffFontControl />
                 </div>
               </div>
+              {review.target.kind === 'commit' && <p data-testid="review-commit-view-hint" className="px-3 py-2 text-xs text-muted-foreground border-b border-border shrink-0">{t('review.commitViewHint')}</p>}
               <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={review.diffLines.map((line) => line.content)} targetId="review-diff" />
               {commentEditor && (
                 <div className="px-3 py-2 border-b border-border space-y-1.5 shrink-0" role="form" aria-label={t('review.commentEditor')}>
@@ -854,7 +916,7 @@ export function ReviewView() {
           </div>
         </ModalSurface>
       )}
-      {issuesOpen && <ReviewIssuesDialog issues={issues} onClose={() => setIssuesOpen(false)} onStatus={(issue, status) => updateIssue(issue, { status })} onText={(issue, text) => updateIssue(issue, { text, status: 'open' })} onOpen={(issue) => void openIssueDiff(issue)} />}
+      {issuesOpen && <ReviewIssuesDialog key={JSON.stringify([repoPath, branch, scope.baseHash, scope.headHash])} issues={issues} onClose={() => setIssuesOpen(false)} onStatus={(issue, status) => updateIssue(issue, { status })} onBulkStatus={bulkStatus} onText={(issue, text) => updateIssue(issue, { text, status: 'open' })} onOpen={(issue) => void openIssueDiff(issue)} />}
       {tidyOpen && review.checkpoint && repoPath && (
         <HistoryEditorDialog repoPath={repoPath} baseHash={review.checkpoint.hash} onClose={() => setTidyOpen(false)} />
       )}
@@ -963,7 +1025,8 @@ function ReviewFileRow({ file, active, approved, commentCount, onOpen, onToggle,
 }
 
 /** 审查文件面板:过滤 + 待审在上、已通过折叠在下(todo-list 语义)。 */
-function ReviewFilePanel({ files, approval, comments, selectedFile, onOpenFile, onToggleFile, onFileComment }: {
+function ReviewFilePanel({ commitView, files, approval, comments, selectedFile, onOpenFile, onToggleFile, onFileComment }: {
+  commitView: boolean;
   files: GitFileChange[];
   approval: ReviewApproval;
   comments: ReviewComment[];
@@ -980,6 +1043,8 @@ function ReviewFilePanel({ files, approval, comments, selectedFile, onOpenFile, 
   const pending = files.filter((file) => !isFileApproved(approval, file.path) && matches(file.path));
   const approved = files.filter((file) => isFileApproved(approval, file.path) && matches(file.path));
   const commentCount = (path: string) => comments.filter((comment) => comment.path === path).length;
+  const pendingLabel = t(commitView ? 'review.commitPendingGroup' : 'review.pendingGroup');
+  const approvedLabel = t(commitView ? 'review.commitApprovedGroup' : 'review.approvedGroup');
 
   const renderRows = (list: GitFileChange[]) => list.map((file) => (
     <ReviewFileRow
@@ -991,8 +1056,8 @@ function ReviewFilePanel({ files, approval, comments, selectedFile, onOpenFile, 
       onOpen={onOpenFile}
       onToggle={onToggleFile}
       onComment={onFileComment}
-      approveTitle={t('review.approveFile')}
-      unapproveTitle={t('review.unapproveFile')}
+      approveTitle={t(commitView ? 'review.commitViewFile' : 'review.approveFile')}
+      unapproveTitle={t(commitView ? 'review.commitUnviewFile' : 'review.unapproveFile')}
       commentTitle={t('review.commentFile')}
     />
   ));
@@ -1010,29 +1075,30 @@ function ReviewFilePanel({ files, approval, comments, selectedFile, onOpenFile, 
         />
       </div>
       <ScrollArea className="flex-1 p-1.5">
-        <div role="list" aria-label={t('review.pendingGroup')}>
+        <div role="list" aria-label={pendingLabel}>
           <div className="flex items-center gap-1.5 px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
-            <span>{t('review.pendingGroup')} ({pending.length})</span>
+            <span>{pendingLabel} ({pending.length})</span>
           </div>
           {pending.length === 0
-            ? <p className="px-1.5 py-2 text-[12px] text-muted-foreground">{t('review.pendingEmpty')}</p>
+            ? <p className="px-1.5 py-2 text-[12px] text-muted-foreground">{t(commitView ? 'review.commitPendingEmpty' : 'review.pendingEmpty')}</p>
             : renderRows(pending)}
         </div>
         <div className="mt-2">
           <button
             type="button"
+            data-testid="review-approved-toggle"
             aria-expanded={approvedOpen}
             onClick={() => setApprovedOpen((open) => !open)}
             className="flex items-center gap-1.5 px-1.5 py-1 w-full text-[12px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground"
           >
             <ChevronRight className={cn('h-3 w-3 transition-transform', approvedOpen && 'rotate-90')} aria-hidden="true" />
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
-            <span>{t('review.approvedGroup')} ({approved.length})</span>
+            <span>{approvedLabel} ({approved.length})</span>
           </button>
           {approvedOpen && (approved.length === 0
-            ? <p className="px-1.5 py-2 text-[12px] text-muted-foreground">{t('review.approvedEmpty')}</p>
-            : <div role="list" aria-label={t('review.approvedGroup')}>{renderRows(approved)}</div>)}
+            ? <p className="px-1.5 py-2 text-[12px] text-muted-foreground">{t(commitView ? 'review.commitApprovedEmpty' : 'review.approvedEmpty')}</p>
+            : <div role="list" aria-label={approvedLabel}>{renderRows(approved)}</div>)}
         </div>
       </ScrollArea>
     </>

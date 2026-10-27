@@ -37,7 +37,7 @@ before(async () => {
     '@/stores/layoutStore': `const state = {reviewFilesWidth:240,changesFileListWidth:220,setChangesFileListWidth(){},setReviewFilesWidth(){}}; export const useLayoutStore = Object.assign(fn=>fn(state),{getState:()=>state});`,
     '@/stores/settingsStore': `export const useSettingsStore = Object.assign(fn=>fn({diffFontSize:13}),{getState:()=>({aiConfig:{},language:'zh'})});`,
     '@/hooks/useWorkspaceLayout': `export const useWorkspaceLayout = () => ({panels:{files:220}});`,
-    '@/stores/confirmStore': `export const confirmAction = async () => true;`,
+    '@/stores/confirmStore': `export const confirmations=[]; export const confirmAction = async options => {confirmations.push(options); return true;};`,
     '@/i18n': `import {reviewZh} from '@/i18n/review'; export const tNow = k => reviewZh[k] ?? k; export const useI18n = () => ({t:tNow});`,
     '@/stores/toastStore': `const state={toasts:[],addToast(t){state.toasts.push(t)}}; export const useToastStore={getState:()=>state}; export const toast={error(...args){state.toasts.push({type:'error',args})},info(){},success(){},warning(){}};`,
     '@/services/ai/AiReviewSummaryService': `export const summarizeReviewRange = async () => ({overview:'',commits:[]});`,
@@ -59,7 +59,7 @@ before(async () => {
   };
   const bundle = path.join(tmp, 'workbench.cjs');
   await build({
-    stdin: { contents: `export {ReviewView} from './src/features/review/ReviewView'; export {useReviewStore} from './src/stores/reviewStore'; export * from './src/stores/reviewProgressStore'; export {useRepoStore} from '@/stores/repoStore'; export {useToastStore} from '@/stores/toastStore'; export {fixture,gitService} from '@/services/git/GitService'; export {points,pointKey,reviewCheckpointService} from '@/services/git/ReviewCheckpointService';`, resolveDir: root },
+    stdin: { contents: `export {confirmations} from '@/stores/confirmStore'; export {ReviewView} from './src/features/review/ReviewView'; export {useReviewStore} from './src/stores/reviewStore'; export * from './src/stores/reviewProgressStore'; export {useRepoStore} from '@/stores/repoStore'; export {useToastStore} from '@/stores/toastStore'; export {fixture,gitService} from '@/services/git/GitService'; export {points,pointKey,reviewCheckpointService} from '@/services/git/ReviewCheckpointService';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom', 'react/jsx-runtime'],
     alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
     plugins: [{ name: 'headless-review-workbench', setup(b) {
@@ -80,6 +80,7 @@ beforeEach(async () => {
   app.useReviewProgressStore.setState({ entries: {} });
   app.useToastStore.getState().toasts.length = 0;
   app.points.clear();
+  app.confirmations.length = 0;
   app.points.set(app.pointKey(REPO, 'main'), BASE);
   app.fixture.files = [file]; app.fixture.lines = lines;
   app.fixture.versions = { 'a.ts': 'v1' }; app.fixture.versionsByHead = {}; app.fixture.nonAncestors = [];
@@ -186,7 +187,7 @@ test('comments stay separate across targets and reports include every current so
     const report = renderer.root.findAllByType('button').find(node => node.props.title === '审查报告');
     await act(async () => click(report));
     const text = textContent(renderer.root.findByProps({ 'data-testid': 'review-report-text' }));
-    assert.match(text, /净变更 · 行 1-1 · 待处理:Net opinion/);
+    assert.match(text, /最终改动 · 行 1-1 · 待处理:Net opinion/);
     assert.ok(text.includes(`提交 ${FIRST} · 行 1-1 · 待处理:Commit opinion`));
     assert.match(text, /## gone.ts/);
     assert.match(text, /Removed later/);
@@ -404,10 +405,198 @@ test('explicit unapproval before opening a changed file cancels pending inherite
       await s.getState().load(REPO, 'main', NEXT);
     });
     await act(async () => click(byId(renderer, 'review-file-approve-a.ts')));
-    await act(async () => click(renderer.root.findAllByType('button').find(node => node.props['aria-expanded'] === false)));
+    await act(async () => click(byId(renderer, 'review-approved-toggle')));
     await act(async () => click(byId(renderer, 'review-file-approve-a.ts')));
     await act(async () => s.getState().selectFile(REPO, 'a.ts'));
     assert.equal(byId(renderer, 'review-file-approve-current').props['aria-pressed'], false);
     assert.equal(byId(renderer, 'review-hunk-approve-a.ts-20').props['aria-pressed'], false);
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('failed local persistence never hides the diff and the save retry restores durable progress', async () => {
+  const original = globalThis.localStorage.setItem;
+  let renderer;
+  try {
+    globalThis.localStorage.setItem = () => { throw new Error('Quota full'); };
+    await app.useReviewStore.getState().setTarget(REPO, { kind: 'net' });
+    await app.useReviewStore.getState().selectFile(REPO, 'a.ts');
+    assert.equal(app.useReviewStore.getState().diffError, null);
+    assert.deepEqual(app.useReviewStore.getState().diffLines, lines);
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    assert.ok(byId(renderer, 'review-progress-retry-save'));
+    await addComment(renderer, 1, 'Kept during failed save');
+    assert.equal(app.useReviewProgressStore.getState().getProgress(REPO, 'main', scope()).comments[0].text, 'Kept during failed save');
+    globalThis.localStorage.setItem = original;
+    await act(async () => click(byId(renderer, 'review-progress-retry-save')));
+    assert.equal(byId(renderer, 'review-progress-retry-save'), undefined);
+    assert.match(saved.get('auu-git-review-progress'), /Kept during failed save/);
+  } finally { globalThis.localStorage.setItem = original; await act(async () => renderer?.unmount()); }
+});
+
+test('failed same-file diff can retry while duplicate in-flight and successful selections remain deduplicated', async () => {
+  const store = app.useReviewStore, git = app.gitService, original = git.getRangeFileDiff;
+  await store.getState().setTarget(REPO, { kind: 'net' });
+  let calls = 0, release, renderer;
+  git.getRangeFileDiff = async () => {
+    calls++;
+    if (calls === 1) throw Error('Temporary Git read failure');
+    return new Promise(resolve => { release = () => resolve(lines); });
+  };
+  try {
+    await store.getState().selectFile(REPO, 'a.ts');
+    assert.match(store.getState().diffError, /Temporary/);
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    assert.ok(byId(renderer, 'review-diff-retry'));
+    await act(async () => click(byId(renderer, 'review-diff-retry')));
+    assert.equal(store.getState().diffLoading, true);
+    await store.getState().selectFile(REPO, 'a.ts');
+    assert.equal(calls, 2);
+    await act(async () => { release(); await new Promise(setImmediate); });
+    assert.equal(store.getState().diffError, null);
+    assert.deepEqual(store.getState().diffLines, lines);
+    assert.equal(byId(renderer, 'review-diff-retry'), undefined);
+    await store.getState().selectFile(REPO, 'a.ts');
+    assert.equal(calls, 2);
+  } finally { git.getRangeFileDiff = original; await act(async () => renderer?.unmount()); }
+});
+
+test('bulk finding actions respect selection, filter and target, update reports and support undo', async () => {
+  const p = app.useReviewProgressStore;
+  const make = (id, status) => ({ id, path: 'a.ts', startLine: 1, endLine: 1, text: id, status, origin: { headHash: HEAD, startLine: 1, endLine: 1, context: '@@ -1 +1 @@\n-old\n+new' } });
+  const net = { ...empty(), comments: [make('open-net', 'open'), make('verify-net', 'needsReview'), make('resolved-net', 'resolved')] };
+  p.getState().setProgress(REPO, 'main', net, scope());
+  p.getState().setProgress(REPO, 'main', { ...empty(), comments: [make('open-commit', 'open')] }, scope(FIRST));
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    await act(async () => click(byId(renderer, 'review-issues-open')));
+    const input = id => renderer.root.findByProps({ 'data-testid': id });
+    const filter = () => renderer.root.findAllByType('select').find(n => n.props['aria-label'] === '筛选意见');
+    await act(async () => input('review-issue-select-open-net').props.onChange({ target: { checked: true } }));
+    assert.equal(byId(renderer, 'review-issues-resolve-selected').props.disabled, false);
+    await act(async () => click(byId(renderer, 'review-issues-resolve-selected')));
+    assert.equal(p.getState().getProgress(REPO, 'main', scope()).comments[0].status, 'resolved');
+    assert.equal(p.getState().getProgress(REPO, 'main', scope(FIRST)).comments[0].status, 'open');
+    await act(async () => app.useToastStore.getState().toasts.at(-1).action.onClick());
+    assert.deepEqual(p.getState().getProgress(REPO, 'main', scope()).comments, net.comments);
+    await act(async () => input('review-issues-select-all').props.onChange({ target: { checked: true } }));
+    await act(async () => filter().props.onChange({ target: { value: 'needsReview' } }));
+    assert.equal(input('review-issues-select-all').props.checked, false);
+    assert.equal(byId(renderer, 'review-issues-resolve-selected').props.disabled, true);
+    await act(async () => click(byId(renderer, 'review-issues-resolve-all')));
+    assert.equal(p.getState().getProgress(REPO, 'main', scope()).comments[1].status, 'resolved');
+    assert.equal(p.getState().getProgress(REPO, 'main', scope()).comments[0].status, 'open', 'hidden open finding is unchanged');
+    await act(async () => filter().props.onChange({ target: { value: 'active' } }));
+    await act(async () => click(byId(renderer, 'review-issues-resolve-all')));
+    assert.equal(p.getState().getProgress(REPO, 'main', scope(FIRST)).comments[0].status, 'resolved');
+    assert.equal(p.getState().getProgress(REPO, 'main', scope()).comments.every(c => c.status === 'resolved'), true);
+    assert.match(JSON.stringify(renderer.toJSON()), /没有符合条件的意见/);
+    await act(async () => app.useToastStore.getState().toasts.at(-1).action.onClick());
+    assert.equal(p.getState().getProgress(REPO, 'main', scope()).comments[0].status, 'open');
+    assert.equal(p.getState().getProgress(REPO, 'main', scope(FIRST)).comments[0].status, 'open');
+    assert.deepEqual(p.getState().getProgress(REPO, 'main', scope()).comments[0].origin, net.comments[0].origin);
+    await act(async () => filter().props.onChange({ target: { value: 'resolved' } }));
+    await act(async () => input('review-issues-select-all').props.onChange({ target: { checked: true } }));
+    await act(async () => click(byId(renderer, 'review-issues-reopen-selected')));
+    assert.equal(p.getState().getProgress(REPO, 'main', scope()).comments.every(c => c.status === 'open'), true);
+    await act(async () => click(renderer.root.findAllByType('button').filter(n => n.props['aria-label'] === 'common.close').at(-1)));
+    await act(async () => click(renderer.root.findAllByType('button').find(n => n.props.title === '审查报告')));
+    assert.match(textContent(renderer.root.findByProps({ 'data-testid': 'review-report-text' })), /待处理:verify-net/);
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('a new review range clears bulk selection and rejects undo from the previous range', async () => {
+  const p = app.useReviewProgressStore, s = app.useReviewStore;
+  p.getState().setProgress(REPO, 'main', progress(), scope());
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    await act(async () => click(byId(renderer, 'review-issues-open')));
+    await act(async () => click(byId(renderer, 'review-issues-resolve-all')));
+    const undo = app.useToastStore.getState().toasts.at(-1).action.onClick;
+    const filter = () => renderer.root.findAllByType('select').find(n => n.props['aria-label'] === '筛选意见');
+    await act(async () => filter().props.onChange({ target: { value: 'all' } }));
+    await act(async () => renderer.root.findByProps({ 'data-testid': 'review-issues-select-all' }).props.onChange({ target: { checked: true } }));
+    await act(async () => {
+      app.useRepoStore.setState({ status: { currentBranch: 'main', headOid: NEXT } });
+      await s.getState().load(REPO, 'main', NEXT);
+    });
+    assert.equal(renderer.root.findByProps({ 'data-testid': 'review-issues-select-all' }).props.checked, false);
+    assert.equal(byId(renderer, 'review-issues-resolve-selected').props.disabled, true);
+    const entries = structuredClone(p.getState().entries);
+    await act(async () => undo());
+    assert.deepEqual(p.getState().entries, entries, 'obsolete undo must not edit any range');
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('final changes are the primary entry and round progress stays fixed when browsing optional commit records', async () => {
+  const s = app.useReviewStore, p = app.useReviewProgressStore;
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    const roundProgress = () => textContent(renderer.root.findByProps({ 'data-testid': 'review-round-progress' }));
+    assert.equal(roundProgress(), '最终改动:已通过 0/1 个文件');
+    assert.equal(byId(renderer, 'review-final-changes').props['aria-pressed'], true);
+    assert.equal(byId(renderer, 'review-commits-toggle').props['aria-expanded'], false);
+    assert.equal(byId(renderer, `review-commit-${FIRST}`), undefined);
+    await act(async () => click(byId(renderer, 'review-commits-toggle')));
+    assert.equal(byId(renderer, 'review-commits-toggle').props['aria-expanded'], true);
+    await act(async () => click(byId(renderer, `review-commit-${FIRST}`)));
+    await act(async () => s.getState().selectFile(REPO, 'a.ts'));
+    assert.match(textContent(renderer.root.findByProps({ 'data-testid': 'review-commit-view-hint' })), /不计入本轮完成度/);
+    assert.equal(byId(renderer, 'review-file-approve-current').props.title, '标记已查看');
+    await act(async () => click(byId(renderer, 'review-file-approve-current')));
+    assert.equal(byId(renderer, 'review-file-approve-current').props.title, '取消已查看标记');
+    assert.equal(roundProgress(), '最终改动:已通过 0/1 个文件');
+    assert.deepEqual(p.getState().getProgress(REPO, 'main', scope()).approval.approvedFiles, []);
+    await act(async () => click(byId(renderer, 'review-commits-toggle')));
+    assert.equal(s.getState().target.hash, FIRST, 'collapsing history keeps the current diff');
+    assert.ok(byId(renderer, 'review-final-changes'), 'main entry remains reachable');
+    await act(async () => click(byId(renderer, 'review-return-final')));
+    await act(async () => s.getState().selectFile(REPO, 'a.ts'));
+    await act(async () => click(byId(renderer, 'review-file-approve-current')));
+    assert.equal(roundProgress(), '最终改动:已通过 1/1 个文件');
+    await act(async () => s.getState().setTarget(REPO, { kind: 'commit', hash: HEAD }));
+    await act(async () => s.getState().selectFile(REPO, 'a.ts'));
+    assert.equal(byId(renderer, 'review-commits-toggle').props['aria-expanded'], true, 'external commit navigation expands history');
+    assert.equal(byId(renderer, 'review-file-approve-current').props['aria-pressed'], false);
+    assert.equal(roundProgress(), '最终改动:已通过 1/1 个文件');
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('completing the round uses final approvals and never requires individual commit viewed markers', async () => {
+  const s = app.useReviewStore, p = app.useReviewProgressStore;
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    await act(async () => click(byId(renderer, 'review-file-approve-current')));
+    await act(async () => s.getState().setTarget(REPO, { kind: 'commit', hash: FIRST }));
+    await act(async () => s.getState().selectFile(REPO, 'a.ts'));
+    assert.equal(byId(renderer, 'review-file-approve-current').props['aria-pressed'], false);
+    assert.match(byId(renderer, 'review-complete-round').props.title, /检查点推进到当前最新提交/);
+    await act(async () => click(byId(renderer, 'review-complete-round')));
+    assert.deepEqual(app.confirmations, [], 'unviewed commits do not trigger an incomplete review warning');
+    assert.equal(app.points.get(app.pointKey(REPO, 'main')), HEAD);
+    assert.equal(s.getState().commits.length, 0);
+    await act(async () => app.useToastStore.getState().toasts.at(-1).action.onClick());
+    assert.equal(app.points.get(app.pointKey(REPO, 'main')), BASE);
+    assert.deepEqual(p.getState().getProgress(REPO, 'main', scope()).approval.approvedFiles, ['a.ts']);
+    assert.deepEqual(p.getState().getProgress(REPO, 'main', scope(FIRST)).approval.approvedFiles, []);
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('optional commits still contribute unresolved findings to the completion reminder', async () => {
+  const p = app.useReviewProgressStore;
+  p.getState().setProgress(REPO, 'main', { ...empty(), approval: { approvedFiles: ['a.ts'], approvedHunks: {} } }, scope());
+  p.getState().setProgress(REPO, 'main', progress('Check an intermediate change'), scope(FIRST));
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
+    assert.equal(byId(renderer, 'review-commits-toggle').props['aria-expanded'], false);
+    await act(async () => click(byId(renderer, 'review-complete-round')));
+    assert.equal(app.confirmations.length, 1);
+    assert.equal(app.confirmations[0].title, '完成本轮审查');
+    assert.match(app.confirmations[0].description, /1 条未解决/);
+    assert.equal(app.points.get(app.pointKey(REPO, 'main')), HEAD);
   } finally { await act(async () => renderer?.unmount()); }
 });

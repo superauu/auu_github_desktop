@@ -23,7 +23,7 @@ before(async () => {
   const bundle = path.join(tmp, 'review-progress.cjs');
   await build({
     stdin: {
-      contents: `export { useReviewProgressStore, progressKey, getRangeProgress } from './src/stores/reviewProgressStore';`,
+      contents: `export { useReviewProgressStore, useReviewStorageStatus, progressKey, getRangeProgress } from './src/stores/reviewProgressStore';`,
       resolveDir: root,
     },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle,
@@ -111,4 +111,93 @@ test('range pruning keeps all targets of an active range together and refreshes 
   store.getState().setProgress('newest', 'main', A, scope);
   assert.equal(app.getRangeProgress(store.getState().entries, 'active', 'main', 'base', 'head').length, 61);
   assert.equal(app.getRangeProgress(store.getState().entries, 'other', 'main', 'base', 'head-0').length, 0);
+});
+
+test('range pruning protects unresolved findings on other branches and repositories but releases resolved history', () => {
+  const store = app.useReviewProgressStore;
+  store.setState({ entries: {} });
+  const scope = { baseHash: 'base', headHash: 'old', target: 'net' };
+  const empty = { approval: { approvedFiles: [], approvedHunks: {} }, comments: [] };
+  store.getState().setProgress('r', 'feature', A, scope);
+  store.getState().setProgress('r2', 'feature', A, scope);
+  for (let i = 0; i < 55; i++) store.getState().setProgress('r', 'main', empty, { ...scope, headHash: String(i) });
+  assert.deepEqual(store.getState().getProgress('r', 'feature', scope), A);
+  assert.deepEqual(store.getState().getProgress('r2', 'feature', scope), A);
+  assert.equal(Object.keys(store.getState().entries).length, 50);
+  store.getState().setProgress('r', 'feature', { ...A, comments: A.comments.map(c => ({ ...c, status: 'resolved' })) }, scope);
+  for (let i = 55; i < 110; i++) store.getState().setProgress('r', 'main', empty, { ...scope, headHash: String(i) });
+  assert.equal(store.getState().entries[app.progressKey('r', 'feature', scope)], undefined);
+  assert.deepEqual(store.getState().getProgress('r2', 'feature', scope), A);
+});
+
+test('range limit is soft for unique unresolved notes and always preserves the current range', () => {
+  const store = app.useReviewProgressStore;
+  store.setState({ entries: {} });
+  const scope = { baseHash: 'base', headHash: 'head', target: 'net' };
+  for (let i = 0; i < 55; i++) store.getState().setProgress('r', `branch-${i}`, A, scope);
+  store.getState().setProgress('r', 'main', { approval: { approvedFiles: ['current'], approvedHunks: {} }, comments: [] }, scope);
+  assert.equal(Object.keys(store.getState().entries).length, 56);
+  assert.deepEqual(store.getState().getProgress('r', 'branch-0', scope), A);
+  assert.deepEqual(store.getState().getProgress('r', 'main', scope).approval.approvedFiles, ['current']);
+});
+
+test('storage failures retain memory and retry saves all accumulated progress', () => {
+  const store = app.useReviewProgressStore, storage = globalThis.localStorage;
+  const original = storage.setItem;
+  store.setState({ entries: {} });
+  try {
+    storage.setItem = () => { throw new DOMException('Quota full', 'QuotaExceededError'); };
+    assert.doesNotThrow(() => store.getState().setProgress('r', 'main', A));
+    assert.deepEqual(store.getState().getProgress('r', 'main'), A);
+    assert.equal(app.useReviewStorageStatus.getState().unavailable, true);
+    assert.equal(store.getState().retrySave(), false);
+    store.getState().setProgress('r', 'feature', A);
+    storage.setItem = original;
+    assert.equal(store.getState().retrySave(), true);
+    assert.equal(app.useReviewStorageStatus.getState().unavailable, false);
+    assert.deepEqual(JSON.parse(storage.getItem('auu-git-review-progress')).state.entries, store.getState().entries);
+  } finally { storage.setItem = original; }
+});
+
+test('unavailable storage reads preserve the in-memory review instead of crashing hydration', async () => {
+  const store = app.useReviewProgressStore, storage = globalThis.localStorage, original = storage.getItem;
+  store.setState({ entries: {} });
+  store.getState().setProgress('r', 'main', A);
+  try {
+    storage.getItem = () => { throw new Error('Access denied'); };
+    await store.persist.rehydrate();
+    assert.deepEqual(store.getState().getProgress('r', 'main'), A);
+    assert.equal(app.useReviewStorageStatus.getState().unavailable, true);
+  } finally { storage.getItem = original; store.getState().retrySave(); }
+});
+
+test('batch status changes are atomic, scoped by target and undo preserves subsequent edits', () => {
+  const store = app.useReviewProgressStore, storage = globalThis.localStorage, original = storage.setItem;
+  store.setState({ entries: {} });
+  const range = { baseHash: 'base', headHash: 'head' }, scope = { ...range, target: 'net' };
+  const progress = { ...A, comments: [...A.comments, { ...A.comments[0], id: 'other', status: 'needsReview' }] };
+  store.getState().setProgress('r', 'main', progress, scope);
+  store.getState().setProgress('r', 'main', progress, { ...scope, target: 'commit' });
+  store.getState().setProgress('r', 'dev', progress, scope);
+  let writes = 0;
+  try {
+    storage.setItem = function(...args) { writes++; return original.apply(this, args); };
+    const changes = store.getState().setCommentStatuses('r', 'main', range, [{ target: 'net', id: A.comments[0].id }, { target: 'commit', id: 'other' }], 'resolved');
+    assert.equal(writes, 1);
+    assert.equal(changes.length, 2);
+    assert.equal(store.getState().getProgress('r', 'main', scope).comments[0].status, 'resolved');
+    assert.equal(store.getState().getProgress('r', 'main', scope).comments[1].status, 'needsReview');
+    assert.deepEqual(store.getState().getProgress('r', 'dev', scope), progress);
+    const net = store.getState().getProgress('r', 'main', scope);
+    store.getState().setProgress('r', 'main', { ...net, comments: net.comments.map(c => ({ ...c, text: 'Later text' })) }, scope);
+    const commitScope = { ...scope, target: 'commit' }, commit = store.getState().getProgress('r', 'main', commitScope);
+    store.getState().setProgress('r', 'main', { ...commit, comments: commit.comments.map(c => ({ ...c, status: 'outdated' })) }, commitScope);
+    writes = 0;
+    store.getState().restoreCommentStatuses('r', 'main', range, changes);
+    assert.equal(writes, 1);
+    assert.equal(store.getState().getProgress('r', 'main', scope).comments[0].status, 'open');
+    assert.equal(store.getState().getProgress('r', 'main', scope).comments[0].text, 'Later text');
+    assert.deepEqual(store.getState().getProgress('r', 'main', scope).approval, A.approval);
+    assert.equal(store.getState().getProgress('r', 'main', commitScope).comments[1].status, 'outdated');
+  } finally { storage.setItem = original; }
 });

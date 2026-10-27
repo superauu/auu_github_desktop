@@ -210,8 +210,8 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
   },
 
   selectFile: async (repoPath, path) => {
-    const { checkpoint, headHash, target, selectedFile, branch, fileVersions } = get();
-    if (!checkpoint || selectedFile === path) return;
+    const { checkpoint, headHash, target, selectedFile, branch, fileVersions, diffLoading, diffError } = get();
+    if (!checkpoint || (selectedFile === path && (diffLoading || !diffError))) return;
     const epoch = ++diffEpoch;
     set({ selectedFile: path, diffLines: [], fileEvidence: null, diffLoading: true, diffError: null });
     try {
