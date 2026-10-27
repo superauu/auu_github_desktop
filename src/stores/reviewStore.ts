@@ -131,6 +131,7 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
         riskFindings: computeRiskFindings(summary.files, patch),
         rangePatch: patch,
         target: { kind: 'net' },
+        targetFiles: summary.files,
       });
     } catch (error: any) {
       if (epoch === loadEpoch) set({ status: 'error', errorMessage: error?.message ?? String(error) });
@@ -139,7 +140,8 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
 
   setTarget: async (repoPath, target) => {
     const epoch = ++diffEpoch;
-    set({ target, targetFiles: [], selectedFile: null, diffLines: [], diffError: null, diffLoading: target.kind === 'commit' });
+    // 净变更模式的文件清单就是范围摘要;单提交模式加载该提交的文件
+    set({ target, targetFiles: target.kind === 'commit' ? [] : get().rangeFiles, selectedFile: null, diffLines: [], diffError: null, diffLoading: target.kind === 'commit' });
     if (target.kind === 'commit') {
       try {
         const files = await gitService.getCommitFiles(repoPath, target.hash);
