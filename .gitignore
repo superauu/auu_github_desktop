@@ -43,3 +43,4 @@ src-tauri/*.rmeta
 
 # Tauri 本地构建生成的 schema 产物（cargo build/check 都会重新生成）
 src-tauri/gen/schemas/
+.zcode/
