@@ -5,7 +5,7 @@
 
 export interface ReviewFileSummary {
   path: string;
-  status: 'modified' | 'added' | 'deleted' | 'renamed';
+  status: string;
   insertions?: number;
   deletions?: number;
 }

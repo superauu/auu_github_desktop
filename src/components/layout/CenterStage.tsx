@@ -4,6 +4,7 @@ import { useRepoStore } from '@/stores/repoStore';
 import { WelcomeView } from '@/features/repository/WelcomeView';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 const WorkingChangesView = lazy(() => import('@/features/git/WorkingChangesView').then((module) => ({ default: module.WorkingChangesView })));
+const ReviewView = lazy(() => import('@/features/review/ReviewView').then((module) => ({ default: module.ReviewView })));
 const CommitHistoryView = lazy(() => import('@/features/git/CommitHistoryView').then((module) => ({ default: module.CommitHistoryView })));
 const ActionsDashboardView = lazy(() => import('@/features/actions/ActionsDashboardView').then((module) => ({ default: module.ActionsDashboardView })));
 const PullRequestsView = lazy(() => import('@/features/pr/PullRequestsView').then((module) => ({ default: module.PullRequestsView })));
@@ -50,6 +51,8 @@ export const CenterStage: React.FC<CenterStageProps> = ({
         return <ForgeView />;
       case 'changes':
         return <WorkingChangesView />;
+      case 'review':
+        return <ReviewView />;
       case 'history':
       default:
         return <CommitHistoryView />;

@@ -30,6 +30,7 @@ import {
   Search,
   Bot,
   ListFilter,
+  ScanEye,
   Sparkles,
   Copy,
   Eye,
@@ -697,6 +698,27 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           ) : (
             <span className="text-[12px] text-muted-foreground opacity-60">{t('sidebar.clean')}</span>
           )}
+        </button>
+
+        <button
+          aria-current={activeTab === 'review' ? 'page' : undefined}
+          onClick={() => { setActiveTab('review'); onNavigate?.(); }}
+          className={cn(
+            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
+            activeTab === 'review'
+              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <ScanEye
+              className={cn(
+                "h-3.5 w-3.5",
+                activeTab === 'review' ? "text-primary" : "text-muted-foreground"
+              )}
+            />
+            <span>{t('sidebar.review')}</span>
+          </div>
         </button>
 
         <button

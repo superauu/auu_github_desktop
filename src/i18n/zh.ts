@@ -280,6 +280,7 @@ export const zh = {
 
   // ============ 左侧边栏 ============
   'sidebar.changes': '工作区变更',
+  'sidebar.review': '审查',
   'sidebar.changes.clean': '干净',
   'sidebar.history': '提交历史',
   'sidebar.pullRequests': '拉取请求',
