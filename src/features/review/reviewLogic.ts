@@ -147,6 +147,33 @@ export interface ReviewComment {
   startLine: number | null;
   endLine: number | null;
   text: string;
+  status?: ReviewCommentStatus;
+  /** 当前行号尚未验证,不能在新 diff 中直接挂载。 */
+  anchorStale?: boolean;
+  /** 创建意见时的不可变位置和代码快照,与当前行号分开保存。 */
+  origin?: {
+    headHash: string;
+    startLine: number | null;
+    endLine: number | null;
+    context: string;
+    fingerprint?: string;
+  };
+}
+
+export type ReviewCommentStatus = 'open' | 'needsReview' | 'resolved' | 'outdated';
+export const commentStatus = (comment: ReviewComment): ReviewCommentStatus => comment.status ?? 'open';
+
+export interface ReviewHunkEvidence {
+  startLine: number;
+  endLine: number;
+  fingerprint: string;
+  context: string;
+}
+
+export interface ReviewFileEvidence {
+  /** Git blob IDs + modes + status;空字符串表示无法验证,不能继承通过状态。 */
+  version: string;
+  hunks: ReviewHunkEvidence[];
 }
 
 /** 通过进度:文件级通过集合 + 代码块级通过记录(按新起始行)。 */
@@ -196,6 +223,7 @@ export interface ReportLine {
   /** 已翻译的「行 a-b」或「文件整体」标签 */
   location: string;
   text: string;
+  context?: string;
 }
 export interface ReportFile {
   path: string;
@@ -209,6 +237,9 @@ export interface ReportFile {
 export function buildReviewReport(header: string[], files: ReportFile[]): string {
   const commented = files.filter((file) => file.lines.length > 0);
   if (!commented.length) return '';
-  const sections = commented.map((file) => [`## ${file.path}`, ...file.lines.map((line) => `- ${line.location}${line.location ? ':' : ''}${line.text}`)].join('\n'));
+  const sections = commented.map((file) => [`## ${file.path}`, ...file.lines.map((line) => [
+    `- ${line.location}${line.location ? ':' : ''}${line.text.replace(/\n/g, '\n  ')}`,
+    ...(line.context ? ['', ...line.context.split('\n').map((part) => `    ${part}`)] : []),
+  ].join('\n'))].join('\n'));
   return [header.join('\n'), '', ...sections, ''].join('\n');
 }

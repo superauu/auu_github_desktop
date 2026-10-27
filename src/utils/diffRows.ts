@@ -4,6 +4,8 @@ export interface SplitRow {
   isHeader?: boolean;
   headerContent?: string;
   hunkIdx?: number;
+  /** 原始 unified diff 的下标;分栏对齐会改变显示行号。 */
+  sourceIndex?: number;
   left?: {
     lineNo?: number | null;
     content: string;
@@ -30,6 +32,7 @@ export function computeSplitRows(diffLines: ParsedDiffLine[]): SplitRow[] {
         isHeader: true,
         headerContent: line.content,
         hunkIdx,
+        sourceIndex: i,
       });
       i++;
       continue;

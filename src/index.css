@@ -152,6 +152,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --app-cursor-default: default;
     --app-cursor-pointer: pointer;
     /* Neutral frosted surfaces keep the workspace free of a color cast. */
@@ -222,6 +223,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     /* Charcoal and graphite retain depth without blue-violet ambient light. */
     --git-added: 152 70% 72%;
     --git-modified: 216 12% 72%;
@@ -299,6 +301,17 @@
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.22);
   border-radius: 9999px;
+}
+
+/* Native popup menus must use opaque surfaces instead of translucent glass fields. */
+select option,
+select optgroup {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+select option:disabled,
+select optgroup:disabled {
+  color: hsl(var(--muted-foreground));
 }
 
 /* Opaque light-theme selection also overrides syntax and diff text colors. */

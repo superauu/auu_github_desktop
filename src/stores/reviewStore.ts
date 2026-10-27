@@ -3,11 +3,12 @@ import { gitService } from '@/services/git/GitService';
 import { reviewCheckpointService, type ReviewCheckpoint } from '@/services/git/ReviewCheckpointService';
 import type { GitCommit, GitFileChange } from '@/services/git/types';
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
-import { computeRiskFindings, detectAiAuthorship, type ReviewRiskFinding } from '@/features/review/reviewLogic';
+import { computeRiskFindings, detectAiAuthorship, type ReviewRiskFinding, type ReviewFileEvidence } from '@/features/review/reviewLogic';
+import { captureReviewEvidence } from '@/features/review/reviewIncremental';
 import { summarizeReviewRange, type AiReviewSummary } from '@/services/ai/AiReviewSummaryService';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { toast, useToastStore } from '@/stores/toastStore';
-import { useReviewProgressStore } from '@/stores/reviewProgressStore';
+import { useReviewProgressStore, previousReviewHeads, type ReviewProgress } from '@/stores/reviewProgressStore';
 import { tNow } from '@/i18n';
 
 /** 审查范围 patch 的两档用途:风险扫描取全量(1MB 封顶),AI 上下文另行截断到 16k。 */
@@ -19,6 +20,7 @@ export type ReviewTarget = { kind: 'net' } | { kind: 'commit'; hash: string };
 export interface ReviewState {
   status: 'idle' | 'loading' | 'ready' | 'error';
   errorMessage: string | null;
+  repoPath: string;
   branch: string;
   headHash: string;
   /** 导航徽标:检查点之后的待审提交数;null = 无检查点/检查点失效/未知。 */
@@ -30,6 +32,9 @@ export interface ReviewState {
   linear: boolean;
   truncated: boolean;
   rangeFiles: GitFileChange[];
+  fileVersions: Record<string, string>;
+  fileEvidence: ReviewFileEvidence | null;
+  retainedFiles: number;
   insertions: number;
   deletions: number;
   riskFindings: ReviewRiskFinding[];
@@ -63,8 +68,14 @@ let loadEpoch = 0;
 let diffEpoch = 0;
 let badgeEpoch = 0;
 let aiController: AbortController | null = null;
-/** 「标记已审查」前的检查点,供撤销恢复。 */
-let checkpointBeforeMark: ReviewCheckpoint | null = null;
+/** 撤销必须使用标记时的版本及进度,不能读取当前打开分支的 HEAD。 */
+let reviewBeforeMark: {
+  repoPath: string;
+  branch: string;
+  checkpoint: ReviewCheckpoint;
+  markedHead: string;
+  progress: Record<string, ReviewProgress>;
+} | null = null;
 
 const initialData = {
   checkpoint: null,
@@ -74,6 +85,9 @@ const initialData = {
   linear: true,
   truncated: false,
   rangeFiles: [] as GitFileChange[],
+  fileVersions: {} as Record<string, string>,
+  fileEvidence: null,
+  retainedFiles: 0,
   insertions: 0,
   deletions: 0,
   riskFindings: [] as ReviewRiskFinding[],
@@ -91,6 +105,7 @@ const initialData = {
 export const useReviewStore = create<ReviewState>()((set, get) => ({
   status: 'idle',
   errorMessage: null,
+  repoPath: '',
   branch: '',
   headHash: '',
   ...initialData,
@@ -101,8 +116,8 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
   reset: () => {
     loadEpoch++; diffEpoch++; badgeEpoch++;
     aiController?.abort(); aiController = null;
-    checkpointBeforeMark = null;
-    set({ status: 'idle', errorMessage: null, branch: '', headHash: '', ...initialData, aiBusy: false, markBusy: false });
+    reviewBeforeMark = null;
+    set({ status: 'idle', errorMessage: null, repoPath: '', branch: '', headHash: '', ...initialData, aiBusy: false, markBusy: false });
   },
 
   /** 导航徽标专用轻量刷新:只查检查点与计数,不加载差异细节(refreshAll 高频调用)。 */
@@ -125,8 +140,9 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
 
   load: async (repoPath, branch, headHash) => {
     const epoch = ++loadEpoch;
+    diffEpoch++;
     aiController?.abort(); aiController = null;
-    set({ status: 'loading', errorMessage: null, branch, headHash, ...initialData, aiBusy: false, markBusy: false });
+    set({ status: 'loading', errorMessage: null, repoPath, branch, headHash, ...initialData, aiBusy: false });
     try {
       const checkpoint = await reviewCheckpointService.get(repoPath, branch);
       if (epoch !== loadEpoch) return;
@@ -140,8 +156,22 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
         gitService.getRangePatch(repoPath, checkpoint.hash, headHash, RISK_PATCH_CAP),
       ]);
       if (epoch !== loadEpoch) return;
-      const summary = await gitService.getRangeDiffSummary(repoPath, checkpoint.hash, headHash);
+      const [summary, fileVersions] = await Promise.all([
+        gitService.getRangeDiffSummary(repoPath, checkpoint.hash, headHash),
+        gitService.getReviewFileVersions(repoPath, checkpoint.hash, headHash).catch(() => ({} as Record<string, string>)),
+      ]);
       if (epoch !== loadEpoch) return;
+      let retainedFiles = 0;
+      const progressStore = useReviewProgressStore.getState();
+      for (const previousHead of previousReviewHeads(progressStore.entries, repoPath, branch, checkpoint.hash, headHash)) {
+        const ancestor = await gitService.isAncestor(repoPath, previousHead, headHash).catch(() => false);
+        if (epoch !== loadEpoch) return;
+        if (!ancestor) continue;
+        retainedFiles = useReviewProgressStore.getState().carryProgress(
+          repoPath, branch, checkpoint.hash, previousHead, headHash, fileVersions, range.commits.map((commit) => commit.hash),
+        );
+        break;
+      }
       set({
         status: 'ready',
         checkpoint,
@@ -151,6 +181,8 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
         linear: range.linear,
         truncated: range.truncated,
         rangeFiles: summary.files,
+        fileVersions,
+        retainedFiles,
         insertions: summary.insertions,
         deletions: summary.deletions,
         riskFindings: computeRiskFindings(summary.files, patch),
@@ -166,7 +198,7 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
   setTarget: async (repoPath, target) => {
     const epoch = ++diffEpoch;
     // 净变更模式的文件清单就是范围摘要;单提交模式加载该提交的文件
-    set({ target, targetFiles: target.kind === 'commit' ? [] : get().rangeFiles, selectedFile: null, diffLines: [], diffError: null, diffLoading: target.kind === 'commit' });
+    set({ target, targetFiles: target.kind === 'commit' ? [] : get().rangeFiles, selectedFile: null, diffLines: [], fileEvidence: null, diffError: null, diffLoading: target.kind === 'commit' });
     if (target.kind === 'commit') {
       try {
         const files = await gitService.getCommitFiles(repoPath, target.hash);
@@ -178,15 +210,21 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
   },
 
   selectFile: async (repoPath, path) => {
-    const { checkpoint, headHash, target, selectedFile } = get();
+    const { checkpoint, headHash, target, selectedFile, branch, fileVersions } = get();
     if (!checkpoint || selectedFile === path) return;
     const epoch = ++diffEpoch;
-    set({ selectedFile: path, diffLoading: true, diffError: null });
+    set({ selectedFile: path, diffLines: [], fileEvidence: null, diffLoading: true, diffError: null });
     try {
       const lines = target.kind === 'commit'
         ? await gitService.getCommitFileDiff(repoPath, target.hash, path)
         : await gitService.getRangeFileDiff(repoPath, checkpoint.hash, headHash, path);
-      if (epoch === diffEpoch) set({ diffLines: lines, diffLoading: false });
+      if (epoch !== diffEpoch) return;
+      const evidence = await captureReviewEvidence(lines, target.kind === 'commit' ? `commit:${target.hash}:${path}` : fileVersions[path] ?? '');
+      if (epoch !== diffEpoch) return;
+      useReviewProgressStore.getState().reconcileFile(repoPath, branch, {
+        baseHash: checkpoint.hash, headHash, target: target.kind === 'net' ? 'net' : target.hash,
+      }, path, evidence);
+      set({ diffLines: lines, fileEvidence: evidence, diffLoading: false });
     } catch (error: any) {
       if (epoch === diffEpoch) set({ diffLoading: false, diffError: error?.message ?? String(error) });
     }
@@ -196,20 +234,29 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
 
   markReviewed: async (repoPath, branch) => {
     const { checkpoint, headHash, markBusy } = get();
-    if (markBusy) return;
+    if (markBusy || !checkpoint || get().repoPath !== repoPath || get().branch !== branch) return;
     set({ markBusy: true });
     try {
-      await reviewCheckpointService.set(repoPath, branch, headHash, checkpoint?.hash ?? null);
-      checkpointBeforeMark = checkpoint;
+      await reviewCheckpointService.set(repoPath, branch, headHash, checkpoint.hash);
+      const snapshot = {
+        repoPath, branch, checkpoint, markedHead: headHash,
+        progress: useReviewProgressStore.getState().snapshotProgress(repoPath, branch),
+      };
+      reviewBeforeMark = snapshot;
       // 检查点推进后,该分支的分级审查进度(通过状态与注释)随之完成
       useReviewProgressStore.getState().clearProgress(repoPath, branch);
       useToastStore.getState().addToast({
         type: 'success',
         title: tNow('review.markReviewedDone'),
         description: tNow('review.markReviewedDoneDesc'),
-        action: { label: tNow('review.markUndo'), onClick: () => void get().undoMarkReviewed(repoPath, branch) },
+        action: {
+          label: tNow('review.markUndo'),
+          onClick: () => { if (reviewBeforeMark === snapshot) void get().undoMarkReviewed(repoPath, branch); },
+        },
       });
-      await get().load(repoPath, branch, headHash);
+      if (get().repoPath === repoPath && get().branch === branch) {
+        await get().load(repoPath, branch, get().headHash);
+      }
     } catch (error: any) {
       toast.error(tNow('review.markFailed'), error?.message ?? String(error));
     } finally {
@@ -218,16 +265,21 @@ export const useReviewStore = create<ReviewState>()((set, get) => ({
   },
 
   undoMarkReviewed: async (repoPath, branch) => {
-    const { headHash } = get();
-    const previous = checkpointBeforeMark;
-    if (!previous) return;
+    const previous = reviewBeforeMark;
+    if (!previous || previous.repoPath !== repoPath || previous.branch !== branch || get().markBusy) return;
+    set({ markBusy: true });
     try {
-      await reviewCheckpointService.set(repoPath, branch, previous.hash, headHash);
-      checkpointBeforeMark = null;
+      await reviewCheckpointService.set(repoPath, branch, previous.checkpoint.hash, previous.markedHead);
+      useReviewProgressStore.getState().restoreProgress(repoPath, branch, previous.progress);
+      reviewBeforeMark = null;
       toast.info(tNow('review.markUndone'));
-      await get().load(repoPath, branch, headHash);
+      if (get().repoPath === repoPath && get().branch === branch) {
+        await get().load(repoPath, branch, get().headHash);
+      }
     } catch (error: any) {
       toast.error(tNow('review.markFailed'), error?.message ?? String(error));
+    } finally {
+      set({ markBusy: false });
     }
   },
 

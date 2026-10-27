@@ -1,5 +1,5 @@
 /**
- * 审查进度持久化 store 测试:按 [仓库, 分支] 键存取、清空、LRU 裁剪与
+ * 审查进度持久化 store 测试:版本/目标隔离、分支清空、范围裁剪与
  * migrate 的防御性归一(丢非法条目、过滤非法字段)。localStorage 以内存替身提供。
  */
 import { test, before, after } from 'node:test';
@@ -23,7 +23,7 @@ before(async () => {
   const bundle = path.join(tmp, 'review-progress.cjs');
   await build({
     stdin: {
-      contents: `export { useReviewProgressStore, progressKey } from './src/stores/reviewProgressStore';`,
+      contents: `export { useReviewProgressStore, progressKey, getRangeProgress } from './src/stores/reviewProgressStore';`,
       resolveDir: root,
     },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle,
@@ -60,7 +60,7 @@ test('persist round-trips entries through localStorage', () => {
   assert.equal(raw.version, 1);
 });
 
-test('migrate drops invalid entries and normalizes fields', () => {
+test('migrate drops invalid entries and normalizes fields', async () => {
   const persisted = {
     version: 1,
     state: {
@@ -72,10 +72,43 @@ test('migrate drops invalid entries and normalizes fields', () => {
       },
     },
   };
-  // migrate 在 persist 内部:重建 store 验证(直接调用不可行,通过再 hydrate 语义验证)
-  // 简化:对合法条目断言保留;非法结构在真实 hydrate 中被丢弃——这里验证 store 仍可写入
   const store = app.useReviewProgressStore;
-  store.getState().setProgress('after-migrate', 'main', A);
-  assert.deepEqual(store.getState().getProgress('after-migrate', 'main'), A);
-  assert.ok(persisted.state.entries[app.progressKey('ok', 'main')]);
+  const migrated = await store.persist.getOptions().migrate(persisted.state, 0);
+  assert.deepEqual(migrated.entries[app.progressKey('ok', 'main')], A);
+  assert.equal(migrated.entries[app.progressKey('bad-shape', 'main')], undefined);
+  assert.equal(migrated.entries[app.progressKey('bad-comments', 'main')], undefined);
+  assert.deepEqual(migrated.entries[app.progressKey('partial', 'main')].approval, {
+    approvedFiles: ['a', 'b'], approvedHunks: { 'a.ts': [1, 2] },
+  });
+  assert.equal(migrated.entries[app.progressKey('partial', 'main')].comments.length, 1);
+});
+
+test('legacy progress is never used for a scoped diff and branch clearing removes all scopes only in that branch', () => {
+  const store = app.useReviewProgressStore;
+  store.setState({ entries: {} });
+  const scope = { baseHash: 'base', headHash: 'head', target: 'net' };
+  store.getState().setProgress('r', 'main', A);
+  assert.deepEqual(store.getState().getProgress('r', 'main', scope).approval.approvedFiles, []);
+  store.getState().setProgress('r', 'main', A, scope);
+  store.getState().setProgress('r', 'main', A, { ...scope, target: 'commit' });
+  store.getState().setProgress('r', 'dev', A, scope);
+  store.getState().setProgress('r2', 'main', A, scope);
+  assert.equal(app.getRangeProgress(store.getState().entries, 'r', 'main', 'base', 'head').length, 2);
+  store.getState().clearProgress('r', 'main');
+  assert.deepEqual(store.getState().snapshotProgress('r', 'main'), {});
+  assert.deepEqual(store.getState().getProgress('r', 'dev', scope), A);
+  assert.deepEqual(store.getState().getProgress('r2', 'main', scope), A);
+});
+
+test('range pruning keeps all targets of an active range together and refreshes recently edited ranges', () => {
+  const store = app.useReviewProgressStore;
+  store.setState({ entries: {} });
+  const scope = { baseHash: 'base', headHash: 'head', target: 'net' };
+  for (let i = 0; i < 60; i++) store.getState().setProgress('active', 'main', A, { ...scope, target: `commit-${i}` });
+  assert.equal(app.getRangeProgress(store.getState().entries, 'active', 'main', 'base', 'head').length, 60);
+  for (let i = 0; i < 49; i++) store.getState().setProgress('other', 'main', A, { ...scope, headHash: `head-${i}` });
+  store.getState().setProgress('active', 'main', A, scope);
+  store.getState().setProgress('newest', 'main', A, scope);
+  assert.equal(app.getRangeProgress(store.getState().entries, 'active', 'main', 'base', 'head').length, 61);
+  assert.equal(app.getRangeProgress(store.getState().entries, 'other', 'main', 'base', 'head-0').length, 0);
 });

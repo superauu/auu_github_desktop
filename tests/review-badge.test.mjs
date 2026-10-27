@@ -80,7 +80,7 @@ before(async () => {
     plugins: [{
       name: 'headless-review-badge',
       setup(build) {
-        const stub = (name, contents) => {
+        const stub = (name) => {
           build.onResolve({ filter: new RegExp(`^@/${name}$`) }, () => ({ path: name, namespace: 'stub' }));
           build.onLoad({ filter: /.*/, namespace: 'stub' }, (args) => {
             const map = {
@@ -94,12 +94,12 @@ before(async () => {
             return { contents: map[args.path] ?? '', loader: 'js' };
           });
         };
-        stub('i18n', I18N_STUB);
-        stub('stores/settingsStore', SETTINGS_STUB);
-        stub('stores/toastStore', TOAST_STUB);
-        stub('services/git/GitService', GIT_SERVICE_STUB);
-        stub('services/git/ReviewCheckpointService', CHECKPOINT_STUB);
-        stub('services/ai/AiReviewSummaryService', AI_STUBS);
+        stub('i18n');
+        stub('stores/settingsStore');
+        stub('stores/toastStore');
+        stub('services/git/GitService');
+        stub('services/git/ReviewCheckpointService');
+        stub('services/ai/AiReviewSummaryService');
       },
     }],
   });

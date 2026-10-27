@@ -17,7 +17,7 @@ import { useI18n } from '@/i18n';
 import { cn } from '@/utils/cn';
 import { useRepoStore } from '@/stores/repoStore';
 import { useReviewStore, isAiInvolved, type ReviewTarget } from '@/stores/reviewStore';
-import { useReviewProgressStore, progressKey } from '@/stores/reviewProgressStore';
+import { useReviewProgressStore, progressKey, getRangeProgress } from '@/stores/reviewProgressStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
@@ -27,8 +27,10 @@ import type { GitCommit, GitFileChange } from '@/services/git/types';
 import { computeSplitRows } from '@/utils/diffRows';
 import { confirmAction } from '@/stores/confirmStore';
 import { toast } from '@/stores/toastStore';
+import { ReviewIssuesDialog, REVIEW_STATUS_KEYS, type ReviewIssue } from './ReviewIssuesDialog';
+import { ReviewDiffText } from './ReviewDiffText';
 import {
-  buildReviewReport, isFileApproved, isHunkApproved, parseHunks, toggleFileApproval, toggleHunkApproval,
+  buildReviewReport, commentStatus, isFileApproved, isHunkApproved, parseHunks, toggleFileApproval, toggleHunkApproval,
   type ReportFile, type ReviewApproval, type ReviewComment, type ReviewHunk, type ReviewRiskFinding,
 } from './reviewLogic';
 
@@ -45,7 +47,7 @@ function RiskBadges({ findings }: { findings: ReviewRiskFinding[] }) {
   const { t } = useI18n();
   if (!findings.length) return null;
   return (
-    <div className="flex items-center gap-1 shrink-0">
+    <div className="flex flex-wrap items-center gap-1 min-w-0">
       {findings.map((finding) => (
         <Badge
           key={finding.kind}
@@ -95,9 +97,10 @@ export function ReviewView() {
   const { t } = useI18n();
   const { currentRepo, status } = useRepoStore(useShallow((state) => ({ currentRepo: state.currentRepo, status: state.status })));
   const review = useReviewStore(useShallow((state) => ({
-    status: state.status, errorMessage: state.errorMessage, branch: state.branch, headHash: state.headHash,
+    status: state.status, errorMessage: state.errorMessage, repoPath: state.repoPath, branch: state.branch, headHash: state.headHash,
     checkpoint: state.checkpoint, stale: state.stale, commits: state.commits, linear: state.linear, truncated: state.truncated,
-    rangeFiles: state.rangeFiles, insertions: state.insertions, deletions: state.deletions, riskFindings: state.riskFindings,
+    rangeFiles: state.rangeFiles, fileVersions: state.fileVersions, fileEvidence: state.fileEvidence, retainedFiles: state.retainedFiles,
+    insertions: state.insertions, deletions: state.deletions, riskFindings: state.riskFindings,
     target: state.target, targetFiles: state.targetFiles, selectedFile: state.selectedFile,
     diffLines: state.diffLines, diffLoading: state.diffLoading, diffError: state.diffError, diffMode: state.diffMode,
     aiSummary: state.aiSummary, aiBusy: state.aiBusy, aiError: state.aiError, markBusy: state.markBusy,
@@ -122,32 +125,61 @@ export function ReviewView() {
   const headHash = status?.headOid ?? '';
 
   // ---- 分级审查:通过进度与注释 ----
-  const progressEntry = useReviewProgressStore((state) => state.entries[progressKey(repoPath, branch)]);
+  const scope = { baseHash: review.checkpoint?.hash ?? '', headHash: review.headHash, target: review.target.kind === 'net' ? 'net' : review.target.hash };
+  const progressEntries = useReviewProgressStore((state) => state.entries);
+  const progressEntry = progressEntries[progressKey(repoPath, branch, scope)];
+  const rangeProgress = getRangeProgress(progressEntries, repoPath, branch, scope.baseHash, scope.headHash);
+  const reportCommentCount = rangeProgress.reduce((sum, entry) => sum + entry.progress.comments.length, 0);
   const setProgress = useReviewProgressStore((state) => state.setProgress);
   const approval = progressEntry?.approval ?? { approvedFiles: [], approvedHunks: {} };
   const comments = progressEntry?.comments ?? [];
   /** 正在编辑的注释目标:path + 行范围(文件级两个值为 null);draft 为输入内容,编辑已有注释时带 id。 */
   const [commentEditor, setCommentEditor] = useState<{ path: string; startLine: number | null; endLine: number | null; draft: string; id?: string } | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [issuesOpen, setIssuesOpen] = useState(false);
+  const [includeResolved, setIncludeResolved] = useState(false);
+  const issues = rangeProgress.flatMap(({ target, progress }) => progress.comments.map((comment) => ({ target, comment })));
+  const activeIssueCount = issues.filter(({ comment }) => commentStatus(comment) !== 'resolved').length;
+
+  const isCurrentScope = () => {
+    const state = useReviewStore.getState();
+    return state.status === 'ready' && !state.stale && state.repoPath === repoPath && state.branch === branch
+      && state.headHash === scope.headHash && state.checkpoint?.hash === scope.baseHash
+      && (state.target.kind === 'net' ? 'net' : state.target.hash) === scope.target;
+  };
+
+  const progressWithEvidence = (path: string) => ({
+    ...progressEntry,
+    evidence: {
+      ...progressEntry?.evidence,
+      [path]: review.selectedFile === path && review.fileEvidence ? review.fileEvidence : progressEntry?.evidence?.[path] ?? {
+        version: scope.target === 'net' ? review.fileVersions[path] ?? '' : `commit:${scope.target}:${path}`, hunks: [],
+      },
+    },
+  });
 
   const selectedPath = review.selectedFile;
   const hunks = useMemo(() => parseHunks(review.diffLines), [review.diffLines]);
   const fileComments = useMemo(() => comments.filter((comment) => comment.path === selectedPath), [comments, selectedPath]);
   const fileApproved = selectedPath ? isFileApproved(approval, selectedPath) : false;
-  const approvedCount = review.rangeFiles.filter((file) => isFileApproved(approval, file.path)).length;
+  const netApproval = progressEntries[progressKey(repoPath, branch, { ...scope, target: 'net' })]?.approval;
+  const approvedCount = review.rangeFiles.filter((file) => netApproval && isFileApproved(netApproval, file.path)).length;
+  const targetApprovedCount = review.targetFiles.filter((file) => isFileApproved(approval, file.path)).length;
 
-  const updateApproval = (next: typeof approval) => {
-    if (!repoPath || !branch) return;
-    setProgress(repoPath, branch, { approval: next, comments });
+  const updateApproval = (next: typeof approval, path: string) => {
+    if (!repoPath || !branch || !isCurrentScope() || review.diffLoading) return;
+    const pending = { ...progressEntry?.pending };
+    delete pending[path]; // 显式操作优先于尚未执行的跨版本迁移。
+    setProgress(repoPath, branch, { ...progressWithEvidence(path), pending, approval: next, comments }, scope);
   };
 
   const onToggleHunk = (path: string, hunk: ReviewHunk) => {
-    const next = toggleHunkApproval(approval, path, hunk.newStart);
+    let next = toggleHunkApproval(approval, path, hunk.newStart);
     // 代码块全部通过后自动升级为文件通过
     if (!isFileApproved(next, path) && hunks.length > 0 && hunks.every((h) => isHunkApproved(next, path, h.newStart))) {
-      next.approvedFiles.push(path);
+      next = { ...next, approvedFiles: [...next.approvedFiles, path] };
     }
-    updateApproval(next);
+    updateApproval(next, path);
   };
 
   const onToggleFile = (path: string) => {
@@ -162,63 +194,102 @@ export function ReviewView() {
       const { [path]: _cleared, ...rest } = next.approvedHunks;
       next = { ...next, approvedHunks: rest };
     }
-    updateApproval(next);
+    updateApproval(next, path);
   };
 
   /** 打开代码块注释编辑:已有注释则预填,否则新建(一个代码块一条)。 */
   const openHunkComment = (path: string, hunk: ReviewHunk) => {
-    const existing = comments.find((comment) => comment.path === path && comment.startLine === hunk.newStart);
+    const existing = comments.find((comment) => comment.path === path && !comment.anchorStale && comment.startLine === hunk.newStart);
     setCommentEditor({
       path,
       startLine: hunk.newStart,
-      endLine: hunk.newStart + hunk.count - 1,
+      endLine: hunk.newStart + Math.max(1, hunk.count) - 1,
       draft: existing?.text ?? '',
       id: existing?.id,
     });
   };
 
-  const openFileComment = (path: string) => {
+  const openFileComment = async (path: string) => {
+    if (review.selectedFile !== path) await useReviewStore.getState().selectFile(repoPath, path);
+    if (!isCurrentScope()) return;
     const existing = comments.find((comment) => comment.path === path && comment.startLine === null);
     setCommentEditor({ path, startLine: null, endLine: null, draft: existing?.text ?? '', id: existing?.id });
   };
 
   const saveComment = () => {
-    if (!repoPath || !branch || !commentEditor) return;
+    if (!repoPath || !branch || !commentEditor || !isCurrentScope()) return;
     const text = commentEditor.draft.trim();
     if (!text) return;
-    const id = commentEditor.id ?? `${commentEditor.path}:${commentEditor.startLine}:${commentEditor.endLine}`;
-    const comment: ReviewComment = { id, path: commentEditor.path, startLine: commentEditor.startLine, endLine: commentEditor.endLine, text };
+    const id = commentEditor.id ?? crypto.randomUUID();
+    const existing = comments.find((comment) => comment.id === id);
+    const evidence = review.fileEvidence?.hunks.find((hunk) => hunk.startLine === commentEditor.startLine);
+    const comment: ReviewComment = {
+      ...existing, id, path: commentEditor.path, startLine: commentEditor.startLine, endLine: commentEditor.endLine, text, status: 'open',
+      origin: existing?.origin ?? {
+        headHash: scope.target === 'net' ? scope.headHash : scope.target,
+        startLine: commentEditor.startLine, endLine: commentEditor.endLine,
+        context: evidence?.context ?? review.diffLines.map((line) => line.content).join('\n').slice(0, 8000),
+        fingerprint: evidence?.fingerprint,
+      },
+    };
     const next = comments.filter((item) => item.id !== id).concat(comment).sort((a, b) => a.path.localeCompare(b.path) || (a.startLine ?? 0) - (b.startLine ?? 0));
-    setProgress(repoPath, branch, { approval, comments: next });
+    setProgress(repoPath, branch, { ...progressWithEvidence(commentEditor.path), approval, comments: next }, scope);
     setCommentEditor(null);
   };
 
   const deleteComment = (id: string) => {
     if (!repoPath || !branch) return;
-    setProgress(repoPath, branch, { approval, comments: comments.filter((item) => item.id !== id) });
+    setProgress(repoPath, branch, { ...progressEntry, approval, comments: comments.filter((item) => item.id !== id) }, scope);
+  };
+
+  const updateIssue = (issue: ReviewIssue, patch: Partial<Pick<ReviewComment, 'status' | 'text'>>) => {
+    if (!isCurrentScope()) return;
+    const issueScope = { ...scope, target: issue.target };
+    const store = useReviewProgressStore.getState();
+    const progress = store.getProgress(repoPath, branch, issueScope);
+    store.setProgress(repoPath, branch, { ...progress, comments: progress.comments.map((comment) => comment.id === issue.comment.id ? { ...comment, ...patch } : comment) }, issueScope);
+  };
+
+  const openIssueDiff = async ({ target, comment }: ReviewIssue) => {
+    const store = useReviewStore.getState();
+    await store.setTarget(repoPath, target === 'net' ? { kind: 'net' } : { kind: 'commit', hash: target });
+    const current = useReviewStore.getState();
+    if (current.repoPath !== repoPath || current.branch !== branch || current.headHash !== scope.headHash
+      || current.checkpoint?.hash !== scope.baseHash || (current.target.kind === 'net' ? 'net' : current.target.hash) !== target) return;
+    if (!current.targetFiles.some((file) => file.path === comment.path)) {
+      toast.info(t('review.issueFileGone'));
+      return;
+    }
+    await useReviewStore.getState().selectFile(repoPath, comment.path);
+    setIssuesOpen(false);
   };
 
   const buildReportText = () => {
-    const reportFiles: ReportFile[] = review.rangeFiles
-      .map((file) => ({
-        path: file.path,
-        lines: comments
-          .filter((comment) => comment.path === file.path)
-          .map((comment) => ({
-            location: comment.startLine === null
-              ? t('review.reportWholeFile')
-              : t('review.reportLines').replace('{a}', String(comment.startLine)).replace('{b}', String(comment.endLine ?? comment.startLine)),
-            text: comment.text,
-          }))
-          .filter((line) => line.text),
-      }))
-      .filter((file) => file.lines.length > 0);
+    const files = new Map<string, ReportFile>();
+    for (const entry of rangeProgress) {
+      const source = entry.target === 'net' ? t('review.netChanges') : t('review.reportCommit').replace('{hash}', entry.target);
+      for (const comment of entry.progress.comments) {
+        if (!includeResolved && commentStatus(comment) === 'resolved') continue;
+        const file = files.get(comment.path) ?? { path: comment.path, lines: [] };
+        const location = comment.startLine === null
+          ? t('review.reportWholeFile')
+          : t('review.reportLines').replace('{a}', String(comment.startLine)).replace('{b}', String(comment.endLine ?? comment.startLine));
+        const original = comment.origin;
+        const provenance = original ? `${t('review.issueOriginal').replace('{hash}', original.headHash.slice(0, 10))} · ${original.startLine === null ? t('review.reportWholeFile') : t('review.reportLines').replace('{a}', String(original.startLine)).replace('{b}', String(original.endLine ?? original.startLine))}` : location;
+        const movedOrigin = original && (original.headHash !== (entry.target === 'net' ? scope.headHash : entry.target) || original.startLine !== comment.startLine);
+        const position = comment.anchorStale ? provenance : `${location}${movedOrigin ? ` · ${provenance}` : ''}`;
+        file.lines.push({ location: `${source} · ${position} · ${t(REVIEW_STATUS_KEYS[commentStatus(comment)])}`, text: comment.text, context: original?.context });
+        files.set(comment.path, file);
+      }
+    }
+    const reportFiles = [...files.values()].sort((a, b) => a.path.localeCompare(b.path));
     return buildReviewReport([
       t('review.reportTitle'),
       t('review.reportIntro')
         .replace('{base}', review.checkpoint?.hash.slice(0, 10) ?? '')
         .replace('{head}', review.headHash.slice(0, 10))
         .replace('{n}', String(reportFiles.reduce((sum, file) => sum + file.lines.length, 0))),
+      t('review.reportContextHint'),
     ], reportFiles);
   };
 
@@ -232,12 +303,17 @@ export function ReviewView() {
   const handleMarkReviewed = async () => {
     if (!repoPath || !branch) return;
     const total = review.rangeFiles.length;
-    if (approvedCount > 0 && approvedCount < total) {
+    if (activeIssueCount > 0 || (approvedCount > 0 && approvedCount < total)) {
       const ok = await confirmAction({
         title: t('review.markReviewed'),
-        description: t('review.markPartial').replace('{a}', String(approvedCount)).replace('{b}', String(total)),
+        description: activeIssueCount > 0 ? t('review.markWithIssues').replace('{n}', String(activeIssueCount)) : t('review.markPartial').replace('{a}', String(approvedCount)).replace('{b}', String(total)),
       });
       if (!ok) return;
+    }
+    const latest = useReviewStore.getState();
+    if (latest.repoPath !== repoPath || latest.branch !== branch || latest.headHash !== scope.headHash || latest.checkpoint?.hash !== scope.baseHash) {
+      toast.warning(t('review.rangeChanged'));
+      return;
     }
     await useReviewStore.getState().markReviewed(repoPath, branch);
     setCommentEditor(null);
@@ -257,9 +333,12 @@ export function ReviewView() {
   useEffect(() => {
     if (!repoPath || !branch || !headHash) return;
     const state = useReviewStore.getState();
-    if (state.status === 'ready' && state.branch === branch && state.headHash === headHash) return;
+    if (state.status === 'ready' && state.repoPath === repoPath && state.branch === branch && state.headHash === headHash) return;
     void state.load(repoPath, branch, headHash);
   }, [repoPath, branch, headHash]);
+
+  // 版本或仓库变化时不能把旧行号的草稿写入新范围。
+  useEffect(() => { setCommentEditor(null); }, [repoPath, branch, scope.baseHash, scope.headHash, scope.target]);
 
   // 无检查点时加载基准选择用的提交清单
   useEffect(() => {
@@ -332,8 +411,8 @@ export function ReviewView() {
     );
     return review.diffMode === 'split' ? (
       <VirtualRows items={splitRows} rowHeight={24} renderRow={(row, idx) => row.isHeader ? (() => {
-        const hunk = hunks.find((item) => item.index === idx) ?? null;
-        const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && comment.startLine === hunk.newStart) : [];
+        const hunk = hunks.find((item) => item.index === row.sourceIndex) ?? null;
+        const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && !comment.anchorStale && comment.startLine === hunk.newStart) : [];
         return (
           <div key={idx} className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] w-full flex items-center justify-between gap-2">
             <span className="truncate">{row.headerContent}</span>
@@ -371,7 +450,7 @@ export function ReviewView() {
     ) : (
       <VirtualRows items={review.diffLines} contentWidth rowHeight={24} renderRow={(line, idx) => {
         const hunk = line.type === 'header' ? hunks.find((item) => item.index === idx) ?? null : null;
-        const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && comment.startLine === hunk.newStart) : [];
+        const hunkComments = hunk && selectedPath ? comments.filter((comment) => comment.path === selectedPath && !comment.anchorStale && comment.startLine === hunk.newStart) : [];
         return (
         <div key={idx} className={cn(
           'flex items-stretch hover:bg-accent/40 dark:hover:bg-white/3 transition-colors border-l-2',
@@ -499,13 +578,24 @@ export function ReviewView() {
           <Button
             variant="ghost"
             size="xs"
-            disabled={!review.checkpoint || review.stale || comments.length === 0}
+            data-testid="review-issues-open"
+            disabled={reportCommentCount === 0 || review.status !== 'ready' || review.stale}
+            onClick={() => setIssuesOpen(true)}
+            className="gap-1.5"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>{t('review.issuesButton').replace('{n}', String(activeIssueCount))}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={!review.checkpoint || review.stale || reportCommentCount === 0}
             onClick={() => setReportOpen(true)}
             className="gap-1.5"
             title={t('review.reportTitle')}
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            <span>{t('review.reportButton').replace('{n}', String(comments.length))}</span>
+            <span>{t('review.reportButton').replace('{n}', String(reportCommentCount))}</span>
           </Button>
           <Button
             variant="default"
@@ -522,6 +612,7 @@ export function ReviewView() {
       </ReviewHeader>
 
       {review.status === 'loading' && <div className="flex-1 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
+      {review.status === 'ready' && review.retainedFiles > 0 && <p role="status" className="px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-300 border-b border-border">{t('review.incrementalKept').replace('{n}', String(review.retainedFiles))}</p>}
       {review.status === 'error' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
           <ErrorNotice error={review.errorMessage ?? ''} />
@@ -644,7 +735,7 @@ export function ReviewView() {
                     </>
                   )}
                   <span className="text-[12px] text-muted-foreground shrink-0" title={t('review.progressTitle')}>
-                    {t('review.progress').replace('{a}', String(approvedCount)).replace('{b}', String(review.rangeFiles.length))}
+                    {t('review.progress').replace('{a}', String(targetApprovedCount)).replace('{b}', String(review.targetFiles.length))}
                   </span>
                   <div className="glass-segmented flex items-center">
                     <button
@@ -704,11 +795,12 @@ export function ReviewView() {
                   <MessageSquare className="h-3 w-3 text-primary shrink-0" />
                   {fileComments.map((comment) => (
                     <span key={comment.id} className="flex items-center gap-1 h-5 px-1.5 rounded border border-primary/40 bg-primary/10 text-[12px] shrink-0 max-w-64" role="listitem">
-                      <span className="truncate" title={comment.text}>
+                      <button type="button" className="truncate text-left" title={comment.text} onClick={() => setIssuesOpen(true)}>
+                        {t(REVIEW_STATUS_KEYS[commentStatus(comment)])}{' · '}
                         {comment.startLine === null ? t('review.reportWholeFile') : t('review.reportLines').replace('{a}', String(comment.startLine)).replace('{b}', String(comment.endLine ?? comment.startLine))}
                         {' · '}
                         {comment.text}
-                      </span>
+                      </button>
                       <button type="button" aria-label={t('review.commentDelete')} onClick={() => deleteComment(comment.id)} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3 w-3" /></button>
                     </span>
                   ))}
@@ -737,20 +829,21 @@ export function ReviewView() {
 
       {reportOpen && (
         <ModalSurface label={t('review.reportTitle')} onDismiss={() => setReportOpen(false)} className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl max-h-[85dvh] flex flex-col gap-3 bg-card border border-border rounded-xl shadow-2xl p-5">
+          <div className="w-full max-w-2xl max-h-[85dvh] min-h-0 flex flex-col gap-3 overflow-hidden bg-card border border-border rounded-xl shadow-2xl p-5">
             <header className="flex items-center justify-between shrink-0">
               <h2 className="font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4 text-primary" />{t('review.reportTitle')}</h2>
               <Button variant="ghost" size="icon" aria-label={t('common.close')} onClick={() => setReportOpen(false)}><X className="w-4 h-4" /></Button>
             </header>
-            <p className="text-sm text-muted-foreground">{t('review.reportHint')}</p>
+            <p className="text-sm text-muted-foreground shrink-0">{t('review.reportHint')}</p>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0"><input type="checkbox" checked={includeResolved} onChange={(event) => setIncludeResolved(event.target.checked)} />{t('review.reportIncludeResolved')}</label>
             {(() => {
               const text = buildReportText();
-              if (!text) return <div className="flex-1 min-h-0"><EmptyState variant="check" title={t('review.reportEmpty')} desc={t('review.reportEmptyDesc')} /></div>;
+              if (!text) return <div className="flex-1 min-h-0"><EmptyState variant="check" title={t(reportCommentCount > 0 ? 'review.reportNoOpen' : 'review.reportEmpty')} desc={t(reportCommentCount > 0 ? 'review.reportNoOpenDesc' : 'review.reportEmptyDesc')} /></div>;
               return (
                 <>
-                  <ScrollArea className="flex-1 min-h-0 border border-border rounded-lg">
-                    <pre data-testid="review-report-text" className="p-3 text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-words select-text">{text}</pre>
-                  </ScrollArea>
+                  <div role="region" aria-label={t('review.reportTitle')} tabIndex={0} data-testid="review-report-scroll" className="flex-1 min-h-0 overflow-y-auto overscroll-contain border border-border rounded-lg">
+                    <pre data-testid="review-report-text" className="py-3 text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-words select-text"><ReviewDiffText text={text} report /></pre>
+                  </div>
                   <footer className="flex justify-end gap-2 shrink-0">
                     <Button variant="outline" onClick={() => setReportOpen(false)}>{t('common.close')}</Button>
                     <Button data-testid="review-report-copy" onClick={() => void copyReport()} className="gap-1.5"><Copy className="h-3.5 w-3.5" />{t('review.reportCopy')}</Button>
@@ -761,6 +854,7 @@ export function ReviewView() {
           </div>
         </ModalSurface>
       )}
+      {issuesOpen && <ReviewIssuesDialog issues={issues} onClose={() => setIssuesOpen(false)} onStatus={(issue, status) => updateIssue(issue, { status })} onText={(issue, text) => updateIssue(issue, { text, status: 'open' })} onOpen={(issue) => void openIssueDiff(issue)} />}
       {tidyOpen && review.checkpoint && repoPath && (
         <HistoryEditorDialog repoPath={repoPath} baseHash={review.checkpoint.hash} onClose={() => setTidyOpen(false)} />
       )}
@@ -949,7 +1043,7 @@ function ReviewFilePanel({ files, approval, comments, selectedFile, onOpenFile, 
 function ReviewHeader({ children }: { children?: ReactNode }) {
   const { t } = useI18n();
   return (
-    <div className="h-10 px-3 border-b border-border flex items-center gap-2 shrink-0 overflow-x-clip">
+    <div className="min-h-10 px-3 py-1 border-b border-border flex flex-wrap items-center gap-2 shrink-0">
       <ScanEye className="h-4 w-4 text-primary shrink-0" />
       <span className="font-semibold text-sm shrink-0">{t('review.title')}</span>
       {children}

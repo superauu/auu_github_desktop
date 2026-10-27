@@ -724,6 +724,21 @@ export class GitService implements IGitService {
   }
 
   /** 审查范围内单个文件的净差异(两点 diff) */
+  async getReviewFileVersions(repoPath: string, base: string, head: string): Promise<Record<string, string>> {
+    if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
+    const res = await executeGit(['diff', '--no-renames', '--no-ext-diff', '--raw', '--no-abbrev', '-z', base, head, '--'], repoPath);
+    const fields = res.stdout.split('\0');
+    const versions: Record<string, string> = {};
+    for (let index = 0; index + 1 < fields.length; index += 2) {
+      const metadata = fields[index];
+      if (!/^:\d{6} \d{6} [0-9a-f]{40,64} [0-9a-f]{40,64} [A-Z]$/.test(metadata)) continue;
+      const path = fields[index + 1];
+      if (path) versions[path] = metadata;
+    }
+    return versions;
+  }
+
+  /** 审查范围内单个文件的净差异(两点 diff) */
   async getRangeFileDiff(repoPath: string, base: string, head: string, filePath: string, ignoreWhitespace = false): Promise<ParsedDiffLine[]> {
     if (!COMMIT_HASH.test(base) || !COMMIT_HASH.test(head)) throw new Error('Invalid review range');
     const args = ['--literal-pathspecs', 'diff', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), base, head, '--', filePath];

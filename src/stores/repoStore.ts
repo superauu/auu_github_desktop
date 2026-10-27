@@ -2,6 +2,7 @@ import { createRepositoryActions, createConflictActions } from './repositoryActi
 import { toast } from '@/stores/toastStore';
 import { useToastStore } from '@/stores/toastStore';
 import { useReviewStore } from '@/stores/reviewStore';
+import { useReviewProgressStore } from '@/stores/reviewProgressStore';
 import type { PushOptions } from '@/services/git/types';
 import { create } from 'zustand';
 import {
@@ -625,7 +626,13 @@ export const useRepoStore = create<RepoState>((set, get) => {
                   onClick: async () => {
                     try {
                       await reviewCheckpointService.set(currentRepo.path, pushedBranch, pushedSha!, checkpoint.hash);
-                      useReviewStore.getState().load(currentRepo.path, pushedBranch, pushedSha!);
+                      useReviewProgressStore.getState().clearProgress(currentRepo.path, pushedBranch);
+                      const review = useReviewStore.getState();
+                      if (review.repoPath === currentRepo.path && review.branch === pushedBranch) {
+                        void review.load(currentRepo.path, pushedBranch, review.headHash);
+                      } else if (isCurrent(currentRepo.path, epoch) && get().status?.currentBranch === pushedBranch) {
+                        void review.refreshBadge(currentRepo.path, pushedBranch, pushedSha!);
+                      }
                       toast.info(tNow('review.markReviewedDone'));
                     } catch (error: any) {
                       toast.error(tNow('review.markFailed'), error?.message ?? String(error));
