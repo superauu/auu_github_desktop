@@ -1140,6 +1140,18 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
               <span className="text-[10px] leading-none font-medium">{t('header.push')}</span>
             </button>
+            {/* Undo/Redo 一级动词：AI 自动提交场景下「撤掉刚落下的提交」是安全感的来源，不再藏进溢出菜单 */}
+            <span className="h-5 w-px bg-border/70 mx-0.5" aria-hidden="true" />
+            <button onClick={() => void handleUndo()} disabled={isUndoing || !canUndo} title={t('header.undo')}
+              className="h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-35 disabled:pointer-events-none">
+              {isUndoing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+              <span className="text-[10px] leading-none font-medium">{t('header.undo')}</span>
+            </button>
+            <button onClick={() => void handleRedo()} disabled={isRedoing || !canRedo} title={t('header.redo')}
+              className="h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-35 disabled:pointer-events-none">
+              {isRedoing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+              <span className="text-[10px] leading-none font-medium">{t('header.redo')}</span>
+            </button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
