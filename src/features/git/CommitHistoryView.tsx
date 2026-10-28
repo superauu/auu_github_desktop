@@ -25,6 +25,8 @@ import {
   ArrowUpFromLine,
   ArrowDownToLine,
   Split,
+  MoreHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -334,10 +336,15 @@ export const CommitHistoryView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="xs" disabled={!repoPath} onClick={() => setBisectOpen(true)} aria-label={t('bisect.open')} title={t('bisect.open')}>
-            <Split className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="outline" size="xs" disabled={!repoPath} onClick={() => setEditorOpen(true)}>{t('flow.historyEditor')}</Button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild><Button variant="outline" size="xs" disabled={!repoPath}><MoreHorizontal aria-hidden="true" className="size-3.5" />{t('history.moreTools')}<ChevronDown aria-hidden="true" className="size-3" /></Button></DropdownMenu.Trigger>
+            <DropdownMenu.Portal><DropdownMenu.Content align="end" className="z-50 max-w-80 bg-popover border border-border rounded-lg shadow-xl p-1">
+              <DropdownMenu.Group>
+                <DropdownMenu.Item className="menu-item items-start gap-2" onSelect={() => setBisectOpen(true)}><Split aria-hidden="true" className="size-4 mt-0.5 shrink-0" /><span className="flex flex-col gap-1"><span>{t('bisect.open')}</span><span className="text-xs text-muted-foreground">{t('bisect.subtitle')}</span></span></DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item flex-col items-start gap-1" onSelect={() => setEditorOpen(true)}><span>{t('flow.historyEditor')}</span><span className="text-xs text-muted-foreground">{t('history.organizeHint')}</span></DropdownMenu.Item>
+              </DropdownMenu.Group>
+            </DropdownMenu.Content></DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
         {/* Search commit box */}
         <div className="flex items-center gap-2">

@@ -1,4 +1,6 @@
-import { executeGit, GitExecutionError } from './GitExecutor';
+import { executeGit, executeGitTransaction, GitExecutionError } from './GitExecutor';
+import type { GitCommandResult } from './GitExecutor';
+import { parsePorcelainV2 } from './PorcelainParser';
 import { tNow } from '@/i18n';
 
 /**
@@ -39,6 +41,10 @@ const FIRST_GOOD_LOG = /^# good: \[([0-9a-f]{40})(?:[0-9a-f]{24})?\]/mi;
 const HASH_ONLY = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i;
 
 const repoKey = (repoPath: string) => repoPath.replace(/\\/g, '/').replace(/\/$/, '');
+const ensureClean = async (git: (args: string[]) => Promise<GitCommandResult>) => {
+  const status = parsePorcelainV2((await git(['status', '--porcelain=v2', '-z', '--untracked-files=normal'])).stdout);
+  if (!status.isClean) throw new Error(tNow('bisect.dirtyBlocked'));
+};
 
 class BisectService {
   /** 每个仓库的进行中会话边界（仅内存缓存，用于剩余步数估算；丢失时回落日志解析）。 */
@@ -56,26 +62,31 @@ class BisectService {
 
   /**
    * 开始一次二分：一条 `bisect start <bad> <good>` 原子完成三点定位（git 原生语义，
-   * 比逐条 start/bad/good 少两次中间态）。工作区脏时 checkout 可能被 git 拒绝——
-   * 尽力清理半初始化状态后把报错交给调用方展示。
+   * 比逐条 start/bad/good 少两次中间态）。检查与检出共用写队列，保护本地改动。
    */
   async start(repoPath: string, badRef: string, goodRef: string): Promise<void> {
-    const [badHash, goodHash] = await Promise.all([
-      this.verifyCommit(repoPath, badRef),
-      this.verifyCommit(repoPath, goodRef),
-    ]);
-    if (badHash === goodHash) throw new Error(tNow('bisect.sameRef'));
-    // 语义前置校验：good 必须是 bad 的祖先（merge-base 不在白名单，用 rev-list 计数等价判断）。
-    const span = await this.rangeCount(repoPath, goodHash, badHash);
-    if (span === 0) throw new Error(tNow('bisect.badOrder'));
-    try {
-      await executeGit(['bisect', 'start', badHash, goodHash], repoPath);
-    } catch (error) {
-      // checkout 被拒（脏工作区等）时 git 可能留下半初始化状态，尽力还原。
-      await this.reset(repoPath).catch(() => {});
-      throw error;
-    }
-    this.sessions.set(repoKey(repoPath), { badHash, goodHash });
+    await executeGitTransaction(repoPath, async git => {
+      let running = false;
+      try { await git(['bisect', 'log']); running = true; }
+      catch (error) { if (!(error instanceof GitExecutionError)) throw error; }
+      if (running) throw new Error(tNow('bisect.alreadyRunning'));
+      await ensureClean(git);
+      const [badHash, goodHash] = await Promise.all([
+        this.verifyCommit(repoPath, badRef), this.verifyCommit(repoPath, goodRef),
+      ]);
+      if (badHash === goodHash) throw new Error(tNow('bisect.sameRef'));
+      // A nonempty good..bad range alone does not establish ancestry on diverged branches.
+      const ancestry = (await git(['rev-list', '--count', `${badHash}..${goodHash}`])).stdout.trim();
+      if (ancestry !== '0' || await this.rangeCount(repoPath, goodHash, badHash) === 0) throw new Error(tNow('bisect.badOrder'));
+      try {
+        await git(['bisect', 'start', badHash, goodHash]);
+      } catch (error) {
+        // Only clean up the session this call attempted to create.
+        await git(['bisect', 'reset']).catch(() => {});
+        throw error;
+      }
+      this.sessions.set(repoKey(repoPath), { badHash, goodHash });
+    });
   }
 
   /**
@@ -85,7 +96,10 @@ class BisectService {
   private async mark(repoPath: string, sub: 'good' | 'bad' | 'skip', rev?: string): Promise<BisectMarkResult> {
     const args = ['bisect', sub];
     if (rev !== undefined) args.push(await this.verifyCommit(repoPath, rev));
-    const res = await executeGit(args, repoPath);
+    const res = await executeGitTransaction(repoPath, async git => {
+      await ensureClean(git);
+      return git(args);
+    });
     const output = res.stdout;
     // 首选 stdout 收敛行（hash 紧跟 " is the first "，术语可定制、文案可能本地化）；
     // 未命中时回落 BISECT_LOG 的机器格式注释。
@@ -114,7 +128,10 @@ class BisectService {
 
   /** 结束二分并回到原检出位置；同时清掉内存会话缓存。未在 bisect 中时 git 会报错。 */
   async reset(repoPath: string): Promise<void> {
-    await executeGit(['bisect', 'reset'], repoPath);
+    await executeGitTransaction(repoPath, async git => {
+      await ensureClean(git);
+      await git(['bisect', 'reset']);
+    });
     this.sessions.delete(repoKey(repoPath));
   }
 

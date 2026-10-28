@@ -672,6 +672,8 @@ export const zh = {
 
   // ============ 提交历史 ============
   'history.title': '提交历史与 Git Graph',
+  'history.moreTools': '更多工具',
+  'history.organizeHint': '重排、合并或修改尚未发布的提交',
   'history.uncommitted': '未提交修改',
   'history.searchPlaceholder': '搜索主题、作者或 Hash...',
   'history.noMatch': '未找到符合条件的提交记录',

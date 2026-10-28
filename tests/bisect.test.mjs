@@ -171,7 +171,64 @@ test('dirty working tree checkout failure surfaces a readable error without corr
   await fs.writeFile(path.join(repository, 'file.txt'), 'dirty\n');
   // 脏工作区：start 需要真正检出候选（范围跨 2 个提交，候选不是当前 HEAD），
   // git 拒绝切换；服务层尽力清理并透出可读错误。
-  await assert.rejects(app.bisectService.start(repository, 'HEAD', 'HEAD~2'), /local changes|会覆盖|需要先提交/i);
+  await assert.rejects(app.bisectService.start(repository, 'HEAD', 'HEAD~2'), /uncommitted|贮藏/i);
   assert.equal(await app.bisectService.isBisecting(repository), false);
   git('checkout', '--', 'file.txt');
+});
+
+async function safetyRepo(name) {
+  const repository = path.join(temporary, name); await fs.mkdir(repository);
+  const git = (...args) => execFileSync('git', args, { cwd: repository, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  git('init', '-b', 'main'); git('config', 'user.name', 'Bisect Safety'); git('config', 'user.email', 'safety@example.invalid'); git('config', 'core.autocrlf', 'false');
+  for (let i = 1; i <= 4; i++) { await fs.writeFile(path.join(repository, 'file.txt'), `v${i}\n`); git('add', '-A'); git('commit', '-m', `change ${i}`); }
+  return { repository, git, head: git('rev-parse', 'HEAD').trim() };
+}
+
+test('staged and untracked edits block bisect without touching their bytes, index or branch', async () => {
+  const { repository, git, head } = await safetyRepo('staged-and-untracked');
+  await fs.writeFile(path.join(repository, 'notes.txt'), 'Keep my notes\n');
+  for (const staged of [false, true]) {
+    if (staged) git('add', 'notes.txt');
+    const index = git('diff', '--cached', '--raw');
+    await assert.rejects(app.bisectService.start(repository, 'HEAD', 'HEAD~3'), /uncommitted|贮藏/i);
+    assert.equal(git('rev-parse', 'HEAD').trim(), head); assert.equal(git('diff', '--cached', '--raw'), index);
+    assert.equal(await fs.readFile(path.join(repository, 'notes.txt'), 'utf8'), 'Keep my notes\n');
+    assert.equal(await app.bisectService.isBisecting(repository), false);
+  }
+});
+
+test('existing sessions cannot be replaced and testing edits block marks and reset until safely stashed', async () => {
+  const { repository, git, head } = await safetyRepo('session-protection'), service = app.bisectService;
+  await service.start(repository, 'HEAD', 'HEAD~3');
+  const candidate = git('rev-parse', 'HEAD').trim(), log = await service.log(repository);
+  await assert.rejects(service.start(repository, 'HEAD', 'HEAD~1'), /already running|已有二分/);
+  assert.equal(await service.log(repository), log); assert.equal(git('rev-parse', 'HEAD').trim(), candidate);
+  await fs.writeFile(path.join(repository, 'file.txt'), 'Edited while testing\n'); git('add', 'file.txt');
+  await fs.writeFile(path.join(repository, 'file.txt'), 'Additional unstaged edit\n');
+  await fs.writeFile(path.join(repository, 'notes.txt'), 'Untracked test notes\n');
+  const index = git('show', ':file.txt');
+  for (const action of [() => service.markGood(repository), () => service.markBad(repository), () => service.markSkip(repository), () => service.reset(repository)]) {
+    await assert.rejects(action(), /uncommitted|贮藏/);
+    assert.equal(git('rev-parse', 'HEAD').trim(), candidate); assert.equal(git('show', ':file.txt'), index);
+    assert.equal(await service.log(repository), log);
+  }
+  git('stash', 'push', '-u', '-m', 'Preserve test edits'); await service.reset(repository);
+  assert.equal(git('rev-parse', 'HEAD').trim(), head); assert.equal(git('branch', '--show-current').trim(), 'main');
+  assert.equal(await service.isBisecting(repository), false);
+  // Restore both versions to the same candidate on which they were created.
+  git('switch', '--detach', candidate); git('stash', 'pop', '--index');
+  assert.equal(git('show', ':file.txt'), 'Edited while testing\n');
+  assert.equal(await fs.readFile(path.join(repository, 'file.txt'), 'utf8'), 'Additional unstaged edit\n');
+  assert.equal(await fs.readFile(path.join(repository, 'notes.txt'), 'utf8'), 'Untracked test notes\n');
+});
+
+test('diverged good endpoints are rejected before creating a session and adjacent endpoints expose a finished result', async () => {
+  const { repository, git, head } = await safetyRepo('endpoint-protection'), service = app.bisectService;
+  git('switch', '-c', 'side', 'HEAD~3'); await fs.writeFile(path.join(repository, 'side.txt'), 'side\n'); git('add', '-A'); git('commit', '-m', 'side change');
+  const side = git('rev-parse', 'HEAD').trim(); git('switch', 'main');
+  await assert.rejects(service.start(repository, head, side), /ancestor|祖先/);
+  assert.equal(await service.isBisecting(repository), false); assert.equal(git('rev-parse', 'HEAD').trim(), head);
+  await service.start(repository, 'HEAD', 'HEAD~1');
+  assert.equal(await service.resultHash(repository), head);
+  await service.reset(repository); assert.equal(git('branch', '--show-current').trim(), 'main');
 });

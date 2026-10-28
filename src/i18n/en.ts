@@ -672,6 +672,8 @@ export const en = {
 
 
   'history.title': 'History & Git Graph',
+  'history.moreTools': 'More tools',
+  'history.organizeHint': 'Reorder, combine or edit unpublished commits',
   'history.uncommitted': 'uncommitted changes',
   'history.searchPlaceholder': 'Search subject, author or hash...',
   'history.noMatch': 'No matching commits',

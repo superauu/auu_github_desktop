@@ -34,7 +34,7 @@ interface BisectWizardDialogProps {
 
 type Phase = 'boot' | 'range' | 'testing' | 'result';
 
-// 工作区脏导致 checkout 被拒的 git 报错特征（中英文安装均可命中；不强拦，仅可读化）。
+// 服务层会检查工作区；这些特征也可读化外部并发修改导致的 Git 检出失败。
 const DIRTY_TREE = /local changes|would be overwritten by checkout|untracked working tree|please commit|需要先提交|会覆盖本地修改/i;
 
 const MAX_SELECT_COMMITS = 300;
@@ -129,6 +129,8 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
     setBusy(true); setError('');
     try {
       await bisectService.start(repoPath, badRef, goodRef);
+      const finished = await bisectService.resultHash(repoPath);
+      if (finished) { await showResult(finished); return; }
       const myRequest = ++request.current;
       setPhase('testing');
       await refreshTesting(myRequest);
@@ -188,13 +190,14 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
 
   /** 关闭守卫：测试中/结果未还原时先询问（会话在 git 侧仍存活，可随时恢复）。 */
   const requestClose = useCallback(async () => {
+    if (busy) return;
     if (phase === 'testing') {
       if (!await confirmAction({ title: t('bisect.leaveConfirmTitle'), description: t('bisect.leaveConfirmDesc') })) return;
     } else if (phase === 'result') {
       if (!await confirmAction({ title: t('bisect.leaveConfirmTitle'), description: t('bisect.resultLeaveConfirmDesc') })) return;
     }
     onClose();
-  }, [phase, t, onClose]);
+  }, [busy, phase, t, onClose]);
 
   const selectableCommits = commits.slice(0, MAX_SELECT_COMMITS);
   const stepIndex = phase === 'result' ? 3 : phase === 'testing' ? 2 : 1;
@@ -214,7 +217,7 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
   return (
     <ModalSurface
       onDismiss={requestClose}
-      dismissible
+      dismissible={!busy}
       label={t('bisect.title')}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs animate-in fade-in-0 select-none"
     >
@@ -231,7 +234,7 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
               <div className="text-[11px] text-muted-foreground truncate">{t('bisect.subtitle')}</div>
             </div>
           </div>
-          <Button variant="ghost" size="xs" onClick={() => void requestClose()} aria-label={t('common.close')} className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0">
+          <Button variant="ghost" size="xs" disabled={busy} onClick={() => void requestClose()} aria-label={t('common.close')} className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0">
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>

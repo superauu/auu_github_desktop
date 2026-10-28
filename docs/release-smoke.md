@@ -5,8 +5,8 @@
 
 ## 1. 本地发布构建
 
-```bash
-npm run tauri -- build --no-bundle -- --locked
+```powershell
+.\node_modules\.bin\tauri.cmd build --no-bundle -- --locked
 ```
 
 - **必须走 tauri CLI，不能用裸 `cargo build --release`**：生产嵌入模式由 tauri CLI 启用的
@@ -48,6 +48,15 @@ npm run check:release
 ```
 
 package.json / tauri.conf.json / Cargo.toml 三处版本一致，tag 与 `v{version}` 匹配。
+
+## 核心工作流验收
+
+- [ ] 修改文件 → 记录审核意见 → AI 修复报告预览和复制 → 修复 → 标记已解决 → 审核通过 → 暂存 → 提交 → 推送。
+- [ ] 重开应用后审核和意见仍正确；提交后当前报告归零，历史意见可在「管理意见」中处理。
+- [ ] 同一文件的暂存、未暂存版本分别核对；批量审核跳过待解决意见、冲突、读取失败项。
+- [ ] 「提交历史 → 更多工具」中的二分查找可启动、关闭后恢复、定位坏提交，并还原原分支。
+- [ ] 二分操作遇到暂存、未暂存或未跟踪改动时停止，保留原文件、暂存区和已有会话。
+- [ ] 大文件列表与长差异只渲染可见行；后台刷新保留选区及横纵滚动位置。
 
 ## 5. 打 tag 发版
 
