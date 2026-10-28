@@ -27,6 +27,7 @@ import {
   Split,
   MoreHorizontal,
   ChevronDown,
+  ListTree,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -338,10 +339,26 @@ export const CommitHistoryView: React.FC = () => {
         <div className="flex items-center gap-1">
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild><Button variant="outline" size="xs" disabled={!repoPath}><MoreHorizontal aria-hidden="true" className="size-3.5" />{t('history.moreTools')}<ChevronDown aria-hidden="true" className="size-3" /></Button></DropdownMenu.Trigger>
-            <DropdownMenu.Portal><DropdownMenu.Content align="end" className="z-50 max-w-80 bg-popover border border-border rounded-lg shadow-xl p-1">
+            <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={6} className="z-50 w-80 max-w-[calc(100vw-1rem)] bg-popover text-popover-foreground border border-border rounded-lg shadow-xl p-1">
               <DropdownMenu.Group>
-                <DropdownMenu.Item className="menu-item items-start gap-2" onSelect={() => setBisectOpen(true)}><Split aria-hidden="true" className="size-4 mt-0.5 shrink-0" /><span className="flex flex-col gap-1"><span>{t('bisect.open')}</span><span className="text-xs text-muted-foreground">{t('bisect.subtitle')}</span></span></DropdownMenu.Item>
-                <DropdownMenu.Item className="menu-item flex-col items-start gap-1" onSelect={() => setEditorOpen(true)}><span>{t('flow.historyEditor')}</span><span className="text-xs text-muted-foreground">{t('history.organizeHint')}</span></DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => setBisectOpen(true)}>
+                  <span className="flex w-full min-w-0 items-start gap-2">
+                    <Split aria-hidden="true" className="size-4 mt-0.5 shrink-0 text-muted-foreground" />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+                      <span className="font-medium leading-5">{t('bisect.open')}</span>
+                      <span className="text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{t('bisect.subtitle')}</span>
+                    </span>
+                  </span>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item className="menu-item" onSelect={() => setEditorOpen(true)}>
+                  <span className="flex w-full min-w-0 items-start gap-2">
+                    <ListTree aria-hidden="true" className="size-4 mt-0.5 shrink-0 text-muted-foreground" />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+                      <span className="font-medium leading-5">{t('flow.historyEditor')}</span>
+                      <span className="text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{t('history.organizeHint')}</span>
+                    </span>
+                  </span>
+                </DropdownMenu.Item>
               </DropdownMenu.Group>
             </DropdownMenu.Content></DropdownMenu.Portal>
           </DropdownMenu.Root>
