@@ -259,10 +259,14 @@
     --destructive: 336 100% 57%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 25%;
-    --input: 0 0% 30%;
+    /* 边框与卡片只差 6 个亮度档：深度靠表面亮度阶梯表达，不靠描边（对齐专业工具的克制感） */
+    --border: 0 0% 19%;
+    --input: 0 0% 24%;
     --ring: 186 100% 50%;
     --sunken: 0 0% 5%;
+
+    /* 暗色控件统一 8px 圆角：大圆角的气泡感是「网页感」的主要来源（浅色 Steel Ops 不受影响） */
+    --radius: 0.5rem;
 
     --sidebar-background: 0 0% 12%;
     --sidebar-foreground: 0 0% 90%;
