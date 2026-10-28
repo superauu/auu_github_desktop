@@ -13,7 +13,7 @@ import { useI18n } from '@/i18n';
 import { cn } from '@/utils/cn';
 
 interface WorkingDiffContentProps {
-  diffId: string; diffFontSize: number; wrap: boolean;
+  diffId: string; diffFontSize: number; wrap: boolean; locatedHeader?: string;
   currentRepo: RepositoryInfo | null; activeFile: GitFileChange | null; status: GitStatusResult | null;
   fileDiffLoading: boolean; fileDiffError: string | null;
   loadFileDiff: (file: GitFileChange) => Promise<void>; fileDiffLines: ParsedDiffLine[];
@@ -23,10 +23,10 @@ interface WorkingDiffContentProps {
   setSelectedLines: Dispatch<SetStateAction<Set<number>>>; diffQuery: string;
 }
 
-export function WorkingDiffContent({ diffId, diffFontSize, wrap, currentRepo, activeFile, status, fileDiffLoading, fileDiffError, loadFileDiff, fileDiffLines, diffMode, splitRows, renderHunkActions, headerHunkIdx, ignoreWhitespace, selectedLines, lineBusy, pendingWrites, setSelectedLines, diffQuery }: WorkingDiffContentProps) {
+export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, currentRepo, activeFile, status, fileDiffLoading, fileDiffError, loadFileDiff, fileDiffLines, diffMode, splitRows, renderHunkActions, headerHunkIdx, ignoreWhitespace, selectedLines, lineBusy, pendingWrites, setSelectedLines, diffQuery }: WorkingDiffContentProps) {
   const { t } = useI18n();
   return (
-          <div id={diffId} data-text-context style={{ fontSize: diffFontSize }} className={cn("review-diff-viewport glass-editor flex-1 min-h-0 overflow-auto font-mono leading-relaxed text-foreground select-text", wrap && "diff-wrap")}>
+          <div id={diffId} tabIndex={-1} data-text-context style={{ fontSize: diffFontSize }} className={cn("review-diff-viewport glass-editor flex-1 min-h-0 overflow-auto font-mono leading-relaxed text-foreground select-text", wrap && "diff-wrap")}>
             {currentRepo && activeFile && isImagePath(activeFile.path) ? <ImageDiffView key={`${activeFile.path}-${activeFile.staged}-${status?.headOid}`} repoPath={currentRepo.path} path={activeFile.path} beforePath={activeFile.oldPath} before={activeFile.status === 'untracked' || (activeFile.staged && activeFile.status === 'added') ? 'EMPTY' : activeFile.staged ? (/^[0-9a-f]{40,64}$/.test(status?.headOid || '') ? status!.headOid! : 'EMPTY') : 'INDEX'} after={activeFile.staged ? 'INDEX' : 'WORKTREE'} /> : fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><ErrorNotice error={fileDiffError} /><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
@@ -41,7 +41,8 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, currentRepo, ac
                     return (
                       <div
                         key={idx}
-                        className="review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2"
+                        data-review-located={!!locatedHeader && row.headerContent === locatedHeader || undefined}
+                        className={cn("review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2", locatedHeader && row.headerContent === locatedHeader && 'ring-2 ring-inset ring-primary')}
                       >
                         <span className="truncate">{row.headerContent}</span>
                         {renderHunkActions(row.hunkIdx ?? -1)}
@@ -106,7 +107,8 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, currentRepo, ac
                   return (
                     <div
                       key={idx}
-                      className="review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2"
+                      data-review-located={!!locatedHeader && line.content === locatedHeader || undefined}
+                      className={cn("review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2", locatedHeader && line.content === locatedHeader && 'ring-2 ring-inset ring-primary')}
                     >
                       <span className="truncate">{line.content}</span>
                       {renderHunkActions(headerHunkIdx.get(idx) ?? -1)}

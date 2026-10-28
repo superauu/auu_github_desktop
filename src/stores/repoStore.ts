@@ -22,6 +22,7 @@ import { sameDiffLines } from '@/utils/diffRows';
 import { useGitHubStore } from '@/stores/githubStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
+import { useWorkingReviewStore } from '@/stores/workingReviewStore';
 import { LAST_ACTIVE_REPO_KEY, OPEN_TABS_KEY, RECENT_REPOS_KEY, loadRepositoryList, saveRepositoryState } from './repositoryStorage';
 import { authorizeRepository, isRepositoryAccessCancelled, RepositoryAccessCancelledError } from '@/services/fs/RepositoryAccess';
 
@@ -401,6 +402,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         set(state => ({ ...(statusChanged ? { status } : {}), workingChangesRevision: state.workingChangesRevision + 1 }));
         if (JSON.stringify(operationState) !== JSON.stringify(get().operationState)) set({ operationState });
         const changes = [...status.staged, ...status.unstaged, ...status.untracked];
+        useWorkingReviewStore.getState().clearCompleted(repo.path, status.currentBranch, changes.map(file => file.path));
         const selected = get().selectedFile;
         const next = changes.find(file => file.path === selected?.path && file.staged === selected.staged) || changes[0] || null;
         // Re-read the visible diff even if status codes did not change; keep old content while loading.
@@ -501,6 +503,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         });
 
         const allChanges = [...status.staged, ...status.unstaged, ...status.untracked];
+        useWorkingReviewStore.getState().clearCompleted(activeRepo.path, status.currentBranch, allChanges.map(file => file.path));
         const selected = get().selectedFile;
         const next = allChanges.find((file) => file.path === selected?.path && file.staged === selected.staged) || allChanges[0] || null;
         get().setSelectedFile(next);
@@ -555,6 +558,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
         const changes = [...status.staged, ...status.unstaged, ...status.untracked];
         const selected = get().selectedFile;
+        useWorkingReviewStore.getState().clearCompleted(currentRepo.path, status.currentBranch, changes.map(file => file.path));
         get().setSelectedFile(changes.find((file) => file.path === selected?.path && file.staged === selected.staged)
           || changes.find((file) => file.path === selected?.path) || changes[0] || null);
       } catch (err: any) {

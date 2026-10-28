@@ -6,6 +6,10 @@ import { WorkingReviewReport } from '@/features/review/WorkingReviewReport';
 import { nextWorkingReviewFile, useWorkingReviewFileList } from '@/features/review/useWorkingReviewFileList';
 import { WorkingReviewFileStatus, workingFileReviewLabel } from '@/features/review/WorkingReviewFileStatus';
 import { approveAllWorkingReviews } from '@/features/review/approveAllWorkingReviews';
+import { filterWorkingReviewFiles, type WorkingReviewFilter } from '@/features/review/workingReviewFilters';
+import { captureWorkingReview } from '@/services/git/WorkingReviewService';
+import type { WorkingReviewIssue } from '@/stores/workingReviewStore';
+import { workingReviewLocation } from '@/features/review/workingReviewLocation';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import { stageSelectedLines } from '@/services/git/LineStagingService';
 import { CommitSplitDialog } from './CommitSplitDialog';
@@ -51,6 +55,7 @@ import { useI18n } from '@/i18n';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -121,17 +126,50 @@ export const WorkingChangesView: React.FC = () => {
   const workingReview = useWorkingReview(currentRepo?.path ?? '', status, activeFile, fileDiffLines, fileDiffLoading, ignoreWhitespace, fileDiffError, workingChangesRevision);
   const allFiles = useMemo(() => [...stagedFiles, ...unstagedFiles, ...untrackedFiles], [stagedFiles, unstagedFiles, untrackedFiles]);
   const fileReviews = useWorkingReviewFileList(currentRepo?.path ?? '', status, allFiles, workingChangesRevision, { file: activeFile, snapshot: workingReview.verifiedSnapshot });
+  const [fileSearch, setFileSearch] = useState('');
+  const [reviewFilter, setReviewFilter] = useState<WorkingReviewFilter>('all');
+  const fileListFiltered = !!fileSearch.trim() || reviewFilter !== 'all';
+  const reviewStateSignature = JSON.stringify(allFiles.map(file => { const state = fileReviews.stateFor(file); return [state.kind, state.unresolved]; }));
+  const visibleFiles = useMemo(() => filterWorkingReviewFiles(allFiles, fileSearch, reviewFilter, fileReviews.stateFor), [allFiles, fileSearch, reviewFilter, reviewStateSignature]);
+  const visibleStaged = useMemo(() => visibleFiles.filter(file => file.staged), [visibleFiles]);
+  const visibleUnstaged = useMemo(() => visibleFiles.filter(file => !file.staged && file.status !== 'untracked'), [visibleFiles]);
+  const visibleUntracked = useMemo(() => visibleFiles.filter(file => file.status === 'untracked'), [visibleFiles]);
+  useEffect(() => { setFileSearch(''); setReviewFilter('all'); }, [currentRepo?.path, status?.currentBranch]);
   const fileListRef = useRef<HTMLDivElement>(null);
-  const nextReviewFile = nextWorkingReviewFile(allFiles, activeFile, fileReviews.stateFor);
+  const locateRequest = useRef(0);
+  const [locateTarget, setLocateTarget] = useState<{ path: string; staged: boolean; header?: string; fingerprint?: string } | null>(null);
+  const [locatedHeader, setLocatedHeader] = useState<string | undefined>();
+  useEffect(() => { locateRequest.current++; setLocateTarget(null); setLocatedHeader(undefined); }, [currentRepo?.path, status?.currentBranch, status?.headOid]);
+  const locateIssue = async (path: string, issue: WorkingReviewIssue) => {
+    if (!currentRepo || !status) return;
+    const request = ++locateRequest.current, repo = currentRepo.path, branch = status.currentBranch, head = status.headOid;
+    const candidates = allFiles.filter(file => file.path === path);
+    if (!candidates.length) { toast.info(t('workingReview.locateMissing')); return; }
+    const reads = await Promise.all(candidates.map(async file => ({ file, snapshot: await captureWorkingReview(repo, file).catch(() => null) })));
+    const state = useRepoStore.getState();
+    if (request !== locateRequest.current || state.currentRepo?.path !== repo || state.status?.currentBranch !== branch || state.status.headOid !== head) return;
+    const choice = workingReviewLocation(issue, reads);
+    if (!choice) return;
+    const current = [...state.status.staged, ...state.status.unstaged, ...state.status.untracked].find(file => file.path === path && file.staged === choice.file.staged);
+    if (!current) { toast.info(t('workingReview.locateMissing')); return; }
+    setFileSearch(''); setReviewFilter('all'); setContentMode('diff'); setDiffMode('unified');
+    useSettingsStore.getState().setDiffIgnoreWhitespace(false);
+    workingReview.setNoteTarget(undefined);
+    setSelectedFile(current);
+    setLocateTarget({ path, staged: !!current.staged, header: choice.header, fingerprint: choice.snapshot?.fingerprint });
+    if (choice.changed) toast.info(t('workingReview.locateChanged'));
+  };
+  const nextReviewFile = nextWorkingReviewFile(visibleFiles, activeFile, fileReviews.stateFor);
   const goToNextReview = () => {
     if (!nextReviewFile) return;
+    locateRequest.current++; setLocateTarget(null); setLocatedHeader(undefined);
     setSelectedFile(nextReviewFile);
     requestAnimationFrame(() => {
       const row = Array.from(fileListRef.current?.querySelectorAll<HTMLElement>('[data-file-path]') ?? []).find(element => element.dataset.filePath === nextReviewFile.path && element.dataset.fileStaged === String(!!nextReviewFile.staged));
       if (row) row.scrollIntoView({ block: 'nearest' });
       else {
         const section = nextReviewFile.staged ? 'staged' : nextReviewFile.status === 'untracked' ? 'untracked' : 'unstaged';
-        const files = section === 'staged' ? stagedFiles : section === 'untracked' ? untrackedFiles : unstagedFiles;
+        const files = section === 'staged' ? visibleStaged : section === 'untracked' ? visibleUntracked : visibleUnstaged;
         const index = files.indexOf(nextReviewFile);
         fileListRef.current?.querySelector(`[data-working-file-group="${section}"] [data-virtual-count]`)?.dispatchEvent(new CustomEvent('auugit-focus-row', { detail: index }));
       }
@@ -142,29 +180,42 @@ export const WorkingChangesView: React.FC = () => {
   const [batchBusy, setBatchBusy] = useState(false);
   const [reviewAllBusy, setReviewAllBusy] = useState(false);
   const reviewAllRunning = useRef(false);
-  const approveAll = async () => {
+  const reviewAllAbort = useRef<AbortController | null>(null);
+  const [reviewProgress, setReviewProgress] = useState({ completed: 0, total: 0 });
+  const [reviewCancelling, setReviewCancelling] = useState(false);
+  const [reviewFailedFiles, setReviewFailedFiles] = useState<GitFileChange[]>([]);
+  useEffect(() => {
+    setReviewFailedFiles([]);
+    return () => { reviewAllAbort.current?.abort(); };
+  }, [currentRepo?.path, status?.currentBranch, status?.headOid]);
+  const retryReviewFiles = allFiles.filter(file => reviewFailedFiles.some(failed => failed.path === file.path && failed.staged === file.staged));
+  const approveAll = async (targets = visibleFiles) => {
     if (!currentRepo || !status || reviewAllRunning.current) return;
-    reviewAllRunning.current = true; setReviewAllBusy(true);
+    reviewAllRunning.current = true; setReviewAllBusy(true); setReviewCancelling(false);
+    const controller = new AbortController(); reviewAllAbort.current = controller;
+    setReviewProgress({ completed: 0, total: targets.filter(file => file.status !== 'conflicted').length });
     try {
-      const result = await approveAllWorkingReviews(currentRepo.path, status);
+      const result = await approveAllWorkingReviews(currentRepo.path, status, { files: targets, signal: controller.signal, onProgress: setReviewProgress });
       if (result.cancelled) {
-        toast.warning(t('workingReview.approveAllChanged')); return;
+        if (controller.signal.aborted) toast.info(t('workingReview.batchCancelled'));
+        else toast.warning(t('workingReview.approveAllChanged')); return;
       }
+      setReviewFailedFiles(result.failedFiles);
       const skipped = result.unresolved + result.conflicts + result.failed;
       const title = t('workingReview.approveAllDone').replace('{n}', String(result.approved));
       if (skipped) toast.warning(title, t('workingReview.approveAllSkipped').replace('{n}', String(skipped)));
       else toast.success(title);
     } catch (error: any) { toast.error(t('workingReview.approveAllFailed'), error.message); }
-    finally { reviewAllRunning.current = false; setReviewAllBusy(false); }
+    finally { reviewAllRunning.current = false; reviewAllAbort.current = null; setReviewAllBusy(false); }
   };
   const pendingWrites = useGitActivity(currentRepo?.path || '');
   const fileKey = (file: GitFileChange) => JSON.stringify([file.path, file.staged]);
-  useEffect(() => { setPicked(new Set()); }, [currentRepo?.path]);
-  const selectedFiles = allFiles.filter(file => picked.has(fileKey(file)));
+  useEffect(() => { setPicked(new Set()); selectionAnchor.current = 0; }, [currentRepo?.path, status?.currentBranch, fileSearch, reviewFilter]);
+  const selectedFiles = visibleFiles.filter(file => picked.has(fileKey(file)));
   const togglePicked = (file: GitFileChange, range: boolean) => {
-    const index = allFiles.indexOf(file);
+    const index = visibleFiles.indexOf(file);
     if (range) {
-      setPicked(previous => new Set([...previous, ...allFiles.slice(Math.min(selectionAnchor.current, index), Math.max(selectionAnchor.current, index) + 1).map(fileKey)]));
+      setPicked(previous => new Set([...previous, ...visibleFiles.slice(Math.min(selectionAnchor.current, index), Math.max(selectionAnchor.current, index) + 1).map(fileKey)]));
     } else {
       setPicked(previous => { const next = new Set(previous); const key = fileKey(file); next.has(key) ? next.delete(key) : next.add(key); return next; });
       selectionAnchor.current = index;
@@ -282,6 +333,12 @@ export const WorkingChangesView: React.FC = () => {
       setListBusy(false);
     }
   };
+  const applyVisibleFiles = async (files: GitFileChange[], unstage: boolean) => {
+    if (!currentRepo || !files.length) return;
+    const path = currentRepo.path;
+    await (unstage ? gitService.unstageFiles(path, files.map(file => file.path)) : gitService.stageFiles(path, files.map(file => file.path)));
+    if (useRepoStore.getState().currentRepo?.path === path) await useRepoStore.getState().refreshStatus();
+  };
 
   const handleDiscard = async (path: string) => {
     if (!await confirmAction({ title: t('changes.discardTitle'), description: t('composer.discardWarning'), detail: path })) return;
@@ -330,16 +387,23 @@ export const WorkingChangesView: React.FC = () => {
       'data-review-state': fileReviews.stateFor(file).kind, 'data-file-staged': String(!!file.staged),
       'data-picked': String(picked.has(fileKey(file))),
       onClick: event => {
-        const index = allFiles.indexOf(file);
+        locateRequest.current++; setLocateTarget(null); setLocatedHeader(undefined);
+        const index = visibleFiles.indexOf(file);
         if (event.shiftKey) {
-          setPicked(previous => new Set([...previous, ...allFiles.slice(Math.min(selectionAnchor.current, index), Math.max(selectionAnchor.current, index) + 1).map(fileKey)]));
+          setPicked(previous => new Set([...previous, ...visibleFiles.slice(Math.min(selectionAnchor.current, index), Math.max(selectionAnchor.current, index) + 1).map(fileKey)]));
         } else if (event.ctrlKey || event.metaKey) {
           setPicked(previous => { const next = new Set(previous); const key = fileKey(file); next.has(key) ? next.delete(key) : next.add(key); return next; });
           selectionAnchor.current = index;
         } else { setPicked(new Set()); selectionAnchor.current = index; }
         setSelectedFile(file);
       },
-      onFocus: event => { if (event.target === event.currentTarget) setSelectedFile(file); },
+      onFocus: event => {
+        if (event.target !== event.currentTarget) return;
+        if (activeFile?.path !== file.path || activeFile?.staged !== file.staged) {
+          locateRequest.current++; setLocateTarget(null); setLocatedHeader(undefined);
+        }
+        setSelectedFile(file);
+      },
       onContextMenu: event => { event.preventDefault(); setSelectedFile(file); setFileMenu({ file, x: event.clientX, y: event.clientY }); },
       onKeyDown: event => {
         if (event.target !== event.currentTarget) return;
@@ -409,6 +473,20 @@ export const WorkingChangesView: React.FC = () => {
     if (diffMode !== 'split' || fileDiffLines.length === 0) return [];
     return computeSplitRows(fileDiffLines);
   }, [diffMode, fileDiffLines]);
+  useEffect(() => { setLocatedHeader(undefined); }, [activeFile?.path, activeFile?.staged, fileDiffLines]);
+  useEffect(() => {
+    if (!locateTarget || activeFile?.path !== locateTarget.path || !!activeFile?.staged !== locateTarget.staged || fileDiffLoading) return;
+    if (fileDiffError) { setLocateTarget(null); return; }
+    if (!workingReview.snapshot || !workingReview.ready) return;
+    const header = locateTarget.fingerprint === workingReview.snapshot.fingerprint ? locateTarget.header : undefined;
+    const index = header ? fileDiffLines.findIndex(line => line.type === 'header' && line.content === header) : 0;
+    const frame = requestAnimationFrame(() => {
+      const port = document.getElementById(diffId);
+      port?.querySelector('[data-virtual-count]')?.dispatchEvent(new CustomEvent('auugit-focus-row', { detail: Math.max(0, index) }));
+      port?.focus({ preventScroll: true }); setLocatedHeader(header); setLocateTarget(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [locateTarget, activeFile?.path, activeFile?.staged, fileDiffLoading, fileDiffError, fileDiffLines, workingReview.snapshot, workingReview.ready, diffId]);
   const diffContents = useMemo(() => diffMode === 'split' ? splitRows.map(row => row.headerContent || `${row.left?.content || ''}\n${row.right?.content || ''}`) : fileDiffLines.map(line => line.content), [diffMode, splitRows, fileDiffLines]);
 
   // 块级操作：按 @@ 头切分 hunk，并为统一视图的每个块头记录索引
@@ -554,25 +632,25 @@ export const WorkingChangesView: React.FC = () => {
               <Button
                 variant="ghost"
                 size="xs"
-                disabled={listBusy}
+                disabled={listBusy || (fileListFiltered && !visibleFiles.some(file => !file.staged))}
                 onClick={() => {
-                  runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
+                  runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleFiles.filter(file => !file.staged), false) : stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                 }}
                 className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
               >
-                {t('changes.stageAll')}
+                {t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAll')}
               </Button>
             ) : stagedFiles.length > 0 ? (
               <Button
                 variant="ghost"
                 size="xs"
-                disabled={listBusy}
+                disabled={listBusy || (fileListFiltered && !visibleStaged.length)}
                 onClick={() => {
-                  runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
+                  runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleStaged, true) : unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                 }}
                 className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
               >
-                {t('changes.unstageAllSection')}
+                {t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAllSection')}
               </Button>
             ) : null}
           </div>
@@ -582,10 +660,19 @@ export const WorkingChangesView: React.FC = () => {
           <span className="text-emerald-700 dark:text-emerald-400">{t('workingReview.approved')} {fileReviews.approved}</span>
           <span className="text-amber-700 dark:text-amber-400">{t('workingReview.pending')} {fileReviews.pending}</span>
           {!!fileReviews.checking && <span className="text-muted-foreground">{t('workingReview.listChecking')} {fileReviews.checking}</span>}
-          <Button data-testid="working-review-approve-all" size="xs" variant="ghost" className="ml-auto min-w-[112px]" title={t('workingReview.approveAllHint')} aria-busy={reviewAllBusy} disabled={!currentRepo || !status || reviewAllBusy || batchBusy || !!pendingWrites || !(fileReviews.pending + fileReviews.checking)} onClick={() => void approveAll()}>
-            {reviewAllBusy ? <Loader2 aria-hidden="true" className="size-3 animate-spin" /> : <Check aria-hidden="true" className="size-3" />}{t(reviewAllBusy ? 'workingReview.approveAllBusy' : 'workingReview.approveAll')}
+          <Button data-testid="working-review-approve-all" size="xs" variant="ghost" className="ml-auto min-w-[112px]" title={t(fileListFiltered ? 'workingReview.approveVisibleHint' : 'workingReview.approveAllHint')} aria-busy={reviewAllBusy} disabled={!currentRepo || !status || reviewAllBusy || batchBusy || !!pendingWrites || !visibleFiles.some(file => fileReviews.stateFor(file).kind !== 'approved')} onClick={() => void approveAll()}>
+            {reviewAllBusy ? <Loader2 aria-hidden="true" className="size-3 animate-spin" /> : <Check aria-hidden="true" className="size-3" />}{t(reviewAllBusy ? 'workingReview.approveAllBusy' : fileListFiltered ? 'workingReview.approveVisible' : 'workingReview.approveAll')}
           </Button>
         </div>}
+        {totalChanges > 0 && <div className="flex flex-col gap-2 px-2 py-2 border-b border-border text-xs">
+          <Input aria-label={t('workingReview.searchFiles')} placeholder={t('workingReview.searchFiles')} value={fileSearch} onChange={event => setFileSearch(event.target.value)} className="h-7" />
+          <div className="flex items-center gap-2"><select aria-label={t('workingReview.filterFiles')} value={reviewFilter} onChange={event => setReviewFilter(event.target.value as WorkingReviewFilter)} className="min-w-0 flex-1 rounded border border-input bg-background p-1">
+            {(['all', 'pending', 'issues', 'approved'] as const).map(filter => <option key={filter} value={filter}>{t(`workingReview.filter.${filter}`)}</option>)}
+          </select>{fileListFiltered && <Button size="xs" variant="ghost" onClick={() => { setFileSearch(''); setReviewFilter('all'); }}>{t('workingReview.clearFilter')}</Button>}</div>
+          {fileListFiltered && <span className="text-muted-foreground">{t('workingReview.visibleCount').replace('{n}', String(visibleFiles.length)).replace('{total}', String(allFiles.length))}</span>}
+        </div>}
+        {reviewAllBusy && <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs border-b border-border"><span role="progressbar" aria-label={t('workingReview.batchProgress')} aria-valuemin={0} aria-valuemax={reviewProgress.total} aria-valuenow={reviewProgress.completed}>{reviewProgress.completed}/{reviewProgress.total}</span><Button size="xs" variant="ghost" disabled={reviewCancelling} onClick={() => { setReviewCancelling(true); reviewAllAbort.current?.abort(); }}>{t(reviewCancelling ? 'workingReview.cancelling' : 'common.cancel')}</Button></div>}
+        {!reviewAllBusy && retryReviewFiles.length > 0 && <Button size="xs" variant="ghost" disabled={batchBusy || listBusy || !!pendingWrites} onClick={() => void approveAll(retryReviewFiles)}>{t('workingReview.retryFiles').replace('{n}', String(retryReviewFiles.length))}</Button>}
         {totalChanges > 0 && <div className="px-2 py-1 border-b border-border"><Button variant="ghost" size="xs" className="w-full justify-start gap-2" onClick={() => setSplitOpen(true)}><Split className="w-3.5 h-3.5" />{t('flow.splitCommits')}</Button></div>}
         {selectedFiles.length > 0 && <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border text-[12px]" role="toolbar" aria-label={t('changes.selectionActions')}>
           <span>{selectedFiles.length} {t('changes.selected')}</span>
@@ -603,25 +690,25 @@ export const WorkingChangesView: React.FC = () => {
               desc={t('changes.emptyDesc')}
               className="py-24"
             />
-          ) : (
+          ) : !visibleFiles.length ? <div className="p-4 text-xs text-muted-foreground">{t('workingReview.noMatchingFiles')}</div> : (
             <div ref={fileListRef} role="list" aria-label={t('composer.changedFiles')} onKeyDown={moveListFocus} className="space-y-3">
               {/* Staged Section */}
-              {stagedFiles.length > 0 && (
+              {visibleStaged.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>{t('changes.section.staged')} ({stagedFiles.length})</span>
+                    <span>{t('changes.section.staged')} ({visibleStaged.length})</span>
                     <button
                       onClick={() => {
-                        runGitAction(() => unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
+                        runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleStaged, true) : unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                       }}
                       disabled={listBusy}
                       className="text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {t('changes.unstageAll')}
+                      {t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAll')}
                     </button>
                   </div>
                   <div data-working-file-group="staged" className="space-y-0.5">
-                    <VirtualRows items={stagedFiles} rowHeight={44} renderRow={(file) => (
+                    <VirtualRows items={visibleStaged} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
                         {...fileRowProps(file)}
@@ -661,21 +748,21 @@ export const WorkingChangesView: React.FC = () => {
               )}
 
               {/* Unstaged Section */}
-              {unstagedFiles.length > 0 && (
+              {visibleUnstaged.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>{t('changes.section.unstaged')} ({unstagedFiles.length})</span>
+                    <span>{t('changes.section.unstaged')} ({visibleUnstaged.length})</span>
                     <button
                       onClick={() => {
-                        runGitAction(() => stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
+                        runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleUnstaged, false) : stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                       }}
                       className="text-[12px] text-muted-foreground hover:text-foreground"
                     >
-                      {t('changes.stageAllSection')}
+                      {t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAllSection')}
                     </button>
                   </div>
                   <div data-working-file-group="unstaged" className="space-y-0.5">
-                    <VirtualRows items={unstagedFiles} rowHeight={44} renderRow={(file) => (
+                    <VirtualRows items={visibleUnstaged} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
                         {...fileRowProps(file)}
@@ -816,17 +903,17 @@ export const WorkingChangesView: React.FC = () => {
               )}
 
               {/* Untracked Section */}
-              {untrackedFiles.length > 0 && (
+              {visibleUntracked.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>{t('changes.untracked')} ({untrackedFiles.length})</span>
+                    <span>{t('changes.untracked')} ({visibleUntracked.length})</span>
                     <button
                       onClick={() => {
                         const path = currentRepo?.path;
                         if (!path) return;
                         runGitAction(
                           async () => {
-                            await gitService.stageFiles(path, untrackedFiles.map(file => file.path));
+                            await gitService.stageFiles(path, visibleUntracked.map(file => file.path));
                             if (useRepoStore.getState().currentRepo?.path === path) await useRepoStore.getState().refreshStatus();
                           },
                           t('changes.addAllToast'),
@@ -835,11 +922,11 @@ export const WorkingChangesView: React.FC = () => {
                       }}
                       className="text-[12px] text-muted-foreground hover:text-foreground"
                     >
-                      {t('changes.addAllSection')}
+                      {t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.addAllSection')}
                     </button>
                   </div>
                   <div data-working-file-group="untracked" className="space-y-0.5">
-                    <VirtualRows items={untrackedFiles} rowHeight={44} renderRow={(file) => (
+                    <VirtualRows items={visibleUntracked} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
                         {...fileRowProps(file)}
@@ -920,7 +1007,7 @@ export const WorkingChangesView: React.FC = () => {
                 )}
               </>
             )}
-            <WorkingReviewReport key={JSON.stringify([currentRepo?.path, status?.currentBranch])} repoPath={currentRepo?.path ?? ''} branch={status?.currentBranch ?? currentRepo?.currentBranch ?? ''} files={status ? allFiles : undefined} />
+            <WorkingReviewReport key={JSON.stringify([currentRepo?.path, status?.currentBranch])} repoPath={currentRepo?.path ?? ''} branch={status?.currentBranch ?? currentRepo?.currentBranch ?? ''} files={status ? allFiles : undefined} onLocate={(path, issue) => void locateIssue(path, issue)} />
           </div>
 
           {activeFile && (
@@ -1052,7 +1139,7 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
-        {activeFile && activeFile.status !== 'conflicted' && contentMode === 'diff' && <WorkingReviewPanel review={workingReview} filtered={ignoreWhitespace} onNext={nextReviewFile ? goToNextReview : undefined} />}
+        {activeFile && activeFile.status !== 'conflicted' && contentMode === 'diff' && <WorkingReviewPanel review={workingReview} filtered={ignoreWhitespace} onNext={nextReviewFile ? goToNextReview : undefined} onLocate={issue => void locateIssue(activeFile.path, issue)} />}
         {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && <div className="workspace-divider px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
         {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
         {activeFile?.status === 'conflicted' && showResolver ? (
@@ -1068,6 +1155,7 @@ export const WorkingChangesView: React.FC = () => {
           /* Diff Content View */
           <WorkingDiffContent
             diffId={diffId}
+            locatedHeader={locatedHeader}
             diffFontSize={diffFontSize}
             wrap={wrap}
             currentRepo={currentRepo}

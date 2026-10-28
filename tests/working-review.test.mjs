@@ -70,6 +70,31 @@ test('review reminders default to enabled and the opt-out survives settings pers
   assert.equal(createRequire(import.meta.url)(outfile).useSettingsStore.getState().reviewBeforeCommit, false);
 });
 
+test('successful status refresh clears completed committed records but keeps partial files and unresolved findings', async () => {
+  const repo = await fixture();
+  await write(repo, 'a.txt', 'staged part\n'); git(repo, 'add', '--', 'a.txt');
+  await write(repo, 'a.txt', 'staged part\nremaining work\n');
+  await write(repo, 'done.txt', 'finished\n'); await write(repo, 'open.txt', 'unresolved\n');
+  git(repo, 'add', '--', 'done.txt', 'open.txt');
+  const status = await current(repo), store = app.useWorkingReviewStore;
+  for (const item of status.staged) {
+    const snap = await app.captureWorkingReview(repo, item), key = recordKey(repo, item.path);
+    store.getState().addIssue(key, snap, `Finding in ${item.path}`);
+    if (item.path !== 'open.txt') store.getState().updateIssue(key, store.getState().records[key].issues[0].id, true);
+  }
+  git(repo, 'commit', '-m', 'partial and complete files');
+  await app.useRepoStore.getState().refreshStatus();
+  assert.ok(store.getState().records[recordKey(repo)], 'remaining work retains the file review');
+  assert.equal(store.getState().records[recordKey(repo, 'done.txt')], undefined);
+  assert.equal(store.getState().records[recordKey(repo, 'open.txt')].issues[0].resolved, false);
+  git(repo, 'add', '--', 'a.txt'); git(repo, 'commit', '-m', 'finish partial file');
+  await app.useRepoStore.getState().checkExternalChanges();
+  assert.equal(store.getState().records[recordKey(repo)], undefined);
+  await store.persist.rehydrate();
+  assert.equal(store.getState().records[recordKey(repo, 'done.txt')], undefined);
+  assert.equal(store.getState().records[recordKey(repo, 'open.txt')].issues[0].resolved, false);
+});
+
 test('a reviewed worktree file stays reviewed when staged, while later edits require review', async () => {
   const repo = await fixture(); await write(repo, 'a.txt', 'updated\n');
   const status = await current(repo), file = status.unstaged[0];

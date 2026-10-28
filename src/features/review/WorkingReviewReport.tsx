@@ -6,12 +6,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useI18n } from '@/i18n';
 import { useWorkingReviewStorageStatus, useWorkingReviewStore } from '@/stores/workingReviewStore';
 import type { GitFileChange } from '@/services/git/types';
+import type { WorkingReviewIssue } from '@/stores/workingReviewStore';
 import { toast } from '@/stores/toastStore';
 import { ReviewDiffText } from './ReviewDiffText';
 import { buildWorkingReviewReport, workingReviewEntries } from './workingReviewReportLogic';
 import { WorkingReviewIssueManager } from './WorkingReviewIssueManager';
 
-export function WorkingReviewReport({ repoPath, branch, files }: { repoPath: string; branch: string; files?: readonly GitFileChange[] }) {
+export function WorkingReviewReport({ repoPath, branch, files, onLocate }: { repoPath: string; branch: string; files?: readonly GitFileChange[]; onLocate?: (path: string, issue: WorkingReviewIssue) => void }) {
   const { t } = useI18n();
   const records = useWorkingReviewStore(state => state.records);
   const [open, setOpen] = useState(false);
@@ -50,7 +51,7 @@ export function WorkingReviewReport({ repoPath, branch, files }: { repoPath: str
         </div>
         {storageFailed && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive shrink-0"><span>{t('workingReview.storageFailed')}</span><Button size="xs" variant="outline" onClick={useWorkingReviewStore.getState().retrySave}>{t('workingReview.retrySave')}</Button></div>}
         {!managing && !!historicalCount && !includeHistory && <p role="status" className="text-xs text-muted-foreground shrink-0">{t('workingReview.historyHidden').replace('{n}', String(historicalCount))}</p>}
-        {managing ? <><p className="text-xs text-muted-foreground shrink-0">{t('workingReview.manageHint')}</p><WorkingReviewIssueManager entries={entries} activePaths={activePaths} /></> : text ? <div role="region" aria-label={t('workingReview.reportTitle')} tabIndex={0} data-testid="working-review-report-scroll" className="flex-1 min-h-0 overflow-auto overscroll-contain border border-border rounded-lg">
+        {managing ? <><p className="text-xs text-muted-foreground shrink-0">{t('workingReview.manageHint')}</p><WorkingReviewIssueManager entries={entries} activePaths={activePaths} onLocate={onLocate ? (path, issue) => { setOpen(false); onLocate(path, issue); } : undefined} /></> : text ? <div role="region" aria-label={t('workingReview.reportTitle')} tabIndex={0} data-testid="working-review-report-scroll" className="flex-1 min-h-0 overflow-auto overscroll-contain border border-border rounded-lg">
           <pre data-testid="working-review-report-text" className="py-3 text-[12px] leading-relaxed font-mono whitespace-pre-wrap [overflow-wrap:anywhere] select-text"><ReviewDiffText text={text} report /></pre>
         </div> : <div className="flex-1 min-h-0 overflow-y-auto"><EmptyState variant="check" title={t(historicalCount && !includeHistory ? 'workingReview.reportNoCurrent' : previewCount ? 'review.reportNoOpen' : 'review.reportEmpty')} desc={t(historicalCount && !includeHistory ? 'workingReview.reportNoCurrentDesc' : previewCount ? 'review.reportNoOpenDesc' : 'workingReview.reportEmptyDesc')} /></div>}
         <footer className="flex justify-end gap-2 shrink-0"><Button variant="outline" onClick={() => setOpen(false)}>{t('common.close')}</Button>{!managing && <Button data-testid="working-review-report-copy" disabled={!text} onClick={() => void copy()} className="gap-1.5"><Copy className="h-3.5 w-3.5" />{t('review.reportCopy')}</Button>}</footer>

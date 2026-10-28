@@ -64,6 +64,8 @@ interface WorkingReviewState {
   addIssue: (key: string, snapshot: WorkingReviewSnapshot, text: string, hunk?: string, origin?: WorkingIssueOrigin) => void;
   recoverIssueOrigins: (key: string, snapshot: WorkingReviewSnapshot) => void;
   updateIssue: (key: string, id: string, resolved: boolean) => void;
+  editIssue: (key: string, id: string, text: string, expectedText: string) => boolean;
+  clearCompleted: (repo: string, branch: string, activePaths: readonly string[]) => void;
   deleteIssue: (key: string, id: string) => void;
   restoreIssue: (key: string, issue: WorkingReviewIssue, index: number) => void;
   retrySave: () => boolean;
@@ -99,6 +101,26 @@ export const useWorkingReviewStore = create<WorkingReviewState>()(persist((set, 
     },
     recoverIssueOrigins: (key, snapshot) => update(key, record => ({ ...record, issues: record.issues.map(issue => !issue.origin && issue.snapshot === snapshot.fingerprint && (!issue.hunk || snapshot.hunks.some(hunk => hunk.id === issue.hunk)) ? { ...issue, origin: captureWorkingIssueOrigin(snapshot, issue.hunk) } : issue) })),
     updateIssue: (key, id, resolved) => update(key, record => ({ ...record, issues: record.issues.map(issue => issue.id === id ? { ...issue, resolved } : issue) })),
+    editIssue: (key, id, text, expectedText) => {
+      const issue = get().records[key]?.issues.find(issue => issue.id === id);
+      if (!issue || issue.text !== expectedText || !text.trim()) return false;
+      update(key, record => ({ ...record, issues: record.issues.map(issue => issue.id === id ? { ...issue, text: text.trim().slice(0, 6000) } : issue) }));
+      return true;
+    },
+    clearCompleted: (repo, branch, activePaths) => {
+      const active = new Set(activePaths), records = { ...get().records };
+      let changed = false;
+      for (const [key, record] of Object.entries(records)) {
+        let parts: unknown;
+        try { parts = JSON.parse(key); } catch { continue; }
+        if (Array.isArray(parts) && parts.length === 3 && parts.every(part => typeof part === 'string')
+          && workingReviewKey(parts[0], parts[1], parts[2]) === workingReviewKey(repo, branch, parts[2])
+          && !active.has(parts[2]) && record.issues.every(issue => issue.resolved)) {
+          delete records[key]; changed = true;
+        }
+      }
+      if (changed) set({ records });
+    },
     deleteIssue: (key, id) => update(key, record => ({ ...record, issues: record.issues.filter(issue => issue.id !== id) })),
     restoreIssue: (key, issue, index) => update(key, record => {
       if (record.issues.some(item => item.id === issue.id)) return record;
@@ -124,9 +146,9 @@ export const useWorkingReviewStore = create<WorkingReviewState>()(persist((set, 
 /** Session drafts stay with their original file, exact diff version and note target. */
 export const useWorkingReviewDraftStore = create<{
   drafts: Record<string, string>;
-  setDraft: (key: string, text: string) => void;
-}>((set) => ({ drafts: {}, setDraft: (key, text) => set(state => {
+  setDraft: (key: string, text: string, retainEmpty?: boolean) => void;
+}>((set) => ({ drafts: {}, setDraft: (key, text, retainEmpty = false) => set(state => {
   const drafts = { ...state.drafts };
-  if (text) drafts[key] = text.slice(0, 6000); else delete drafts[key];
+  if (text || retainEmpty) drafts[key] = text.slice(0, 6000); else delete drafts[key];
   return { drafts };
 }) }));

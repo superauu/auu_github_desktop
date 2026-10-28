@@ -39,15 +39,24 @@ export async function captureWorkingReview(repoPath: string, file: GitFileChange
   };
 }
 
-export async function captureWorkingReviews(repoPath: string, files: GitFileChange[], wholeWorktree = false, head = '') {
+export interface WorkingReviewCaptureOptions {
+  signal?: AbortSignal;
+  isCurrent?: () => boolean;
+  onProgress?: (progress: { completed: number; total: number }) => void;
+}
+export async function captureWorkingReviews(repoPath: string, files: GitFileChange[], wholeWorktree = false, head = '', options: WorkingReviewCaptureOptions = {}) {
   const result: { file: GitFileChange; snapshot: WorkingReviewSnapshot | null }[] = new Array(files.length);
-  let next = 0;
+  let next = 0, completed = 0;
+  const active = () => !options.signal?.aborted && (!options.isCurrent || options.isCurrent());
+  options.onProgress?.({ completed, total: files.length });
   await Promise.all(Array.from({ length: Math.min(4, files.length) }, async () => {
-    while (next < files.length) {
+    while (active() && next < files.length) {
       const index = next++, file = files[index];
       try { result[index] = { file, snapshot: await captureWorkingReview(repoPath, file, wholeWorktree, head) }; }
       catch { result[index] = { file, snapshot: null }; }
+      completed++;
+      if (active()) options.onProgress?.({ completed, total: files.length });
     }
   }));
-  return result;
+  return result.filter(Boolean);
 }

@@ -96,3 +96,35 @@ test('external Git changes and failed scope reads never apply partial approvals'
   await assert.rejects(app.approveAllWorkingReviews(repo, status), /Cannot read repository/);
   assert.deepEqual(app.useWorkingReviewStore.getState().records, {});
 });
+
+test('filtered review captures only requested current versions and returns a precise retry scope', async () => {
+  const targets = [status.unstaged[0], status.unstaged[1], file('outside.ts')];
+  globalThis.batchCapture = async (_repo, files) => {
+    assert.deepEqual(files, targets.slice(0, 2));
+    return files.map(item => ({ file: item, snapshot: item.path === 'b.ts' ? null : snapshot(item) }));
+  };
+  const result = await app.approveAllWorkingReviews(repo, status, { files: targets });
+  assert.equal(result.approved, 1); assert.deepEqual(result.failedFiles, [status.unstaged[1]]);
+  assert.equal(app.workingReviewStatus(app.useWorkingReviewStore.getState().records[key(file('a.ts'))], snapshot(file('a.ts', true))).approved, false);
+  globalThis.batchCapture = async (_repo, files) => files.map(item => ({ file: item, snapshot: snapshot(item) }));
+  assert.equal((await app.approveAllWorkingReviews(repo, status, { files: result.failedFiles })).approved, 1);
+  assert.equal(app.workingReviewStatus(app.useWorkingReviewStore.getState().records[key(file('a.ts'))], snapshot(file('a.ts', true))).approved, false);
+});
+
+test('cancellation before capture, during capture and during final verification never saves partial approvals', async () => {
+  for (const phase of ['before', 'capture', 'verify']) {
+    const controller = new AbortController(); let captures = 0;
+    if (phase === 'before') controller.abort();
+    globalThis.batchCapture = async (_repo, files, _whole, _head, options) => {
+      captures++; assert.equal(options.signal, controller.signal);
+      options.onProgress?.({ completed: 1, total: files.length });
+      if (phase === 'capture') controller.abort();
+      return files.map(item => ({ file: item, snapshot: snapshot(item) }));
+    };
+    globalThis.batchStatus = async () => { if (phase === 'verify') controller.abort(); return structuredClone(status); };
+    const progress = [];
+    const result = await app.approveAllWorkingReviews(repo, status, { signal: controller.signal, onProgress: value => progress.push(value) });
+    assert.equal(result.cancelled, true); assert.deepEqual(app.useWorkingReviewStore.getState().records, {});
+    assert.equal(captures, phase === 'before' ? 0 : 1); assert.equal(progress.length, captures);
+  }
+});
