@@ -123,7 +123,7 @@ export const commitBatchService = {
             let diff: string;
             if (file.status === 'untracked') diff = (await git(['diff', '--no-index', '--no-color', '--no-ext-diff', '--no-textconv', '--', '/dev/null', file.path])).stdout;
             else if (head) diff = (await git(['--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-textconv', head, '--', ...pathsFor({ files }, [file.path])])).stdout;
-            else diff = (await gitService.getFileDiff(repoPath, file.path, file.staged, false)).map(line => line.content).join('\n');
+            else diff = (await gitService.getFileDiff(repoPath, file.path, file.staged, false, false, file.oldPath)).map(line => line.content).join('\n');
             aborted(signal);
             if (diff.length > budget) truncated = true;
             excerpts[index] = `${JSON.stringify(file.path)}:\n${diff.slice(0, budget)}`;

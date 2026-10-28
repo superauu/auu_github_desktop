@@ -317,3 +317,86 @@ test('compact status markers keep accessible details while leaving room for file
     assert.equal(marker.findAllByType('span').length, 1, 'compact markers render no visible text');
   } finally { await act(async () => renderer?.unmount()); }
 });
+
+test('malformed persisted records cannot approve files or crash review status', async () => {
+  const store = app.useWorkingReviewStore;
+  saved.set('auugit-working-review', JSON.stringify({ state: { records: {
+    [key()]: { approvedFiles: 'old', approvedHunks: 'first', issues: [null, { id: 'bad', snapshot: 123, text: 'invalid' }] },
+    [key('b.ts')]: null,
+  } }, version: 0 }));
+  await store.persist.rehydrate();
+  const record = store.getState().records[key()];
+  assert.doesNotThrow(() => app.workingReviewStatus(record, snapshot()));
+  assert.equal(app.workingReviewStatus(record, snapshot()).approved, false);
+  assert.deepEqual(record.issues, []);
+});
+
+test('notes and hunk revocations invalidate overlapping approvals while retaining unrelated text and binary versions', async () => {
+  const store = app.useWorkingReviewStore, first = snapshot('first-version', ['shared', 'first-only']), second = snapshot('second-version', ['shared', 'second-only']);
+  const unrelated = snapshot('unrelated', ['different']), binary = snapshot('binary', []);
+  for (const snap of [first, second, unrelated, binary]) store.getState().approveFile(key(), snap, true);
+  await store.persist.rehydrate();
+  store.getState().addIssue(key(), first, 'Fix the shared hunk', 'shared');
+  const state = snap => app.workingReviewStatus(store.getState().records[key()], snap);
+  assert.equal(state(first).approved, false); assert.equal(state(second).approved, false);
+  assert.equal(state(unrelated).approved, true); assert.equal(state(binary).approved, true);
+  const issue = store.getState().records[key()].issues[0]; store.getState().updateIssue(key(), issue.id, true);
+  assert.equal(state(first).approved, false, 'resolving a note requires explicit reapproval');
+  store.getState().approveHunk(key(), 'shared', true);
+  assert.equal(state(first).approved, true); assert.equal(state(second).approved, true);
+  assert.equal(state(binary).approved, true, 'adding a hunk approval does not erase a binary review');
+  store.getState().approveFile(key(), first, true); store.getState().approveFile(key(), second, true);
+  store.getState().approveHunk(key(), 'shared', false);
+  assert.equal(state(first).approved, false); assert.equal(state(second).approved, false);
+  assert.equal(state(unrelated).approved, true); assert.equal(state(binary).approved, true);
+});
+
+test('reopening a file removes full approvals that overlap revoked hunks without affecting disjoint versions', () => {
+  const store = app.useWorkingReviewStore, first = snapshot('first-version', ['shared']), second = snapshot('second-version', ['shared', 'other']);
+  const binary = snapshot('binary', []);
+  for (const snap of [first, second, binary]) store.getState().approveFile(key(), snap, true);
+  store.getState().approveFile(key(), first, false);
+  const record = store.getState().records[key()];
+  assert.equal(app.workingReviewStatus(record, first).approved, false);
+  assert.equal(app.workingReviewStatus(record, second).approved, false);
+  assert.equal(app.workingReviewStatus(record, binary).approved, true);
+});
+
+test('legacy approvals load normally and revoke conservatively when their unknown hunks are changed', async () => {
+  const store = app.useWorkingReviewStore;
+  saved.set('auugit-working-review', JSON.stringify({ state: { records: { [key()]: { approvedFile: 'old', approvedHunks: [], issues: [] } } }, version: 0 }));
+  await store.persist.rehydrate(); assert.equal(app.workingReviewStatus(store.getState().records[key()], snapshot()).approved, true);
+  store.getState().approveHunk(key(), 'first', false);
+  assert.equal(app.workingReviewStatus(store.getState().records[key()], snapshot()).approved, false);
+});
+
+test('partially damaged storage preserves readable notes and valid neighboring records without restoring unsafe approvals', async () => {
+  const store = app.useWorkingReviewStore;
+  const valid = { approvedFiles: ['old'], approvedHunks: ['first', 'second'], issues: [] };
+  saved.set('auugit-working-review', JSON.stringify({ state: { records: {
+    [key()]: { ...valid, issues: [null, { id: 'recoverable', text: 'Keep this issue', snapshot: 'old', resolved: false,
+      origin: { context: '+original code', source: 42, headHash: { invalid: true } } }] },
+    [key('b.ts')]: valid,
+  } }, version: 0 }));
+  await store.persist.rehydrate(); const records = store.getState().records, issue = records[key()].issues[0];
+  assert.equal(issue.text, 'Keep this issue'); assert.equal(issue.origin.context, '+original code');
+  assert.equal(issue.origin.source, 'unknown'); assert.equal(issue.origin.headHash, undefined);
+  assert.deepEqual(records[key()].approvedFiles, []); assert.deepEqual(records[key()].approvedHunks, []);
+  assert.equal(app.workingReviewStatus(records[key('b.ts')], snapshot()).approved, true);
+});
+
+test('invalid JSON and inaccessible storage preserve live progress and retry writes a recoverable snapshot', async () => {
+  const store = app.useWorkingReviewStore, getItem = localStorage.getItem;
+  approve(); const records = store.getState().records;
+  saved.set('auugit-working-review', '{broken json');
+  await store.persist.rehydrate(); assert.equal(store.getState().records, records);
+  assert.equal(app.useWorkingReviewStorageStatus.getState().unavailable, true);
+  assert.equal(store.getState().retrySave(), true);
+  try {
+    localStorage.getItem = () => { throw Error('Read denied'); };
+    await store.persist.rehydrate(); assert.equal(store.getState().records, records);
+    assert.equal(app.useWorkingReviewStorageStatus.getState().unavailable, true);
+  } finally { localStorage.getItem = getItem; }
+  assert.equal(store.getState().retrySave(), true);
+  assert.equal(app.workingReviewStatus(JSON.parse(saved.get('auugit-working-review')).state.records[key()], snapshot()).approved, true);
+});

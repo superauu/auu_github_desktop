@@ -25,7 +25,7 @@ export const commitSplitService = {
       const category = /(^|\/)(tests?|__tests__)(\/|\.)|\.(spec|test)\./i.test(file.path) ? 'test' : /\.(md|mdx|txt|rst)$/i.test(file.path) ? 'docs' : /\.(css|scss|less)$/i.test(file.path) ? 'style' : 'feat';
       if (!groups.has(category)) groups.set(category, { title: `${category}: ${tNow('flow.updateGroup')}`, files: [] });
       groups.get(category)!.files.push(file.path);
-      const diff = await gitService.getFileDiff(repoPath, file.path, false, file.status === 'untracked');
+      const diff = await gitService.getFileDiff(repoPath, file.path, false, file.status === 'untracked', false, file.oldPath);
       snippets.push(`${file.path}:\n${diff.map(line => line.content).join('\n').slice(0, 500)}`);
     }
     return { branch: status.currentBranch, head: status.headOid || '', files, fingerprints, groups: [...groups.values()], context: `ALL FILES:\n${JSON.stringify(files.map(file => file.path))}\nDIFF EXCERPTS:\n${snippets.join('\n\n')}` };

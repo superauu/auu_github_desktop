@@ -166,7 +166,7 @@ export class AiCommitService {
       try {
         const isUntracked = file.status === 'untracked';
         const isStaged = file.staged;
-        const diffLines = await gitService.getFileDiff(repoPath, file.path, isStaged, isUntracked);
+        const diffLines = await gitService.getFileDiff(repoPath, file.path, isStaged, isUntracked, false, file.oldPath);
 
         const addedLines: string[] = [];
         const addedSymbols: string[] = [];

@@ -85,6 +85,51 @@ test('a reviewed worktree file stays reviewed when staged, while later edits req
   assert.equal(reviewStatus(repo, await app.captureWorkingReview(repo, { ...file, staged: true })).approved, false);
 });
 
+test('renamed files display the same patch as review evidence, including pure renames and literal paths', async () => {
+  for (const edit of [false, true]) {
+    const repo = await fixture(), renamed = 'renamed [文件].txt';
+    git(repo, 'mv', '--', 'a.txt', renamed);
+    if (edit) {
+      const original = await fs.readFile(path.join(repo, renamed), 'utf8');
+      await write(repo, renamed, original.replace('line 2\n', 'new line 2\n')); git(repo, 'add', '--', renamed);
+    }
+    const status = await current(repo), file = status.staged.find(file => file.path === renamed);
+    assert.equal(file.oldPath, 'a.txt');
+    const snapshot = await app.captureWorkingReview(repo, file);
+    await app.useRepoStore.getState().loadFileDiff(file);
+    const semantic = lines => lines.map(({ type, oldNo, newNo, content, patchContent }) => ({ type, oldNo, newNo, content, patchContent }));
+    assert.deepEqual(semantic(app.useRepoStore.getState().fileDiffLines), semantic(snapshot.lines));
+    assert.ok(snapshot.metadata.some(line => line.startsWith('rename from ')));
+  }
+});
+
+test('configured diff drivers and text conversion cannot hide source changes from review', async () => {
+  const repo = await fixture();
+  await write(repo, '.gitattributes', 'a.txt diff=review-fixture\n'); git(repo, 'add', '-A'); git(repo, 'commit', '-m', 'diff attributes');
+  git(repo, 'config', 'diff.review-fixture.textconv', 'git --version');
+  git(repo, 'config', 'diff.review-fixture.command', 'git --version');
+  await write(repo, 'a.txt', 'updated source\n'); const status = await current(repo), file = status.unstaged[0];
+  const snapshot = await app.captureWorkingReview(repo, file);
+  await app.useRepoStore.getState().loadFileDiff(file);
+  const lines = app.useRepoStore.getState().fileDiffLines;
+  assert.ok(lines.some(line => line.content === '+updated source'));
+  assert.deepEqual(lines.map(line => line.content), snapshot.lines.map(line => line.content));
+});
+
+test('a note on an unstaged binary version does not erase the reviewed staged version', async () => {
+  const repo = await fixture(); await write(repo, 'image.bin', Buffer.from([0, 1, 2])); git(repo, 'add', '-A'); git(repo, 'commit', '-m', 'binary base');
+  await write(repo, 'image.bin', Buffer.from([0, 3, 4])); git(repo, 'add', '-A');
+  const status = await current(repo), staged = await app.captureWorkingReview(repo, status.staged[0]), key = recordKey(repo, 'image.bin');
+  app.useWorkingReviewStore.getState().approveFile(key, staged, true);
+  await app.useWorkingReviewStore.persist.rehydrate();
+  await write(repo, 'image.bin', Buffer.from([0, 5, 6]));
+  const latest = await current(repo), unstaged = await app.captureWorkingReview(repo, latest.unstaged[0]);
+  app.useWorkingReviewStore.getState().addIssue(key, unstaged, 'Check these new bytes');
+  assert.equal(reviewStatus(repo, staged, 'image.bin').approved, true);
+  assert.equal(reviewStatus(repo, staged, 'image.bin').unresolved, 0);
+  assert.equal(reviewStatus(repo, unstaged, 'image.bin').approved, false);
+});
+
 test('untracked, empty, deleted and binary files have exact review identities across staging', async () => {
   const repo = await fixture();
   await write(repo, 'new [文件].txt', 'new content\n'); await write(repo, 'empty.txt', '');

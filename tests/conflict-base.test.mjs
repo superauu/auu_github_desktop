@@ -84,7 +84,7 @@ async function conflictedRepo() {
 }
 
 before(async () => {
-  tmp = await fs.mkdtemp(path.join(root, '.test-conflict-base-'));
+  tmp = await fs.mkdtemp(path.join(root, '.test-tmp-conflict-base-'));
   const outfile = path.join(tmp, 'app.cjs');
   await build({
     stdin: {
@@ -108,7 +108,7 @@ before(async () => {
 after(async () => {
   globalThis.fetch = nativeFetch;
   await server?.close();
-  if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-conflict-base-')) {
+  if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-conflict-base-')) {
     await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
   }
 });

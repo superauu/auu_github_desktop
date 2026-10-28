@@ -613,7 +613,8 @@ export class GitService implements IGitService {
     filePath: string,
     staged?: boolean,
     isUntracked?: boolean,
-    ignoreWhitespace = false
+    ignoreWhitespace = false,
+    oldPath?: string
   ): Promise<ParsedDiffLine[]> {
     if (isUntracked) {
       // `/dev/null` is the only safe null device: Git for Windows accepts it
@@ -621,19 +622,19 @@ export class GitService implements IGitService {
       // handling when a repository is nested inside another git repository.
       // (The device choice therefore must not depend on navigator probing —
       // userAgent-based platform detection is unreliable under WebView2 anyway.)
-      const res = await executeGit(['--literal-pathspecs', 'diff', '--no-index', '--no-color', ...(ignoreWhitespace ? ['-w'] : []), '--', NULL_DEVICE, filePath], repoPath);
+      const res = await executeGit(['--literal-pathspecs', 'diff', '--no-index', '--no-color', '--no-ext-diff', '--no-textconv', ...(ignoreWhitespace ? ['-w'] : []), '--', NULL_DEVICE, filePath], repoPath);
       return this.diffCache.parse(JSON.stringify([repoPath, filePath, 'untracked', ignoreWhitespace]), res.stdout);
     }
 
-    const args = ['--literal-pathspecs', 'diff', '--no-color'];
+    const args = ['--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-textconv'];
     if (ignoreWhitespace) args.push('-w');
     if (staged) {
       args.push('--staged');
     }
-    args.push('--', filePath);
+    args.push('--', ...new Set([oldPath, filePath].filter((path): path is string => !!path)));
 
     const res = await executeGit(args, repoPath);
-    return this.diffCache.parse(JSON.stringify([repoPath, filePath, !!staged, ignoreWhitespace]), res.stdout);
+    return this.diffCache.parse(JSON.stringify([repoPath, filePath, !!staged, ignoreWhitespace, oldPath]), res.stdout);
   }
 
   async getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]> {

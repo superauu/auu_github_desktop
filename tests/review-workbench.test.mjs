@@ -458,7 +458,7 @@ test('failed local persistence never hides the diff and the save retry restores 
   } finally { globalThis.localStorage.setItem = original; await act(async () => renderer?.unmount()); }
 });
 
-test('failed same-file diff can retry while duplicate in-flight and successful selections remain deduplicated', async () => {
+test('failed same-file diff can retry while duplicate in-flight and successful selections remain deduplicated', { timeout: 10000 }, async () => {
   const store = app.useReviewStore, git = app.gitService, original = git.getRangeFileDiff;
   await store.getState().setTarget(REPO, { kind: 'net' });
   let calls = 0, release, renderer;
@@ -476,7 +476,11 @@ test('failed same-file diff can retry while duplicate in-flight and successful s
     assert.equal(store.getState().diffLoading, true);
     await store.getState().selectFile(REPO, 'a.ts');
     assert.equal(calls, 2);
-    await act(async () => { release(); await new Promise(setImmediate); });
+    // Evidence hashing uses WebCrypto and may outlive a single event-loop turn under load.
+    let unsubscribe;
+    const finished = new Promise(resolve => { unsubscribe = store.subscribe(state => { if (!state.diffLoading) resolve(); }); });
+    try { await act(async () => { release(); await finished; }); }
+    finally { unsubscribe(); }
     assert.equal(store.getState().diffError, null);
     assert.deepEqual(store.getState().diffLines, lines);
     assert.equal(byId(renderer, 'review-diff-retry'), undefined);

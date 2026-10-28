@@ -185,7 +185,7 @@ export interface IGitService {
   getWorktrees(repoPath: string): Promise<GitWorktree[]>;
   createWorktree(repoPath: string, path: string, branch: string, newBranch?: string): Promise<void>;
   deleteBranch(repoPath: string, name: string, force?: boolean): Promise<void>;
-  getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean): Promise<any[]>;
+  getFileDiff(repoPath: string, filePath: string, staged?: boolean, isUntracked?: boolean, ignoreWhitespace?: boolean, oldPath?: string): Promise<any[]>;
   getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]>;
   getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]>;
   getCommitsInRange(repoPath: string, base: string, head: string, limit?: number): Promise<{ commits: GitCommit[]; linear: boolean; truncated: boolean }>;

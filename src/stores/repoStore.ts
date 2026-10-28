@@ -678,7 +678,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
             file.path,
             file.staged,
             file.status === 'untracked',
-            ignoreWhitespace
+            ignoreWhitespace,
+            file.oldPath
           );
         }
         if (valid()) {
