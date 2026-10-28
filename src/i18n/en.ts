@@ -681,6 +681,9 @@ export const en = {
   'history.wipTitle': 'Click to review and commit working changes',
   'history.wipLabel': 'Uncommitted working changes (click to inspect)',
   'history.copyHashTitle': 'Click to copy hash',
+  'history.aiBadgeTitle': 'Commit involving AI (co-author trailer or AI author mark)',
+  'history.showing': 'Showing {shown} of {loaded} loaded',
+  'history.showAll': 'Show All',
   'history.copyHash': 'Commit hash copied',
 
   'diag.failed': 'Repository health diagnosis failed',

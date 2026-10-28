@@ -681,6 +681,9 @@ export const zh = {
   'history.wipTitle': '点击查看并提交工作区变动',
   'history.wipLabel': '工作区未提交代码修改 (点击进入检查)',
   'history.copyHashTitle': '点击复制 Hash',
+  'history.aiBadgeTitle': 'AI 参与的提交（Co-Authored-By 尾注或 AI 作者标识）',
+  'history.showing': '显示 {shown} / 已加载 {loaded}',
+  'history.showAll': '显示全部',
   'history.copyHash': '已复制 Commit Hash',
 
   // ============ 健康诊断 ============

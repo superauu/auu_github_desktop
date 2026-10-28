@@ -902,7 +902,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     )}
                     <span>{t('sidebar.local')} ({localGrouped.totalCount})</span>
                   </button>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                     <Button
                       variant="ghost"
                       size="xs"

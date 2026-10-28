@@ -2,6 +2,7 @@ import { HistoryEditorDialog } from './HistoryEditorDialog';
 import { BisectWizardDialog } from './BisectWizardDialog';
 import { DragDropActionModal } from './DragDropActionModal';
 import { historyWorkflowService } from '@/services/git/HistoryWorkflowService';
+import { detectAiAuthorship } from '@/features/review/reviewLogic';
 import type { GitBranch } from '@/services/git/types';
 import { useShallow } from 'zustand/react/shallow';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
@@ -13,6 +14,7 @@ import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { gitService } from '@/services/git/GitService';
 import {
   Tag as TagIcon,
+  Bot,
   Search,
   Check,
   Cloud,
@@ -333,6 +335,20 @@ export const CommitHistoryView: React.FC = () => {
               <span>{totalChanges} {t('history.uncommitted')}</span>
             </Badge>
           )}
+          {/* 筛选完整性指示：搜索态下展示可见/已加载，并提供一键回全量（GitKraken 的 Viewing N/M + Show All） */}
+          {searchQuery.trim() && (
+            <>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {t('history.showing').replace('{shown}', String(filteredCommits.length)).replace('{loaded}', String(commits.length))}
+              </span>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="h-5 px-1.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent/60 border border-border/60 transition-colors"
+              >
+                {t('history.showAll')}
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -474,6 +490,8 @@ export const CommitHistoryView: React.FC = () => {
               {filteredCommits.slice(firstVisible, lastVisible).map((commit) => {
                 const isSelected = activeCommit?.hash === commit.hash;
                 const isCopied = copiedHash === commit.hash;
+                // AI 作者识别：Co-Authored-By 尾注 / 🤖 标记 / AI 邮箱域（复用审查视图的纯函数）
+                const isAiCommit = detectAiAuthorship(commit.body, commit.author.email);
 
                 return (
                   <div
@@ -585,6 +603,15 @@ export const CommitHistoryView: React.FC = () => {
                     </div>
 
 
+                      {isAiCommit && (
+                        <span
+                          className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded border border-primary/30 bg-primary/10 px-1 text-[9px] font-bold font-mono leading-none text-primary"
+                          title={t('history.aiBadgeTitle')}
+                        >
+                          <Bot className="h-2.5 w-2.5" aria-hidden="true" />
+                          AI
+                        </span>
+                      )}
                       <span className="text-[13px] text-foreground transition-colors truncate">
                         {commit.subject}
                       </span>
