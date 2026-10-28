@@ -3,7 +3,7 @@ import { WorkingDiffContent } from './WorkingDiffContent';
 import { useWorkingReview } from '@/features/review/useWorkingReview';
 import { WorkingReviewPanel, WorkingReviewHunkActions } from '@/features/review/WorkingReviewPanel';
 import { WorkingReviewReport } from '@/features/review/WorkingReviewReport';
-import { useWorkingReviewFileList } from '@/features/review/useWorkingReviewFileList';
+import { nextWorkingReviewFile, useWorkingReviewFileList } from '@/features/review/useWorkingReviewFileList';
 import { WorkingReviewFileStatus, workingFileReviewLabel } from '@/features/review/WorkingReviewFileStatus';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import { stageSelectedLines } from '@/services/git/LineStagingService';
@@ -120,6 +120,22 @@ export const WorkingChangesView: React.FC = () => {
   const workingReview = useWorkingReview(currentRepo?.path ?? '', status, activeFile, fileDiffLines, fileDiffLoading, ignoreWhitespace, fileDiffError, workingChangesRevision);
   const allFiles = useMemo(() => [...stagedFiles, ...unstagedFiles, ...untrackedFiles], [stagedFiles, unstagedFiles, untrackedFiles]);
   const fileReviews = useWorkingReviewFileList(currentRepo?.path ?? '', status, allFiles, workingChangesRevision, { file: activeFile, snapshot: workingReview.verifiedSnapshot });
+  const fileListRef = useRef<HTMLDivElement>(null);
+  const nextReviewFile = nextWorkingReviewFile(allFiles, activeFile, fileReviews.stateFor);
+  const goToNextReview = () => {
+    if (!nextReviewFile) return;
+    setSelectedFile(nextReviewFile);
+    requestAnimationFrame(() => {
+      const row = Array.from(fileListRef.current?.querySelectorAll<HTMLElement>('[data-file-path]') ?? []).find(element => element.dataset.filePath === nextReviewFile.path && element.dataset.fileStaged === String(!!nextReviewFile.staged));
+      if (row) row.scrollIntoView({ block: 'nearest' });
+      else {
+        const section = nextReviewFile.staged ? 'staged' : nextReviewFile.status === 'untracked' ? 'untracked' : 'unstaged';
+        const files = section === 'staged' ? stagedFiles : section === 'untracked' ? untrackedFiles : unstagedFiles;
+        const index = files.indexOf(nextReviewFile);
+        fileListRef.current?.querySelector(`[data-working-file-group="${section}"] [data-virtual-count]`)?.dispatchEvent(new CustomEvent('auugit-focus-row', { detail: index }));
+      }
+    });
+  };
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const selectionAnchor = useRef(0);
   const [batchBusy, setBatchBusy] = useState(false);
@@ -142,6 +158,7 @@ export const WorkingChangesView: React.FC = () => {
       aria-label={t('changes.pickFile')}
       title={t('changes.pickFile')}
       checked={picked.has(fileKey(file))}
+      onChange={() => { /* Click handles Shift selection as well as keyboard activation. */ }}
       onClick={event => { event.stopPropagation(); togglePicked(file, event.shiftKey); }}
       className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-primary"
     />
@@ -566,7 +583,7 @@ export const WorkingChangesView: React.FC = () => {
               className="py-24"
             />
           ) : (
-            <div role="list" aria-label={t('composer.changedFiles')} onKeyDown={moveListFocus} className="space-y-3">
+            <div ref={fileListRef} role="list" aria-label={t('composer.changedFiles')} onKeyDown={moveListFocus} className="space-y-3">
               {/* Staged Section */}
               {stagedFiles.length > 0 && (
                 <div>
@@ -582,7 +599,7 @@ export const WorkingChangesView: React.FC = () => {
                       {t('changes.unstageAll')}
                     </button>
                   </div>
-                  <div className="space-y-0.5">
+                  <div data-working-file-group="staged" className="space-y-0.5">
                     <VirtualRows items={stagedFiles} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
@@ -598,7 +615,7 @@ export const WorkingChangesView: React.FC = () => {
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
-                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
                         </div>
                         <Button
                           variant="ghost"
@@ -636,7 +653,7 @@ export const WorkingChangesView: React.FC = () => {
                       {t('changes.stageAllSection')}
                     </button>
                   </div>
-                  <div className="space-y-0.5">
+                  <div data-working-file-group="unstaged" className="space-y-0.5">
                     <VirtualRows items={unstagedFiles} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
@@ -652,7 +669,7 @@ export const WorkingChangesView: React.FC = () => {
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
-                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
                         </div>
                         <div className="hidden items-center gap-1 group-hover:flex group-focus-within:flex shrink-0">
                           {file.status === 'conflicted' ? (
@@ -800,7 +817,7 @@ export const WorkingChangesView: React.FC = () => {
                       {t('changes.addAllSection')}
                     </button>
                   </div>
-                  <div className="space-y-0.5">
+                  <div data-working-file-group="untracked" className="space-y-0.5">
                     <VirtualRows items={untrackedFiles} rowHeight={44} renderRow={(file) => (
                       <div
                         key={file.path}
@@ -816,7 +833,7 @@ export const WorkingChangesView: React.FC = () => {
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
-                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
                         </div>
                         <Button
                           variant="ghost"
@@ -1014,7 +1031,7 @@ export const WorkingChangesView: React.FC = () => {
         </div>
 
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
-        {activeFile && activeFile.status !== 'conflicted' && contentMode === 'diff' && <WorkingReviewPanel review={workingReview} filtered={ignoreWhitespace} />}
+        {activeFile && activeFile.status !== 'conflicted' && contentMode === 'diff' && <WorkingReviewPanel review={workingReview} filtered={ignoreWhitespace} onNext={nextReviewFile ? goToNextReview : undefined} />}
         {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && <div className="workspace-divider px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
         {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
         {activeFile?.status === 'conflicted' && showResolver ? (

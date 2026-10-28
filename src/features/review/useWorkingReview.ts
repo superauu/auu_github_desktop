@@ -13,7 +13,7 @@ export function useWorkingReview(repo: string, status: GitStatusResult | null, f
   const [evidence, setEvidence] = useState<{ view: string; lines: ParsedDiffLine[]; snapshot: WorkingReviewSnapshot | null; revision: number; status: GitStatusResult | null } | null>(null);
   const [retry, setRetry] = useState(0);
   const [noteTarget, setNoteTarget] = useState<string | null | undefined>(undefined);
-  useEffect(() => { setNoteTarget(undefined); }, [key]);
+  useEffect(() => { setNoteTarget(undefined); }, [view]);
   useEffect(() => {
     if (!repo || !file || loading || error || file.status === 'conflicted') return;
     let active = true;
@@ -26,7 +26,13 @@ export function useWorkingReview(repo: string, status: GitStatusResult | null, f
   }, [repo, view, lines, loading, error, retry, status, revision]);
   const currentEvidence = evidence?.view === view && evidence.lines === lines && evidence.revision === revision && evidence.status === status;
   const snapshot = evidence?.view === view && evidence.lines === lines ? evidence.snapshot : null;
-  const matches = useMemo(() => !!snapshot && (isImagePath(file?.path ?? '') || JSON.stringify(snapshot.lines.map(line => line.content)) === JSON.stringify(lines.map(line => line.content))), [snapshot, lines, file?.path]);
+  const matches = useMemo(() => !!snapshot && (isImagePath(file?.path ?? '') || snapshot.lines.length === lines.length && snapshot.lines.every((line, index) => {
+    const visible = lines[index];
+    // Full-index evidence has different patch headers from the rendered diff. Compare
+    // actual line bytes and locations instead; display text alone strips CR bytes.
+    return line.type === visible.type && line.oldNo === visible.oldNo && line.newNo === visible.newNo
+      && (line.patchContent ?? line.content) === (visible.patchContent ?? visible.content);
+  })), [snapshot, lines, file?.path]);
   const displayReady = !!snapshot && matches && !loading && !filtered && !error && file?.status !== 'conflicted';
   // Review actions apply to the exact code currently displayed. A background verification
   // must not disable/re-enable them; a changed view, changed code or failed read still does.

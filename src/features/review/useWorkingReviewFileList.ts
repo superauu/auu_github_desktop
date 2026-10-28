@@ -11,6 +11,17 @@ export const workingFileVersionKey = (file: GitFileChange) => JSON.stringify([fi
 const hasReview = (record?: WorkingReviewRecord) => !!record && (!!record.approvedFile || !!record.approvedFiles?.length || !!record.approvedHunks.length || record.issues.some(issue => !issue.resolved));
 const pending: WorkingFileReviewState = { kind: 'pending', approvedHunks: 0, totalHunks: 0, unresolved: 0 };
 
+/** Follow list order, wrap once and keep staged/unstaged versions distinct. */
+export function nextWorkingReviewFile(files: readonly GitFileChange[], current: GitFileChange | undefined, stateFor: (file: GitFileChange) => WorkingFileReviewState) {
+  const currentKey = current && workingFileVersionKey(current);
+  const start = files.findIndex(file => workingFileVersionKey(file) === currentKey);
+  for (let offset = 1; offset <= files.length; offset++) {
+    const file = files[(start + offset) % files.length];
+    if (workingFileVersionKey(file) !== currentKey && file.status !== 'conflicted' && stateFor(file).kind !== 'approved') return file;
+  }
+  return undefined;
+}
+
 /** Verify saved approvals for every list row, without reading diffs for never-reviewed files. */
 export function useWorkingReviewFileList(repo: string, status: GitStatusResult | null, files: readonly GitFileChange[], revision = 0, selected?: { file?: GitFileChange; snapshot: WorkingReviewIdentity | null }) {
   const records = useWorkingReviewStore(state => state.records);

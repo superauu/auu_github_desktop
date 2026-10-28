@@ -23,7 +23,7 @@ function Probe(props) {
 }
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-review-list-')); const outfile = path.join(tmp, 'list.cjs');
-  await build({ stdin: { contents: `export {useWorkingReview} from './src/features/review/useWorkingReview'; export {WorkingReviewPanel,WorkingReviewHunkActions} from './src/features/review/WorkingReviewPanel'; export {sameDiffLines} from './src/utils/diffRows'; export * from './src/features/review/useWorkingReviewFileList'; export * from './src/stores/workingReviewStore'; export * from './src/features/review/WorkingReviewFileStatus';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'review-list-service', setup(b) {
+  await build({ stdin: { contents: `export {useWorkingReview} from './src/features/review/useWorkingReview'; export {WorkingReviewPanel,WorkingReviewHunkActions} from './src/features/review/WorkingReviewPanel'; export {sameDiffLines} from './src/utils/diffRows'; export * from './src/features/review/useWorkingReviewFileList'; export * from './src/stores/workingReviewStore'; export * from './src/features/review/WorkingReviewFileStatus'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'review-list-service', setup(b) {
     b.onResolve({ filter: /^@\/services\/git\/WorkingReviewService$/ }, () => ({ path: 'capture', namespace: 'fixture' }));
     b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const captureWorkingReview=(...args)=>globalThis.__captureWorkingList(...args);' }));
   } }] });
@@ -31,6 +31,9 @@ before(async () => {
 });
 beforeEach(() => {
   calls = []; app.useWorkingReviewStore.setState({ records: {} });
+  app.useWorkingReviewDraftStore.setState({ drafts: {} });
+  app.useWorkingReviewStorageStatus.setState({ unavailable: false });
+  app.useToastStore.setState({ toasts: [], history: [] });
   globalThis.__captureWorkingList = async (repo, item) => { calls.push([repo, item.path, item.staged]); return snapshot(); };
 });
 after(async () => { delete globalThis.__captureWorkingList; if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-review-list-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 }); });
@@ -202,4 +205,115 @@ test('equivalent re-parsed diffs retain content identity while real bytes, line 
   for (const mutate of [next => { next[1].content = '+changed'; }, next => { next[1].newNo = 2; }, next => { next[1].patchContent = '+new'; }, next => { next[0].patchHeader[0] = 'index old..different'; }]) {
     const next = clone(); mutate(next); assert.equal(app.sameDiffLines(first, next), false);
   }
+});
+
+test('review evidence rejects byte and location changes hidden by identical display text', async () => {
+  const lines = [{ type: 'add', content: '+same', oldNo: null, newNo: 1 }];
+  let renderer, review;
+  for (const change of [{ patchContent: '+same\r' }, { newNo: 2 }, { type: 'context' }]) {
+    globalThis.__captureWorkingList = async () => ({ ...snapshot(), lines: [{ ...lines[0], ...change }] });
+    try {
+      // Use stable status identity to avoid restarting capture on the probe render.
+      const state = status();
+      function StableProbe() { review = app.useWorkingReview(REPO, state, file(), lines, false, false, null); return null; }
+      await act(async () => { renderer = create(React.createElement(StableProbe)); });
+      assert.equal(review.ready, false); assert.equal(review.failed, true);
+    } finally { await act(async () => renderer?.unmount()); }
+  }
+});
+
+test('next review navigation wraps, skips approved/conflicted rows and separates staged versions', () => {
+  const first = file('a.ts', true), second = file('a.ts'), conflict = { ...file('b.ts'), status: 'conflicted' }, last = file('c.ts');
+  const files = [first, second, conflict, last];
+  const stateFor = item => ({ kind: item === last ? 'approved' : 'pending' });
+  assert.equal(app.nextWorkingReviewFile(files, first, stateFor), second);
+  assert.equal(app.nextWorkingReviewFile(files, second, stateFor), first);
+  assert.equal(app.nextWorkingReviewFile([second, conflict, last], second, stateFor), undefined);
+  assert.equal(app.nextWorkingReviewFile([], undefined, stateFor), undefined);
+});
+
+test('switching staged versions closes the old hunk editor instead of reusing its target', async () => {
+  let renderer, review; const state = status(), lines = [];
+  function ReviewProbe({ staged }) { review = app.useWorkingReview(REPO, state, file('a.ts', staged), lines, false, false, null); return null; }
+  try {
+    await act(async () => { renderer = create(React.createElement(ReviewProbe, { staged: true })); });
+    await act(async () => review.setNoteTarget('first')); assert.equal(review.noteTarget, 'first');
+    await act(async () => renderer.update(React.createElement(ReviewProbe, { staged: false })));
+    assert.equal(review.noteTarget, undefined);
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('session note drafts survive closing and remounting, remain scoped to file/version/target and save via shortcut', async () => {
+  let renderer, review; const state = status(), lines = [];
+  function PanelProbe({ item = file() }) {
+    review = app.useWorkingReview(REPO, state, item, lines, false, false, null);
+    return React.createElement(app.WorkingReviewPanel, { review, filtered: false });
+  }
+  const mount = async item => act(async () => { renderer = create(React.createElement(PanelProbe, { item })); });
+  const draft = () => renderer.root.findByType('textarea');
+  try {
+    await mount(); await act(async () => review.setNoteTarget(null));
+    await act(async () => draft().props.onChange({ target: { value: 'Keep this file draft' } }));
+    await act(async () => review.setNoteTarget('first')); assert.equal(draft().props.value, '');
+    await act(async () => draft().props.onChange({ target: { value: 'Keep this hunk draft' } }));
+    await act(async () => review.setNoteTarget(undefined));
+    await act(async () => renderer.unmount()); await mount(file('b.ts'));
+    await act(async () => review.setNoteTarget(null)); assert.equal(draft().props.value, '');
+    await act(async () => renderer.unmount()); await mount();
+    await act(async () => review.setNoteTarget(null)); assert.equal(draft().props.value, 'Keep this file draft');
+    globalThis.__captureWorkingList = async () => snapshot('new');
+    await act(async () => review.retry()); assert.equal(draft().props.value, '');
+    globalThis.__captureWorkingList = async () => snapshot();
+    await act(async () => review.retry()); assert.equal(draft().props.value, 'Keep this file draft');
+    await act(async () => review.setNoteTarget('first')); assert.equal(draft().props.value, 'Keep this hunk draft');
+    const event = { key: 'Enter', ctrlKey: true, nativeEvent: { isComposing: true }, preventDefault() {} };
+    await act(async () => draft().props.onKeyDown(event)); assert.equal(review.record, undefined, 'IME composition must not submit');
+    await act(async () => draft().props.onKeyDown({ ...event, nativeEvent: { isComposing: false } }));
+    assert.equal(draft().props.value, ''); assert.equal(review.record.issues[0].text, 'Keep this hunk draft');
+    await act(async () => review.setNoteTarget(null)); assert.equal(draft().props.value, 'Keep this file draft', 'saving a hunk does not erase the file draft');
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('deleting a note offers undo scoped to the original file and preserves newer notes', async () => {
+  const state = status(), lines = []; let renderer, review;
+  function PanelProbe() { review = app.useWorkingReview(REPO, state, file(), lines, false, false, null); return React.createElement(app.WorkingReviewPanel, { review, filtered: false }); }
+  try {
+    await act(async () => { renderer = create(React.createElement(PanelProbe)); });
+    await act(async () => { review.setNoteTarget(null); app.useWorkingReviewStore.getState().addIssue(key(), snapshot(), 'Original issue'); });
+    const original = review.record.issues[0];
+    await act(async () => renderer.root.findByProps({ 'aria-label': '删除此意见' }).props.onClick());
+    assert.equal(review.record.issues.length, 0);
+    const undo = app.useToastStore.getState().toasts.at(-1).action;
+    await act(async () => app.useWorkingReviewStore.getState().addIssue(key(), snapshot(), 'A later issue'));
+    await act(async () => undo.onClick()); await act(async () => undo.onClick());
+    assert.deepEqual(review.record.issues.map(issue => issue.text), ['Original issue', 'A later issue']);
+    assert.deepEqual(review.record.issues[0], original); assert.equal(review.unresolved, 2);
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('failed storage writes keep review actions usable and retry saves all accumulated changes', async () => {
+  const setItem = localStorage.setItem;
+  try {
+    localStorage.setItem = () => { throw Error('Quota exceeded'); };
+    assert.doesNotThrow(() => approve());
+    assert.equal(app.useWorkingReviewStorageStatus.getState().unavailable, true);
+    assert.equal(app.workingReviewStatus(app.useWorkingReviewStore.getState().records[key()], snapshot()).approved, true);
+    app.useWorkingReviewStore.getState().addIssue(key('b.ts'), snapshot(), 'Must not lose this note');
+    assert.equal(app.useWorkingReviewStore.getState().retrySave(), false);
+    localStorage.setItem = setItem;
+    assert.equal(app.useWorkingReviewStore.getState().retrySave(), true);
+    const records = JSON.parse(saved.get('auugit-working-review')).state.records;
+    assert.equal(records[key('b.ts')].issues[0].text, 'Must not lose this note');
+    assert.equal(app.workingReviewStatus(records[key()], snapshot()).approved, true);
+  } finally { localStorage.setItem = setItem; }
+});
+
+test('compact status markers keep accessible details while leaving room for filenames', async () => {
+  let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.WorkingReviewFileStatus, { state: { kind: 'partial', approvedHunks: 1, totalHunks: 3, unresolved: 0 }, compact: true })); });
+    const marker = renderer.root.findByProps({ 'data-working-review-state': 'partial' });
+    assert.equal(marker.props.title, '已审核 1/3 个代码块'); assert.equal(marker.props['aria-label'], marker.props.title);
+    assert.equal(marker.findAllByType('span').length, 1, 'compact markers render no visible text');
+  } finally { await act(async () => renderer?.unmount()); }
 });

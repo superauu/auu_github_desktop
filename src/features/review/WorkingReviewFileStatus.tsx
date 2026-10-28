@@ -9,13 +9,13 @@ export function workingFileReviewLabel(state: WorkingFileReviewState, t: (key: s
   return t(state.kind === 'approved' ? 'workingReview.approved' : state.kind === 'checking' ? 'workingReview.listChecking' : 'workingReview.pending');
 }
 
-export function WorkingReviewFileStatus({ state }: { state: WorkingFileReviewState }) {
+export function WorkingReviewFileStatus({ state, compact = false }: { state: WorkingFileReviewState; compact?: boolean }) {
   const { t } = useI18n();
   const approved = state.kind === 'approved', issues = state.kind === 'issues', checking = state.kind === 'checking';
   const Icon = approved ? CheckCircle2 : issues ? MessageSquare : checking ? Loader2 : state.kind === 'partial' ? CircleDot : Circle;
   const label = workingFileReviewLabel(state, t);
   return <span data-working-review-state={state.kind} title={label} aria-label={label} className={`ml-1 shrink-0 inline-flex items-center gap-1 rounded px-1 py-0.5 text-[11px] whitespace-nowrap ${approved ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : issues ? 'bg-destructive/10 text-destructive' : checking ? 'text-muted-foreground' : 'bg-amber-500/8 text-amber-700 dark:text-amber-400'}`}>
     <Icon aria-hidden="true" className={`h-3 w-3 shrink-0 ${checking ? 'animate-spin' : ''}`} />
-    <span>{state.kind === 'partial' ? `${state.approvedHunks}/${state.totalHunks}` : issues ? t('workingReview.listIssues').replace('{n}', String(state.unresolved)) : label}</span>
+    {!compact && <span>{state.kind === 'partial' ? `${state.approvedHunks}/${state.totalHunks}` : issues ? t('workingReview.listIssues').replace('{n}', String(state.unresolved)) : label}</span>}
   </span>;
 }
