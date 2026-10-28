@@ -795,16 +795,13 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
 .window-control:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -3px; }
 .window-control:disabled { opacity: 0.45; }
 .app-shell[data-window-focused='false'] .glass-tabbar .glass-repo-tab { opacity: 0.7; }
-.glass-repo-tab {
-  border-color: transparent;
-  background: transparent;
-  transition: background-color 150ms, border-color 150ms, box-shadow 150ms, color 150ms;
-}
+.glass-repo-tab { border-color: transparent; background: transparent; transition: background-color 150ms, box-shadow 150ms, color 150ms; }
 .glass-repo-tab:hover { background-color: hsl(var(--foreground) / 0.04); }
-.glass-repo-tab[aria-current='page'] {
-  border-color: var(--glass-control-border);
-  background: linear-gradient(165deg, hsl(var(--foreground) / 0.07), hsl(var(--foreground) / 0.025));
-  box-shadow: inset 0 1px 0 var(--glass-button-light), inset 0 -2px 0 hsl(var(--primary) / 0.45), 0 1px 3px hsl(0 0% 0% / 0.04);
+/* 暗色：激活标签只靠表面亮一档表达，不再描边/描底线条（accent 只留给品牌与选中数据） */
+.dark .glass-repo-tab[aria-current='page'] {
+  border-color: transparent;
+  background: hsl(var(--foreground) / 0.07);
+  box-shadow: none;
 }
 .glass-tab-branch { background: hsl(var(--foreground) / 0.05); }
 .glass-repo-tab[aria-current='page'] .glass-tab-branch { background: hsl(var(--primary) / 0.1); }

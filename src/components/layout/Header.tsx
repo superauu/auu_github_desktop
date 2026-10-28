@@ -717,13 +717,15 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); else closeRepoMenuExtras(); }}>
                 <Popover.Trigger asChild>
                 <button
-                  className="glass-control h-8 min-w-0 flex items-center gap-1.5 px-2.5 py-0 leading-none hover:bg-accent/60 transition-colors text-left group"
+                  className="h-9 min-w-0 flex flex-col items-start justify-center gap-[3px] px-2.5 py-1 rounded-md hover:bg-accent/60 transition-colors text-left group"
                 >
-                  <span className="text-[12px] text-muted-foreground font-mono">{t('header.repository')}</span>
-                  <span className="font-semibold text-foreground text-xs truncate max-w-[100px] xl:max-w-[160px]">
-                    {currentRepo ? currentRepo.name : t('common.notOpen')}
+                  <span className="text-[10px] leading-none tracking-[0.08em] text-muted-foreground">{t('header.repository')}</span>
+                  <span className="flex items-center gap-1 leading-none">
+                    <span className="font-semibold text-foreground text-xs truncate max-w-[100px] xl:max-w-[160px]">
+                      {currentRepo ? currentRepo.name : t('common.notOpen')}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform shrink-0" />
                   </span>
-                  <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
                 </button></Popover.Trigger>
 
                 {/* Repo Dropdown Menu */}
@@ -991,14 +993,14 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showBranchMenu} onOpenChange={open => { setShowBranchMenu(open); if (open) setShowRepoMenu(false); }}>
                 <Popover.Trigger asChild>
                 <button
-                  className="glass-control h-8 min-w-0 flex items-center gap-1.5 px-2.5 py-0 leading-none hover:bg-accent/60 transition-colors text-left group"
+                  className="h-9 min-w-0 flex flex-col items-start justify-center gap-[3px] px-2.5 py-1 rounded-md hover:bg-accent/60 transition-colors text-left group"
                 >
-                  <span className="text-[12px] text-muted-foreground font-mono">{t('header.branch')}</span>
-                  <span className="inline-flex min-w-0 items-center gap-1 text-[12px] font-semibold font-mono text-foreground">
-                    <GitBranchIcon className="h-2.5 w-2.5 text-git-branch shrink-0" />
-                    <span className="max-w-[100px] xl:max-w-[140px] truncate">{currentBranchName}</span>
+                  <span className="text-[10px] leading-none tracking-[0.08em] text-muted-foreground">{t('header.branch')}</span>
+                  <span className="flex items-center gap-1 leading-none">
+                    <GitBranchIcon className="h-3 w-3 text-git-branch shrink-0" />
+                    <span className="max-w-[100px] xl:max-w-[140px] truncate text-xs font-semibold font-mono text-foreground">{currentBranchName}</span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform shrink-0" />
                   </span>
-                  <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform ml-0.5" />
                 </button></Popover.Trigger>
 
                 {/* Branch Dropdown Menu */}
@@ -1101,39 +1103,43 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {currentRepo && <div className="flex items-center gap-2 ml-auto shrink-0">
-            <Button variant="outline" className="gap-2 px-3" onClick={handleFetch} disabled={remoteBusy !== null} title={t('header.fetchAll')}>
+          {currentRepo && <div className="flex items-center gap-1 ml-auto shrink-0">
+            {/* 动词按钮组：GitKraken 式「微标签在上、图标在下」，无边框，hover 才出现底色 */}
+            <button onClick={handleFetch} disabled={remoteBusy !== null} title={t('header.fetchAll')}
+              className="h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none">
               {remoteBusy === 'fetch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="hidden font-medium lg:inline">{t('composer.fetch')}</span>
-            </Button>
-            <Button variant="outline" className="gap-2 px-3" onClick={handlePull} disabled={remoteBusy !== null} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}>
-              {remoteBusy === 'pull' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
-              <span className="font-medium">{t('header.pull')}</span>
-              {behindCount > 0 && (
-                <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-semibold leading-none text-muted-foreground tabular-nums">
-                  {behindCount}
-                </span>
-              )}
-            </Button>
-            <Button
-              variant="outline"
+              <span className="text-[10px] leading-none font-medium">{t('composer.fetch')}</span>
+            </button>
+            <button onClick={handlePull} disabled={remoteBusy !== null} title={`${t('remote.pullFrom')}: ${status?.trackingBranch || t('remote.noUpstream')}`}
+              className="h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none">
+              <span className="flex items-center gap-1">
+                {remoteBusy === 'pull' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
+                {behindCount > 0 && (
+                  <span className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-muted px-1 text-[9px] font-semibold leading-none text-muted-foreground tabular-nums">
+                    {behindCount}
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] leading-none font-medium">{t('header.pull')}</span>
+            </button>
+            <button
               data-pending-commits={pushAheadCount > 0}
-              className={cn('gap-2 px-3', pushAheadCount > 0 && 'border-primary/25 bg-primary/5 hover:border-primary/40 hover:bg-primary/10')}
+              className={cn('h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md transition-colors disabled:opacity-40 disabled:pointer-events-none',
+                pushAheadCount > 0 ? 'text-primary bg-primary/5 hover:bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60')}
               onClick={() => void handlePush()}
               disabled={remoteBusy !== null}
               title={`${t('remote.pushTo')}: ${pushDestination || t('remote.choose')}`}
             >
-              {remoteBusy === 'push' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpToLine className={cn('h-4 w-4', pushAheadCount > 0 && 'text-primary')} />}
-              <span className="inline-flex min-w-0 items-baseline gap-1.5">
-                <span className="font-medium">{t('header.push')}</span>
-                {pushTarget && <span className="max-w-24 truncate text-[11px] text-muted-foreground">→ {pushTarget.remote}</span>}
+              <span className="flex items-center gap-1">
+                {remoteBusy === 'push' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpToLine className="h-4 w-4" />}
+                {pushAheadCount > 0 && (
+                  <span className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-primary/15 px-1 text-[9px] font-semibold leading-none text-primary tabular-nums">
+                    {pushAheadCount}
+                  </span>
+                )}
               </span>
-              {pushAheadCount > 0 && (
-                <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold leading-none text-primary tabular-nums">
-                  {pushAheadCount}
-                </span>
-              )}
-            </Button>
+              <span className="text-[10px] leading-none font-medium">{t('header.push')}</span>
+            </button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">
