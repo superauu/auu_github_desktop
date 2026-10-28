@@ -64,6 +64,7 @@ export const AppLayout: React.FC = () => {
   const { t } = useI18n();
 
   useEffect(() => { setNavigationOpen(false); }, [activeTab, currentRepo?.path]);
+  useEffect(() => { if (activeTab === 'review') setActiveTab('history'); }, [activeTab, setActiveTab]);
   useEffect(() => { setNavigationOpen(false); }, [navigationPinned]);
   useEffect(() => { setInspectorOpen(false); }, [currentRepo?.path]);
   useEffect(() => { if (!['changes', 'history'].includes(activeTab)) setInspectorOpen(false); }, [activeTab]);
@@ -139,10 +140,10 @@ export const AppLayout: React.FC = () => {
         return;
       }
 
-      // Alt+1~6 切换视图
-      if (e.altKey && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+      // Alt+1~5 切换视图
+      if (e.altKey && ['1', '2', '3', '4', '5'].includes(e.key)) {
         e.preventDefault();
-        const views = ['changes', 'review', 'history', 'pullRequests', 'actions', 'forge'] as const;
+        const views = ['changes', 'history', 'pullRequests', 'actions', 'forge'] as const;
         setActiveTab(views[Number(e.key) - 1]);
       }
     };

@@ -16,9 +16,10 @@ const text = node => typeof node === 'string' ? node : node.children.map(text).j
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-review-navigation-'));
   const outfile = path.join(tmp, 'navigation.cjs');
-  await build({ stdin: { contents: `export {LeftSidebar} from './src/components/layout/LeftSidebar'; export {CommitHistoryView} from './src/features/git/CommitHistoryView'; export {ReviewView} from './src/features/review/ReviewView'; export {useRepoStore} from './src/stores/repoStore'; export {useReviewStore} from './src/stores/reviewStore'; export {useReviewProgressStore,progressKey} from './src/stores/reviewProgressStore'; export {useWorkspaceSessionStore} from './src/stores/workspaceSessionStore'; export {gitService} from './src/services/git/GitService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-navigation', setup(b) {
+  await build({ stdin: { contents: `export {LeftSidebar} from './src/components/layout/LeftSidebar'; export {CommitHistoryView} from './src/features/git/CommitHistoryView'; export {CenterStage} from './src/components/layout/CenterStage'; export {useRepoStore} from './src/stores/repoStore'; export {useReviewStore} from './src/stores/reviewStore'; export {useReviewProgressStore,progressKey} from './src/stores/reviewProgressStore'; export {useWorkspaceSessionStore} from './src/stores/workspaceSessionStore'; export {gitService} from './src/services/git/GitService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-navigation', setup(b) {
     b.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({children}) {return children;}', loader: 'jsx' }));
     b.onLoad({ filter: /scroll-area\.tsx$/ }, () => ({ contents: 'import React from "react"; export function ScrollArea({children}) {return <div>{children}</div>;}', loader: 'jsx' }));
+    b.onLoad({ filter: /EmbeddedTerminalPanel\.tsx$/ }, () => ({ contents: 'export function EmbeddedTerminalPanel(){return null;}', loader: 'jsx' }));
   } }] });
   app = createRequire(import.meta.url)(outfile);
   globalThis.window = { innerWidth: 1412, addEventListener() {}, removeEventListener() {} };
@@ -33,7 +34,7 @@ after(async () => {
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-review-navigation-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 });
 });
 
-test('stage review belongs to history navigation and has no standalone sidebar item', async () => {
+test('legacy review navigation returns to history without a separate review sidebar item', async () => {
   let renderer, navigated = 0;
   app.useRepoStore.setState({ activeTab: 'review' });
   try {
@@ -47,7 +48,7 @@ test('stage review belongs to history navigation and has no standalone sidebar i
   } finally { await act(async () => renderer?.unmount()); }
 });
 
-test('history opens stage review with its live pending count without clearing checkpoint or findings', async () => {
+test('history has no stage-review entry or pending badge and old review navigation preserves saved data', async () => {
   const scope = { baseHash: BASE, headHash: HEAD, target: 'net' };
   const progress = { approval: { approvedFiles: ['a.ts'], approvedHunks: {} }, comments: [{ id: 'note', path: 'a.ts', startLine: 1, endLine: 1, text: 'Keep this finding' }] };
   app.useReviewProgressStore.getState().setProgress(REPO, 'main', progress, scope);
@@ -55,18 +56,18 @@ test('history opens stage review with its live pending count without clearing ch
   let renderer;
   try {
     await act(async () => { renderer = create(React.createElement(app.CommitHistoryView)); });
-    const entry = () => renderer.root.findByProps({ 'data-testid': 'history-stage-review' });
-    assert.match(text(entry()), /阶段复核3/);
+    assert.equal(renderer.root.findAllByProps({ 'data-testid': 'history-stage-review' }).length, 0);
+    const before = JSON.stringify(renderer.toJSON());
     await act(async () => app.useReviewStore.setState({ badgeCount: 5 }));
-    assert.match(text(entry()), /阶段复核5/);
-    await act(async () => entry().props.onClick());
-    assert.equal(app.useRepoStore.getState().activeTab, 'review');
+    assert.equal(JSON.stringify(renderer.toJSON()), before);
+    await act(async () => app.useRepoStore.getState().setActiveTab('review'));
+    assert.equal(app.useRepoStore.getState().activeTab, 'history');
     assert.equal(app.useReviewStore.getState().checkpoint.hash, BASE);
     assert.deepEqual(app.useReviewProgressStore.getState().entries[key], progress);
   } finally { await act(async () => renderer?.unmount()); }
 });
 
-test('stage review can return to history with and without a checkpoint, keeping saved history filters', async () => {
+test('a legacy review route renders ordinary history and retains saved history filters', async () => {
   const original = app.gitService.getCommits;
   app.gitService.getCommits = async () => [];
   app.useWorkspaceSessionStore.getState().updateHistoryView(REPO, { query: 'saved filter', scrollTop: 420 });
@@ -75,10 +76,10 @@ test('stage review can return to history with and without a checkpoint, keeping 
       app.useReviewStore.setState({ checkpoint }); app.useRepoStore.setState({ activeTab: 'review' });
       let renderer;
       try {
-        await act(async () => { renderer = create(React.createElement(app.ReviewView)); });
-        const back = renderer.root.findByProps({ 'data-testid': 'review-back-history' });
-        assert.equal(back.props['aria-label'], '返回提交历史');
-        await act(async () => back.props.onClick());
+        await act(async () => { renderer = create(React.createElement(app.CenterStage, { onOpenRepoDialog() {}, onCloneRepoDialog() {}, onInitRepoDialog() {} })); });
+        assert.equal(renderer.root.findAllByType(app.CommitHistoryView).length, 1);
+        assert.equal(renderer.root.findAllByProps({ 'data-testid': 'history-stage-review' }).length, 0);
+        await act(async () => app.useRepoStore.getState().setActiveTab('review'));
         assert.equal(app.useRepoStore.getState().activeTab, 'history');
         assert.equal(app.useWorkspaceSessionStore.getState().historyViews[REPO].query, 'saved filter');
         assert.equal(app.useWorkspaceSessionStore.getState().historyViews[REPO].scrollTop, 420);

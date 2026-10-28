@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { Check, ChevronRight, MessageSquare, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
-import { useWorkingReviewStore, useWorkingReviewDraftStore, useWorkingReviewStorageStatus, isWorkingIssueCurrent, type WorkingReviewIssue } from '@/stores/workingReviewStore';
-import { toast, useToastStore } from '@/stores/toastStore';
+import { useWorkingReviewStore, useWorkingReviewDraftStore, useWorkingReviewStorageStatus, isWorkingIssueCurrent } from '@/stores/workingReviewStore';
+import { toast } from '@/stores/toastStore';
+import { deleteWorkingReviewIssue } from './workingReviewIssueActions';
 import type { WorkingReviewController } from './useWorkingReview';
 
 export function WorkingReviewPanel({ review, filtered, onNext }: { review: WorkingReviewController; filtered: boolean; onNext?: () => void }) {
@@ -21,12 +22,6 @@ export function WorkingReviewPanel({ review, filtered, onNext }: { review: Worki
   const save = () => {
     if (!canSave) return;
     review.addIssue(text); setDraft(draftKey, ''); toast.success(t('workingReview.noteSaved'));
-  };
-  const deleteIssue = (issue: WorkingReviewIssue, index: number) => {
-    const key = review.key;
-    actions.deleteIssue(key, issue.id);
-    useToastStore.getState().addToast({ type: 'info', title: t('workingReview.noteDeleted'), duration: 8000,
-      action: { label: t('workingReview.undo'), onClick: () => useWorkingReviewStore.getState().restoreIssue(key, issue, index) } });
   };
   return <section aria-label={t('workingReview.title')} className="workspace-divider shrink-0 border-b border-border text-xs">
     <div className="px-3 py-2 flex flex-wrap items-center gap-2">
@@ -47,7 +42,7 @@ export function WorkingReviewPanel({ review, filtered, onNext }: { review: Worki
     {review.noteTarget !== undefined && <div className="px-3 pb-3 flex flex-col gap-2 max-h-72 overflow-y-auto">
       {issues.map((issue, index) => <div key={issue.id} className="rounded border border-border p-2 flex items-start gap-2">
         <label className="flex gap-2 flex-1 min-w-0"><input type="checkbox" checked={issue.resolved} onChange={event => actions.updateIssue(review.key, issue.id, event.target.checked)} aria-label={t(issue.resolved ? 'workingReview.reopenIssue' : 'workingReview.resolve')} /><span className="min-w-0"><span className={issue.resolved ? 'line-through text-muted-foreground whitespace-pre-wrap wrap-break-word' : 'whitespace-pre-wrap wrap-break-word'}>{issue.text}</span><span className="block text-muted-foreground mt-1">{t(issue.resolved ? 'workingReview.resolved' : 'workingReview.unresolved')}{issue.snapshot !== review.snapshot?.fingerprint ? ` · ${t('workingReview.contentChanged')}` : ''}</span></span></label>
-        <Button type="button" size="xs" variant="ghost" title={t('workingReview.deleteIssue')} aria-label={t('workingReview.deleteIssue')} onClick={() => deleteIssue(issue, index)}><X aria-hidden="true" className="size-3" /></Button>
+        <Button type="button" size="xs" variant="ghost" title={t('workingReview.deleteIssue')} aria-label={t('workingReview.deleteIssue')} onClick={() => deleteWorkingReviewIssue(review.key, issue, index)}><X aria-hidden="true" className="size-3" /></Button>
       </div>)}
       <form onSubmit={event => { event.preventDefault(); save(); }} className="flex flex-col gap-2">
         <label htmlFor="working-review-note" className="font-mono text-muted-foreground truncate">{target?.header ?? t(review.noteTarget ? 'workingReview.hunkChanged' : 'workingReview.wholeFile')}</label>

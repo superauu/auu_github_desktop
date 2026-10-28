@@ -44,7 +44,7 @@ async function pending() {
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-working-review-'));
   const outfile = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/WorkingReviewService'; export * from './src/stores/workingReviewStore'; export * from './src/features/review/confirmWorkingReview'; export { CommitComposer } from './src/components/layout/CommitComposer'; export { ConfirmDialog } from './src/components/ui/ConfirmDialog'; export { useSettingsStore } from './src/stores/settingsStore'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useConfirmStore } from './src/stores/confirmStore'; export { useToastStore } from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-review', setup(b) { b.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({children}) {return children;}', loader: 'jsx' })); } }] });
+  await build({ stdin: { contents: `export * from './src/services/git/WorkingReviewService'; export * from './src/stores/workingReviewStore'; export * from './src/features/review/confirmWorkingReview'; export * from './src/features/review/approveAllWorkingReviews'; export { CommitComposer } from './src/components/layout/CommitComposer'; export { ConfirmDialog } from './src/components/ui/ConfirmDialog'; export { useSettingsStore } from './src/stores/settingsStore'; export { gitService } from './src/services/git/GitService'; export { useRepoStore } from './src/stores/repoStore'; export { useConfirmStore } from './src/stores/confirmStore'; export { useToastStore } from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-review', setup(b) { b.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({children}) {return children;}', loader: 'jsx' })); } }] });
   app = createRequire(import.meta.url)(outfile);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
@@ -83,6 +83,26 @@ test('a reviewed worktree file stays reviewed when staged, while later edits req
   assert.equal(reviewStatus(repo, staged).approved, true, 'unstaged edits must not invalidate the unchanged staged version');
   git(repo, 'add', '--', 'a.txt');
   assert.equal(reviewStatus(repo, await app.captureWorkingReview(repo, { ...file, staged: true })).approved, false);
+});
+
+test('approve all reviews actual staged, unstaged and empty new files without changing the index or resolving notes', async () => {
+  const repo = await fixture(), original = await fs.readFile(path.join(repo, 'a.txt'), 'utf8');
+  await write(repo, 'a.txt', original.replace('line 2\n', 'staged line\n')); git(repo, 'add', '-A');
+  await write(repo, 'a.txt', original.replace('line 2\n', 'staged line\n').replace('line 25\n', 'unstaged line\n'));
+  await write(repo, 'empty.txt', ''); await write(repo, 'blocked.txt', 'Needs a fix\n');
+  const status = await current(repo), indexBefore = git(repo, 'diff', '--cached', '--raw');
+  const blocked = status.untracked.find(file => file.path === 'blocked.txt');
+  app.useWorkingReviewStore.getState().addIssue(recordKey(repo, blocked.path), await app.captureWorkingReview(repo, blocked), 'Resolve this first');
+  const result = await app.approveAllWorkingReviews(repo, status);
+  assert.equal(result.approved, 3); assert.equal(result.unresolved, 1); assert.equal(result.cancelled, false);
+  for (const file of [...status.staged, ...status.unstaged, ...status.untracked].filter(file => file.path !== 'blocked.txt')) {
+    assert.equal(reviewStatus(repo, await app.captureWorkingReview(repo, file), file.path).approved, true, `${file.path}/${file.staged}`);
+  }
+  assert.equal(git(repo, 'diff', '--cached', '--raw'), indexBefore);
+  assert.equal(app.useWorkingReviewStore.getState().records[recordKey(repo, blocked.path)].issues[0].resolved, false);
+  await write(repo, 'a.txt', original.replace('line 25\n', 'edited after batch review\n'));
+  assert.equal(reviewStatus(repo, await app.captureWorkingReview(repo, status.unstaged[0])).approved, false);
+  assert.equal(reviewStatus(repo, await app.captureWorkingReview(repo, status.staged[0])).approved, true);
 });
 
 test('renamed files display the same patch as review evidence, including pure renames and literal paths', async () => {

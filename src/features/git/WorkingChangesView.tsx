@@ -5,6 +5,7 @@ import { WorkingReviewPanel, WorkingReviewHunkActions } from '@/features/review/
 import { WorkingReviewReport } from '@/features/review/WorkingReviewReport';
 import { nextWorkingReviewFile, useWorkingReviewFileList } from '@/features/review/useWorkingReviewFileList';
 import { WorkingReviewFileStatus, workingFileReviewLabel } from '@/features/review/WorkingReviewFileStatus';
+import { approveAllWorkingReviews } from '@/features/review/approveAllWorkingReviews';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import { stageSelectedLines } from '@/services/git/LineStagingService';
 import { CommitSplitDialog } from './CommitSplitDialog';
@@ -139,6 +140,23 @@ export const WorkingChangesView: React.FC = () => {
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const selectionAnchor = useRef(0);
   const [batchBusy, setBatchBusy] = useState(false);
+  const [reviewAllBusy, setReviewAllBusy] = useState(false);
+  const reviewAllRunning = useRef(false);
+  const approveAll = async () => {
+    if (!currentRepo || !status || reviewAllRunning.current) return;
+    reviewAllRunning.current = true; setReviewAllBusy(true);
+    try {
+      const result = await approveAllWorkingReviews(currentRepo.path, status);
+      if (result.cancelled) {
+        toast.warning(t('workingReview.approveAllChanged')); return;
+      }
+      const skipped = result.unresolved + result.conflicts + result.failed;
+      const title = t('workingReview.approveAllDone').replace('{n}', String(result.approved));
+      if (skipped) toast.warning(title, t('workingReview.approveAllSkipped').replace('{n}', String(skipped)));
+      else toast.success(title);
+    } catch (error: any) { toast.error(t('workingReview.approveAllFailed'), error.message); }
+    finally { reviewAllRunning.current = false; setReviewAllBusy(false); }
+  };
   const pendingWrites = useGitActivity(currentRepo?.path || '');
   const fileKey = (file: GitFileChange) => JSON.stringify([file.path, file.staged]);
   useEffect(() => { setPicked(new Set()); }, [currentRepo?.path]);
@@ -564,6 +582,9 @@ export const WorkingChangesView: React.FC = () => {
           <span className="text-emerald-700 dark:text-emerald-400">{t('workingReview.approved')} {fileReviews.approved}</span>
           <span className="text-amber-700 dark:text-amber-400">{t('workingReview.pending')} {fileReviews.pending}</span>
           {!!fileReviews.checking && <span className="text-muted-foreground">{t('workingReview.listChecking')} {fileReviews.checking}</span>}
+          <Button data-testid="working-review-approve-all" size="xs" variant="ghost" className="ml-auto min-w-[112px]" title={t('workingReview.approveAllHint')} aria-busy={reviewAllBusy} disabled={!currentRepo || !status || reviewAllBusy || batchBusy || !!pendingWrites || !(fileReviews.pending + fileReviews.checking)} onClick={() => void approveAll()}>
+            {reviewAllBusy ? <Loader2 aria-hidden="true" className="size-3 animate-spin" /> : <Check aria-hidden="true" className="size-3" />}{t(reviewAllBusy ? 'workingReview.approveAllBusy' : 'workingReview.approveAll')}
+          </Button>
         </div>}
         {totalChanges > 0 && <div className="px-2 py-1 border-b border-border"><Button variant="ghost" size="xs" className="w-full justify-start gap-2" onClick={() => setSplitOpen(true)}><Split className="w-3.5 h-3.5" />{t('flow.splitCommits')}</Button></div>}
         {selectedFiles.length > 0 && <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border text-[12px]" role="toolbar" aria-label={t('changes.selectionActions')}>
@@ -899,7 +920,7 @@ export const WorkingChangesView: React.FC = () => {
                 )}
               </>
             )}
-            <WorkingReviewReport key={JSON.stringify([currentRepo?.path, status?.currentBranch])} repoPath={currentRepo?.path ?? ''} branch={status?.currentBranch ?? currentRepo?.currentBranch ?? ''} />
+            <WorkingReviewReport key={JSON.stringify([currentRepo?.path, status?.currentBranch])} repoPath={currentRepo?.path ?? ''} branch={status?.currentBranch ?? currentRepo?.currentBranch ?? ''} files={status ? allFiles : undefined} />
           </div>
 
           {activeFile && (

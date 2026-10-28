@@ -47,9 +47,19 @@ function invalidateApprovals(record: WorkingReviewRecord, hunks: string[], finge
   return { approvedFile: undefined, approvedFiles: versions, approvedSnapshots: approvalEvidence(record, versions) };
 }
 
+function approveSnapshot(record: WorkingReviewRecord, snapshot: WorkingReviewSnapshot): WorkingReviewRecord {
+  const hunks = snapshot.hunks.map(hunk => hunk.id);
+  const versions = [...new Set([...approvedVersions(record), snapshot.fingerprint])].slice(-20);
+  return { ...record, approvedFile: undefined, approvedFiles: versions,
+    approvedSnapshots: { ...approvalEvidence(record, versions), [snapshot.fingerprint]: hunks },
+    approvedHunks: [...new Set([...record.approvedHunks, ...hunks])],
+  };
+}
+
 interface WorkingReviewState {
   records: Record<string, WorkingReviewRecord>;
   approveFile: (key: string, snapshot: WorkingReviewSnapshot, approved: boolean) => void;
+  approveFiles: (entries: { key: string; snapshot: WorkingReviewSnapshot }[]) => { approved: number; alreadyApproved: number; unresolved: number };
   approveHunk: (key: string, id: string, approved: boolean) => void;
   addIssue: (key: string, snapshot: WorkingReviewSnapshot, text: string, hunk?: string, origin?: WorkingIssueOrigin) => void;
   recoverIssueOrigins: (key: string, snapshot: WorkingReviewSnapshot) => void;
@@ -66,12 +76,19 @@ export const useWorkingReviewStore = create<WorkingReviewState>()(persist((set, 
     approveFile: (key, snapshot, approved) => update(key, record => {
       const hunks = snapshot.hunks.map(hunk => hunk.id);
       if (!approved) return { ...record, ...invalidateApprovals(record, hunks, snapshot.fingerprint), approvedHunks: record.approvedHunks.filter(id => !hunks.includes(id)) };
-      const versions = [...new Set([...approvedVersions(record), snapshot.fingerprint])].slice(-20);
-      return { ...record, approvedFile: undefined, approvedFiles: versions,
-        approvedSnapshots: { ...approvalEvidence(record, versions), [snapshot.fingerprint]: hunks },
-        approvedHunks: [...new Set([...record.approvedHunks, ...hunks])],
-      };
+      return approveSnapshot(record, snapshot);
     }),
+    approveFiles: entries => {
+      const records = { ...get().records }, result = { approved: 0, alreadyApproved: 0, unresolved: 0 };
+      for (const { key, snapshot } of entries) {
+        const record = records[key] ?? empty(), status = workingReviewStatus(record, snapshot);
+        if (status.unresolved) { result.unresolved++; continue; }
+        if (status.approved) { result.alreadyApproved++; continue; }
+        records[key] = approveSnapshot(record, snapshot); result.approved++;
+      }
+      if (result.approved) set({ records });
+      return result;
+    },
     approveHunk: (key, id, approved) => update(key, record => ({ ...record,
       ...(!approved ? invalidateApprovals(record, [id]) : {}),
       approvedHunks: approved ? [...new Set([...record.approvedHunks, id])] : record.approvedHunks.filter(value => value !== id),

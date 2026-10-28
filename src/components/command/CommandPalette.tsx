@@ -21,7 +21,6 @@ import {
   FileCode2,
   FileText,
   GitPullRequest,
-  ScanEye,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -115,18 +114,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
               <Command.Item
                 onSelect={() => {
-                  setActiveTab('review');
-                  onOpenChange(false);
-                }}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
-              >
-                <ScanEye className="h-3.5 w-3.5 text-primary" />
-                <span>{t('sidebar.review')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 2</span>
-              </Command.Item>
-
-              <Command.Item
-                onSelect={() => {
                   setActiveTab('history');
                   onOpenChange(false);
                 }}
@@ -134,7 +121,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Clock className="h-3.5 w-3.5 text-git-branch" />
                 <span>{t('sidebar.history')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 3</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 2</span>
               </Command.Item>
 
               <Command.Item
@@ -146,7 +133,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <GitPullRequest className="h-3.5 w-3.5 text-primary" />
                 <span>{t('palette.prCenter')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 4</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 3</span>
               </Command.Item>
 
               <Command.Item
@@ -158,7 +145,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Workflow className="h-3.5 w-3.5 text-git-added" />
                 <span>{t('palette.actionsDash')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 5</span>
+                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 4</span>
               </Command.Item>
             </Command.Group>
 

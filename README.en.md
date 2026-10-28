@@ -21,7 +21,7 @@ AI helps explain changes, draft descriptions, and suggest resolutions. The app d
 | GitHub Pull Requests | Browse, create, review, and merge PRs, and draft PR descriptions. |
 | GitHub Actions | Inspect workflows, runs, jobs, and steps; retrieve completed job logs; dispatch, rerun, or cancel runs. |
 | AI assistance | Draft commit messages, explain commits and branch differences, diagnose Git errors, and suggest file groups or conflict resolutions. |
-| Code review | Review files or hunks and resolve notes in Working Changes, then preview and copy an AI fix report with original code context across files. Pre-commit reminders are on by default and allow you to continue; disable them in Git settings or in the reminder. Open History → Checkpoint review to check existing commits using checkpoints, risk flags, AI summaries and commit tidy. [Guide](docs/review-guide.md). |
+| Code review | Review files or hunks and resolve notes in Working Changes, then preview and copy an AI fix report with original code context across files. Pre-commit reminders are on by default and allow you to continue; disable them in Git settings or in the reminder. [Guide](docs/review-guide.md). |
 | Customization | Chinese and English interfaces, themes, compact mode, adjustable panels, and cursor themes. |
 
 Manual GitHub Actions runs load the workflow definition from the selected branch and show required inputs, defaults, and choices. Environment inputs accept an environment name configured in the repository. Failed loads can be retried without submitting inputs from a previous branch.

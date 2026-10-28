@@ -31,7 +31,7 @@ before(async () => {
   await build({ stdin: { contents: `export * from './src/features/review/workingReviewReportLogic'; export * from './src/stores/workingReviewStore'; export {WorkingReviewReport} from './src/features/review/WorkingReviewReport'; export {tNow} from './src/i18n'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-report', setup(b) { b.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({children}) {return children;}', loader: 'jsx' })); } }] });
   app = createRequire(import.meta.url)(outfile);
 });
-beforeEach(() => { app.useWorkingReviewStore.setState({ records: {} }); app.useToastStore.setState({ toasts: [] }); });
+beforeEach(() => { app.useWorkingReviewStore.setState({ records: {} }); app.useWorkingReviewStorageStatus.setState({ unavailable: false }); app.useToastStore.setState({ toasts: [] }); });
 after(async () => { if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-working-report-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 }); });
 
 test('report collects all annotated files in the current repository and branch, including staged and untracked notes', () => {
@@ -49,6 +49,93 @@ test('resolved notes are excluded by default and can be included as reference', 
   app.useWorkingReviewStore.getState().updateIssue(key('b.ts'), issue.id, true);
   assert.match(report(), /Open finding/); assert.doesNotMatch(report(), /Resolved finding|## b\.ts/);
   assert.match(report(true), /Resolved finding/); assert.match(report(true), /已解决/); assert.match(report(true), /以下 2 条/);
+});
+
+test('current reports exclude files outside working changes without resolving or deleting their notes', () => {
+  add('Current change', 'a.ts'); add('Committed file note', 'committed.ts');
+  const records = app.useWorkingReviewStore.getState().records;
+  const buildReport = options => app.buildWorkingReviewReport({ records, repoPath: REPO, branch: 'main', t: app.tNow, ...options });
+  assert.match(buildReport({ activePaths: ['a.ts'] }), /Current change/);
+  assert.doesNotMatch(buildReport({ activePaths: ['a.ts'] }), /Committed file note/);
+  assert.equal(buildReport({ activePaths: [] }), '');
+  assert.match(buildReport({ activePaths: [], includeHistory: true }), /Committed file note/);
+  assert.equal(records[key('committed.ts')].issues[0].resolved, false, 'committing does not imply that an issue was fixed');
+  assert.equal(records[key('committed.ts')].issues.length, 1);
+  assert.match(buildReport({}), /Current change[\s\S]*Committed file note/, 'unknown status must not hide notes');
+});
+
+test('committing all changes removes old notes from the report and counter while keeping management available', async () => {
+  add('Finding before commit'); let renderer;
+  try {
+    const props = { repoPath: REPO, branch: 'main', files: [{ path: 'a.ts', staged: true, status: 'modified' }] };
+    await act(async () => { renderer = create(React.createElement(app.WorkingReviewReport, props)); });
+    assert.match(text(byId(renderer, 'working-review-report-open')), /\(1\)/);
+    await act(async () => byId(renderer, 'working-review-report-open').props.onClick());
+    assert.match(text(byId(renderer, 'working-review-report-text')), /Finding before commit/);
+    await act(async () => renderer.update(React.createElement(app.WorkingReviewReport, { ...props, files: [] })));
+    assert.match(text(byId(renderer, 'working-review-report-open')), /\(0\)/);
+    assert.equal(renderer.root.findAllByProps({ 'data-testid': 'working-review-report-text' }).length, 0);
+    assert.equal(byId(renderer, 'working-review-report-copy').props.disabled, true);
+    await act(async () => byId(renderer, 'working-review-manage').props.onClick());
+    assert.match(JSON.stringify(renderer.toJSON()), /Finding before commit|不在当前变更中/);
+    assert.equal(app.useWorkingReviewStore.getState().records[key()].issues.length, 1);
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('historical and resolved notes can be managed even with a clean worktree and remain resolved after reload', async () => {
+  add('Older finding'); const issue = app.useWorkingReviewStore.getState().records[key()].issues[0]; let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.WorkingReviewReport, { repoPath: REPO, branch: 'main', files: [] })); });
+    await act(async () => byId(renderer, 'working-review-report-open').props.onClick());
+    await act(async () => byId(renderer, 'working-review-manage').props.onClick());
+    await act(async () => byId(renderer, `working-review-resolve-${issue.id}`).props.onChange({ target: { checked: true } }));
+    assert.equal(app.useWorkingReviewStore.getState().records[key()].issues[0].resolved, true);
+    await app.useWorkingReviewStore.persist.rehydrate();
+    assert.equal(app.useWorkingReviewStore.getState().records[key()].issues[0].resolved, true);
+    await act(async () => byId(renderer, 'working-review-manage').props.onClick());
+    await act(async () => byId(renderer, 'working-review-include-history').props.onChange({ target: { checked: true } }));
+    assert.equal(byId(renderer, 'working-review-report-copy').props.disabled, true);
+    const resolvedFilter = renderer.root.findAllByType('input').find(input => !input.props['data-testid']);
+    await act(async () => resolvedFilter.props.onChange({ target: { checked: true } }));
+    assert.match(text(byId(renderer, 'working-review-report-text')), /Older finding/);
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('deleting a historical note persists and undo remains tied to its original scope after switching branches', async () => {
+  add('Delete from original scope'); add('Keep other branch', 'b.ts', 'first', 'unstaged', REPO, 'other');
+  const issue = app.useWorkingReviewStore.getState().records[key()].issues[0]; let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.WorkingReviewReport, { repoPath: REPO, branch: 'main', files: [] })); });
+    await act(async () => byId(renderer, 'working-review-report-open').props.onClick());
+    await act(async () => byId(renderer, 'working-review-manage').props.onClick());
+    await act(async () => byId(renderer, `working-review-delete-${issue.id}`).props.onClick());
+    assert.equal(JSON.parse(saved.get('auugit-working-review')).state.records[key()].issues.length, 0);
+    const undo = app.useToastStore.getState().toasts.at(-1).action;
+    await act(async () => renderer.update(React.createElement(app.WorkingReviewReport, { repoPath: REPO, branch: 'other', files: [] })));
+    await act(async () => { add('Later original note'); undo.onClick(); undo.onClick(); });
+    assert.deepEqual(app.useWorkingReviewStore.getState().records[key()].issues.map(item => item.text), ['Delete from original scope', 'Later original note']);
+    assert.equal(app.useWorkingReviewStore.getState().records[key('b.ts', REPO, 'other')].issues[0].text, 'Keep other branch');
+    assert.equal(renderer.root.findAllByProps({ 'data-testid': 'working-review-issue-manager' }).length, 0, 'switching scope closes management');
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
+test('failed durable deletion is visible in the report and retry saves the removal', async () => {
+  add('Remove despite storage failure'); const issue = app.useWorkingReviewStore.getState().records[key()].issues[0];
+  const setItem = localStorage.setItem; let renderer;
+  try {
+    await act(async () => { renderer = create(React.createElement(app.WorkingReviewReport, { repoPath: REPO, branch: 'main', files: [] })); });
+    await act(async () => byId(renderer, 'working-review-report-open').props.onClick());
+    await act(async () => byId(renderer, 'working-review-manage').props.onClick());
+    localStorage.setItem = () => { throw Error('Quota exceeded'); };
+    await act(async () => byId(renderer, `working-review-delete-${issue.id}`).props.onClick());
+    assert.equal(renderer.root.findAllByProps({ role: 'alert' }).length, 1);
+    assert.equal(app.useWorkingReviewStore.getState().records[key()].issues.length, 0);
+    localStorage.setItem = setItem;
+    const retry = renderer.root.findAllByType('button').find(button => text(button) === '重试保存');
+    await act(async () => retry.props.onClick());
+    assert.equal(renderer.root.findAllByProps({ role: 'alert' }).length, 0);
+    assert.equal(JSON.parse(saved.get('auugit-working-review')).state.records[key()].issues.length, 0);
+  } finally { localStorage.setItem = setItem; await act(async () => renderer?.unmount()); }
 });
 
 test('original hunk context is bounded, immutable and survives persistence', async () => {

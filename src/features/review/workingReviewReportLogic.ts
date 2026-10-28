@@ -20,21 +20,22 @@ export function captureWorkingIssueOrigin(snapshot: WorkingReviewSnapshot, hunkI
   return { source, headHash, header: hunk?.header, context: context.slice(0, 8000), truncated: context.length > 8000 };
 }
 
-export function workingReviewEntries(records: Record<string, WorkingReviewRecord>, repoPath: string, branch: string) {
+export function workingReviewEntries(records: Record<string, WorkingReviewRecord>, repoPath: string, branch: string, activePaths?: readonly string[], includeHistory = false) {
   const normalize = (path: string) => path.replace(/\\/g, '/').replace(/\/$/, '');
+  const active = activePaths === undefined ? null : new Set(activePaths);
   return Object.entries(records).flatMap(([key, record]) => {
     try {
       const parts: unknown = JSON.parse(key);
       return Array.isArray(parts) && parts.length === 3 && typeof parts[0] === 'string' && normalize(parts[0]) === normalize(repoPath) && parts[1] === branch && typeof parts[2] === 'string' && record && Array.isArray(record.issues)
-        ? [{ path: parts[2], record }] : [];
+        && (!active || includeHistory || active.has(parts[2])) ? [{ key, path: parts[2], record }] : [];
     } catch { return []; }
   }).sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export function buildWorkingReviewReport({ records, repoPath, branch, includeResolved = false, t }: {
-  records: Record<string, WorkingReviewRecord>; repoPath: string; branch: string; includeResolved?: boolean; t: (key: string) => string;
+export function buildWorkingReviewReport({ records, repoPath, branch, includeResolved = false, activePaths, includeHistory = false, t }: {
+  records: Record<string, WorkingReviewRecord>; repoPath: string; branch: string; includeResolved?: boolean; activePaths?: readonly string[]; includeHistory?: boolean; t: (key: string) => string;
 }) {
-  const files: ReportFile[] = workingReviewEntries(records, repoPath, branch).map(({ path, record }) => ({
+  const files: ReportFile[] = workingReviewEntries(records, repoPath, branch, activePaths, includeHistory).map(({ path, record }) => ({
     path,
     lines: record.issues.filter(issue => includeResolved || !issue.resolved).map(issue => {
       const origin = issue.origin;

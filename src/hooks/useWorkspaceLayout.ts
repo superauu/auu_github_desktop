@@ -21,7 +21,7 @@ export function useWorkspaceLayout() {
   const panels = fitWorkspacePanels(width - 28, { left: leftSidebarWidth, right: rightPaneWidth, files: changesFileListWidth }, {
     left: !navigationOverlay && !isLeftSidebarCollapsed,
     right: inlineInspector,
-    files: !!currentRepo && (activeTab === 'changes' || activeTab === 'review'),
+    files: !!currentRepo && activeTab === 'changes',
   }, inlineInspector && navigationPinned && !isLeftSidebarCollapsed && width < 1480 ? 500 : 640);
   return { navigationOverlay, inspectorOverlay, width, panels };
 }

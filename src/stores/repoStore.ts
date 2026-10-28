@@ -1,8 +1,5 @@
 import { createRepositoryActions, createConflictActions } from './repositoryActions';
 import { toast } from '@/stores/toastStore';
-import { useToastStore } from '@/stores/toastStore';
-import { useReviewStore } from '@/stores/reviewStore';
-import { useReviewProgressStore } from '@/stores/reviewProgressStore';
 import type { PushOptions } from '@/services/git/types';
 import { create } from 'zustand';
 import {
@@ -17,7 +14,6 @@ import {
   RepoOperationState,
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
-import { reviewCheckpointService } from '@/services/git/ReviewCheckpointService';
 import { watchPushedCommit } from '@/services/git/PushChecks';
 import { sameWorktreePath } from '@/services/git/worktrees';
 import { tNow } from '@/i18n';
@@ -29,6 +25,7 @@ import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { LAST_ACTIVE_REPO_KEY, OPEN_TABS_KEY, RECENT_REPOS_KEY, loadRepositoryList, saveRepositoryState } from './repositoryStorage';
 import { authorizeRepository, isRepositoryAccessCancelled, RepositoryAccessCancelledError } from '@/services/fs/RepositoryAccess';
 
+/** The legacy review value is accepted only to redirect old navigation state to history. */
 export type MainNavTab = 'changes' | 'review' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests' | 'forge';
 
 export interface RedoItem {
@@ -273,6 +270,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
     setActiveTab: (activeTab) => {
+      if (activeTab === 'review') activeTab = 'history';
       diffId++; set({ activeTab, fileDiffLoading: false });
       if (activeTab === 'changes' && get().selectedFile) void get().loadFileDiff(get().selectedFile!);
     },
@@ -516,11 +514,6 @@ export const useRepoStore = create<RepoState>((set, get) => {
           void useGitHubStore.getState().syncRepo(activeRepo.gitHubOwner, activeRepo.gitHubRepo);
         } else { useGitHubStore.getState().clearRepo(); }
 
-        // 审查导航徽标:检查点之后的待审提交数(轻量查询,不阻塞刷新)
-        const badgeBranch = status.currentBranch || activeRepo.currentBranch;
-        if (badgeBranch && status.headOid) {
-          void useReviewStore.getState().refreshBadge(activeRepo.path, badgeBranch, status.headOid);
-        }
       } catch (err: any) {
         if (valid()) set({ errorMessage: err.message, isLoading: false });
         throw err;
@@ -615,40 +608,8 @@ export const useRepoStore = create<RepoState>((set, get) => {
         const pushed = await gitService.push(currentRepo.path, remote, branch, options);
         if (pushed?.preferenceError) toast.warning(tNow('remote.preferenceNotSaved'), pushed.preferenceError);
         if (!isCurrent(currentRepo.path, epoch)) return;
-        const pushedBranch = branch ?? get().status?.currentBranch ?? null;
         await get().refreshAll();
         set({ isLoading: false });
-        // 审查提醒:目标分支存在检查点且落后于本次推送的 HEAD 时,提醒人工确认这批改动
-        if (pushedSha && pushedBranch) {
-          try {
-            const checkpoint = await reviewCheckpointService.get(currentRepo.path, pushedBranch);
-            if (checkpoint && checkpoint.hash !== pushedSha) {
-              useToastStore.getState().addToast({
-                type: 'info',
-                title: tNow('review.pushReminderTitle'),
-                description: tNow('review.pushReminderDesc'),
-                action: {
-                  label: tNow('review.markReviewed'),
-                  onClick: async () => {
-                    try {
-                      await reviewCheckpointService.set(currentRepo.path, pushedBranch, pushedSha!, checkpoint.hash);
-                      useReviewProgressStore.getState().clearProgress(currentRepo.path, pushedBranch);
-                      const review = useReviewStore.getState();
-                      if (review.repoPath === currentRepo.path && review.branch === pushedBranch) {
-                        void review.load(currentRepo.path, pushedBranch, review.headHash);
-                      } else if (isCurrent(currentRepo.path, epoch) && get().status?.currentBranch === pushedBranch) {
-                        void review.refreshBadge(currentRepo.path, pushedBranch, pushedSha!);
-                      }
-                      toast.info(tNow('review.markReviewedDone'));
-                    } catch (error: any) {
-                      toast.error(tNow('review.markFailed'), error?.message ?? String(error));
-                    }
-                  },
-                },
-              });
-            }
-          } catch { /* 提醒失败不影响推送结果 */ }
-        }
         if (pushedSha) {
           await watchPushedCommit(currentRepo.path, remote, branch, pushedSha, () => isCurrent(currentRepo.path, epoch));
         }

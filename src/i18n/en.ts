@@ -281,7 +281,6 @@ export const en = {
 
   // ============ Sidebar ============
   'sidebar.changes': 'Working Changes',
-  'sidebar.review': 'History · Checkpoint review',
   'sidebar.changes.clean': 'Clean',
   'sidebar.history': 'History & Graph',
   'sidebar.pullRequests': 'Pull Requests',
