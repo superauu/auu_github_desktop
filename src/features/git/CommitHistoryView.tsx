@@ -12,7 +12,6 @@ import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { gitService } from '@/services/git/GitService';
 import {
-  GitCommit as GitCommitIcon,
   Tag as TagIcon,
   Search,
   Check,
@@ -43,6 +42,8 @@ import { GitCommit } from '@/services/git/types';
 // 本地默认视图（与写侧默认值保持一致）：旧 localStorage 记录可能缺字段，
 // 这里做内联防御合并，不 import store 的新导出，避免与写侧 version/migrate 逻辑耦合。
 const DEFAULT_HISTORY_VIEW = { query: '', scrollTop: 0, metadataWidth: 176, columns: { author: true, date: true, hash: false } };
+// 行高与 GitGraphRenderer.ROW_HEIGHT 保持一致；34px 对齐专业 Git 客户端的信息密度
+const ROW_H = 34;
 
 export const CommitHistoryView: React.FC = () => {
   const { t } = useI18n();
@@ -133,8 +134,8 @@ export const CommitHistoryView: React.FC = () => {
     const timer = setTimeout(() => {
       const index = filteredCommits.findIndex((commit) => commit.hash === hashToScroll);
       if (index >= 0 && viewportRef.current) {
-        const top = (index + (hasWip ? 1 : 0)) * 42;
-        if (scrollToCommitHash || top < viewportRef.current.scrollTop || top + 42 > viewportRef.current.scrollTop + viewportRef.current.clientHeight) viewportRef.current.scrollTo({ top: Math.max(0, top - viewportRef.current.clientHeight / 2), behavior: 'auto' });
+        const top = (index + (hasWip ? 1 : 0)) * ROW_H;
+        if (scrollToCommitHash || top < viewportRef.current.scrollTop || top + ROW_H > viewportRef.current.scrollTop + viewportRef.current.clientHeight) viewportRef.current.scrollTo({ top: Math.max(0, top - viewportRef.current.clientHeight / 2), behavior: 'auto' });
       }
       const el = document.getElementById(`commit-row-${hashToScroll}`);
       if (scrollToCommitHash && el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
@@ -198,8 +199,8 @@ export const CommitHistoryView: React.FC = () => {
     if (viewportRef.current) viewportRef.current.scrollTop = 0;
     setViewport(previous => ({ ...previous, top: 0 }));
   }, [searchQuery, searchPath]);
-  const firstVisible = Math.min(filteredCommits.length, Math.max(0, Math.floor(viewport.top / 42) - (hasWip ? 1 : 0) - 8));
-  const lastVisible = Math.min(filteredCommits.length, Math.ceil((viewport.top + viewport.height) / 42) + 8);
+  const firstVisible = Math.min(filteredCommits.length, Math.max(0, Math.floor(viewport.top / ROW_H) - (hasWip ? 1 : 0) - 8));
+  const lastVisible = Math.min(filteredCommits.length, Math.ceil((viewport.top + viewport.height) / ROW_H) + 8);
   // 搜索态下不把高亮回退到 filteredCommits[0]：否则列表高亮与右侧详情（仍指向原选中提交）不一致；
   // 未命中时保持 detail 不变，列表显示空态。
   const activeCommit = filteredCommits.find(commit => commit.hash === selectedCommit?.hash)
@@ -221,9 +222,9 @@ export const CommitHistoryView: React.FC = () => {
     const commit = filteredCommits[next];
     if (!commit) return;
     event.preventDefault(); focusAfterRender.current = commit.hash; setSelectedCommit(commit);
-    const rowTop = (next + (hasWip ? 1 : 0)) * 42;
+    const rowTop = (next + (hasWip ? 1 : 0)) * ROW_H;
     const element = viewportRef.current;
-    if (element && (rowTop < element.scrollTop || rowTop + 42 > element.scrollTop + element.clientHeight)) element.scrollTop = Math.max(0, rowTop - element.clientHeight / 2);
+    if (element && (rowTop < element.scrollTop || rowTop + ROW_H > element.scrollTop + element.clientHeight)) element.scrollTop = Math.max(0, rowTop - element.clientHeight / 2);
     document.getElementById(`commit-row-${commit.hash}`)?.focus({ preventScroll: true });
   };
 
@@ -321,16 +322,14 @@ export const CommitHistoryView: React.FC = () => {
 
   return (
     <div className="history-view flex-1 h-full flex flex-col overflow-hidden select-none bg-transparent">
-      {/* Top Search & Filter Bar */}
-      <div className="min-h-9 px-3 py-1 border-b border-border flex flex-wrap gap-2 items-center justify-between text-xs bg-card/40 shrink-0">
+      {/* Top Search & Filter Bar（瘦身为 h-8：标题语义由侧栏导航与列表 aria-label 承担，这里只留数据与工具） */}
+      <div className="h-8 px-3 border-b border-border flex flex-wrap gap-2 items-center justify-between text-xs bg-card/40 shrink-0">
         <div className="flex items-center gap-2">
-          <GitCommitIcon className="h-3.5 w-3.5 text-primary" />
-          <span className="font-semibold text-foreground">{t('history.title')}</span>
-          <Badge variant="outline" className="h-4 text-[12px] font-mono">
+          <Badge variant="outline" className="h-4.5 text-[11px] font-mono">
             {filteredCommits.length} {t('history.commitCount')}
           </Badge>
           {hasWip && (
-            <Badge variant="warning" className="h-4 px-1.5 text-[12px] font-mono gap-1 ">
+            <Badge variant="warning" className="h-4.5 px-1.5 text-[11px] font-mono gap-1 ">
               <span>{totalChanges} {t('history.uncommitted')}</span>
             </Badge>
           )}
@@ -390,8 +389,8 @@ export const CommitHistoryView: React.FC = () => {
       </div>
 
 
-      {/* GitKraken-style Column Headers: BRANCH / TAG | GRAPH | COMMIT MESSAGE */}
-      <div className="h-7 px-3 border-b border-border/80 bg-muted/20 flex items-center text-[12px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+      {/* GitKraken-style Column Headers: BRANCH / TAG | GRAPH | COMMIT MESSAGE（中文不受 uppercase 影响，用 11px+字距表达层级） */}
+      <div className="h-7 px-3 border-b border-border/80 bg-muted/20 flex items-center text-[11px] font-medium text-muted-foreground tracking-[0.08em] shrink-0">
         <div style={{ width: graphWidth }} className="text-center shrink-0">{t('history.col.graph')}</div>
         <div className="flex-1 min-w-0 pl-3">{t('history.col.message')}</div>
         {Object.values(columns).some(Boolean) && <div style={{ width: metadataWidth }} className="history-meta text-right pr-2 shrink-0 items-center"><ResizeHandle currentSize={metadataWidth} onSizeChange={setMetadataWidth} minSize={120} maxSize={320} defaultSize={176} reverse title={t('composer.resizeMetadata')} className="h-7 mr-2" /><span className="flex-1">{t('history.col.authorDate')}</span></div>}
@@ -410,7 +409,7 @@ export const CommitHistoryView: React.FC = () => {
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="h-[30px] rounded-md skeleton"
+                className="h-[28px] rounded-md skeleton"
                 style={{ opacity: 1 - i * 0.1 }}
               />
             ))}
@@ -425,7 +424,7 @@ export const CommitHistoryView: React.FC = () => {
                 commits={filteredCommits}
                 onWidthChange={setGraphWidth}
                 selectedIndex={selectedIndex}
-                rowHeight={42}
+                rowHeight={ROW_H}
                 hasWipNode={hasWip}
                 visibleStart={firstVisible}
                 visibleEnd={lastVisible}
@@ -443,7 +442,7 @@ export const CommitHistoryView: React.FC = () => {
                     setActiveTab('changes');
                     toast.info(t('history.wipToast'));
                   }}
-                  className="h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors bg-sky-500/10 hover:bg-sky-500/15 border-l-2 border-sky-600 dark:border-sky-400 group"
+                  className="h-[34px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors bg-primary/10 hover:bg-primary/15 group"
                   title={t('history.wipTitle')}
                 >
                   {/* Spacer for Graph column */}
@@ -471,7 +470,7 @@ export const CommitHistoryView: React.FC = () => {
               )}
 
               {/* Commit Details Rows */}
-              <div aria-hidden style={{ height: firstVisible * 42 }} />
+              <div aria-hidden style={{ height: firstVisible * ROW_H }} />
               {filteredCommits.slice(firstVisible, lastVisible).map((commit) => {
                 const isSelected = activeCommit?.hash === commit.hash;
                 const isCopied = copiedHash === commit.hash;
@@ -500,10 +499,10 @@ export const CommitHistoryView: React.FC = () => {
                       setCtxMenu({ open: true, x: e.clientX, y: e.clientY, commit });
                     }}
                     className={cn(
-                      "h-[42px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors group",
+                      "h-[34px] px-3 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors group",
                       isSelected
-                        ? "bg-sky-500/15 dark:bg-sky-500/20 border-l-2 border-sky-600 dark:border-sky-400  text-foreground font-medium"
-                        : "hover:bg-accent/50 dark:hover:bg-white/3 border-l-2 border-transparent text-muted-foreground hover:text-foreground"
+                        ? "bg-primary/15 text-foreground font-medium"
+                        : "hover:bg-accent/50 dark:hover:bg-white/3 text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {/* Spacer for Graph column */}
@@ -511,8 +510,8 @@ export const CommitHistoryView: React.FC = () => {
 
                     {/* Subject */}
                     <div className="flex items-center gap-2 min-w-0 flex-1 pl-3">
-                    {/* Left Column: BRANCH / TAG Badges */}
-                    <div className="flex items-center gap-1 min-w-0 max-w-[180px] shrink overflow-hidden">
+                    {/* Left Column: BRANCH / TAG Badges（当前分支/HEAD 不参与压缩，远程徽标先截断） */}
+                    <div className="flex items-center gap-1 min-w-0 max-w-[280px] shrink overflow-hidden">
                       {(() => {
                         const rawRefs = commit.refs ? [...commit.refs] : [];
                         if (
@@ -545,7 +544,8 @@ export const CommitHistoryView: React.FC = () => {
                                   onDrop={e => { e.preventDefault(); e.stopPropagation(); const target = branches.find(branch => branch.name === cleanName && !branch.isRemote); if (!target) return; const name = e.dataTransfer.getData('text/plain'); const source = branches.find(branch => branch.name === name); if (source && source.name !== target.name) { setBranchDrop({ source, target }); return; } const hash = e.dataTransfer.getData('application/x-auugit-commit'); if (target.isCurrent && /^[0-9a-f]{40,64}$/.test(hash)) { void (async () => { if (await confirmAction({ title: t('history.ctx.cherryPick'), description: `${hash.slice(0, 8)} → ${target.name}`, danger: false })) await runCommitAction(() => cherryPickCommit(hash), t('history.cherryPicked').replace('{h}', hash.slice(0, 8)), t('history.cherryPickFailed')); })(); } }}
                                   title={`${ref} · ${t('flow.graphDragHint')}`}
                                   className={cn(
-                                    "h-5 px-1.5 text-[12px] gap-1 font-mono shrink min-w-0 max-w-[120px] truncate rounded shadow-2xs border transition-colors",
+                                    "h-5 px-1.5 text-[11px] gap-1 font-mono min-w-0 truncate rounded shadow-2xs border transition-colors",
+                                    (isHead || isSelectedBranch) ? "flex-none max-w-[150px]" : "shrink max-w-[110px]",
                                     isTag && "bg-amber-500/15 text-git-tag border-amber-500/40",
                                     isHead && "bg-primary/10 text-primary border-primary/30",
                                     isRemote && "bg-secondary text-secondary-foreground border-border",
@@ -575,7 +575,7 @@ export const CommitHistoryView: React.FC = () => {
                               );
                             })}
                             {rawRefs.length > 2 && (
-                              <Badge variant="outline" className="h-4 px-1 text-[12px] font-mono shrink-0">
+                              <Badge variant="outline" className="h-5 px-1 text-[11px] font-mono shrink-0">
                                 +{rawRefs.length - 2}
                               </Badge>
                             )}
@@ -606,7 +606,7 @@ export const CommitHistoryView: React.FC = () => {
                 );
               })}
 
-              <div aria-hidden style={{ height: (filteredCommits.length - lastVisible) * 42 }} />
+              <div aria-hidden style={{ height: (filteredCommits.length - lastVisible) * ROW_H }} />
               {/* Progressive history loading footer */}
               {filteredCommits.length > 0 && (
                 <div className="py-3 flex justify-center">

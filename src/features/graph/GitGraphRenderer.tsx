@@ -14,7 +14,7 @@ interface GitGraphRendererProps {
 
 const LANE_WIDTH = 16;
 const LANE_OFFSET = 32; // Centered in the 64px GRAPH column
-const ROW_HEIGHT = 42; // Matches commit item row height (42px)
+const ROW_HEIGHT = 34; // Matches commit item row height (34px)
 
 const LANE_COLORS = [
   'hsl(var(--git-renamed))', // Sky Blue (Primary)
@@ -207,22 +207,14 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       height={totalHeight}
       className="shrink-0 pointer-events-none select-none overflow-visible"
     >
-      <defs>
-        {LANE_COLORS.map((color, idx) => (
-          <filter key={idx} id={`glow-${idx}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="1.2" floodColor={color} floodOpacity="0.3" />
-          </filter>
-        ))}
-      </defs>
-
       {/* Bezier branch connection lines */}
-      <g strokeWidth="2" fill="none" strokeLinecap="round">
+      <g strokeWidth="2.5" fill="none" strokeLinecap="round">
         {paths.filter((path) => path.fromRow === undefined || (Math.min(path.fromRow, path.toRow!) <= visibleEnd + 1 && Math.max(path.fromRow, path.toRow!) >= visibleStart)).map((path) => (
           <path
             key={path.id}
             d={path.d}
             stroke={path.color}
-            strokeOpacity="0.75"
+            strokeOpacity="0.9"
             strokeDasharray={path.isDashed ? "3 3" : undefined}
           />
         ))}
@@ -237,25 +229,24 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
                 <circle
                   cx={node.x}
                   cy={node.y}
-                  r="8.5"
+                  r="9"
                   fill="none"
                   stroke="hsl(var(--git-renamed))"
+                  strokeOpacity="0.9"
                   strokeWidth="1.5"
-                  strokeDasharray="2 2"
                 />
               )}
-              {/* WIP outer dashed circle */}
+              {/* WIP dashed disc：虚线圆环 + 实芯，行高缩小后仍保持可辨识 */}
               <circle
                 cx={node.x}
                 cy={node.y}
-                r="6"
+                r="6.5"
                 fill="hsl(var(--background))"
                 stroke="hsl(var(--git-renamed))"
                 strokeWidth="2"
                 strokeDasharray="2.5 2"
               />
-              {/* Inner plus dot */}
-              <circle cx={node.x} cy={node.y} r="2" fill="hsl(var(--git-renamed))" />
+              <circle cx={node.x} cy={node.y} r="2.5" fill="hsl(var(--git-renamed))" />
             </g>
           );
         }
@@ -266,34 +257,34 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
 
         return (
           <g key={node.commit?.hash}>
-            {/* Outer selection ring if selected */}
+            {/* Selected: solid bright ring（去 glow 与虚线叠加，暗色小元素忌辉光） */}
             {isSelected && (
               <circle
                 cx={node.x}
                 cy={node.y}
-                r="7.5"
+                r="8"
                 fill="none"
                 stroke={node.color}
+                strokeOpacity="0.9"
                 strokeWidth="1.5"
-                strokeDasharray="2 2"
               />
             )}
 
-            {/* Commit node body */}
+            {/* Commit node body：实心圆盘 + 背景色细芯，提供体积感 */}
             <circle
               cx={node.x}
               cy={node.y}
-              r={isHead ? 5 : isTag ? 4.5 : 4}
-              fill={isSelected || isHead ? node.color : 'hsl(var(--background))'}
+              r={isHead || isSelected ? 5.5 : isTag ? 5 : 4.5}
+              fill={node.color}
               stroke={node.color}
-              strokeWidth="2.5"
-              filter={isSelected ? `url(#glow-${node.lane % LANE_COLORS.length})` : undefined}
+              strokeWidth="1"
             />
-
-            {/* Center dot for unselected HEAD or Tag */}
-            {isHead && !isSelected && (
-              <circle cx={node.x} cy={node.y} r="2" fill={node.color} />
-            )}
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={isHead || isSelected ? 2.25 : 1.75}
+              fill="hsl(var(--background))"
+            />
           </g>
         );
       })}
