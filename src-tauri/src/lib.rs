@@ -341,8 +341,15 @@ fn paths_exist(repo_path: String, git_binary: Option<String>) -> Result<Vec<bool
 }
 
 fn http_client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder().timeout(Duration::from_secs(20)).connect_timeout(Duration::from_secs(10))
-        .redirect(reqwest::redirect::Policy::none()).user_agent("AuuGit").build().map_err(|e| e.to_string())
+    // 静态复用连接池：OAuth 轮询（设备码流程每 5s poll）与 AI 请求各自冷启动
+    // TLS 握手纯属浪费；Client 克隆是 Arc 共享，按请求超时仍可由 RequestBuilder 覆盖。
+    static CLIENT: std::sync::OnceLock<Result<reqwest::Client, String>> = std::sync::OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder().timeout(Duration::from_secs(20)).connect_timeout(Duration::from_secs(10))
+                .redirect(reqwest::redirect::Policy::none()).user_agent("AuuGit").build().map_err(|e| e.to_string())
+        })
+        .clone()
 }
 async fn response_text(mut response: reqwest::Response) -> Result<String, String> {
     let status = response.status();

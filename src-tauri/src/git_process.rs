@@ -227,6 +227,35 @@ pub(crate) fn run_git(
     run_git_protocols(args, cwd, git_binary, stdin, None)
 }
 
+/// 快速档阈值：高频只读探测/状态命令挂死（卡住并发闸/管道）时 5 分钟内释放
+/// 并发槽，而不是占满 15 分钟。未列入的操作（clone/fetch/pull/push/log 及其
+/// 内容搜索 -S、blame、rebase、submodule/lfs/bisect 等）一律保持 15 分钟重档，
+/// 避免大仓库合法长操作被误杀。
+const FAST_GIT_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const HEAVY_GIT_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+const FAST_COMMANDS: [&str; 12] = [
+    "status",
+    "diff",
+    "rev-parse",
+    "symbolic-ref",
+    "show-ref",
+    "for-each-ref",
+    "check-ref-format",
+    "config",
+    "remote",
+    "ls-files",
+    "ls-tree",
+    "cat-file",
+];
+
+fn pick_git_timeout(args: &[String]) -> Duration {
+    // 全局选项（如 -c）打头时不属于快速档形态，保持重档。
+    let fast = args.first().is_some_and(|command| {
+        FAST_COMMANDS.iter().any(|candidate| command.eq_ignore_ascii_case(candidate))
+    });
+    if fast { FAST_GIT_TIMEOUT } else { HEAVY_GIT_TIMEOUT }
+}
+
 /// 与 run_git 相同，但可对该次调用放行额外传输协议（仅限已授权的本地 clone 源）。
 pub(crate) fn run_git_protocols(
     args: Vec<String>,
@@ -235,12 +264,13 @@ pub(crate) fn run_git_protocols(
     stdin: Option<String>,
     protocols: Option<&str>,
 ) -> Result<GitCommandResult, String> {
+    let timeout = pick_git_timeout(&args);
     let result = run_git_bytes_protocols(
         args,
         cwd,
         git_binary,
         stdin,
-        Duration::from_secs(15 * 60),
+        timeout,
         protocols,
     )?;
     Ok(GitCommandResult {
@@ -253,6 +283,16 @@ pub(crate) fn run_git_protocols(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn timeouts_are_tiered_by_command_shape() {
+        // 快速档只看首参数（子命令形态）；全局选项打头与重操作保持 15 分钟。
+        assert_eq!(pick_git_timeout(&["rev-parse".into(), "--path-format=absolute".into()]), FAST_GIT_TIMEOUT);
+        assert_eq!(pick_git_timeout(&["status".into(), "--porcelain".into()]), FAST_GIT_TIMEOUT);
+        assert_eq!(pick_git_timeout(&["-c".into(), "core.quotepath=false".into(), "--version".into()]), HEAVY_GIT_TIMEOUT);
+        assert_eq!(pick_git_timeout(&["fetch".into()]), HEAVY_GIT_TIMEOUT);
+        assert_eq!(pick_git_timeout(&["log".into(), "-S".into(), "needle".into()]), HEAVY_GIT_TIMEOUT);
+    }
 
     fn init_repo(source: &std::path::Path) {
         std::fs::create_dir_all(source).unwrap();
