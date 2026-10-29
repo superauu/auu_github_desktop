@@ -14,6 +14,8 @@ import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
 import { FilePath } from '@/components/ui/FilePath';
+import { Identicon } from '@/components/ui/Identicon';
+import { Input } from '@/components/ui/input';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { CommitComposer, useComposerDraft } from './CommitComposer';
 import { CommitDiffDialog } from './CommitDiffDialog';
@@ -39,6 +41,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   const [reload, setReload] = useState(0);
   const [tree, setTree] = useState(false);
   const [ascending, setAscending] = useState(true);
+  const [fileFilter, setFileFilter] = useState('');
   const [preview, setPreview] = useState<GitFileChange | null>(null);
   const [lines, setLines] = useState<ParsedDiffLine[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -48,7 +51,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   useEffect(() => {
     let cancelled = false;
     request.current++;
-    setFiles([]); setChecks([]); setPreview(null); setFilesError(null); setLoading(false);
+    setFiles([]); setChecks([]); setPreview(null); setFilesError(null); setLoading(false); setFileFilter('');
     if (activeTab === 'history' && currentRepo && selectedCommit) {
       setLoading(true);
       void gitService.getCommitFiles(currentRepo.path, selectedCommit.hash)
@@ -71,11 +74,16 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
     finally { if (id === request.current) setDiffLoading(false); }
   };
   const sortedFiles = useMemo(() => [...files].sort((a, b) => (ascending ? 1 : -1) * a.path.localeCompare(b.path)), [files, ascending]);
+  // 过滤框：AI 提交动辄几十个文件，按路径子串过滤（不区分大小写），树/平铺两种模式都生效
+  const filteredFiles = useMemo(() => {
+    const q = fileFilter.trim().toLowerCase();
+    return q ? sortedFiles.filter(file => file.path.toLowerCase().includes(q)) : sortedFiles;
+  }, [sortedFiles, fileFilter]);
   const groups = useMemo(() => {
     const result: Record<string, GitFileChange[]> = {};
-    sortedFiles.forEach(file => { const directory = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '/'; (result[directory] ||= []).push(file); });
+    filteredFiles.forEach(file => { const directory = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '/'; (result[directory] ||= []).push(file); });
     return result;
-  }, [sortedFiles]);
+  }, [filteredFiles]);
   const fileButton = (file: GitFileChange) => <button key={file.path} onClick={() => void inspect(file)} title={`${file.path} · ${t('changes.viewDiff')}`} className="w-full flex items-center gap-2 rounded-md p-2 text-left hover:bg-accent focus-visible:bg-accent">
     <FileCode className="h-4 w-4 shrink-0 text-muted-foreground" /><FilePath path={file.path} />
     <span className={`text-[12px] shrink-0 ${file.status === 'added' ? 'text-git-added' : file.status === 'deleted' ? 'text-git-deleted' : 'text-muted-foreground'}`}>{t(`fileStatus.${file.status}`)}</span>
@@ -102,7 +110,10 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
         </div>
         <div className="select-text space-y-3"><h3 className="font-semibold text-[14px] leading-relaxed wrap-break-word">{selectedCommit.subject}</h3>
           {selectedCommit.body && <details><summary className="text-muted-foreground cursor-pointer min-h-7">{t('composer.commitBody')}</summary><p className="mt-2 whitespace-pre-wrap leading-relaxed wrap-break-word">{selectedCommit.body}</p></details>}
-          <p className="text-[12px] text-muted-foreground">{selectedCommit.author.name} · {selectedCommit.author.relativeDate}</p>
+          <p className="flex items-center gap-2 text-[12px] text-muted-foreground">
+            <Identicon seed={selectedCommit.author.email || selectedCommit.author.name} size={18} />
+            {selectedCommit.author.name} · {selectedCommit.author.relativeDate}
+          </p>
           {selectedCommit.parents.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.parentLabel')} <span className="font-mono">{selectedCommit.parents.map(hash => hash.slice(0, 7)).join(', ')}</span></p>}
         </div>
         <AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'commit', hash: selectedCommit.hash }} onOpenSettings={onOpenAiSettings} />
@@ -111,7 +122,14 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
             <Button variant="ghost" size="icon" aria-label={t('rightPane.toggleSort')} onClick={() => setAscending(!ascending)}>{ascending ? '↑' : '↓'}</Button>
             <Button variant="ghost" size="icon" aria-label={t(tree ? 'rightPane.pathView' : 'rightPane.treeView')} aria-pressed={tree} onClick={() => setTree(!tree)}>{tree ? <List className="h-4 w-4" /> : <Network className="h-4 w-4" />}</Button>
           </div></div>
-          {loading ? <p role="status" className="text-muted-foreground">{t('common.loading')}</p> : filesError ? <div role="alert"><ErrorNotice error={filesError} /><Button variant="outline" onClick={() => setReload(value => value + 1)}>{t('composer.retry')}</Button></div> : tree ? Object.entries(groups).map(([directory, group]) => <details key={directory} open><summary className="cursor-pointer text-[12px] text-muted-foreground py-2 break-all">{directory} ({group.length})</summary>{group.map(fileButton)}</details>) : sortedFiles.map(fileButton)}
+          {loading ? <p role="status" className="text-muted-foreground">{t('common.loading')}</p> : filesError ? <div role="alert"><ErrorNotice error={filesError} /><Button variant="outline" onClick={() => setReload(value => value + 1)}>{t('composer.retry')}</Button></div> : <>
+            <Input value={fileFilter} onChange={e => setFileFilter(e.target.value)} aria-label={t('rightPane.filterFiles')} placeholder={t('rightPane.filterFiles')} className="h-7 text-[12px] bg-secondary/30" />
+            {fileFilter.trim() && <p className="text-[11px] text-muted-foreground tabular-nums">{filteredFiles.length} / {files.length}</p>}
+            {tree
+              ? Object.entries(groups).map(([directory, group]) => <details key={directory} open><summary className="cursor-pointer text-[12px] text-muted-foreground py-2 break-all">{directory} ({group.length})</summary>{group.map(fileButton)}</details>)
+              : filteredFiles.map(fileButton)}
+            {!loading && filteredFiles.length === 0 && files.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.noFileMatch')}</p>}
+          </>}
         </section>
         <section className="border-t border-border pt-3 space-y-2"><h3 className="text-[12px] text-muted-foreground">{t('rightPane.githubChecks')}</h3>
           {!checks.length ? <p className="text-[12px] text-muted-foreground">{t('rightPane.noChecks')}</p> : checks.map(check => {

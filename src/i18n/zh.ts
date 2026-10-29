@@ -365,6 +365,8 @@ export const zh = {
   'rightPane.diffTruncated': '仅预览前 100 行差异',
   'rightPane.checksPass': '通过',
   'rightPane.noChecks': '未配置或无正在执行的 Checks',
+  'rightPane.filterFiles': '过滤文件…',
+  'rightPane.noFileMatch': '没有匹配的文件',
   'rightPane.aiGenHint': "根据本次提交范围生成说明，生成结果先预览。",
   'rightPane.aiSuccessLlm': 'AI (大模型) 提交说明生成成功',
   'rightPane.aiSuccessBuiltin': "本地规则已生成提交说明",

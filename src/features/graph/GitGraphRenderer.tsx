@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { GitCommit } from '@/services/git/types';
+import { identiconSpec } from '@/utils/identicon';
 
 interface GitGraphRendererProps {
   onWidthChange?: (width: number) => void;
@@ -220,7 +221,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
         ))}
       </g>
 
-      {/* Node circles */}
+      {/* Node circles：实心泳道色环 + 内嵌作者 identicon（本地生成、色相锁定品牌色板） */}
       {nodes.filter((node) => node.index >= visibleStart && node.index <= visibleEnd + 1).map((node) => {
         if (node.isWip) {
           return (
@@ -252,17 +253,22 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
         }
 
         const isSelected = selectedIndex === node.index;
-        const isHead = node.commit?.refs?.some((r) => r.includes('HEAD'));
-        const isTag = node.commit?.refs?.some((r) => r.startsWith('tag:'));
+        const commit = node.commit;
+        if (!commit) return null;
+        const isHead = commit.refs?.some((r) => r.includes('HEAD'));
+        const avatarR = isHead || isSelected ? 7 : 6;
+        const spec = identiconSpec(commit.author.email || commit.author.name);
+        const cell = (avatarR * 2) / 5;
+        const clipId = `idc-${commit.shortHash}`;
 
         return (
-          <g key={node.commit?.hash}>
+          <g key={commit.hash}>
             {/* Selected: solid bright ring（去 glow 与虚线叠加，暗色小元素忌辉光） */}
             {isSelected && (
               <circle
                 cx={node.x}
                 cy={node.y}
-                r="8"
+                r={avatarR + 1.5}
                 fill="none"
                 stroke={node.color}
                 strokeOpacity="0.9"
@@ -270,21 +276,26 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
               />
             )}
 
-            {/* Commit node body：实心圆盘 + 背景色细芯，提供体积感 */}
-            <circle
-              cx={node.x}
-              cy={node.y}
-              r={isHead || isSelected ? 5.5 : isTag ? 5 : 4.5}
-              fill={node.color}
-              stroke={node.color}
-              strokeWidth="1"
-            />
-            <circle
-              cx={node.x}
-              cy={node.y}
-              r={isHead || isSelected ? 2.25 : 1.75}
-              fill="hsl(var(--background))"
-            />
+            {/* Commit node body：作者 identicon 圆盘 + 泳道色环，体积感与身份可扫描性兼得 */}
+            <defs>
+              <clipPath id={clipId}>
+                <circle cx={node.x} cy={node.y} r={avatarR - 0.75} />
+              </clipPath>
+            </defs>
+            <circle cx={node.x} cy={node.y} r={avatarR} fill="hsl(var(--background))" />
+            <g clipPath={`url(#${clipId})`}>
+              {spec.cells.map((on, i) => on ? (
+                <rect
+                  key={i}
+                  x={node.x - avatarR + (i % 5) * cell}
+                  y={node.y - avatarR + Math.floor(i / 5) * cell}
+                  width={cell}
+                  height={cell}
+                  fill={`hsl(${spec.hue} 62% 46%)`}
+                />
+              ) : null)}
+            </g>
+            <circle cx={node.x} cy={node.y} r={avatarR} fill="none" stroke={node.color} strokeWidth="1.5" />
           </g>
         );
       })}
