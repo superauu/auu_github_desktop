@@ -1,6 +1,6 @@
 [package]
 name = "auugit"
-version = "0.6.2"
+version = "0.6.3"
 description = "Modern Lightweight Git Client & GitHub Dashboard"
 authors = ["Auu Team"]
 edition = "2021"
