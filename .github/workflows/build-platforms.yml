@@ -3,8 +3,9 @@ name: Build macOS & Linux
 # 与 build-windows.yml 同触发（v* tag）：三个平台并行构建。Windows 作业负责创建
 # GitHub Release 与 latest.json（保持既有发布流程不变）；本工作流的 attach 作业
 # 轮询等待 release 出现后，把 macOS（aarch64/x86_64）与 Linux（x86_64）产物挂到
-# 同一个 release 上。latest.json 暂只含 windows-x86_64——macOS/Linux 自动更新需要
-# 平台合并作业，待后续版本接入；当前两平台用户手动下载安装。
+# 同一个 release 上，并经 scripts/merge-latest-manifest.mjs 把两平台的更新器签名
+# 合并进 latest.json 后 --clobber 覆盖上传——macOS/Linux 用户由此收到自动更新。
+# 某平台签名缺失时只跳过该平台，绝不阻塞发布（manifest 其余部分保持有效）。
 
 on:
   push:
@@ -157,6 +158,9 @@ jobs:
     # 仅 tag 触发时挂产物；手动 dispatch 只验证构建。
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -173,7 +177,15 @@ jobs:
           for i in $(seq 1 60); do
             if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
               echo "Release $TAG found after $i checks"
-              gh release upload "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+              # 下载 Windows 上传的单平台 latest.json，把 mac/linux 签名合并进去再覆盖上传；
+              # release 上暂时没有 latest.json（Windows 作业异常）时仅告警，产物照常挂载。
+              if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'latest.json' --dir . --clobber; then
+                node scripts/merge-latest-manifest.mjs --manifest latest.json --artifacts artifacts --tag "$TAG" --repo "$GITHUB_REPOSITORY"
+                gh release upload "$TAG" artifacts/* latest.json --repo "$GITHUB_REPOSITORY" --clobber
+              else
+                echo "::warning::latest.json not found on release $TAG; attaching platform artifacts without manifest merge"
+                gh release upload "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+              fi
               exit 0
             fi
             sleep 60
