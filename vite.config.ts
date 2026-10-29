@@ -416,6 +416,9 @@ export default defineConfig({
   plugins: [react(), gitApiPlugin()],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   build: {
+    // 桌面本地分发不泄露源码；sourcemap 让 ErrorBoundary 复制的压缩栈可还原，
+    // 否则用户报告的诊断信息是无效的乱码符号。安装包体积换可诊断性。
+    sourcemap: true,
     rollupOptions: {
       output: {
         manualChunks(id) {
