@@ -134,7 +134,12 @@ export const WorkingChangesView: React.FC = () => {
   const [fileSearch, setFileSearch] = useState('');
   const [reviewFilter, setReviewFilter] = useState<WorkingReviewFilter>('all');
   const fileListFiltered = !!fileSearch.trim() || reviewFilter !== 'all';
-  const reviewStateSignature = JSON.stringify(allFiles.map(file => { const state = fileReviews.stateFor(file); return [state.kind, state.unresolved]; }));
+  // 仅作可见文件 useMemo 的失效键：evidenceVersion/records/选中快照覆盖 stateFor 的全部输入源，
+  // 原来每次渲染都对全部文件做 string 化（大仓库数千变更时 GC 压力大）。
+  const reviewStateSignature = useMemo(
+    () => JSON.stringify(allFiles.map(file => { const state = fileReviews.stateFor(file); return [state.kind, state.unresolved]; })),
+    [allFiles, fileReviews.evidenceVersion, fileReviews.records, workingReview.verifiedSnapshot, activeFile],
+  );
   const visibleFiles = useMemo(() => filterWorkingReviewFiles(allFiles, fileSearch, reviewFilter, fileReviews.stateFor), [allFiles, fileSearch, reviewFilter, reviewStateSignature]);
   const visibleStaged = useMemo(() => visibleFiles.filter(file => file.staged), [visibleFiles]);
   const visibleUnstaged = useMemo(() => visibleFiles.filter(file => !file.staged && file.status !== 'untracked'), [visibleFiles]);

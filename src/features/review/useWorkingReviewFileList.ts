@@ -31,7 +31,9 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
   const candidates = files.filter(file => file.status !== 'conflicted' && hasReview(records[workingReviewKey(repo, branch, file.path)]));
   const candidateSignature = JSON.stringify(candidates.map(workingFileVersionKey));
   const cache = useRef<{ scope: string; revision: number; status: GitStatusResult | null; files: string; snapshots: Map<string, WorkingReviewIdentity | null>; previous: Map<string, WorkingReviewIdentity | null> } | null>(null);
-  const [, render] = useState(0);
+  // 证据版本：任何会改变 stateFor 结果的时机（快照异步落地/批次重置/选中证据更新）都 +1，
+  // 供调用方把重活 memo 化（states 的函数闭包每渲染重建，调用方无法直接跟踪其变化）。
+  const [evidenceVersion, render] = useState(0);
   const selectedKey = selected?.file ? workingFileVersionKey(selected.file) : '';
   const selectedSnapshot = selected?.snapshot;
 
@@ -85,6 +87,9 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
   const values = [...states.values()];
   return {
     stateFor: (file: GitFileChange) => states.get(workingFileVersionKey(file)) ?? pending,
+    /** 每渲染都变化的引用没有跟踪价值；证据版本 + records 覆盖 states 的全部输入源。 */
+    evidenceVersion,
+    records,
     approved: values.filter(state => state.kind === 'approved').length,
     checking: values.filter(state => state.kind === 'checking').length,
     pending: values.filter(state => state.kind !== 'approved' && state.kind !== 'checking').length,

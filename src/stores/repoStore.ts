@@ -29,6 +29,24 @@ import { authorizeRepository, isRepositoryAccessCancelled, RepositoryAccessCance
 /** The legacy review value is accepted only to redirect old navigation state to history. */
 export type MainNavTab = 'changes' | 'review' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests' | 'forge';
 
+/** 逐字段比较变更文件，替代 JSON.stringify 全量序列化（大仓库每 tick 数 MB 字符串分配）。 */
+export const isFileChangeEqual = (a: GitFileChange, b: GitFileChange): boolean =>
+  a.path === b.path && a.status === b.status && a.staged === b.staged
+  && (a.oldPath ?? '') === (b.oldPath ?? '')
+  && (a.insertions ?? -1) === (b.insertions ?? -1)
+  && (a.deletions ?? -1) === (b.deletions ?? -1);
+
+/** 结构等价比较 GitStatus；与逐字段 JSON.stringify 比较语义一致（解析器字段序稳定）。 */
+export const isStatusResultEqual = (a: GitStatusResult, b: GitStatusResult): boolean =>
+  a === b || (
+    a.headOid === b.headOid && a.currentBranch === b.currentBranch && a.trackingBranch === b.trackingBranch
+    && a.ahead === b.ahead && a.behind === b.behind && a.isClean === b.isClean
+    && a.staged.length === b.staged.length && a.unstaged.length === b.unstaged.length && a.untracked.length === b.untracked.length
+    && a.staged.every((file, index) => isFileChangeEqual(file, b.staged[index]))
+    && a.unstaged.every((file, index) => isFileChangeEqual(file, b.unstaged[index]))
+    && a.untracked.every((file, index) => isFileChangeEqual(file, b.untracked[index]))
+  );
+
 export interface RedoItem {
   branch: string;
   commitHash: string;
@@ -279,7 +297,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
     setSelectedFile: (selectedFile) => {
       const previous = get().selectedFile;
       if (previous?.path === selectedFile?.path && previous?.staged === selectedFile?.staged) {
-        if (JSON.stringify(previous) !== JSON.stringify(selectedFile)) set({ selectedFile });
+        if (previous && selectedFile && !isFileChangeEqual(previous, selectedFile)) set({ selectedFile });
         if (selectedFile && get().activeTab === 'changes') void get().loadFileDiff(selectedFile, undefined, true);
         return;
       }
@@ -398,7 +416,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         }
         const operationState = await gitService.getRepoOperationState(repo.path, status);
         if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
-        const statusChanged = JSON.stringify(status) !== JSON.stringify(get().status);
+        const statusChanged = !get().status || !isStatusResultEqual(status, get().status!);
         set(state => ({ ...(statusChanged ? { status } : {}), workingChangesRevision: state.workingChangesRevision + 1 }));
         if (JSON.stringify(operationState) !== JSON.stringify(get().operationState)) set({ operationState });
         const changes = [...status.staged, ...status.unstaged, ...status.untracked];
