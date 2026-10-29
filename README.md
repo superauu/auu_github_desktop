@@ -139,10 +139,11 @@ scripts/         发布版本校验
 
 ## 发布新版本
 
-1. 同步更新 `package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中的应用版本号。
-2. 运行测试、版本校验和前端构建。
-3. 配置 GitHub Actions Secrets：`TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，并保持私钥与应用内更新公钥匹配。
-4. 推送匹配应用版本号的 `v<版本>` 标签。Windows 发布工作流会构建、签名并上传安装包及更新清单到 GitHub Release；macOS 与 Linux 构建矩阵会把对应平台安装包挂载到同一个 Release（更新清单 `latest.json` 暂只覆盖 Windows）。
+1. 运行 `node scripts/bump-version.mjs <新版本>` 一次改齐 `package.json`、`package-lock.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 中的应用版本号，并自动复跑版本校验。
+2. 编写 `releases/v<新版本>.md` 发版说明（tag 构建会硬校验其存在且非空；缺失时 `check:release --require-notes` 也会提前拦截）。
+3. 运行测试、版本校验和前端构建。
+4. 配置 GitHub Actions Secrets：`TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，并保持私钥与应用内更新公钥匹配。
+5. 推送匹配应用版本号的 `v<版本>` 标签。Windows 发布工作流会构建、签名并上传安装包及更新清单到 GitHub Release；macOS 与 Linux 构建矩阵会把对应平台安装包挂载到同一个 Release，并把两平台的更新签名合并进 `latest.json`（三平台均收到自动更新）。
 
 手动触发构建会生成 Actions 构建产物；只有推送版本标签才会执行当前流程中的 Release 发布步骤。
 

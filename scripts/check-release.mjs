@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export function validateReleaseVersions({ appVersions, tauri, api, cli, runtime, runtimeWry, tag }) {
+export function validateReleaseVersions({ appVersions, tauri, api, cli, runtime, runtimeWry, tag, releaseNotes, requireNotes = false }) {
   const appVersion = appVersions['package.json'];
   for (const [source, version] of Object.entries(appVersions)) {
     if (!version || version !== appVersion) throw new Error(`App version mismatch: ${source}=${version}, package.json=${appVersion}`);
@@ -15,9 +15,14 @@ export function validateReleaseVersions({ appVersions, tauri, api, cli, runtime,
   for (const [name, version] of Object.entries({ api, cli, runtime, runtimeWry })) {
     if (minor(version) !== minor(tauri)) throw new Error(`Tauri version mismatch: ${name}=${version}, tauri=${tauri}; align major/minor versions`);
   }
+  // 发版说明防呆：tag 构建里 build-windows.yml 在文件缺失时会静默降级为一行默认文案，
+  // 这里在推送 tag 之前就拦截（CI 的 tag 构建与本检查是同一步，零新增成本）。
+  if ((tag || requireNotes) && !releaseNotes?.trim()) {
+    throw new Error(`Missing release notes: create releases/v${appVersion}.md with non-empty content before tagging`);
+  }
 }
 
-function checkRelease(root) {
+export function checkRelease(root, { requireNotes = false } = {}) {
   const json = (name) => JSON.parse(readFileSync(path.join(root, name), 'utf8'));
   const pkg = json('package.json');
   const lock = json('package-lock.json');
@@ -31,6 +36,9 @@ function checkRelease(root) {
     const locked = lock.packages[`node_modules/@tauri-apps/${name}`]?.version;
     if (version !== locked) throw new Error(`Installed @tauri-apps/${name}=${version} differs from lockfile=${locked}; run npm ci`);
   }
+  const tag = process.env.GITHUB_REF?.startsWith('refs/tags/') ? process.env.GITHUB_REF.slice('refs/tags/'.length) : undefined;
+  let releaseNotes = null;
+  try { releaseNotes = readFileSync(path.join(root, `releases/v${pkg.version}.md`), 'utf8'); } catch { /* 缺失即拦截，不在读取层报错 */ }
   validateReleaseVersions({
     appVersions: {
       'package.json': pkg.version,
@@ -43,12 +51,13 @@ function checkRelease(root) {
     tauri: crateVersion('tauri'), api, cli,
     runtime: crateVersion('tauri-runtime'),
     runtimeWry: crateVersion('tauri-runtime-wry'),
-    tag: process.env.GITHUB_REF?.startsWith('refs/tags/') ? process.env.GITHUB_REF.slice('refs/tags/'.length) : undefined,
+    tag, releaseNotes, requireNotes,
   });
   console.log(`Release versions verified: AuuGit ${pkg.version}, Tauri ${crateVersion('tauri')}, API ${api}, CLI ${cli}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { checkRelease(process.cwd()); }
+  const requireNotes = process.argv.includes('--require-notes');
+  try { checkRelease(process.cwd(), { requireNotes }); }
   catch (error) { console.error(error.message); process.exitCode = 1; }
 }
