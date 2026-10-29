@@ -864,6 +864,9 @@ export const zh = {
   'pr.noChecks': '未配置检查或正在检测',
   'pr.diffStats': '代码改动统计',
   'pr.filesCount': '文件',
+  'pr.author': '作者',
+  'pr.openedAt': '{date} 创建',
+  'pr.labels': '标签',
   'pr.body': 'Pull Request 说明正文',
   'pr.noBody': '该 Pull Request 未附带详细描述信息。',
 

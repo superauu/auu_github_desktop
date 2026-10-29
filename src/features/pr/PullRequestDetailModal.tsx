@@ -39,6 +39,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import { htmlToPlainText } from '@/utils/htmlText';
 
 interface PullRequestDetailModalProps {
   pr: GitHubPullRequest;
@@ -255,8 +256,8 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
               <div className="max-w-3xl space-y-4">
                 <div className="space-y-1.5">
                   <div className="text-xs font-semibold text-foreground uppercase tracking-wider">{t('pr.body')}</div>
-                  <div className="p-3 rounded-lg border border-border/70 bg-background/50 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                    {pr.body || t('pr.noBody')}
+                  <div className="p-3 rounded-lg border border-border/70 bg-background/50 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap wrap-break-word">
+                    {htmlToPlainText(pr.body) || t('pr.noBody')}
                   </div>
                 </div>
 
@@ -311,7 +312,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                           )}
                         </div>
                         {entry.body && (
-                          <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap wrap-break-word">{entry.body}</div>
+                          <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap wrap-break-word">{htmlToPlainText(entry.body)}</div>
                         )}
                       </div>
                     );

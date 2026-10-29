@@ -857,6 +857,9 @@ export const en = {
   'pr.noChecks': 'No checks configured or running',
   'pr.diffStats': 'Diff Stats',
   'pr.filesCount': 'files',
+  'pr.author': 'Author',
+  'pr.openedAt': 'opened {date}',
+  'pr.labels': 'Labels',
   'pr.body': 'Pull Request Description',
   'pr.noBody': 'This Pull Request has no description.',
 

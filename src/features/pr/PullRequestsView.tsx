@@ -36,6 +36,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
+import { htmlToPlainText } from '@/utils/htmlText';
 
 export const PullRequestsView: React.FC = () => {
   const { prListWidth, setPrListWidth } = useLayoutStore(useShallow(state => ({ prListWidth: state.prListWidth, setPrListWidth: state.setPrListWidth })));
@@ -480,9 +481,9 @@ export const PullRequestsView: React.FC = () => {
 
               {/* PR Content Details Body */}
               <ScrollArea className="flex-1 p-5">
-                <div className="max-w-3xl space-y-5">
+                <div className="space-y-5">
                   {/* Status & Review Summary Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                     <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1">
                       <div className="text-[11px] text-muted-foreground uppercase font-semibold">
                         {t('pr.reviewStatus')}
@@ -544,15 +545,45 @@ export const PullRequestsView: React.FC = () => {
                         <span className="text-muted-foreground">({activePR.changed_files || 0} {t('pr.filesCount')})</span>
                       </div>
                     </div>
+
+                    <div className="p-3 rounded-lg border border-border/60 bg-card/60 space-y-1">
+                      <div className="text-[11px] text-muted-foreground uppercase font-semibold">
+                        {t('pr.author')}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium min-w-0">
+                        <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate">{activePR.user.login}</span>
+                        <span className="text-muted-foreground/70 shrink-0" title={new Date(activePR.created_at).toLocaleString()}>
+                          {t('pr.openedAt').replace('{date}', new Date(activePR.created_at).toLocaleDateString())}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* PR Body / Markdown Description */}
+                  {/* Labels：语义色小徽章（GitHub label 原色） */}
+                  {activePR.labels.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap" data-pr-labels="true">
+                      <span className="text-[11px] text-muted-foreground uppercase font-semibold">{t('pr.labels')}</span>
+                      {activePR.labels.map(label => (
+                        <Badge
+                          key={label.id}
+                          variant="outline"
+                          className="h-4 text-[10px] px-1.5 border-transparent"
+                          style={{ backgroundColor: `#${label.color}26`, color: `#${label.color}`, borderColor: `#${label.color}59` }}
+                        >
+                          {label.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* PR Body：HTML（Dependabot 等 bot）安全转为可读纯文本 */}
                   <div className="space-y-2">
                     <div className="text-xs font-semibold text-foreground uppercase tracking-wider">
                       {t('pr.body')}
                     </div>
-                    <div className="p-4 rounded-lg border border-border/70 bg-background/50 font-sans text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                      {activePR.body || t('pr.noBody')}
+                    <div className="p-4 rounded-lg border border-border/70 bg-background/50 font-sans text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap wrap-break-word">
+                      {htmlToPlainText(activePR.body) || t('pr.noBody')}
                     </div>
                   </div>
                 </div>
