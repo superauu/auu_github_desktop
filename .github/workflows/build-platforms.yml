@@ -75,7 +75,13 @@ jobs:
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
           # dmg 安装包 + 更新器产物（.app.tar.gz 与签名）。
           find "$BUNDLE/dmg" -name '*.dmg' -exec cp {} output/ \; 2>/dev/null || true
-          find "$BUNDLE/macos" -name '*.app.tar.gz*' -exec cp {} output/ \; 2>/dev/null || true
+          # 更新器产物按目标三元组重命名：Tauri 的 mac 归档固定叫 AuuGit.app.tar.gz，
+          # 两个矩阵目标同名会让 attach 下载合并时互相覆盖、且 latest.json 无法按名识别平台。
+          find "$BUNDLE/macos" -name '*.app.tar.gz' | while read -r archive; do
+            base=$(basename "$archive" .app.tar.gz)
+            cp "$archive" "output/${base}_${{ matrix.target }}.app.tar.gz"
+            cp "$archive.sig" "output/${base}_${{ matrix.target }}.app.tar.gz.sig" 2>/dev/null || true
+          done
           ls -la output
           test "$(ls output | wc -l)" -gt 0
 
