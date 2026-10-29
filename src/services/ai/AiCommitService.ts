@@ -160,9 +160,9 @@ export class AiCommitService {
     repoPath: string,
     targetFiles: GitFileChange[]
   ): Promise<Array<{ path: string; status: string; diffText: string; addedSymbols: string[] }>> {
-    const results: Array<{ path: string; status: string; diffText: string; addedSymbols: string[] }> = [];
-
-    for (const file of targetFiles) {
+    // 并行取 diff：这是点击「AI 生成」的第一步，串行逐个 await 会把 8 个文件的
+    // diff 等待叠加（每个是一次独立 git 进程）；Promise.all 保序且单文件失败仍降级空条目。
+    const results = await Promise.all(targetFiles.map(async (file) => {
       try {
         const isUntracked = file.status === 'untracked';
         const isStaged = file.staged;
@@ -189,22 +189,22 @@ export class AiCommitService {
         }
 
         const diffSummary = addedLines.slice(0, 20).join('\n');
-        results.push({
+        return {
           path: file.path,
           status: file.status,
           diffText: diffSummary,
           addedSymbols,
-        });
+        };
       } catch {
         // 读取单个 diff 出错不阻断
-        results.push({
+        return {
           path: file.path,
           status: file.status,
           diffText: '',
           addedSymbols: [],
-        });
+        };
       }
-    }
+    }));
 
     return results;
   }
