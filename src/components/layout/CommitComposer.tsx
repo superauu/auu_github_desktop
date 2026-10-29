@@ -39,7 +39,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   onOpenAiSettings: () => void; draftState: ReturnType<typeof useComposerDraft>;
 }) {
   const { currentRepo, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status })));
-  const { aiConfig } = useSettingsStore();
+  const aiConfig = useSettingsStore(state => state.aiConfig);
   const { t } = useI18n();
   const { busy, setBusy, operation, scopeSignature, title, setTitle, body, setBody, amend, setAmend, amendCommit, setAmendCommit, origin, setOrigin } = draftState;
   const [generating, setGenerating] = useState(false);

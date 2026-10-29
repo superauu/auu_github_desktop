@@ -256,11 +256,11 @@ export const Header: React.FC<HeaderProps> = ({
   // 只订阅 commits 数组的长度布尔值，避免整个提交历史数组变化都触发 Header 重渲染
   const canUndo = useRepoStore(state => state.commits.length > 0);
 
-  const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore();
-  const { resolvedTheme, setTheme } = useThemeStore();
+  const { toggleEmbeddedTerminal, isEmbeddedTerminalOpen } = useLayoutStore(useShallow(state => ({ toggleEmbeddedTerminal: state.toggleEmbeddedTerminal, isEmbeddedTerminalOpen: state.isEmbeddedTerminalOpen })));
+  const { resolvedTheme, setTheme } = useThemeStore(useShallow(state => ({ resolvedTheme: state.resolvedTheme, setTheme: state.setTheme })));
   const {
     user, isAuthenticated, profiles, activeProfileId, switchProfile, addProfile,
-  } = useGitHubStore();
+  } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, switchProfile: state.switchProfile, addProfile: state.addProfile })));
   const { t } = useI18n();
   useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
   useEffect(() => {

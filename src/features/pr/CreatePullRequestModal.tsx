@@ -38,8 +38,8 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   onOpenChange,
 }) => {
   const { currentRepo, branches, commits, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, commits: state.commits, status: state.status })));
-  const { currentOwner, currentRepoName, loadPullRequests, selectPR } = useGitHubStore();
-  const { aiConfig } = useSettingsStore();
+  const { currentOwner, currentRepoName, loadPullRequests, selectPR } = useGitHubStore(useShallow(state => ({ currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, loadPullRequests: state.loadPullRequests, selectPR: state.selectPR })));
+  const aiConfig = useSettingsStore(state => state.aiConfig);
   const { t } = useI18n();
 
   const currentBranch =

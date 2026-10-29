@@ -80,10 +80,10 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     stashDrop,
   } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
 
-  const { pullRequests, selectPR } = useGitHubStore();
+  const { pullRequests, selectPR } = useGitHubStore(useShallow(state => ({ pullRequests: state.pullRequests, selectPR: state.selectPR })));
   const forgePulls = useForgeStore((state) => state.pulls);
   const { panels } = useWorkspaceLayout();
-  const { navigationPinned, setNavigationPinned } = useLayoutStore();
+  const { navigationPinned, setNavigationPinned } = useLayoutStore(useShallow(state => ({ navigationPinned: state.navigationPinned, setNavigationPinned: state.setNavigationPinned })));
 
   // Mode: List vs Agents (GitKraken style)
   const [sidebarMode, setSidebarMode] = useState<'list' | 'agents'>('list');

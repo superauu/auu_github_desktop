@@ -38,7 +38,7 @@ import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
 
 export const PullRequestsView: React.FC = () => {
-  const { prListWidth, setPrListWidth } = useLayoutStore();
+  const { prListWidth, setPrListWidth } = useLayoutStore(useShallow(state => ({ prListWidth: state.prListWidth, setPrListWidth: state.setPrListWidth })));
   const {
     pullRequests,
     selectedPR,

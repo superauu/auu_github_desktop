@@ -41,7 +41,7 @@ interface ActionsDashboardViewProps {
 export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
   onOpenAuthDialog,
 }) => {
-  const { actionsWorkflowsWidth, setActionsWorkflowsWidth } = useLayoutStore();
+  const { actionsWorkflowsWidth, setActionsWorkflowsWidth } = useLayoutStore(useShallow(state => ({ actionsWorkflowsWidth: state.actionsWorkflowsWidth, setActionsWorkflowsWidth: state.setActionsWorkflowsWidth })));
   const {
     workflows,
     selectedWorkflow,

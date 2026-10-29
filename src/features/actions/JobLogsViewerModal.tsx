@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
+import { useShallow } from 'zustand/react/shallow';
 
 // Simple lightweight ANSI parser for standard terminal color escapes
 function parseAnsi(text: string): React.ReactNode[] {
@@ -67,7 +68,7 @@ function parseAnsi(text: string): React.ReactNode[] {
 }
 
 export const JobLogsViewerModal: React.FC = () => {
-  const { isLogsModalOpen, activeJobLogs, closeJobLogs, openJobLogs } = useGitHubStore();
+  const { isLogsModalOpen, activeJobLogs, closeJobLogs, openJobLogs } = useGitHubStore(useShallow(state => ({ isLogsModalOpen: state.isLogsModalOpen, activeJobLogs: state.activeJobLogs, closeJobLogs: state.closeJobLogs, openJobLogs: state.openJobLogs })));
   const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCopied, setIsCopied] = useState(false);

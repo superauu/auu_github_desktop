@@ -272,9 +272,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onOpenChange,
   onOpenGitHubAuth,
 }) => {
-  const { theme, setTheme } = useThemeStore();
-  const { resetLayout, navigationPinned, setNavigationPinned, inspectorPresentation, setInspectorPresentation } = useLayoutStore();
-  const { user, isAuthenticated, profiles, activeProfileId, logout, switchProfile, removeProfile, addProfile } = useGitHubStore();
+  const { theme, setTheme } = useThemeStore(useShallow(state => ({ theme: state.theme, setTheme: state.setTheme })));
+  const { resetLayout, navigationPinned, setNavigationPinned, inspectorPresentation, setInspectorPresentation } = useLayoutStore(useShallow(state => ({ resetLayout: state.resetLayout, navigationPinned: state.navigationPinned, setNavigationPinned: state.setNavigationPinned, inspectorPresentation: state.inspectorPresentation, setInspectorPresentation: state.setInspectorPresentation })));
+  const { user, isAuthenticated, profiles, activeProfileId, logout, switchProfile, removeProfile, addProfile } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, logout: state.logout, switchProfile: state.switchProfile, removeProfile: state.removeProfile, addProfile: state.addProfile })));
   const {
     gitCliPath,
     setGitCliPath,
@@ -287,7 +287,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     aiConfig,
     credentialError,
     setAiConfig,
-  } = useSettingsStore();
+  } = useSettingsStore(useShallow(state => ({ gitCliPath: state.gitCliPath, setGitCliPath: state.setGitCliPath, compactMode: state.compactMode, setCompactMode: state.setCompactMode, autoFetchInterval: state.autoFetchInterval, setAutoFetchInterval: state.setAutoFetchInterval, reviewBeforeCommit: state.reviewBeforeCommit, setReviewBeforeCommit: state.setReviewBeforeCommit, aiConfig: state.aiConfig, credentialError: state.credentialError, setAiConfig: state.setAiConfig })));
   const { t, lang } = useI18n();
   const setLang = useSettingsStore((st) => st.setLanguage);
 

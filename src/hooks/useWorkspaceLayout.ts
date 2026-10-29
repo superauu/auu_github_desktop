@@ -12,7 +12,7 @@ const subscribe = (notify: () => void) => {
 /** Keep room for a file list, a readable diff, and the commit editor. */
 export function useWorkspaceLayout() {
   const width = useSyncExternalStore(subscribe, () => window.innerWidth);
-  const { leftSidebarWidth, rightPaneWidth, historyPaneWidth, changesFileListWidth, navigationPinned, inspectorPresentation } = useLayoutStore();
+  const { leftSidebarWidth, rightPaneWidth, historyPaneWidth, changesFileListWidth, navigationPinned, inspectorPresentation } = useLayoutStore(useShallow(state => ({ leftSidebarWidth: state.leftSidebarWidth, rightPaneWidth: state.rightPaneWidth, historyPaneWidth: state.historyPaneWidth, changesFileListWidth: state.changesFileListWidth, navigationPinned: state.navigationPinned, inspectorPresentation: state.inspectorPresentation })));
   const { activeTab, currentRepo, isLeftSidebarCollapsed, isRightPaneCollapsed } = useRepoStore(useShallow(state => ({ activeTab: state.activeTab, currentRepo: state.currentRepo, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed })));
   const navigationOverlay = !navigationPinned;
   const inspectorOverlay = inspectorPresentation === 'drawer' || (inspectorPresentation !== 'inline' && width < 1200);

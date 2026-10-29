@@ -53,7 +53,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     selectAndLocateBranch,
     currentRepo,
   } = useRepoStore(useShallow(state => ({ setActiveTab: state.setActiveTab, fetchRemote: state.fetchRemote, pull: state.pull, branches: state.branches, tags: state.tags, checkoutBranch: state.checkoutBranch, selectAndLocateBranch: state.selectAndLocateBranch, currentRepo: state.currentRepo })));
-  const { setTheme } = useThemeStore();
+  // 稳定 action 经 getState 取用，不订阅整店。
+  const setTheme = useThemeStore.getState().setTheme;
   const { t } = useI18n();
   const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
 

@@ -8,17 +8,14 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { AppTextContextMenu } from '@/components/ui/AppTextContextMenu';
 
 export const App: React.FC = () => {
-  const { initTheme } = useThemeStore();
-  const { initAuth } = useGitHubStore();
-
   useEffect(() => {
-    // Initialize theme system; the returned cleanup removes the matchMedia
-    // listener so StrictMode's double mount cannot leak it.
-    const disposeTheme = initTheme();
+    // 初始化只消费 store action（稳定引用），经 getState() 调用而不订阅整店：
+    // App 是根组件，订阅 githubStore 会让 CI watch 的每 15s commitChecks 写入全树重渲染。
+    const disposeTheme = useThemeStore.getState().initTheme();
     void useSettingsStore.getState().initSecrets();
 
     // Initialize GitHub auth state
-    initAuth();
+    void useGitHubStore.getState().initAuth();
 
     let cancelled = false;
     void restoreSavedRepository(() => cancelled);
@@ -26,7 +23,7 @@ export const App: React.FC = () => {
       cancelled = true;
       disposeTheme?.();
     };
-  }, [initTheme, initAuth]);
+  }, []);
 
   useEffect(() => {
     // System notifications (T4): only activates inside Tauri with granted permission.

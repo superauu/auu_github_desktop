@@ -27,7 +27,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
   onOpenGitHubAuth,
 }) => {
   const { currentRepo, activeTab } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab })));
-  const { isEmbeddedTerminalOpen, setEmbeddedTerminalOpen } = useLayoutStore();
+  const { isEmbeddedTerminalOpen, setEmbeddedTerminalOpen } = useLayoutStore(useShallow(state => ({ isEmbeddedTerminalOpen: state.isEmbeddedTerminalOpen, setEmbeddedTerminalOpen: state.setEmbeddedTerminalOpen })));
   const { t } = useI18n();
 
   if (!currentRepo) {

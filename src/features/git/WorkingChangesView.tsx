@@ -73,7 +73,8 @@ import { GitBlameLine, GitCommit, GitFileChange } from '@/services/git/types';
 const isDesktopRuntime = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 export const WorkingChangesView: React.FC = () => {
-  const { setChangesFileListWidth } = useLayoutStore();
+  // 只消费稳定 action：getState 取用，不订阅整店（布局 store 会在拖拽分栏时高频写入）。
+  const setChangesFileListWidth = useLayoutStore.getState().setChangesFileListWidth;
   const { panels } = useWorkspaceLayout();
   const diffFontSize = useSettingsStore(state => state.diffFontSize);
   const wrap = useSettingsStore(state => state.diffWrapLines);

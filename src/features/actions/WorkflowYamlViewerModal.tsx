@@ -5,9 +5,10 @@ import { useI18n } from '@/i18n';
 import { useGitHubStore } from '@/stores/githubStore';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/stores/toastStore';
+import { useShallow } from 'zustand/react/shallow';
 
 export const WorkflowYamlViewerModal: React.FC = () => {
-  const { isYamlModalOpen, activeWorkflowYaml, closeWorkflowYaml } = useGitHubStore();
+  const { isYamlModalOpen, activeWorkflowYaml, closeWorkflowYaml } = useGitHubStore(useShallow(state => ({ isYamlModalOpen: state.isYamlModalOpen, activeWorkflowYaml: state.activeWorkflowYaml, closeWorkflowYaml: state.closeWorkflowYaml })));
   const { t } = useI18n();
   const [isCopied, setIsCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

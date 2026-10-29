@@ -59,9 +59,9 @@ export const AppLayout: React.FC = () => {
     setHistoryPaneWidth,
     toggleEmbeddedTerminal,
     navigationPinned,
-  } = useLayoutStore();
+  } = useLayoutStore(useShallow(state => ({ setLeftSidebarWidth: state.setLeftSidebarWidth, setRightPaneWidth: state.setRightPaneWidth, setHistoryPaneWidth: state.setHistoryPaneWidth, toggleEmbeddedTerminal: state.toggleEmbeddedTerminal, navigationPinned: state.navigationPinned })));
   const { isLeftSidebarCollapsed, isRightPaneCollapsed, activeTab, toggleLeftSidebar, toggleRightPane, currentRepo, fetchRemote, pull, setActiveTab, checkExternalChanges } = useRepoStore(useShallow(state => ({ isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, activeTab: state.activeTab, toggleLeftSidebar: state.toggleLeftSidebar, toggleRightPane: state.toggleRightPane, currentRepo: state.currentRepo, fetchRemote: state.fetchRemote, pull: state.pull, setActiveTab: state.setActiveTab, checkExternalChanges: state.checkExternalChanges })));
-  const { compactMode, autoFetchInterval } = useSettingsStore();
+  const { compactMode, autoFetchInterval } = useSettingsStore(useShallow(state => ({ compactMode: state.compactMode, autoFetchInterval: state.autoFetchInterval })));
   const { t } = useI18n();
 
   useEffect(() => { setNavigationOpen(false); }, [activeTab, currentRepo?.path]);
