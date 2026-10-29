@@ -66,6 +66,31 @@ import { cn } from '@/utils/cn';
 import type { WindowChrome } from '@/hooks/useWindowChrome';
 import { WindowControls } from './WindowControls';
 
+/**
+ * 打开对话框的图标按钮专用 tooltip：悬停显示，移出/按下即收起。
+ * Radix 默认在对话框关闭、焦点归还触发器时因 focus 重新打开 tooltip，
+ * 且焦点一直停留在按钮上导致 tip 永不自消失（设置齿轮的经典症状）。
+ * 这里完全手动控制 open，忽略 focus 驱动的打开；键盘用户由 aria-label 承担语义。
+ */
+const DialogActionTip: React.FC<{ tip: string; children: React.ReactNode }> = ({ tip, children }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Tooltip open={open} onOpenChange={() => {}}>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex"
+          onPointerEnter={() => setOpen(true)}
+          onPointerLeave={() => setOpen(false)}
+          onPointerDown={() => setOpen(false)}
+        >
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{tip}</TooltipContent>
+    </Tooltip>
+  );
+};
+
 interface HeaderProps {
   windowChrome: WindowChrome;
   navigationOverlay: boolean;
@@ -154,7 +179,7 @@ const RepoMenuRow: React.FC<RepoMenuRowProps> = ({
           title={t('workspaces.assignTitle')}
           aria-label={`${t('workspaces.assignTitle')}: ${repo.name}`}
           aria-expanded={assignOpen}
-          className="shrink-0 h-6 max-w-[96px] px-1.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 transition-colors"
+          className="shrink-0 h-6 max-w-[96px] px-1.5 rounded-md text-[12px] text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1 transition-colors"
         >
           <FolderInput className="h-3 w-3 shrink-0" />
           <span className="truncate">{groupName || t('workspaces.ungrouped')}</span>
@@ -542,7 +567,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="truncate max-w-[160px] text-[12px]">{repo.name}</span>
                     {repo.currentBranch && (
                       <span className={cn(
-                        "glass-tab-branch text-[11px] leading-4 font-mono px-1.5 rounded hidden sm:inline-block truncate max-w-[80px]",
+                        "glass-tab-branch text-[12px] leading-4 px-1.5 rounded hidden sm:inline-block truncate max-w-[80px]",
                         isActive ? "text-primary font-medium" : "text-muted-foreground"
                       )}>
                         {repo.currentBranch}
@@ -652,38 +677,32 @@ export const Header: React.FC<HeaderProps> = ({
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
             ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={onOpenGitHubAuth}
-                    aria-label={t('header.signGithubTooltip')}
-                    className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
-                  >
-                    <Github className="h-3 w-3 text-foreground" />
-                    <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
-                      {t('header.login')}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{t('header.signGithubTooltip')}</TooltipContent>
-              </Tooltip>
+              <DialogActionTip tip={t('header.signGithubTooltip')}>
+                <button
+                  onClick={onOpenGitHubAuth}
+                  aria-label={t('header.signGithubTooltip')}
+                  className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
+                >
+                  <Github className="h-3 w-3 text-foreground" />
+                  <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
+                    {t('header.login')}
+                  </span>
+                </button>
+              </DialogActionTip>
             )}
 
             {/* Settings Dialog */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                  onClick={onOpenSettings}
-                  aria-label={t('header.openSettingsTooltip')}
-                >
-                  <SettingsIcon className="h-3 w-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t('header.openSettingsTooltip')}</TooltipContent>
-            </Tooltip>
+            <DialogActionTip tip={t('header.openSettingsTooltip')}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={onOpenSettings}
+                aria-label={t('header.openSettingsTooltip')}
+              >
+                <SettingsIcon className="h-3 w-3" />
+              </Button>
+            </DialogActionTip>
           </div>
           <WindowControls chrome={windowChrome} />
         </div>
@@ -712,7 +731,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Quick Switcher: repository: auu_saas > branch: main */}
             {/* 注意：这里必须用 overflow-x-clip 而非 overflow-hidden——hidden 会把该元素在两个轴上都变成裁切容器，
                 垂直方向会裁掉其内部触发的非 portal 浮层；clip 只在水平轴上防重叠，垂直轴保持可见。 */}
-            <div className="flex items-center gap-1.5 min-w-0 overflow-x-clip">
+            <div className="repository-breadcrumb flex items-center gap-1.5 min-w-0 overflow-x-clip">
               {/* Repository Selector Dropdown */}
               <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); else closeRepoMenuExtras(); }}>
                 <Popover.Trigger asChild>
@@ -841,7 +860,7 @@ export const Header: React.FC<HeaderProps> = ({
                               </div>
                               <div className="space-y-0.5">
                                 {section.repos.length === 0 && (
-                                  <div className="px-2 py-0.5 text-[11px] text-muted-foreground/60 italic">
+                                  <div className="px-2 py-0.5 text-[12px] text-muted-foreground/60 italic">
                                     {t('workspaces.groupEmpty')}
                                   </div>
                                 )}
@@ -902,7 +921,7 @@ export const Header: React.FC<HeaderProps> = ({
                           </button>
                         </div>
                         {groups.length === 0 && (
-                          <div className="px-1 text-[11px] text-muted-foreground/70 italic">{t('workspaces.empty')}</div>
+                          <div className="px-1 text-[12px] text-muted-foreground/70 italic">{t('workspaces.empty')}</div>
                         )}
                         {groups.map((group) => editingGroupId === group.id ? (
                           <div key={group.id} className="flex items-center gap-1">
@@ -938,7 +957,7 @@ export const Header: React.FC<HeaderProps> = ({
                           <div key={group.id} className="flex items-center justify-between gap-1 rounded-md px-1.5 py-1 hover:bg-accent/60">
                             {confirmDeleteId === group.id ? (
                               <>
-                                <span className="min-w-0 flex-1 truncate text-[11px] text-destructive">{t('workspaces.deleteConfirm')}</span>
+                                <span className="min-w-0 flex-1 truncate text-[12px] text-destructive">{t('workspaces.deleteConfirm')}</span>
                                 <button
                                   onClick={() => handleDeleteGroup(group.id)}
                                   title={t('workspaces.deleteConfirmTitle')}
@@ -959,7 +978,7 @@ export const Header: React.FC<HeaderProps> = ({
                             ) : (
                               <>
                                 <span className="min-w-0 flex-1 truncate text-xs text-foreground" title={group.name}>{group.name}</span>
-                                <span className="text-[11px] text-muted-foreground font-mono shrink-0">{group.repoPaths.length}</span>
+                                <span className="text-[12px] text-muted-foreground font-mono shrink-0">{group.repoPaths.length}</span>
                                 <button
                                   onClick={() => { setEditingGroupId(group.id); setEditingName(group.name); setConfirmDeleteId(null); }}
                                   title={t('workspaces.rename')}
@@ -998,7 +1017,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="text-[10px] leading-none tracking-[0.08em] text-muted-foreground">{t('header.branch')}</span>
                   <span className="flex items-center gap-1 leading-none">
                     <GitBranchIcon className="h-3 w-3 text-git-branch shrink-0" />
-                    <span className="max-w-[100px] xl:max-w-[140px] truncate text-xs font-semibold font-mono text-foreground">{currentBranchName}</span>
+                    <span className="max-w-[100px] xl:max-w-[140px] truncate text-xs font-semibold text-foreground">{currentBranchName}</span>
                     <ChevronDown className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-transform shrink-0" />
                   </span>
                 </button></Popover.Trigger>
@@ -1103,7 +1122,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {currentRepo && <div className="flex items-center gap-1 ml-auto shrink-0">
+          {currentRepo && <div className="git-toolbar-actions flex items-center gap-1 ml-auto shrink-0">
             {/* 动词按钮组：GitKraken 式「微标签在上、图标在下」，无边框，hover 才出现底色 */}
             <button onClick={handleFetch} disabled={remoteBusy !== null} title={t('header.fetchAll')}
               className="h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40 disabled:pointer-events-none">
@@ -1145,13 +1164,24 @@ export const Header: React.FC<HeaderProps> = ({
             <button onClick={() => void handleUndo()} disabled={isUndoing || !canUndo} title={t('header.undo')}
               className="h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-35 disabled:pointer-events-none">
               {isUndoing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-              <span className="text-[10px] leading-none font-medium">{t('header.undo')}</span>
+              <span className="text-[10px] leading-none font-medium">{t('header.undoShort')}</span>
             </button>
             <button onClick={() => void handleRedo()} disabled={isRedoing || !canRedo} title={t('header.redo')}
               className="h-10 min-w-[52px] px-2.5 flex flex-col items-center justify-center gap-[3px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-35 disabled:pointer-events-none">
               {isRedoing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-              <span className="text-[10px] leading-none font-medium">{t('header.redo')}</span>
+              <span className="text-[10px] leading-none font-medium">{t('header.redoShort')}</span>
             </button>
+            <div className="hidden xl:flex items-center gap-1 border-l border-border pl-1">
+              <button onClick={() => setCreateBranchModalOpen(true)} title={t('header.branchAction')} className="h-10 min-w-[48px] px-2 flex flex-col items-center justify-center gap-[3px] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors">
+                <GitBranchIcon className="h-4 w-4" /><span className="text-[12px] leading-none">{t('header.branch')}</span>
+              </button>
+              <button onClick={() => void handleQuickStash()} disabled={isStashing || !hasChanges} title={t('header.stash')} className="h-10 min-w-[48px] px-2 flex flex-col items-center justify-center gap-[3px] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-35 disabled:pointer-events-none">
+                <Archive className="h-4 w-4" /><span className="text-[12px] leading-none">{t('header.stash')}</span>
+              </button>
+              <button onClick={() => void handleOpenTerminal()} title={t('header.terminal')} className="h-10 min-w-[48px] px-2 flex flex-col items-center justify-center gap-[3px] text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors">
+                <Terminal className="h-4 w-4" /><span className="text-[12px] leading-none">{t('header.terminalShort')}</span>
+              </button>
+            </div>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" aria-label={t('composer.moreActions')}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={8} className="z-50 w-64 rounded-lg border border-border bg-popover text-popover-foreground p-1 shadow-xl max-h-[80vh] overflow-y-auto">

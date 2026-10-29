@@ -4,6 +4,8 @@ import { identiconSpec } from '@/utils/identicon';
 
 interface GitGraphRendererProps {
   onWidthChange?: (width: number) => void;
+  /** 提交 hash → 泳道序号，供行内连接线沿用节点泳道色（徽标→线→节点同色） */
+  onLanesChange?: (lanes: Record<string, number>) => void;
   commits: GitCommit[];
   selectedIndex: number;
   rowHeight?: number;
@@ -13,18 +15,19 @@ interface GitGraphRendererProps {
   isWipSelected?: boolean;
 }
 
-const LANE_WIDTH = 16;
-const LANE_OFFSET = 32; // Centered in the 64px GRAPH column
-const ROW_HEIGHT = 34; // Matches commit item row height (34px)
+// 泳道几何对齐 GitKraken 参考图：间距 32px、列宽贴合泳道（右侧留 45px 左右呼吸位）
+const LANE_WIDTH = 32;
+const LANE_OFFSET = 28;
+const GRAPH_RIGHT_PAD = 56;
+export const COMMIT_GRAPH_MIN_WIDTH = LANE_OFFSET + GRAPH_RIGHT_PAD;
+export const COMMIT_ROW_HEIGHT = 30;
 
 const LANE_COLORS = [
-  'hsl(var(--git-renamed))', // Sky Blue (Primary)
-  'hsl(var(--git-added))', // Emerald
-  'hsl(var(--git-tag))', // Amber
-  'hsl(var(--git-branch))', // Indigo / Cobalt
-  'hsl(var(--git-commit))', // Cyan
-  'hsl(var(--git-untracked))', // Teal
-  'hsl(var(--git-branch))', // Slate Blue
+  'hsl(var(--graph-lane-1))',
+  'hsl(var(--graph-lane-2))',
+  'hsl(var(--graph-lane-3))',
+  'hsl(var(--graph-lane-4))',
+  'hsl(var(--graph-lane-5))',
 ];
 
 interface GraphNode {
@@ -49,12 +52,13 @@ interface GraphPath {
 export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
   commits,
   selectedIndex,
-  rowHeight = ROW_HEIGHT,
+  rowHeight = COMMIT_ROW_HEIGHT,
   hasWipNode = false,
   visibleStart = 0,
   visibleEnd = commits.length,
   isWipSelected = false,
   onWidthChange,
+  onLanesChange,
 }) => {
   const { nodes, paths, maxLane } = useMemo(() => {
     if (!commits || (commits.length === 0 && !hasWipNode)) {
@@ -72,9 +76,8 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
     const calculatedPaths: GraphPath[] = [];
     let calculatedMaxLane = 0;
 
-    // Add WIP node if requested
+    // Add WIP node if requested（先按 lane 0 占位，循环结束后对齐到 HEAD 所在泳道）
     if (hasWipNode) {
-      laneOccupiedUntil.push(1);
       calculatedNodes.push({
         isWip: true,
         index: 0,
@@ -147,13 +150,16 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       });
     }
 
-    // Connect WIP node to HEAD node
+    // Connect WIP node to HEAD node：WIP 对齐到 HEAD 泳道后垂直下连，
+    // 不再斜穿其他节点（GitKraken 的 WIP 就在 HEAD 正上方）。
     if (hasWipNode && calculatedNodes.length > 1) {
       const wipNode = calculatedNodes[0];
       const headNode = calculatedNodes.find((node) => node.commit?.refs?.some((ref) => ref === 'HEAD' || ref.startsWith('HEAD -> '))) || calculatedNodes[1];
+      wipNode.lane = headNode.lane;
+      wipNode.x = headNode.x;
       calculatedPaths.push({
         id: 'wip-to-head',
-        d: `M ${wipNode.x} ${wipNode.y} L ${headNode.x} ${headNode.y}`,
+        d: `M ${wipNode.x} ${wipNode.y} L ${wipNode.x} ${headNode.y}`,
         color: 'hsl(var(--git-renamed))',
         isDashed: true,
       });
@@ -173,12 +179,24 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
           const x2 = parentNode.x;
           const y2 = parentNode.y;
 
+          // GitKraken 式走法：同泳道直接垂直；换道在子节点下方一行内完成肘弯，
+          // 随后沿目标泳道垂直直下——不再画跨越多行的长斜线（长斜线会横穿其它泳道成一团）。
           let d: string;
           if (x1 === x2) {
             d = `M ${x1} ${y1} L ${x2} ${y2}`;
           } else {
-            const midY = (y1 + y2) / 2;
-            d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+            const elbowY = Math.min(y1 + rowHeight, y2);
+            const elbowMid = (y1 + elbowY) / 2;
+            d = `M ${x1} ${y1} C ${x1} ${elbowMid}, ${x2} ${elbowMid}, ${x2} ${elbowY}`;
+            if (elbowY < y2) {
+              // 肘弯之后的下行沿用父节点泳道色（与目标泳道/父节点同色，且该纵向区间为该分支独占）
+              calculatedPaths.push({
+                id: `${commits[i].hash}-${parentHash}-lane`,
+                d: `M ${x2} ${elbowY} L ${x2} ${y2}`,
+                color: parentNode.color,
+                fromRow: node.index, toRow: parentNode.index,
+              });
+            }
           }
 
           calculatedPaths.push({
@@ -198,8 +216,16 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
     };
   }, [commits, rowHeight, hasWipNode]);
 
-  const svgWidth = Math.max((maxLane + 1) * LANE_WIDTH + 32, 64);
+  // 列宽贴合实际泳道数，不再为少量泳道保留固定空槽（消息列紧跟图形列，参考 GitKraken 比例）
+  const svgWidth = Math.max(LANE_OFFSET + maxLane * LANE_WIDTH + GRAPH_RIGHT_PAD, COMMIT_GRAPH_MIN_WIDTH);
   useEffect(() => { onWidthChange?.(svgWidth); }, [onWidthChange, svgWidth]);
+  // 把每个提交的泳道序号报给行列表，行内连接线（徽标→图形列）沿用同一泳道色，接缝不再变色
+  useEffect(() => {
+    if (!onLanesChange) return;
+    const lanes: Record<string, number> = {};
+    for (const node of nodes) if (node.commit) lanes[node.commit.hash] = node.lane;
+    onLanesChange(lanes);
+  }, [nodes, onLanesChange]);
   const totalHeight = (commits.length + (hasWipNode ? 1 : 0)) * rowHeight;
 
   return (
@@ -209,7 +235,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       className="shrink-0 pointer-events-none select-none overflow-visible"
     >
       {/* Bezier branch connection lines */}
-      <g strokeWidth="2.5" fill="none" strokeLinecap="round">
+      <g strokeWidth="2" fill="none" strokeLinecap="round">
         {paths.filter((path) => path.fromRow === undefined || (Math.min(path.fromRow, path.toRow!) <= visibleEnd + 1 && Math.max(path.fromRow, path.toRow!) >= visibleStart)).map((path) => (
           <path
             key={path.id}
@@ -230,24 +256,24 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
                 <circle
                   cx={node.x}
                   cy={node.y}
-                  r="9"
+                  r="11.5"
                   fill="none"
                   stroke="hsl(var(--git-renamed))"
                   strokeOpacity="0.9"
                   strokeWidth="1.5"
                 />
               )}
-              {/* WIP dashed disc：虚线圆环 + 实芯，行高缩小后仍保持可辨识 */}
+              {/* WIP keeps the same visual scale as the enlarged author nodes. */}
               <circle
                 cx={node.x}
                 cy={node.y}
-                r="6.5"
+                r="9"
                 fill="hsl(var(--background))"
                 stroke="hsl(var(--git-renamed))"
                 strokeWidth="2"
                 strokeDasharray="2.5 2"
               />
-              <circle cx={node.x} cy={node.y} r="2.5" fill="hsl(var(--git-renamed))" />
+              <circle cx={node.x} cy={node.y} r="3" fill="hsl(var(--git-renamed))" />
             </g>
           );
         }
@@ -256,16 +282,18 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
         const commit = node.commit;
         if (!commit) return null;
         const isHead = commit.refs?.some((r) => r.includes('HEAD'));
-        const avatarR = isHead || isSelected ? 7 : 6;
+        const avatarR = isHead || isSelected ? 11 : 10;
         const spec = identiconSpec(commit.author.email || commit.author.name);
         const cell = (avatarR * 2) / 5;
         const clipId = `idc-${commit.shortHash}`;
 
         return (
           <g key={commit.hash}>
+            {commit.refs?.length ? <line className="history-ref-link-left" x1={-8} y1={node.y} x2={node.x - avatarR} y2={node.y} stroke={node.color} strokeOpacity="0.65" strokeWidth="2" /> : null}
             {/* HEAD 同色肘线：从节点连到图列右缘（分支徽标的起点），建立「徽标→线→节点」视觉通路 */}
             {isHead && (
               <line
+                className="history-ref-link-right"
                 x1={node.x + avatarR}
                 y1={node.y}
                 x2={svgWidth - 2}
@@ -308,7 +336,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
                 />
               ) : null)}
             </g>
-            <circle cx={node.x} cy={node.y} r={avatarR} fill="none" stroke={node.color} strokeWidth="1.5" />
+            <circle cx={node.x} cy={node.y} r={avatarR} fill="none" stroke={node.color} strokeWidth="2" />
           </g>
         );
       })}

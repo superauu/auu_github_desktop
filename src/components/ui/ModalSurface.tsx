@@ -9,11 +9,11 @@ interface ModalSurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /** Preserve each dialog's layout while sharing focus trapping, Escape and focus restoration. */
-export function ModalSurface({ onDismiss, dismissible = true, label = 'Dialog', children, ...props }: ModalSurfaceProps) {
+export function ModalSurface({ onDismiss, dismissible = true, label = 'Dialog', children, className, ...props }: ModalSurfaceProps) {
   const previousFocus = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null);
   return <Dialog.Root open onOpenChange={(open) => { if (!open && dismissible) onDismiss(); }}>
     <Dialog.Portal>
-      <Dialog.Overlay {...props} onClick={(event) => {
+      <Dialog.Overlay {...props} className={`${className || ''} app-modal-overlay`} onClick={(event) => {
         if (event.target === event.currentTarget && dismissible) onDismiss();
       }}>
         <Dialog.Content asChild aria-describedby={undefined}

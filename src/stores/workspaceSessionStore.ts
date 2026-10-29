@@ -3,11 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface ComposerDraft { title: string; body: string }
 export interface HistoryViewState {
-  query: string; scrollTop: number; metadataWidth: number;
+  query: string; scrollTop: number;
   columns: { author: boolean; date: boolean; hash: boolean };
 }
 export const EMPTY_DRAFT: ComposerDraft = { title: '', body: '' };
-export const DEFAULT_HISTORY_VIEW: HistoryViewState = { query: '', scrollTop: 0, metadataWidth: 176, columns: { author: true, date: true, hash: false } };
+export const DEFAULT_HISTORY_VIEW: HistoryViewState = { query: '', scrollTop: 0, columns: { author: true, date: true, hash: false } };
 export const draftKey = (repoPath?: string, branch?: string) => JSON.stringify([repoPath || '', branch || '']);
 
 /** historyViews 按仓库路径保存的容量上限（LRU：写入即 touch，保留最近使用的 N 个仓库） */

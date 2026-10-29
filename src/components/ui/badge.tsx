@@ -23,7 +23,7 @@ function Badge({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-[12px] leading-none min-h-[18px] font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 select-none",
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[12px] leading-none min-h-[18px] font-medium tabular-nums transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 select-none",
         variantClasses[variant],
         className
       )}

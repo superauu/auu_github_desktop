@@ -1,3 +1,4 @@
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { FileAttributionContent } from './FileAttributionContent';
 import { WorkingDiffContent } from './WorkingDiffContent';
 import { useWorkingReview } from '@/features/review/useWorkingReview';
@@ -28,12 +29,15 @@ import React, { useState, useMemo, useEffect, useRef, useId } from 'react';
 import { DiffTools } from '@/components/ui/DiffTools';
 import { useGitActivity } from '@/hooks/useGitActivity';
 import {
+  MoreHorizontal,
   CheckSquare,
   Square,
   RotateCcw,
   Plus,
   Minus,
   Check,
+  CheckCircle2,
+  Clock3,
   FileCode,
   Copy,
   Archive,
@@ -584,6 +588,15 @@ export const WorkingChangesView: React.FC = () => {
     setActiveTab('history');
   };
 
+  const quickStash = async () => {
+    try {
+      await stashPush(t('changes.quickStashMsg'));
+      toast.success(t('changes.stashSuccess'), t('changes.stashSuccessDesc'));
+    } catch (err: any) {
+      toast.error(t('changes.stashFailed'), err.message);
+    }
+  };
+
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-transparent">
       {/* Top Conflict In-Progress Banner */}
@@ -597,37 +610,45 @@ export const WorkingChangesView: React.FC = () => {
           style={{ width: panels.files }}
           className="glass-file-list border-r border-border flex flex-col shrink-0 h-full overflow-hidden"
         >
-          <div className="h-9 px-3 border-b border-border flex items-center justify-between font-medium text-xs text-foreground bg-accent/20 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap">{t('rightPane.changes')} ({totalChanges})</span>
+          <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
+          <div className="min-w-0">
+            <span className="ui-panel-title block truncate" title={`${t('rightPane.changes')} (${totalChanges})`}>{t('rightPane.changes')} ({totalChanges})</span>
           </div>
 
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="xs" title={t('ignore.manage')} onClick={() => setIgnorePaths([])}>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {panels.files < 240 ? (
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild><Button variant="ghost" size="xs" className="size-6 p-0" aria-label={t('changes.moreActions')} title={t('changes.moreActions')}><MoreHorizontal className="size-3.5" /></Button></DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-48 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg">
+                    <DropdownMenu.Group>
+                      <DropdownMenu.Item className="menu-item" onSelect={() => window.setTimeout(() => setIgnorePaths([]), 30)}><Shield className="size-3.5" />{t('ignore.manage')}</DropdownMenu.Item>
+                      <DropdownMenu.Item className="menu-item" onSelect={() => window.setTimeout(() => setRepoToolsOpen(true), 30)}><Boxes className="size-3.5" />{t('repoTools.open')}</DropdownMenu.Item>
+                      {totalChanges > 0 && <DropdownMenu.Item className="menu-item" onSelect={() => void quickStash()}><Archive className="size-3.5" />{t('changes.stash')}</DropdownMenu.Item>}
+                    </DropdownMenu.Group>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+            ) : <>
+            <Button variant="ghost" size="xs" className="size-6 p-0" title={t('ignore.manage')} onClick={() => setIgnorePaths([])}>
               <Shield className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="xs" title={t('repoTools.open')} onClick={() => setRepoToolsOpen(true)}>
+            <Button variant="ghost" size="xs" className="size-6 p-0" title={t('repoTools.open')} onClick={() => setRepoToolsOpen(true)}>
               <Boxes className="h-3.5 w-3.5" />
             </Button>
             {totalChanges > 0 && (
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={async () => {
-                  try {
-                    await stashPush(t('changes.quickStashMsg'));
-                    toast.success(t('changes.stashSuccess'), t('changes.stashSuccessDesc'));
-                  } catch (err: any) {
-                    toast.error(t('changes.stashFailed'), err.message);
-                  }
-                }}
-                className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-primary gap-1"
+                onClick={() => void quickStash()}
+                className={cn("h-6 px-1.5 text-muted-foreground hover:text-primary gap-1", panels.files < 360 && "size-6 p-0")}
                 title={t('changes.quickStashTitle')}
               >
                 <Archive className="h-3 w-3" />
-                <span>{t('changes.stash')}</span>
+                <span className={panels.files < 360 ? "sr-only" : undefined}>{t('changes.stash')}</span>
               </Button>
             )}
+            </>}
             {unstagedFiles.length > 0 || untrackedFiles.length > 0 ? (
               <Button
                 variant="ghost"
@@ -636,9 +657,11 @@ export const WorkingChangesView: React.FC = () => {
                 onClick={() => {
                   runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleFiles.filter(file => !file.staged), false) : stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                 }}
-                className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                className={cn("h-6 px-1.5 text-muted-foreground hover:text-foreground", panels.files < 360 && "size-6 p-0")}
+                title={t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAll')}
               >
-                {t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAll')}
+                {panels.files < 360 && <Plus aria-hidden="true" className="size-3" />}
+                <span className={panels.files < 360 ? "sr-only" : undefined}>{t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAll')}</span>
               </Button>
             ) : stagedFiles.length > 0 ? (
               <Button
@@ -648,20 +671,28 @@ export const WorkingChangesView: React.FC = () => {
                 onClick={() => {
                   runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleStaged, true) : unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                 }}
-                className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                className={cn("h-6 px-1.5 text-muted-foreground hover:text-foreground", panels.files < 360 && "size-6 p-0")}
+                title={t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAllSection')}
               >
-                {t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAllSection')}
+                {panels.files < 360 && <Minus aria-hidden="true" className="size-3" />}
+                <span className={panels.files < 360 ? "sr-only" : undefined}>{t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAllSection')}</span>
               </Button>
             ) : null}
           </div>
         </div>
 
-        {totalChanges > 0 && <div aria-label={t('workingReview.listProgress')} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 border-b border-border text-[12px]">
-          <span className="text-emerald-700 dark:text-emerald-400">{t('workingReview.approved')} {fileReviews.approved}</span>
-          <span className="text-amber-700 dark:text-amber-400">{t('workingReview.pending')} {fileReviews.pending}</span>
-          {!!fileReviews.checking && <span className="text-muted-foreground">{t('workingReview.listChecking')} {fileReviews.checking}</span>}
-          <Button data-testid="working-review-approve-all" size="xs" variant="ghost" className="ml-auto min-w-[112px]" title={t(fileListFiltered ? 'workingReview.approveVisibleHint' : 'workingReview.approveAllHint')} aria-busy={reviewAllBusy} disabled={!currentRepo || !status || reviewAllBusy || batchBusy || !!pendingWrites || !visibleFiles.some(file => fileReviews.stateFor(file).kind !== 'approved')} onClick={() => void approveAll()}>
-            {reviewAllBusy ? <Loader2 aria-hidden="true" className="size-3 animate-spin" /> : <Check aria-hidden="true" className="size-3" />}{t(reviewAllBusy ? 'workingReview.approveAllBusy' : fileListFiltered ? 'workingReview.approveVisible' : 'workingReview.approveAll')}
+        {totalChanges > 0 && <div aria-label={t('workingReview.listProgress')} className="working-review-summary flex shrink-0 items-center gap-2 min-h-9 px-2 py-1 border-b border-border text-[12px]">
+          <div className="flex flex-1 min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap tabular-nums">
+            <span title={`${t('workingReview.approved')} ${fileReviews.approved}`} className="flex shrink-0 items-center gap-1 text-emerald-700 dark:text-emerald-400">
+              {panels.files < 240 && <CheckCircle2 aria-hidden="true" className="size-3 shrink-0" />}<span className={panels.files < 240 ? 'sr-only' : undefined}>{t('workingReview.approved')}</span>{fileReviews.approved}
+            </span>
+            <span title={`${t('workingReview.pending')} ${fileReviews.pending}`} className="flex shrink-0 items-center gap-1 text-amber-700 dark:text-amber-400">
+              {panels.files < 240 && <Clock3 aria-hidden="true" className="size-3 shrink-0" />}<span className={panels.files < 240 ? 'sr-only' : undefined}>{t('workingReview.pending')}</span>{fileReviews.pending}
+            </span>
+            {!!fileReviews.checking && <span title={`${t('workingReview.listChecking')} ${fileReviews.checking}`} className="flex shrink-0 items-center gap-1 text-muted-foreground"><Loader2 aria-hidden="true" className="size-3 shrink-0 animate-spin" /><span className="sr-only">{t('workingReview.listChecking')}</span>{fileReviews.checking}</span>}
+          </div>
+          <Button data-testid="working-review-approve-all" size="xs" variant="ghost" className={cn('shrink-0', panels.files < 360 && 'size-7 p-0')} title={t(fileListFiltered ? 'workingReview.approveVisibleHint' : 'workingReview.approveAllHint')} aria-label={t(reviewAllBusy ? 'workingReview.approveAllBusy' : fileListFiltered ? 'workingReview.approveVisible' : 'workingReview.approveAll')} aria-busy={reviewAllBusy} disabled={!currentRepo || !status || reviewAllBusy || batchBusy || !!pendingWrites || !visibleFiles.some(file => fileReviews.stateFor(file).kind !== 'approved')} onClick={() => void approveAll()}>
+            {reviewAllBusy ? <Loader2 aria-hidden="true" className="size-3 animate-spin" /> : <Check aria-hidden="true" className="size-3" />}<span className={panels.files < 360 ? 'sr-only' : undefined}>{t(reviewAllBusy ? 'workingReview.approveAllBusy' : fileListFiltered ? 'workingReview.approveVisible' : 'workingReview.approveAll')}</span>
           </Button>
         </div>}
         {totalChanges > 0 && <div className="flex flex-col gap-2 px-2 py-2 border-b border-border text-xs">
@@ -673,7 +704,7 @@ export const WorkingChangesView: React.FC = () => {
         </div>}
         {reviewAllBusy && <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs border-b border-border"><span role="progressbar" aria-label={t('workingReview.batchProgress')} aria-valuemin={0} aria-valuemax={reviewProgress.total} aria-valuenow={reviewProgress.completed}>{reviewProgress.completed}/{reviewProgress.total}</span><Button size="xs" variant="ghost" disabled={reviewCancelling} onClick={() => { setReviewCancelling(true); reviewAllAbort.current?.abort(); }}>{t(reviewCancelling ? 'workingReview.cancelling' : 'common.cancel')}</Button></div>}
         {!reviewAllBusy && retryReviewFiles.length > 0 && <Button size="xs" variant="ghost" disabled={batchBusy || listBusy || !!pendingWrites} onClick={() => void approveAll(retryReviewFiles)}>{t('workingReview.retryFiles').replace('{n}', String(retryReviewFiles.length))}</Button>}
-        {totalChanges > 0 && <div className="px-2 py-1 border-b border-border"><Button variant="ghost" size="xs" className="w-full justify-start gap-2" onClick={() => setSplitOpen(true)}><Split className="w-3.5 h-3.5" />{t('flow.splitCommits')}</Button></div>}
+        {totalChanges > 0 && <div className="px-2 py-1 border-b border-border"><Button variant="ghost" size="xs" className="w-full justify-start gap-2" title={t('flow.splitCommits')} onClick={() => setSplitOpen(true)}><Split className="size-3.5 shrink-0" /><span className="truncate">{t('flow.splitCommits')}</span></Button></div>}
         {selectedFiles.length > 0 && <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border text-[12px]" role="toolbar" aria-label={t('changes.selectionActions')}>
           <span>{selectedFiles.length} {t('changes.selected')}</span>
           <Button size="xs" variant="outline" disabled={batchBusy || !selectedFiles.some(file => !file.staged)} onClick={() => void applySelection('stage')}>{t('changes.stageSelected')}</Button>
@@ -695,16 +726,16 @@ export const WorkingChangesView: React.FC = () => {
               {/* Staged Section */}
               {visibleStaged.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>{t('changes.section.staged')} ({visibleStaged.length})</span>
-                    <button
+                  <div className="ui-section-label flex items-center justify-between gap-2 px-1.5 py-1 text-muted-foreground">
+                    <span className="flex min-w-0 items-center gap-1" title={t('changes.section.staged')}><span className="truncate">{t('changes.section.staged')}</span><span className="shrink-0 tabular-nums">({visibleStaged.length})</span></span>
+                    <button title={t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAll')}
                       onClick={() => {
                         runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleStaged, true) : unstageAll(), t('changes.unstageAllToast'), t('changes.unstageFailed'));
                       }}
                       disabled={listBusy}
-                      className="text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center whitespace-nowrap text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAll')}
+                      {panels.files < 240 && <Minus aria-hidden="true" className="size-3" />}<span className={panels.files < 240 ? "sr-only" : undefined}>{t(fileListFiltered ? 'workingReview.unstageVisible' : 'changes.unstageAll')}</span>
                     </button>
                   </div>
                   <div data-working-file-group="staged" className="space-y-0.5">
@@ -750,15 +781,15 @@ export const WorkingChangesView: React.FC = () => {
               {/* Unstaged Section */}
               {visibleUnstaged.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>{t('changes.section.unstaged')} ({visibleUnstaged.length})</span>
-                    <button
+                  <div className="ui-section-label flex items-center justify-between gap-2 px-1.5 py-1 text-muted-foreground">
+                    <span className="flex min-w-0 items-center gap-1" title={t('changes.section.unstaged')}><span className="truncate">{t('changes.section.unstaged')}</span><span className="shrink-0 tabular-nums">({visibleUnstaged.length})</span></span>
+                    <button title={t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAllSection')}
                       onClick={() => {
                         runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleUnstaged, false) : stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                       }}
-                      className="text-[12px] text-muted-foreground hover:text-foreground"
+                      className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center whitespace-nowrap text-[12px] text-muted-foreground hover:text-foreground"
                     >
-                      {t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAllSection')}
+                      {panels.files < 240 && <Plus aria-hidden="true" className="size-3" />}<span className={panels.files < 240 ? "sr-only" : undefined}>{t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAllSection')}</span>
                     </button>
                   </div>
                   <div data-working-file-group="unstaged" className="space-y-0.5">
@@ -905,9 +936,9 @@ export const WorkingChangesView: React.FC = () => {
               {/* Untracked Section */}
               {visibleUntracked.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>{t('changes.untracked')} ({visibleUntracked.length})</span>
-                    <button
+                  <div className="ui-section-label flex items-center justify-between gap-2 px-1.5 py-1 text-muted-foreground">
+                    <span className="flex min-w-0 items-center gap-1" title={t('changes.untracked')}><span className="truncate">{t('changes.untracked')}</span><span className="shrink-0 tabular-nums">({visibleUntracked.length})</span></span>
+                    <button title={t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.addAllSection')}
                       onClick={() => {
                         const path = currentRepo?.path;
                         if (!path) return;
@@ -920,9 +951,9 @@ export const WorkingChangesView: React.FC = () => {
                           t('changes.stageFailed')
                         );
                       }}
-                      className="text-[12px] text-muted-foreground hover:text-foreground"
+                      className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center whitespace-nowrap text-[12px] text-muted-foreground hover:text-foreground"
                     >
-                      {t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.addAllSection')}
+                      {panels.files < 240 && <Plus aria-hidden="true" className="size-3" />}<span className={panels.files < 240 ? "sr-only" : undefined}>{t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.addAllSection')}</span>
                     </button>
                   </div>
                   <div data-working-file-group="untracked" className="space-y-0.5">
@@ -984,7 +1015,7 @@ export const WorkingChangesView: React.FC = () => {
         {/* Diff Toolbar */}
         <div className="workspace-divider px-3 py-2 border-b border-border flex flex-wrap gap-2 text-xs bg-card/40 shrink-0">
           <div className="flex items-center gap-2 min-w-0 w-full">
-            <span title={activeFile?.path} className="font-mono text-[13px] font-semibold text-foreground truncate">
+            <span title={activeFile?.path} className="ui-panel-title text-foreground truncate">
               {activeFile?.path || t('rightPane.noFileSelected')}
             </span>
             {activeFile && (

@@ -123,6 +123,29 @@ test('row activation ignores nested controls, moves within its list and supports
   finally { if (original) globalThis.MouseEvent = original; else delete globalThis.MouseEvent; }
 });
 
+test('layout migration widens the old default while preserving saved custom sizes and other preferences', async () => {
+  const key = 'auu-git-layout-storage';
+  const previous = saved.get(key);
+  try {
+    for (const [oldWidth, expected] of [[320, 400], [364, 364], [480, 480]]) {
+      saved.set(key, JSON.stringify({ version: 0, state: { rightPaneWidth: oldWidth, leftSidebarWidth: 212, navigationPinned: false } }));
+      await app.useLayoutStore.persist.rehydrate();
+      const state = app.useLayoutStore.getState();
+      assert.equal(state.rightPaneWidth, expected);
+      assert.equal(state.leftSidebarWidth, 212);
+      assert.equal(state.navigationPinned, false);
+    }
+    app.useLayoutStore.getState().resetLayout();
+    assert.equal(app.useLayoutStore.getState().rightPaneWidth, 400);
+    app.useLayoutStore.getState().setRightPaneWidth(320);
+    await app.useLayoutStore.persist.rehydrate();
+    assert.equal(app.useLayoutStore.getState().rightPaneWidth, 320, 'new explicit sizes survive rehydration');
+  } finally {
+    app.useLayoutStore.getState().resetLayout();
+    if (previous === undefined) saved.delete(key); else saved.set(key, previous);
+  }
+});
+
 test('laptop layout keeps the inspector inline and honors explicit drawer and inline choices', async () => {
   globalThis.window = { innerWidth: 1280, addEventListener() {}, removeEventListener() {} };
   app.useLayoutStore.getState().resetLayout(); app.useRepoStore.setState({ currentRepo: { path: '/repo' }, activeTab: 'changes', isLeftSidebarCollapsed: false, isRightPaneCollapsed: false });
@@ -131,7 +154,7 @@ test('laptop layout keeps the inspector inline and honors explicit drawer and in
   try {
     await act(async () => { renderer = create(React.createElement(Probe)); });
     assert.equal(result.inspectorOverlay, false);
-    assert.ok(result.panels.right >= 220);
+    assert.ok(result.panels.right >= 320);
     assert.ok(result.panels.left >= 200); assert.ok(result.panels.files >= 220);
     assert.ok(1280 - result.panels.left - result.panels.right - result.panels.files - 18 >= 500);
     await act(async () => app.useLayoutStore.getState().setInspectorPresentation('drawer'));

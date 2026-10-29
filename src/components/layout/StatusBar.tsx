@@ -48,7 +48,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
             {status && (
               <>
                 <div className="h-3 w-px bg-border" />
-                <div className="statusbar-tracking flex shrink-0 items-center gap-2 font-mono text-[12px]" title={t('remote.outgoingHint')}>
+                <div className="statusbar-tracking ui-caption flex shrink-0 items-center gap-2 tabular-nums" title={t('remote.outgoingHint')}>
                   <span className="max-w-36 truncate">{status.trackingBranch || t('remote.noUpstream')}</span>
                   <span className="text-git-added">↑ {status.ahead}</span>
                   <span className="text-primary">↓ {status.behind}</span>

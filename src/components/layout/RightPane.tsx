@@ -93,10 +93,10 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   const heading = t(activeTab === 'history' ? 'rightPane.commitDetails' : 'rightPane.inspector');
   const content = <aside style={{ width: overlay ? undefined : panels.right }} className={overlay ? 'glass-surface glass-inspector w-full max-w-md h-full text-foreground flex flex-col shadow-2xl' : 'glass-surface glass-inspector h-full flex flex-col text-foreground shrink-0 overflow-hidden'}>
     <header className="h-12 px-4 flex items-center justify-between border-b border-border shrink-0">
-      <h2 className="flex items-center gap-2 font-semibold text-[13px]">{activeTab === 'history' ? <GitCommit className="h-4 w-4 text-muted-foreground" /> : <Layers className="h-4 w-4 text-muted-foreground" />}{heading}</h2>
+      <h2 className="ui-panel-title flex items-center gap-2">{activeTab === 'history' ? <GitCommit className="h-4 w-4 text-muted-foreground" /> : <Layers className="h-4 w-4 text-muted-foreground" />}{heading}</h2>
       {overlay && <Button variant="ghost" size="icon" aria-label={t('common.close')} onClick={onClose}><X className="h-4 w-4" /></Button>}
     </header>
-    <div className={activeTab === 'changes' ? 'flex flex-col flex-1 min-h-0 overflow-hidden text-[13px]' : 'flex-1 min-h-0 overflow-y-auto p-4 text-[13px]'}>
+    <div className={activeTab === 'changes' ? 'flex flex-col flex-1 min-h-0 overflow-hidden text-[13px]' : 'flex-1 min-h-0 overflow-y-auto p-3 text-[13px]'}>
       {errorMessage && <div role="alert" className="inspector-error relative m-3 mb-0 max-h-36 shrink-0 overflow-y-auto rounded-lg border border-destructive/30 p-3">
         <button type="button" aria-label={t('ui.dismissError')} onClick={() => useRepoStore.getState().setError(null)} className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
         <div className="pr-6"><ErrorNotice error={errorMessage} compact /></div>
@@ -108,12 +108,12 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
           <button className="font-mono text-primary min-h-8 flex items-center gap-2" title={t('rightPane.copyHashTitle')} onClick={async () => { try { await navigator.clipboard.writeText(selectedCommit.hash); toast.success(t('rightPane.copyHash')); } catch { toast.error(t('rightPane.operationFailed')); } }}>{selectedCommit.shortHash}<Copy className="h-3.5 w-3.5" /></button>
           <Button variant="outline" size="xs" onClick={async () => { if ((draft.title.trim() || draft.body.trim()) && !await confirmAction({ title: t('composer.replaceDraft'), description: t('composer.replaceDraftDesc'), danger: false })) return; if (useRepoStore.getState().currentRepo?.path !== currentRepo.path) return; draft.setTitle(selectedCommit.subject); draft.setBody(selectedCommit.body || ''); draft.setOrigin(null); useRepoStore.getState().setActiveTab('changes'); }}>{t('composer.copyMessage')}</Button>
         </div>
-        <div className="select-text space-y-3"><h3 className="font-semibold text-[14px] leading-relaxed wrap-break-word">{selectedCommit.subject}</h3>
+        <div className="select-text space-y-3"><h3 className="commit-detail-message text-[15px] leading-relaxed wrap-break-word">{selectedCommit.subject}</h3>
           {selectedCommit.body && <details><summary className="text-muted-foreground cursor-pointer min-h-7">{t('composer.commitBody')}</summary><p className="mt-2 whitespace-pre-wrap leading-relaxed wrap-break-word">{selectedCommit.body}</p></details>}
-          <p className="flex items-center gap-2 text-[12px] text-muted-foreground">
-            <Identicon seed={selectedCommit.author.email || selectedCommit.author.name} size={18} />
-            {selectedCommit.author.name} · {selectedCommit.author.relativeDate}
-          </p>
+          <div className="flex items-center gap-2.5">
+            <Identicon seed={selectedCommit.author.email || selectedCommit.author.name} size={30} />
+            <div className="min-w-0"><p className="truncate" title={selectedCommit.author.email}>{selectedCommit.author.name}</p><p className="text-[12px] text-muted-foreground" title={selectedCommit.author.date}>{selectedCommit.author.relativeDate}</p></div>
+          </div>
           {selectedCommit.parents.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.parentLabel')} <span className="font-mono">{selectedCommit.parents.map(hash => hash.slice(0, 7)).join(', ')}</span></p>}
         </div>
         <AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'commit', hash: selectedCommit.hash }} onOpenSettings={onOpenAiSettings} />
@@ -124,7 +124,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
           </div></div>
           {loading ? <p role="status" className="text-muted-foreground">{t('common.loading')}</p> : filesError ? <div role="alert"><ErrorNotice error={filesError} /><Button variant="outline" onClick={() => setReload(value => value + 1)}>{t('composer.retry')}</Button></div> : <>
             <Input value={fileFilter} onChange={e => setFileFilter(e.target.value)} aria-label={t('rightPane.filterFiles')} placeholder={t('rightPane.filterFiles')} className="h-7 text-[12px] bg-secondary/30" />
-            {fileFilter.trim() && <p className="text-[11px] text-muted-foreground tabular-nums">{filteredFiles.length} / {files.length}</p>}
+            {fileFilter.trim() && <p className="text-[12px] text-muted-foreground tabular-nums">{filteredFiles.length} / {files.length}</p>}
             {tree
               ? Object.entries(groups).map(([directory, group]) => <details key={directory} open><summary className="cursor-pointer text-[12px] text-muted-foreground py-2 break-all">{directory} ({group.length})</summary>{group.map(fileButton)}</details>)
               : filteredFiles.map(fileButton)}

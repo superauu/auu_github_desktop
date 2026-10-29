@@ -33,7 +33,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const sizeClasses = {
       default: "h-9 px-3.5 py-1.5",
       sm: "h-8 px-2.5 text-xs rounded-md",
-      xs: "h-6 px-2 text-[12px] rounded-md font-medium",
+      xs: "h-6 px-2 text-[12px] leading-[18px] rounded-md font-medium",
       lg: "h-10 px-5 text-base",
       icon: "h-8 w-8 p-0 flex items-center justify-center",
     };

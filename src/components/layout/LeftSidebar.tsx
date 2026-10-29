@@ -652,7 +652,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       className="glass-surface glass-navigation flex flex-col select-none shrink-0 h-full overflow-hidden text-xs"
     >
       <div className="h-10 px-3 border-b border-border flex items-center justify-between gap-2 shrink-0">
-        <h2 className="text-[12px] font-semibold text-muted-foreground">{t('composer.navigation')}</h2>
+        <h2 className="ui-panel-title text-muted-foreground">{t('composer.navigation')}</h2>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className={cn('h-7 w-7', navigationPinned ? 'text-primary' : 'text-muted-foreground')}
             aria-label={t(navigationPinned ? 'layout.unpinNavigation' : 'layout.pinNavigation')}
@@ -670,7 +670,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         </div>
       </div>
       {/* Top Primary Navigation (Changes, History, PRs, Actions) */}
-      <div className="glass-primary-nav p-2 space-y-1 border-b border-border/60">
+      <div className="glass-primary-nav flex flex-col gap-0.5 p-2 border-b border-border/60">
         <button
           aria-current={activeTab === 'changes' ? 'page' : undefined}
           onClick={() => { setActiveTab('changes'); onNavigate?.(); }}
@@ -691,7 +691,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             <span>{t('sidebar.changes')}</span>
           </div>
           {changesCount > 0 ? (
-            <Badge variant="warning" className="h-4 px-1.5 text-[12px] font-mono">
+            <Badge variant="warning" className="h-4 px-1.5 text-[12px] tabular-nums">
               {changesCount}
             </Badge>
           ) : (
@@ -739,7 +739,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             />
             <span>{t('sidebar.pullRequests')}</span>
           </div>
-          <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono">
+          <Badge variant="outline" className="h-3.5 px-1 text-[12px] tabular-nums">
             {pullRequests.length}
           </Badge>
         </button>
@@ -763,7 +763,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             />
             <span>{t('forge.nav')}</span>
           </div>
-          <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono">
+          <Badge variant="outline" className="h-3.5 px-1 text-[12px] tabular-nums">
             {forgePulls.length}
           </Badge>
         </button>
@@ -787,7 +787,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             />
             <span>{t('sidebar.actions')}</span>
           </div>
-          <Badge variant="success" className="h-3.5 px-1 text-[12px] font-mono">
+          <Badge variant="success" className="h-3.5 px-1 text-[12px] tabular-nums">
             CI
           </Badge>
         </button>
@@ -809,6 +809,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             <span>{t('sidebar.mode.list')}</span>
           </button>
           <button
+            title={t('repoTools.open')}
             aria-pressed={sidebarMode === 'agents'} onClick={() => setSidebarMode('agents')}
             className={cn(
               "flex-1 py-1 rounded-md text-[12px] font-medium flex items-center justify-center gap-1 transition-colors",
@@ -887,12 +888,12 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           </div>
 
           {/* Scrollable Tree Navigator (LOCAL, REMOTE, TAGS, STASHES) */}
-          <ScrollArea className="flex-1 px-1.5 py-2">
-            <div className="space-y-3" role="list" data-keyboard-list aria-label={t('sidebar.mode.list')}>
+          <ScrollArea className="navigation-scroll flex-1 min-h-0 px-1.5 py-1">
+            <div className="navigation-tree flex flex-col gap-0" role="list" data-keyboard-list aria-label={t('sidebar.mode.list')}>
               {/* LOCAL Branches Section */}
               <div>
                 <div
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
+                  className="navigation-section-header ui-section-label flex items-center justify-between px-2 text-muted-foreground hover:text-foreground group"
                 >
                   <button type="button" aria-expanded={expandedSections.localBranches} onClick={() => toggleSection('localBranches')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.localBranches ? (
@@ -945,12 +946,12 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 </div>
 
                 {expandedSections.localBranches && (
-                  <div className="mt-0.5 space-y-0.5 pl-1">
+                  <div className="mt-0.5 flex flex-col gap-0.5 pl-1">
                     {/* Render Folder Groups (e.g. backup/, feature/) */}
                     {Object.entries(localGrouped.folders).map(([folderName, folderBranches]) => {
                       const isFolderOpen = folderExpanded[folderName] !== false; // 默认展开
                       return (
-                        <div key={folderName} className="space-y-0.5">
+                        <div key={folderName} className="flex flex-col gap-0.5">
                           <button type="button" aria-expanded={isFolderOpen}
                             onClick={() => toggleFolder(folderName)}
                             className="w-full flex items-center justify-between px-2 py-1 min-h-7 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 font-medium"
@@ -963,14 +964,14 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                               )}
                               <span>{folderName}</span>
                             </div>
-                            <Badge variant="outline" className="h-3.5 px-1 text-[12px] font-mono opacity-70">
+                            <Badge variant="outline" className="h-3.5 px-1 text-[12px] tabular-nums opacity-70">
                               {folderBranches.length}
                             </Badge>
                           </button>
 
                            {/* Nested Branches inside folder */}
                           {isFolderOpen && (
-                            <div className="pl-4 space-y-0.5 border-l border-border/40 ml-3">
+                            <div className="pl-4 flex flex-col gap-0.5 border-l border-border/40 ml-3">
                               {folderBranches.map((branch) => {
                                 const leafName = branch.name.slice(folderName.length + 1);
                                 const isSelected = selectedBranch === branch.name;
@@ -1009,10 +1010,10 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                       ) : null}
                                       <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                                       <span className="truncate">{leafName}</span>
-                                      {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>{t('sidebar.worktreeBadge')}</span>}
+                                      {branch.worktreePath && !branch.isCurrent && <span className="text-[12px] text-primary shrink-0" title={branch.worktreePath}>{t('sidebar.worktreeBadge')}</span>}
                                     </div>
                                     {branch.isCurrent ? (
-                                      <span className="text-[12px] uppercase px-1 rounded bg-primary/25 text-primary font-bold font-mono">
+                                      <span className="text-[12px] uppercase px-1 rounded bg-primary/25 text-primary font-medium">
                                         HEAD
                                       </span>
                                     ) : (
@@ -1082,11 +1083,11 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             ) : null}
                             <GitBranchIcon className={cn("h-3 w-3 shrink-0", branch.isCurrent ? "text-primary" : isSelected ? "text-foreground" : "text-muted-foreground")} />
                             <span className="truncate">{branch.name}</span>
-                            {branch.worktreePath && !branch.isCurrent && <span className="text-[10px] text-primary shrink-0" title={branch.worktreePath}>{t('sidebar.worktreeBadge')}</span>}
+                            {branch.worktreePath && !branch.isCurrent && <span className="text-[12px] text-primary shrink-0" title={branch.worktreePath}>{t('sidebar.worktreeBadge')}</span>}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {branch.isCurrent ? (
-                              <span className="text-[12px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-bold font-mono">
+                              <span className="text-[12px] uppercase px-1 py-0.2 rounded bg-primary/25 text-primary font-medium">
                                 HEAD
                               </span>
                             ) : (
@@ -1137,7 +1138,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* REMOTE Branches Section */}
               <div>
                 <div
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
+                  className="navigation-section-header ui-section-label flex items-center justify-between px-2 text-muted-foreground hover:text-foreground group"
                 >
                   <button type="button" aria-expanded={expandedSections.remoteBranches} onClick={() => toggleSection('remoteBranches')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.remoteBranches ? (
@@ -1150,7 +1151,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 </div>
 
                 {expandedSections.remoteBranches && (
-                  <div className="mt-0.5 space-y-0.5 pl-1">
+                  <div className="mt-0.5 flex flex-col gap-0.5 pl-1">
                     {remoteGrouped.rootBranches.map((branch) => {
                       const localName = branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1);
                       const isSelected = selectedBranch === branch.name;
@@ -1282,7 +1283,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* PULL REQUESTS Section */}
               <div>
                 <div
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
+                  className="navigation-section-header ui-section-label flex items-center justify-between px-2 text-muted-foreground hover:text-foreground group"
                 >
                   <button type="button" aria-expanded={expandedSections.pullRequests} onClick={() => toggleSection('pullRequests')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.pullRequests ? (
@@ -1306,7 +1307,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                   </Button>
                 </div>
                 {expandedSections.pullRequests && (
-                  <div className="mt-0.5 space-y-0.5 pl-1">
+                  <div className="mt-0.5 flex flex-col gap-0.5 pl-1">
                     {pullRequests.length === 0 ? (
                       <div className="px-2 py-1 text-[12px] text-muted-foreground/60 italic">
                         {t('sidebar.noOpenPrs')}
@@ -1335,7 +1336,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* TAGS Section */}
               <div>
                 <div
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
+                  className="navigation-section-header ui-section-label flex items-center justify-between px-2 text-muted-foreground hover:text-foreground group"
                 >
                   <button type="button" aria-expanded={expandedSections.tags} onClick={() => toggleSection('tags')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.tags ? (
@@ -1392,7 +1393,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                       value={tagNameInput}
                       onChange={(e) => setTagNameInput(e.target.value)}
                       aria-label={t('sidebar.tagNamePlaceholder')} placeholder={t('sidebar.tagNamePlaceholder')}
-                      className="h-6 text-[12px] font-mono"
+                      className="h-6 text-[12px] tabular-nums"
                       autoFocus
                     />
                     <Input
@@ -1408,7 +1409,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 )}
 
                 {expandedSections.tags && (
-                  <div className="mt-0.5 space-y-0.5 pl-1">
+                  <div className="mt-0.5 flex flex-col gap-0.5 pl-1">
                     {filteredTags.map((tag) => (
                       <div
                         key={tag.name}
@@ -1420,7 +1421,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           <TagIcon className="h-3 w-3 text-amber-500/70 shrink-0" />
-                          <span className="truncate font-mono text-[12px] text-foreground/90">{tag.name}</span>
+                          <span className="truncate text-foreground/90">{tag.name}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <span className="text-[12px] font-mono text-muted-foreground/60 group-hover:text-muted-foreground">
@@ -1450,7 +1451,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               {/* STASHES Section */}
               <div>
                 <div
-                  className="flex items-center justify-between px-2 py-1 text-[12px] font-semibold text-muted-foreground tracking-wider uppercase hover:text-foreground group"
+                  className="navigation-section-header ui-section-label flex items-center justify-between px-2 text-muted-foreground hover:text-foreground group"
                 >
                   <button type="button" aria-expanded={expandedSections.stashes} onClick={() => toggleSection('stashes')} className="flex min-w-0 items-center gap-1 min-h-7 text-left">
                     {expandedSections.stashes ? (
@@ -1509,7 +1510,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                 )}
 
                 {expandedSections.stashes && (
-                  <div className="mt-0.5 space-y-0.5 pl-1">
+                  <div className="mt-0.5 flex flex-col gap-0.5 pl-1">
                     {stashes.map((stash) => (
                       <div
                         key={stash.index}

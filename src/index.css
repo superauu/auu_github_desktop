@@ -15,9 +15,9 @@
 
 @theme {
   --text-xs: 13px;
-  --text-xs--line-height: 1.5;
+  --text-xs--line-height: 20px;
   --text-sm: 14px;
-  --text-sm--line-height: 1.5;
+  --text-sm--line-height: 22px;
 
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
@@ -155,6 +155,9 @@
     color-scheme: light;
     --app-cursor-default: default;
     --app-cursor-pointer: pointer;
+    --ui-row-height: 30px;
+    --ui-panel-header-height: 34px;
+    --ui-caption-size: 12px;
     /* Neutral frosted surfaces keep the workspace free of a color cast. */
     --git-added: 152 70% 27%;
     --git-modified: 216 22% 38%;
@@ -194,6 +197,12 @@
     --input: 0 0% 68%;
     --ring: 190 100% 35%;
     --sunken: 0 0% 97%;
+    --history-selection: 215 85% 92%;
+    --graph-lane-1: 188 85% 34%;
+    --graph-lane-2: 218 80% 48%;
+    --graph-lane-3: 285 65% 45%;
+    --graph-lane-4: 150 65% 34%;
+    --graph-lane-5: 35 85% 42%;
 
     --radius: 0.75rem;
 
@@ -209,8 +218,9 @@
     --glass-border: rgba(255, 255, 255, 0.78);
     --glass-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.15);
     --glass-editor: rgba(252, 252, 252, 0.84);
-    --glass-field: rgba(255, 255, 255, 0.48);
-    --glass-dialog: rgba(250, 250, 250, 0.93);
+    --glass-field: hsl(var(--sunken));
+    --glass-dialog: hsl(var(--card));
+    --dialog-scrim: hsl(220 14% 7% / 0.24);
     --glass-button-border: #8b8b8b;
     --glass-button-fill: rgba(255, 255, 255, 0.38);
     --glass-button-hover-border: #646464;
@@ -233,42 +243,48 @@
     --git-branch: 252 85% 80%;
     --git-tag: 42 90% 70%;
     --git-commit: 186 100% 50%;
-    --background: 0 0% 9%;
-    --foreground: 0 0% 90%;
+    --background: 220 14% 7%;
+    --foreground: 220 12% 86%;
     --selection-background: 186 100% 50% / 0.32;
     --selection-foreground: 200 100% 97%;
 
-    --card: 0 0% 13%;
-    --card-foreground: 0 0% 90%;
+    --card: 220 9% 11%;
+    --card-foreground: var(--foreground);
 
-    --popover: 0 0% 16%;
-    --popover-foreground: 0 0% 90%;
+    --popover: 220 9% 13%;
+    --popover-foreground: var(--foreground);
 
     --primary: 187 84% 67%;
     --primary-foreground: 0 0% 10%;
 
-    --secondary: 0 0% 20%;
-    --secondary-foreground: 0 0% 90%;
+    --secondary: 220 8% 16%;
+    --secondary-foreground: var(--foreground);
 
-    --muted: 0 0% 17%;
-    --muted-foreground: 0 0% 71%;
+    --muted: 220 8% 14%;
+    --muted-foreground: 220 7% 62%;
 
-    --accent: 0 0% 23%;
+    --accent: 220 8% 19%;
     --accent-foreground: 0 0% 97%;
 
     --destructive: 336 100% 57%;
     --destructive-foreground: 0 0% 100%;
 
     /* 边框与卡片只差 6 个亮度档：深度靠表面亮度阶梯表达，不靠描边（对齐专业工具的克制感） */
-    --border: 0 0% 19%;
-    --input: 0 0% 24%;
+    --border: 220 8% 18%;
+    --input: 220 7% 26%;
     --ring: 186 100% 50%;
     --sunken: 0 0% 5%;
+    --history-selection: 218 65% 24%;
+    --graph-lane-1: 188 85% 45%;
+    --graph-lane-2: 218 90% 61%;
+    --graph-lane-3: 285 72% 63%;
+    --graph-lane-4: 150 60% 52%;
+    --graph-lane-5: 35 85% 60%;
 
     /* 暗色控件统一 8px 圆角：大圆角的气泡感是「网页感」的主要来源（浅色 Steel Ops 不受影响） */
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 12%;
+    --sidebar-background: 220 8% 12%;
     --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 187 84% 67%;
     --sidebar-primary-foreground: 0 0% 10%;
@@ -280,8 +296,9 @@
     --glass-border: rgba(255, 255, 255, 0.16);
     --glass-shadow: 0 10px 36px -14px rgba(0, 0, 0, 0.6);
     --glass-editor: rgba(28, 28, 28, 0.86);
-    --glass-field: rgba(18, 18, 18, 0.36);
-    --glass-dialog: rgba(35, 35, 35, 0.94);
+    --glass-field: hsl(var(--background));
+    --glass-dialog: hsl(var(--card));
+    --dialog-scrim: hsl(220 14% 3% / 0.5);
     --glass-button-border: var(--glass-border);
     --glass-button-fill: rgba(255, 255, 255, 0.035);
     --glass-button-hover-border: hsl(var(--muted-foreground) / 0.4);
@@ -408,6 +425,8 @@ button, a, input, select, textarea {
 /* Compact Mode UI optimizations */
 html.compact-mode {
   font-size: 13px;
+  --ui-row-height: 26px;
+  --ui-panel-header-height: 30px;
 }
 html.compact-mode button {
   padding-top: 0.2rem;
@@ -556,13 +575,7 @@ html.compact-mode .diff-line-del {
    ========================================================================== */
 
 /* 深色下全局霓虹网格 + 顶部青色辉光氛围 */
-.dark body {
-  background-image:
-    radial-gradient(1100px 460px at 72% -12%, rgba(255, 255, 255, 0.045), transparent 62%),
-    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
-  background-size: auto, auto, 34px 34px, 34px 34px;
-}
+.dark body { background-image: none; }
 
 /* 霓虹文字辉光 */
 .text-glow-cyan {
@@ -716,10 +729,45 @@ body {
 }
 
 /* Desktop workspace: restrained surfaces and theme-aware interaction states. */
-body { font-size: 14px; }
+body { font-size: var(--text-xs); line-height: 20px; }
+.ui-panel-title { font-size: var(--text-xs); line-height: 20px; font-weight: 600; }
+.ui-section-label { font-size: var(--ui-caption-size); line-height: 18px; font-weight: 500; letter-spacing: 0.03em; }
+.ui-caption { font-size: var(--ui-caption-size); line-height: 18px; }
 .history-view { container-type: inline-size; container-name: history; }
-.history-meta { display: none; }
-@container history (min-width: 700px) { .history-meta { display: flex; } }
+.history-meta { display: none; margin-left: 10px; align-self: flex-end; margin-bottom: 3px; }
+.history-date { max-width: 96px; padding-inline: 4px; border-radius: 2px; background: hsl(var(--muted)); line-height: 16px; font-variant-numeric: tabular-nums; }
+.history-wip { outline-offset: -2px; }
+.history-wip-ref { max-width: calc(var(--history-refs-width) - 24px); }
+.history-wip .history-refs::after { display: none; }
+.history-wip-summary { white-space: nowrap; }
+.history-wip:hover .history-wip-action { text-decoration: underline; text-underline-offset: 3px; }
+.history-view { --history-refs-width: 232px; }
+.history-refs, .history-refs-heading { width: var(--history-refs-width); padding-right: 8px; }
+.history-graph { left: calc(12px + var(--history-refs-width)); }
+.history-columns, .history-toolbar { background: hsl(var(--card)); }
+/* Inset dividers preserve the full row height, keeping refs centered on SVG nodes. */
+.history-row { box-shadow: inset 0 -1px hsl(var(--border) / 0.25); }
+.history-row[aria-current='true'] { background: hsl(var(--history-selection)); box-shadow: inset 2px 0 hsl(var(--primary)), inset 0 -1px hsl(var(--border) / 0.25); }
+.history-ref { box-shadow: none; }
+/* 本地分支徽标取所在泳道色（参考 GitKraken：徽标 / 连接线 / 节点同色，当前分支加深一档） */
+.history-ref[data-lane-ref] { background: hsl(var(--row-lane, var(--graph-lane-1)) / 0.16); border-color: hsl(var(--row-lane, var(--graph-lane-1)) / 0.42); color: hsl(var(--row-lane, var(--graph-lane-1))); }
+.history-ref[data-lane-ref][data-current-branch] { background: hsl(var(--row-lane, var(--graph-lane-1)) / 0.28); border-color: hsl(var(--row-lane, var(--graph-lane-1)) / 0.62); font-weight: 600; }
+/* 徽标→图形列连接线沿用该行节点的泳道色（--row-lane 由行内联注入），与 SVG 内的 link-left 无缝同色 */
+.history-refs:not(:empty)::after { content: ''; flex: 1 0 8px; height: 2px; background: hsl(var(--row-lane, var(--graph-lane-1)) / 0.65); }
+.history-ref-link-right { display: none; }
+@container history (min-width: 740px) { .history-meta { display: flex; } }
+@container history (max-width: 619px) {
+  .history-refs-heading { display: none; }
+  .history-graph { left: 12px; }
+  .history-refs { order: 1; width: auto; max-width: 116px; padding-right: 0; margin-left: 6px; }
+  .history-refs:empty { display: none; }
+  .history-refs::after { display: none; }
+  .history-row > .flex-1 { order: 2; }
+  .history-wip .history-refs { flex-shrink: 0; }
+  .history-wip-label, .history-wip-action > span { display: none; }
+  .history-ref-link-left { display: none; }
+  .history-ref-link-right { display: inline; }
+}
 .menu-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; border-radius: 5px; cursor: pointer; outline: none; }
 .menu-item[data-highlighted] { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
 .menu-item[data-disabled] { opacity: .45; pointer-events: none; }
@@ -750,37 +798,35 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
   :where(button, a[href], summary, select, label[for], [role='button'], [role='menuitem'], [role='option'], input[type='checkbox'], input[type='radio']):not(:disabled):not([aria-disabled='true']) { cursor: pointer; }
 }
 
-/* Glass workspace: static ambient light and a small number of frosted surfaces. */
-.app-shell {
-  padding: 0;
-  gap: 0;
-  background-color: hsl(var(--background));
-  background-image:
-    radial-gradient(ellipse at 4% 4%, rgba(255, 255, 255, 0.8), transparent 48%),
-    radial-gradient(ellipse at 95% 100%, rgba(105, 105, 105, 0.08), transparent 44%);
-}
-.dark .app-shell {
-  background-image:
-    radial-gradient(ellipse at 2% 0%, rgba(255, 255, 255, 0.075), transparent 48%),
-    radial-gradient(ellipse at 96% 100%, rgba(255, 255, 255, 0.035), transparent 47%);
-}
-.glass-surface {
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  background: linear-gradient(140deg, var(--glass-highlight), transparent 55%), var(--glass-fill);
-  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
-  backdrop-filter: blur(22px) saturate(135%);
-  -webkit-backdrop-filter: blur(22px) saturate(135%);
-  background-clip: padding-box;
-}
-.app-workspace { margin: 10px; }
+/* Continuous desktop workspace; dialogs retain their elevated surface. */
+.app-shell { padding: 0; gap: 0; background: hsl(var(--background)); }
+.dark .app-shell { background-image: none; }
+.glass-surface { border: 0; border-radius: 0; background: hsl(var(--card)); box-shadow: none; }
+.app-workspace { margin: 0; }
+.glass-stage { background: hsl(var(--background)); }
+.glass-navigation, .glass-inspector { background: hsl(var(--sidebar-background)); }
+.glass-inspector > header, .glass-navigation > :first-child, .workspace-panel-header { height: var(--ui-panel-header-height); }
+.glass-inspector > header { padding-inline: 12px; }
+.commit-detail-message { padding: 10px; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); border-radius: 3px; }
+.navigation-tree > div + div { border-top: 1px solid hsl(var(--border) / 0.7); }
+.navigation-section-header { height: var(--ui-row-height); font-size: var(--text-xs); line-height: 20px; letter-spacing: 0; }
+.navigation-section-header > button:first-child { flex: 1; overflow: hidden; white-space: nowrap; }
+.navigation-section-header > button:first-child > svg { flex-shrink: 0; }
+.navigation-section-header > button:first-child > span { overflow: hidden; text-overflow: ellipsis; }
+.navigation-section-header > button:not(:first-child) { flex: 0 0 auto; width: 0; min-width: 0; overflow: hidden; }
+.navigation-section-header:is(:hover, :focus-within) > button:not(:first-child) { width: 28px; overflow: visible; }
+.navigation-section-header > div { width: 0; overflow: hidden; flex-shrink: 0; }
+.navigation-section-header:is(:hover, :focus-within) > div { width: auto; overflow: visible; }
+.glass-navigation .ui-panel-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navigation-tree button[aria-expanded] { height: var(--ui-row-height); min-height: 0; padding-block: 0; }
+.navigation-tree [data-keyboard-row] { height: var(--ui-row-height); padding-block: 0; border-radius: 3px; font-size: var(--text-xs); line-height: 20px; }
 .glass-header {
   border: 0;
   border-bottom: 1px solid var(--glass-divider);
   border-radius: 0;
   box-shadow: none;
 }
-.glass-tabbar { border-radius: 0; background: hsl(var(--card) / 0.12); }
+.glass-tabbar { border-radius: 0; background: hsl(var(--sidebar-background)); }
 .window-controls { border-left: 1px solid var(--glass-divider); }
 .window-control {
   display: inline-flex;
@@ -805,20 +851,33 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
 }
 .glass-tab-branch { background: hsl(var(--foreground) / 0.05); }
 .glass-repo-tab[aria-current='page'] .glass-tab-branch { background: hsl(var(--primary) / 0.1); }
-.glass-actionbar { border-radius: 0; }
+.glass-actionbar { border-radius: 0; background: hsl(var(--card)); }
+.repository-breadcrumb > button > span:last-child { min-width: 0; max-width: 100%; }
+.repository-breadcrumb > button > span:last-child > span { min-width: 0; }
+.repository-breadcrumb > button { gap: 2px; padding-block: 2px; }
+.repository-breadcrumb > button > span:first-child { font-size: var(--ui-caption-size); line-height: 12px; letter-spacing: 0; }
+.repository-breadcrumb > button > span:last-child > span { font-size: var(--text-xs); line-height: 18px; }
+.git-toolbar-actions button.flex-col { border-radius: 3px; flex-direction: column-reverse; }
+.git-toolbar-actions button.flex-col > span:last-child { font-size: var(--ui-caption-size); line-height: 16px; font-weight: 500; }
 .glass-navigation > :first-child,
 .glass-inspector > header { background: hsl(var(--card) / 0.12); }
-.glass-primary-nav { padding: 10px; }
+.glass-primary-nav { padding: 6px; }
 .glass-primary-nav > button {
-  min-height: 34px;
+  height: var(--ui-row-height);
+  min-height: var(--ui-row-height);
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 3px;
+  padding-block: 0;
+  font-size: var(--text-xs);
+  line-height: 20px;
 }
 .glass-primary-nav > button[aria-current='page'] {
-  border-color: hsl(var(--muted-foreground) / 0.24);
-  background: linear-gradient(110deg, hsl(var(--foreground) / 0.085), hsl(var(--foreground) / 0.025));
-  box-shadow: inset 3px 0 0 hsl(var(--primary) / 0.65), inset 0 1px 0 hsl(0 0% 100% / 0.06);
+  background: hsl(var(--history-selection));
+  box-shadow: inset 2px 0 0 hsl(var(--primary));
 }
+.glass-primary-nav > button > div { min-width: 0; }
+.glass-primary-nav > button > div > svg { flex-shrink: 0; }
+.glass-primary-nav > button > div > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .glass-statusbar {
   border: 0;
   border-top: 1px solid var(--glass-divider);
@@ -828,17 +887,18 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
 .glass-statusbar button { min-height: 24px; border-radius: 4px; padding: 0 4px; }
 .glass-statusbar button:hover { background: hsl(var(--foreground) / 0.06); }
 .glass-file-list {
-  background: linear-gradient(180deg, hsl(var(--card) / 0.3), hsl(var(--sidebar-background) / 0.16));
+  background: hsl(var(--card));
 }
-.glass-editor { background: var(--glass-editor); }
-.glass-terminal { background: var(--glass-editor); }
+.glass-editor { background: hsl(var(--background)); }
+.glass-terminal { background: hsl(var(--background)); }
 .glass-terminal-header { background: hsl(var(--card) / 0.45); }
-.app-workspace > .glass-resize { width: 10px; border-radius: 8px; }
+.app-workspace > .glass-resize { width: 6px; border-radius: 0; background: hsl(var(--card)); }
+.app-workspace > .glass-resize::before { content: ''; position: absolute; inset: 0 auto 0 50%; width: 1px; background: hsl(var(--border)); }
+.app-workspace > .glass-resize:hover { background: hsl(var(--primary) / 0.15); }
 .glass-button {
-  background-image: var(--glass-button-sheen);
-  backdrop-filter: blur(10px) saturate(115%);
-  -webkit-backdrop-filter: blur(10px) saturate(115%);
-  box-shadow: inset 0 1px 0 var(--glass-button-light), var(--glass-button-shadow);
+  background-image: none;
+  box-shadow: none;
+  border-radius: 4px;
 }
 .glass-button-outline, .glass-button-secondary {
   border: 1px solid var(--glass-button-border);
@@ -866,18 +926,31 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
 .glass-button:active:not(:disabled) {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.12), inset 0 1px 0 var(--glass-button-light);
 }
-:is(.glass-inspector, .glass-dialog) :is(input:not([type='checkbox']):not([type='radio']), textarea, select) {
+/* The command search is a composite field; its wrapper owns the fill and focus border. */
+:is(.glass-inspector, .glass-dialog) :is(input:not([type='checkbox']):not([type='radio']):not([cmdk-input]), textarea, select) {
   background-color: var(--glass-field);
   border-color: hsl(var(--input) / 0.7);
-  border-radius: 9px;
+  border-radius: 4px;
+}
+.app-modal-overlay {
+  background-color: var(--dialog-scrim);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 .glass-dialog {
-  background: linear-gradient(135deg, var(--glass-highlight), transparent 55%), var(--glass-dialog);
-  border-color: var(--glass-border);
-  box-shadow: 0 24px 80px hsl(0 0% 4% / 0.35), inset 0 1px 0 var(--glass-highlight);
-  backdrop-filter: blur(28px) saturate(130%);
-  -webkit-backdrop-filter: blur(28px) saturate(130%);
+  --glass-button-border: hsl(var(--input));
+  --glass-button-fill: hsl(var(--secondary));
+  --glass-button-hover-border: hsl(var(--muted-foreground) / 0.6);
+  --glass-button-hover-fill: hsl(var(--accent));
+  background: var(--glass-dialog);
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--input));
+  border-radius: 8px;
+  box-shadow: 0 16px 48px hsl(220 14% 3% / 0.3);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
+.glass-dialog.glass-surface { border-radius: 0; }
 .glass-navigation > :first-child,
 .glass-inspector > header,
 .glass-primary-nav,
@@ -909,8 +982,7 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
 }
 /* Small windows keep their working space; effects do not animate on scroll. */
 @media (max-width: 760px) {
-  .app-workspace { margin: 6px; }
-  .app-workspace .glass-surface { border-radius: 11px; }
+  .history-toolbar { gap: 6px; }
   .statusbar-tracking { display: none; }
   .window-control { width: 36px; }
 }
@@ -920,12 +992,14 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
   .glass-button-primary, .dark .glass-button-primary { background-color: hsl(var(--primary)); }
 }
 @media (prefers-reduced-transparency: reduce) {
+  .app-modal-overlay { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .glass-surface, .glass-panel, .glass-dialog { background: hsl(var(--card)); backdrop-filter: none; -webkit-backdrop-filter: none; }
   .glass-button { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .glass-button-outline, .glass-button-secondary { background-color: hsl(var(--card)); }
   .glass-button-primary, .dark .glass-button-primary { background-color: hsl(var(--primary)); }
 }
 @media (forced-colors: active) {
+  .app-modal-overlay { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .app-shell { background: Canvas; }
   .glass-surface, .glass-panel, .glass-dialog { background: Canvas; border-color: CanvasText; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .glass-primary-nav > button[aria-current='page'] { border-color: Highlight; }

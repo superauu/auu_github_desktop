@@ -148,7 +148,10 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !batchContext && !disabled) { event.preventDefault(); void submit(); }
   }}>
     <section className="mx-4 mt-4 shrink-0 rounded-lg border border-border bg-muted/30 p-3 space-y-1" aria-label={t('composer.scope')}>
-      <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4 text-muted-foreground" />{t('composer.scope')}</span><span>{t('composer.included').replace('{n}', String(scope.files.length))}</span></div>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2 font-semibold" title={t('composer.scope')}><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><span className="truncate">{t('composer.scopeTitle')}</span></span>
+        <span className="shrink-0 whitespace-nowrap tabular-nums">{t('composer.fileCount').replace('{n}', String(scope.files.length))}</span>
+      </div>
       <p className="text-[12px] text-muted-foreground leading-relaxed">{scope.stageAll ? t('composer.stageAllHint') : t('composer.excluded').replace('{n}', String(scope.excluded.length))}</p>
       {!!scope.files.length && <>
         <button className="text-primary underline-offset-4 hover:underline min-h-7" aria-expanded={scopeOpen} onClick={() => setScopeOpen(!scopeOpen)}>{t(scopeOpen ? 'composer.hideFiles' : 'composer.showFiles')}</button>

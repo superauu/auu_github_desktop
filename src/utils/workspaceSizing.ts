@@ -9,8 +9,8 @@ export function fitWorkspacePanels(width: number, requested: { left: number; rig
   let excess = sizes.left + sizes.right + sizes.files + handles + mainMinimum - width;
   // On laptops, preserve navigation labels and filenames before falling back to hard minima.
   const reductions: ['left' | 'files' | 'right', number][] = mainMinimum < 640
-    ? [['files', 220], ['right', 280], ['left', 160], ['files', 160], ['right', 220]]
-    : [['left', 160], ['files', 160], ['right', 220]];
+    ? [['files', 220], ['right', 320], ['left', 160], ['files', 160], ['right', 220]]
+    : [['left', 160], ['files', 160], ['right', 320], ['right', 220]];
   for (const [panel, minimum] of reductions) {
     if (sizes[panel] && excess > 0) {
       const reduction = Math.min(Math.max(0, sizes[panel] - minimum), excess);

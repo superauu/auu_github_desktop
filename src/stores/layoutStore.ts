@@ -31,7 +31,7 @@ export interface LayoutState {
 
 export const DEFAULT_LAYOUT = {
   leftSidebarWidth: 200,
-  rightPaneWidth: 320,
+  rightPaneWidth: 400,
   changesFileListWidth: 260,
   actionsWorkflowsWidth: 260,
   prListWidth: 320,
@@ -77,6 +77,12 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'auu-git-layout-storage',
+      version: 1,
+      migrate: (persisted) => {
+        const previous = (persisted && typeof persisted === 'object' ? persisted : {}) as Partial<LayoutState>;
+        // Adopt the wider default for old default layouts; retain custom panel sizes.
+        return { ...previous, rightPaneWidth: previous.rightPaneWidth == null || previous.rightPaneWidth === 320 ? DEFAULT_LAYOUT.rightPaneWidth : previous.rightPaneWidth };
+      },
       storage: createJSONStorage(() => localStorage),
     }
   )

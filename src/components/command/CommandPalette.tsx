@@ -80,11 +80,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       >
         <Command className="command-palette w-full min-h-0 overflow-hidden bg-transparent text-foreground flex flex-col">
           <div className="shrink-0 border-b border-border/60 p-2">
-            <div className="flex items-center gap-2 rounded-lg border border-input px-3 focus-within:border-ring focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring">
+            <div className="command-search-field h-10 flex items-center gap-2 rounded-md border border-input bg-background px-3 focus-within:border-ring focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring">
               <Search className="h-4 w-4 text-muted-foreground shrink-0" />
               <Command.Input
                 aria-label={t('palette.placeholder')} placeholder={t('palette.placeholder')}
-                className="h-10 min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground"
+                className="h-8 min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-foreground placeholder:text-muted-foreground"
                 autoFocus
               />
               <kbd className="pointer-events-none inline-flex h-5 shrink-0 select-none items-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[11px] text-muted-foreground">

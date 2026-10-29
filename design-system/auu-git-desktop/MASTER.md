@@ -14,19 +14,28 @@ Inspect changes → control staged content → write a message → commit → pu
 
 ## Layout
 
-- Default widths: navigation 200 px, working-file list 260 px, inspector 320 px.
+- Default widths: navigation 200 px, working-file list 260 px, inspector 400 px. Preserve at least 320 px for the inspector while fitting ordinary laptop layouts, falling back further only when needed to keep the main content usable. Upgrade the old 320 px default while preserving custom saved sizes.
 - Preserve 640 px for the main content where the supported window size permits. Adapt effective panel sizes without overwriting saved user preferences.
 - Navigation is pinned by default. Its pin button and appearance setting persist the choice. Pinned navigation stays visible when focus moves or views change; the header can still explicitly collapse it.
 - Unpinning immediately hides navigation at every window width. The header opens it temporarily as a drawer; clicking outside, pressing Escape or choosing a view closes it. Pin-mode changes clear any previously open drawer. The inspector uses a drawer below 1240 px, or below 1480 px when pinned navigation is visible. Explicit pinning takes priority over the 640 px reading target when a narrow window cannot fit both. Both drawers support Escape, focus trapping and focus restoration.
 - Commit scope and primary actions stay visible while the editor scrolls. Closing a drawer retains the draft and amend mode.
-- History places refs beside titles rather than reserving an empty column. Secondary metadata hides when space is limited and can be toggled.
+- Commit-scope headings use a short, single-line label and a non-wrapping file count. Truncate the heading at manually narrowed widths; keep its full meaning in the section label and tooltip.
+- The main workspace uses continuous, flat surfaces with thin panel separators, no outer gutters and no panel corner radii. Keep elevated surfaces for dialogs.
+- All dialogs share an opaque card surface, semantic foreground/input colors, an 8 px corner radius and one consistent dimmed overlay. Use the same cool charcoal palette as the workspace; avoid glass gradients, saturation filters and separate neutral-gray palettes. Drawer panels retain square corners. Light, reduced-transparency and forced-color modes follow the same shared surface rules.
+- History uses aligned branch/tag, graph and message columns at content widths of 620 px or more. Below that, refs sit beside titles to preserve reading room. From 740 px, optional author avatars, compact date labels and hashes use their intrinsic width at the trailing edge of each row, without a reserved metadata column. Names and full dates remain available in tooltips and commit details. History rows and SVG nodes share a 30 px row height.
+- The working-tree row puts its status label and change count in the refs area, aligns its short subject with commit titles and keeps one trailing view-changes cue. The entire row supports click, Enter and Space; narrow layouts reduce the status label and action to icons without wrapping or changing graph geometry.
+- History reserves 232 px for branch/tag labels and at least 144 px for the graph, with 24 px between lanes. Give these columns priority over message width. Graph lanes use distinct teal, blue, purple, green and amber colors. Selected history and navigation rows use a blue surface with a cyan edge. Do not depend on color alone for ref identity.
+- Graph author avatars are 20 px in diameter, or 22 px for HEAD and the selected commit; selection rings and ref connectors follow the avatar radius. Trailing author avatars are 20 px. Keep all nodes centered within the shared 30 px history rows.
+- Wide windows expose branch creation, stash and the Git console in the toolbar; the overflow menu retains these operations at smaller sizes.
 - History diffs open in a wide, scrollable viewer with real unified and split modes. Do not silently truncate them to the first 100 lines.
 - The embedded Git console opens on demand. It is not a general-purpose shell.
 
 ## Typography and color
 
-- Use system sans-serif fonts for interface labels and prose. Use monospace for code, hashes, line numbers and terminal output.
-- Default interface text is 13–14 px; secondary information is at least 12 px. Diff text is 13 px. Keep compact mode optional.
+- Use the shared Inter/system sans-serif stack for navigation, filenames, branch labels, counts and prose. Reserve JetBrains Mono for code, hashes, line numbers and terminal output; reserve Orbitron for the brand wordmark.
+- Interface text is 13 px with a 20 px line height; secondary labels are 12 px with an 18 px line height. Panel titles use 13 px/600 weight, sidebar section headings 13 px/500 to match navigation text, other section labels 12 px/500, and ordinary text 400–500. Diff text remains 13 px and keeps its independent font-size control. Keep compact mode optional.
+- Primary navigation rows, tree headings and branch/tag/stash rows share a 30 px height (26 px in compact mode). Use 2 px between adjacent selectable rows and only a thin divider between tree sections; do not stack group margins, heading padding and divider padding. Panel headers share a 34 px height (30 px in compact mode).
+- Hidden tree actions must not reserve label width. Keep file-section labels, counts and actions on one line; use labeled icon buttons and a secondary-actions menu in narrow file panels, with full text available to assistive technology and tooltips.
 - Prioritize filenames, with directories beneath them and full paths available in the selected-file heading and tooltips.
 - Use CSS theme variables from src/index.css and semantic Tailwind colors. Do not introduce light-only or dark-only literals in shared UI.
 - Primary cyan identifies selection and main actions. Modification counters are neutral. Added and deleted content uses green and red alongside status text or +/- signs.
