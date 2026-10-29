@@ -1,4 +1,5 @@
 import { HistoryEditorDialog } from './HistoryEditorDialog';
+import { HistoryRefOverflow } from './HistoryRefOverflow';
 import { BisectWizardDialog } from './BisectWizardDialog';
 import { DragDropActionModal } from './DragDropActionModal';
 import { historyWorkflowService } from '@/services/git/HistoryWorkflowService';
@@ -57,6 +58,7 @@ export const CommitHistoryView: React.FC = () => {
     status,
     branches,
     selectedBranch,
+    selectAndLocateBranch,
     scrollToCommitHash,
     isLoading,
     commitsLoadedAll,
@@ -65,7 +67,7 @@ export const CommitHistoryView: React.FC = () => {
     cherryPickCommit,
     softResetCommit,
     hardResetCommit,
-  } = useRepoStore(useShallow(state => ({ commits: state.commits, selectedCommit: state.selectedCommit, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, scrollToCommitHash: state.scrollToCommitHash, isLoading: state.isLoading, commitsLoadedAll: state.commitsLoadedAll, loadMoreCommits: state.loadMoreCommits, revertCommit: state.revertCommit, cherryPickCommit: state.cherryPickCommit, softResetCommit: state.softResetCommit, hardResetCommit: state.hardResetCommit })));
+  } = useRepoStore(useShallow(state => ({ commits: state.commits, selectedCommit: state.selectedCommit, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, scrollToCommitHash: state.scrollToCommitHash, isLoading: state.isLoading, commitsLoadedAll: state.commitsLoadedAll, loadMoreCommits: state.loadMoreCommits, revertCommit: state.revertCommit, cherryPickCommit: state.cherryPickCommit, softResetCommit: state.softResetCommit, hardResetCommit: state.hardResetCommit })));
 
   const repoPath = useRepoStore(state => state.currentRepo?.path) || '';
   const savedViewRaw = useWorkspaceSessionStore(state => state.historyViews[repoPath]);
@@ -208,6 +210,10 @@ export const CommitHistoryView: React.FC = () => {
   // 未命中时保持 detail 不变，列表显示空态。
   const activeCommit = filteredCommits.find(commit => commit.hash === selectedCommit?.hash)
     || (searchQuery.trim() ? undefined : filteredCommits[0]);
+  // Keep an entry into the rendered results without changing selection while typing.
+  const firstOnScreen = Math.max(0, Math.floor(viewport.top / ROW_H) - (hasWip ? 1 : 0));
+  const tabStopHash = filteredCommits.slice(firstVisible, lastVisible).find(commit => commit.hash === activeCommit?.hash)?.hash
+    ?? filteredCommits[Math.min(firstOnScreen, filteredCommits.length - 1)]?.hash;
   const selectedIndex = hasWip
     ? filteredCommits.findIndex((c) => c.hash === activeCommit?.hash) + 1
     : filteredCommits.findIndex((c) => c.hash === activeCommit?.hash);
@@ -217,18 +223,30 @@ export const CommitHistoryView: React.FC = () => {
     const element = document.getElementById(`commit-row-${focusAfterRender.current}`);
     if (element) { element.focus({ preventScroll: true }); focusAfterRender.current = null; }
   }, [selectedCommit?.hash, firstVisible, lastVisible]);
+  const focusHistoryCommit = (index: number) => {
+    const commit = filteredCommits[index];
+    if (!commit) return;
+    focusAfterRender.current = commit.hash; setSelectedCommit(commit);
+    const rowTop = (index + (hasWip ? 1 : 0)) * ROW_H;
+    const element = viewportRef.current;
+    if (element && (rowTop < element.scrollTop || rowTop + ROW_H > element.scrollTop + element.clientHeight)) element.scrollTop = Math.max(0, rowTop - element.clientHeight / 2);
+    document.getElementById(`commit-row-${commit.hash}`)?.focus({ preventScroll: true });
+  };
+  const handleSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent?.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key === 'ArrowDown' && filteredCommits.length) {
+      event.preventDefault(); event.stopPropagation(); focusHistoryCommit(0);
+    } else if (event.key === 'Escape' && (searchQuery || pathInput)) {
+      event.preventDefault(); event.stopPropagation();
+      setSearchQuery(''); setPathInput(''); setSearchPath('');
+    }
+  };
   const handleHistoryKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     if (!target.hasAttribute('data-commit-row') || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     const index = filteredCommits.findIndex(commit => commit.hash === target.dataset.commitRow);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? filteredCommits.length - 1 : Math.max(0, Math.min(filteredCommits.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
-    const commit = filteredCommits[next];
-    if (!commit) return;
-    event.preventDefault(); focusAfterRender.current = commit.hash; setSelectedCommit(commit);
-    const rowTop = (next + (hasWip ? 1 : 0)) * ROW_H;
-    const element = viewportRef.current;
-    if (element && (rowTop < element.scrollTop || rowTop + ROW_H > element.scrollTop + element.clientHeight)) element.scrollTop = Math.max(0, rowTop - element.clientHeight / 2);
-    document.getElementById(`commit-row-${commit.hash}`)?.focus({ preventScroll: true });
+    event.preventDefault(); focusHistoryCommit(next);
   };
 
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -386,6 +404,7 @@ export const CommitHistoryView: React.FC = () => {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKey} title={t('history.searchKeys')} aria-keyshortcuts="ArrowDown Escape"
               aria-label={t('history.searchPlaceholder')} placeholder={t('history.searchPlaceholder')}
               className="h-7 pl-7 text-[12px] bg-secondary/30"
             />
@@ -394,7 +413,7 @@ export const CommitHistoryView: React.FC = () => {
           {searchMode !== 'metadata' && <Input
             value={pathInput}
             onChange={(e) => setPathInput(e.target.value)}
-            aria-label={t('flow.searchPath')} title={t('flow.searchPath')} placeholder={t('flow.searchPathPlaceholder')}
+            onKeyDown={handleSearchKey} aria-keyshortcuts="ArrowDown Escape" aria-label={t('flow.searchPath')} title={t('history.searchKeys')} placeholder={t('flow.searchPathPlaceholder')}
             className="w-36 h-7 text-[12px] bg-secondary/30"
           />}
         <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="xs">{t('composer.columns')}</Button></DropdownMenu.Trigger>
@@ -498,7 +517,7 @@ export const CommitHistoryView: React.FC = () => {
                     id={`commit-row-${commit.hash}`}
                     role="listitem" data-commit-row={commit.hash}
                     draggable
-                    onDragStart={e => { e.dataTransfer.setData('application/x-auugit-commit', commit.hash); e.dataTransfer.effectAllowed = 'copy'; }} tabIndex={isSelected ? 0 : -1} aria-current={isSelected ? 'true' : undefined}
+                    onDragStart={e => { e.dataTransfer.setData('application/x-auugit-commit', commit.hash); e.dataTransfer.effectAllowed = 'copy'; }} tabIndex={commit.hash === tabStopHash ? 0 : -1} aria-current={isSelected ? 'true' : undefined}
                     aria-label={`${commit.subject} · ${commit.author.name} · ${commit.author.relativeDate} · ${commit.shortHash}`}
                     title={commit.subject}
                     onFocus={event => { if (event.target === event.currentTarget) setSelectedCommit(commit); }}
@@ -560,7 +579,7 @@ export const CommitHistoryView: React.FC = () => {
                                   data-current-branch={!isTag && !isRemote && (isHead || isSelectedBranch) ? '' : undefined}
                                   className={cn(
                                     "history-ref h-5 px-1.5 text-[12px] gap-1 min-w-0 truncate rounded-sm border transition-colors",
-                                    (isHead || isSelectedBranch) ? "flex-none max-w-[196px]" : "shrink max-w-[156px]",
+                                    isTag ? "flex-none max-w-[100px]" : (isHead || isSelectedBranch) ? "flex-[0_1_auto] max-w-[196px]" : "shrink max-w-[156px]",
                                     isTag && "bg-amber-500/15 text-git-tag border-amber-500/40",
                                     isRemote && "bg-secondary text-secondary-foreground border-border"
                                   )}
@@ -584,11 +603,9 @@ export const CommitHistoryView: React.FC = () => {
                                 </Badge>
                               );
                             })}
-                            {rawRefs.length > 2 && (
-                              <Badge variant="outline" className="h-5 px-1 text-[12px] tabular-nums shrink-0">
-                                +{rawRefs.length - 2}
-                              </Badge>
-                            )}
+                            <HistoryRefOverflow refs={rawRefs} onLocate={target => {
+                              void selectAndLocateBranch(target).catch((error: Error) => toast.error(error.message));
+                            }} />
                           </>
                         );
                       })()}

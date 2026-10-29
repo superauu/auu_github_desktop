@@ -682,6 +682,8 @@ export const zh = {
   'history.moreTools': '更多工具',
   'history.organizeHint': '重排、合并或修改尚未发布的提交',
   'history.uncommitted': '未提交修改',
+  'history.allRefs': '查看全部分支与标签（{n}）',
+  'history.searchKeys': '↓ 进入结果 · Esc 清空筛选',
   'history.searchPlaceholder': '搜索主题、作者或 Hash...',
   'history.noMatch': '未找到符合条件的提交记录',
   'history.wipToast': '已快速跳转至工作区未提交变更 (WIP)',

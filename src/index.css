@@ -679,7 +679,8 @@ body {
 .command-palette [cmdk-group-heading] {
   padding: 4px 0;
   color: hsl(var(--muted-foreground));
-  font-size: 11px;
+  font-size: var(--ui-caption-size);
+  line-height: 18px;
   font-weight: 600;
 }
 .command-palette [cmdk-item] {
@@ -759,7 +760,7 @@ body { font-size: var(--text-xs); line-height: 20px; }
 @container history (max-width: 619px) {
   .history-refs-heading { display: none; }
   .history-graph { left: 12px; }
-  .history-refs { order: 1; width: auto; max-width: 116px; padding-right: 0; margin-left: 6px; }
+  .history-refs { order: 1; width: auto; max-width: 168px; padding-right: 0; margin-left: 6px; }
   .history-refs:empty { display: none; }
   .history-refs::after { display: none; }
   .history-row > .flex-1 { order: 2; }

@@ -682,6 +682,8 @@ export const en = {
   'history.moreTools': 'More tools',
   'history.organizeHint': 'Reorder, combine or edit unpublished commits',
   'history.uncommitted': 'uncommitted changes',
+  'history.allRefs': 'View all refs ({n})',
+  'history.searchKeys': '↓ Enter results · Esc Clear filters',
   'history.searchPlaceholder': 'Search subject, author or hash...',
   'history.noMatch': 'No matching commits',
   'history.wipToast': 'Jumped to uncommitted working changes (WIP)',

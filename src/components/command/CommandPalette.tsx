@@ -87,7 +87,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 className="h-8 min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-foreground placeholder:text-muted-foreground"
                 autoFocus
               />
-              <kbd className="pointer-events-none inline-flex h-5 shrink-0 select-none items-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[11px] text-muted-foreground">
+              <kbd className="pointer-events-none inline-flex h-5 shrink-0 select-none items-center rounded border border-border bg-muted/50 px-1.5 font-mono text-[12px] text-muted-foreground">
                 ESC
               </kbd>
             </div>
@@ -109,7 +109,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <FileCode2 className="h-3.5 w-3.5 text-primary" />
                 <span>{t('sidebar.changes')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 1</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Alt 1</span>
               </Command.Item>
 
               <Command.Item
@@ -121,7 +121,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Clock className="h-3.5 w-3.5 text-git-branch" />
                 <span>{t('sidebar.history')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 2</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Alt 2</span>
               </Command.Item>
 
               <Command.Item
@@ -133,7 +133,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <GitPullRequest className="h-3.5 w-3.5 text-primary" />
                 <span>{t('palette.prCenter')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 3</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Alt 3</span>
               </Command.Item>
 
               <Command.Item
@@ -145,7 +145,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <Workflow className="h-3.5 w-3.5 text-git-added" />
                 <span>{t('palette.actionsDash')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Alt 4</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Alt 4</span>
               </Command.Item>
             </Command.Group>
 
@@ -179,7 +179,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <RefreshCw className="h-3.5 w-3.5 text-git-branch" />
                 <span>{t('palette.gitFetch')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Ctrl+Shift+F</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Ctrl+Shift+F</span>
               </Command.Item>
 
               <Command.Item
@@ -197,7 +197,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <ArrowDown className="h-3.5 w-3.5 text-primary" />
                 <span>{t('palette.gitPull')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Ctrl+L</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Ctrl+L</span>
               </Command.Item>
 
               <Command.Item
@@ -214,7 +214,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               >
                 <ArrowUp className="h-3.5 w-3.5 text-git-added" />
                 <span>{t('palette.gitPush')}</span>
-                <span className="ml-auto text-[11px] font-mono text-muted-foreground">Ctrl+P</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Ctrl+P</span>
               </Command.Item>
 
               <Command.Item
@@ -250,7 +250,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     <GitBranch className="h-3.5 w-3.5 text-git-branch" />
                     <span>{b.name}</span>
                     {b.isCurrent && (
-                      <span className="ml-auto text-[10px] px-1 rounded bg-accent text-git-branch">
+                      <span className="ml-auto text-[12px] px-1 rounded bg-accent text-git-branch">
                         {t('header.currentHead')}
                       </span>
                     )}
@@ -273,7 +273,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   >
                     <Tag className="h-3.5 w-3.5 text-git-tag" />
                     <span className="font-mono">{tag.name}</span>
-                    <span className="ml-auto text-[11px] font-mono text-muted-foreground">
+                    <span className="ml-auto text-[12px] font-mono text-muted-foreground">
                       {tag.commitHash.slice(0, 7)}
                     </span>
                   </Command.Item>
