@@ -139,3 +139,67 @@ test('gitea service maps pulls and combined commit statuses', async () => {
   const pipelines = await service.listPipelines('org', 'repo', 'feat');
   assert.deepEqual(pipelines.map((pipeline) => [pipeline.name, pipeline.status]), [['ci/build', 'success'], ['ci/lint', 'failed']]);
 });
+
+test('stale forge loads cannot overwrite the newer repository state', async () => {
+  // forgeStore 依赖 localStorage mock（本文件原有用例只测 service 层，未装 mock）。
+  const saved = new Map();
+  const previousFetch = globalThis.fetch;
+  globalThis.localStorage = {
+    getItem: (key) => saved.get(key) ?? null,
+    setItem: (key, value) => saved.set(key, String(value)),
+    removeItem: (key) => saved.delete(key),
+  };
+  const storeTmp = await fs.mkdtemp(path.join(root, '.test-tmp-forge-store-'));
+  try {
+    const bundle = path.join(storeTmp, 'forge-store.cjs');
+    await build({
+      stdin: { contents: `export * from './src/stores/forgeStore'; export { gitlabService } from './src/services/gitlab/GitLabService'; export { giteaService } from './src/services/gitea/GiteaService';`, resolveDir: root },
+      bundle: true, platform: 'node', format: 'cjs', outfile: bundle,
+      alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
+    });
+    const storeApp = createRequire(import.meta.url)(bundle);
+    const { useForgeStore, gitlabService, giteaService } = storeApp;
+    // 全新 bundle 的 service 单例未配置：store 用的是同一份实例，必须先配置再驱动。
+    gitlabService.configure('pat-token', 'https://gitlab.example.com');
+    giteaService.configure('gitea-token', 'https://gitea.example.com');
+
+    const delayed = (value, milliseconds) => new Promise((resolve) => setTimeout(() => resolve(value), milliseconds));
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+      // 仓库 A（gitlab）：projectId 慢返回——A 的 loadPulls 在切换到 B 之后才落地。
+      if (url.pathname === '/api/v4/projects/team%2Fproj') return delayed({ id: 42 }, 40);
+      if (url.pathname === '/api/v4/projects/42/merge_requests') {
+        return json([{ iid: 7, title: 'A 仓库的 PR', state: 'opened', draft: false, source_branch: 'a', target_branch: 'main', created_at: 't', updated_at: 't', web_url: 'wa', author: { username: 'bob' } }]);
+      }
+      // 仓库 B（gitea）：全部快速返回。
+      if (url.pathname === '/api/v1/repos/org/repo/pulls') {
+        return json([{ number: 12, title: 'B 仓库的 PR', state: 'open', merged: false, draft: false, base: { ref: 'main' }, head: { ref: 'feat' }, created_at: 't', updated_at: 't', html_url: 'wb', user: { login: 'hank' } }]);
+      }
+      throw new Error(`unexpected fetch ${url.pathname}`);
+    };
+
+    // 仓库 A 在途；detect() 切仓库作废其代数，B 的加载随后完成。
+    useForgeStore.setState({ gitea: { server: 'https://gitea.example.com', user: { login: 'gina' } }, detection: { kind: 'gitlab', server: 'https://gitlab.example.com', ownerPath: 'team', repo: 'proj' } });
+    const stale = useForgeStore.getState().loadPulls();
+    await useForgeStore.getState().detect('E:/code/repo-b');
+    useForgeStore.setState({ detection: { kind: 'gitea', server: 'https://gitea.example.com', ownerPath: 'org/repo', repo: 'repo' } });
+    await useForgeStore.getState().loadPulls();
+    await stale;
+
+    const state = useForgeStore.getState();
+    assert.equal(state.pulls.length, 1);
+    assert.equal(state.pulls[0].title, 'B 仓库的 PR');
+    assert.equal(state.pullsLoading, false);
+    assert.equal(state.pullsError, '');
+
+    // detect 后 detection 已被清空（node 下 getOriginUrl 不可达即回落 null）——
+    // 手动设置 B 的 detection 只为驱动 loadPulls，与真实 detect 成功后的状态一致。
+  } finally {
+    globalThis.fetch = previousFetch;
+    delete globalThis.localStorage;
+    if (storeTmp && path.dirname(storeTmp) === root && path.basename(storeTmp).startsWith('.test-tmp-forge-store-')) {
+      await fs.rm(storeTmp, { recursive: true, force: true });
+    }
+  }
+});

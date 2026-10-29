@@ -38,7 +38,7 @@ export const ForgeView: React.FC = () => {
   useEffect(() => { void restoreAccounts(); }, [restoreAccounts]);
   useEffect(() => {
     if (currentRepo?.path) void detect(currentRepo.path);
-    else useForgeStore.setState({ detection: null, pulls: [], pipelines: [] });
+    else useForgeStore.getState().resetTransient();
   }, [currentRepo?.path, detect]);
   useEffect(() => {
     if (detection) void loadPulls();

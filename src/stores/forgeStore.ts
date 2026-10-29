@@ -37,6 +37,8 @@ interface ForgeStoreState {
   disconnect(kind: 'gitlab' | 'gitea'): Promise<void>;
   /** 识别当前仓库的 origin：gitlab.com / 已连接服务器域名命中 → 进入 forge 界面。 */
   detect(repoPath: string): Promise<void>;
+  /** 离开 forge 上下文（无仓库/视图卸载/断开账号）时清空瞬态数据，并作废在途加载。 */
+  resetTransient(): void;
   loadPulls(): Promise<void>;
   loadDetail(number: number): Promise<ForgePullRequestDetail>;
   loadPipelines(ref?: string): Promise<void>;
@@ -94,7 +96,15 @@ const hostOf = (server: string): string => {
   }
 };
 
-export const useForgeStore = create<ForgeStoreState>((set, get) => ({
+export const useForgeStore = create<ForgeStoreState>((set, get) => {
+  // 竞态代币（范式同 githubStore 的 ticket）：仓库切换/离开上下文使代数 +1，
+  // 之前仓库的在途加载返回后按代数作废——慢请求不得把 A 仓库的 PR/流水线挂到 B 仓库下。
+  let loadGeneration = 0;
+  const ticket = () => {
+    const epoch = loadGeneration;
+    return () => loadGeneration === epoch;
+  };
+  return {
   gitlab: null,
   gitea: null,
   detection: null,
@@ -135,11 +145,11 @@ export const useForgeStore = create<ForgeStoreState>((set, get) => ({
     await writeToken(kind, null).catch(() => {});
     set(kind === 'gitlab' ? { gitlab: null } : { gitea: null });
     persist(get());
-    if (get().detection?.kind === kind) set({ detection: null, pulls: [], pipelines: [] });
+    if (get().detection?.kind === kind) get().resetTransient();
   },
 
   async detect(repoPath) {
-    set({ detection: null, pulls: [], pullsError: '', pipelines: [] });
+    get().resetTransient();
     const origin = await gitService.getOriginUrl(repoPath).catch(() => undefined);
     if (!origin) return;
     const remote = parseForgeRemote(origin);
@@ -154,22 +164,30 @@ export const useForgeStore = create<ForgeStoreState>((set, get) => ({
     }
   },
 
+  resetTransient() {
+    loadGeneration++;
+    set({ detection: null, pulls: [], pullsError: '', pipelines: [], pullsLoading: false, pipelinesLoading: false });
+  },
+
   async loadPulls() {
     const { detection } = get();
     if (!detection || get().pullsLoading) return;
+    const valid = ticket();
     set({ pullsLoading: true, pullsError: '' });
     try {
       if (detection.kind === 'gitlab') {
         const projectId = await gitlabService.projectId(detection.ownerPath, detection.repo);
-        set({ pulls: await gitlabService.listPullRequests(projectId, 'opened') });
+        const pulls = await gitlabService.listPullRequests(projectId, 'opened');
+        if (valid()) set({ pulls });
       } else {
         const [owner] = detection.ownerPath.split('/');
-        set({ pulls: await giteaService.listPullRequests(owner, detection.repo, 'open') });
+        const pulls = await giteaService.listPullRequests(owner, detection.repo, 'open');
+        if (valid()) set({ pulls });
       }
     } catch (error) {
-      set({ pulls: [], pullsError: error instanceof Error ? error.message : String(error) });
+      if (valid()) set({ pulls: [], pullsError: error instanceof Error ? error.message : String(error) });
     } finally {
-      set({ pullsLoading: false });
+      if (valid()) set({ pullsLoading: false });
     }
   },
 
@@ -187,19 +205,23 @@ export const useForgeStore = create<ForgeStoreState>((set, get) => ({
   async loadPipelines(ref) {
     const { detection } = get();
     if (!detection || get().pipelinesLoading) return;
+    const valid = ticket();
     set({ pipelinesLoading: true });
     try {
       if (detection.kind === 'gitlab') {
         const projectId = await gitlabService.projectId(detection.ownerPath, detection.repo);
-        set({ pipelines: await gitlabService.listPipelines(projectId, ref) });
+        const pipelines = await gitlabService.listPipelines(projectId, ref);
+        if (valid()) set({ pipelines });
       } else {
         const [owner] = detection.ownerPath.split('/');
-        set({ pipelines: await giteaService.listPipelines(owner, detection.repo, ref || 'HEAD') });
+        const pipelines = await giteaService.listPipelines(owner, detection.repo, ref || 'HEAD');
+        if (valid()) set({ pipelines });
       }
     } catch {
-      set({ pipelines: [] });
+      if (valid()) set({ pipelines: [] });
     } finally {
-      set({ pipelinesLoading: false });
+      if (valid()) set({ pipelinesLoading: false });
     }
   },
-}));
+  };
+});
