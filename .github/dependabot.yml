@@ -11,8 +11,11 @@ updates:
         update-types: [minor, patch]
     # @types/node 必须与实际运行的 Node 大版本对齐（CI/engines 锁 20.x），
     # 不跟随上游；升级 Node 运行时时一并手动调整。
+    # TS7 待 typescript-eslint 提供 peer 支持（当前封顶 <6.1.0），解除前不跟 major。
     ignore:
       - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
         update-types: ["version-update:semver-major"]
   - package-ecosystem: cargo
     directory: /src-tauri
