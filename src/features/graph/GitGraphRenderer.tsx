@@ -171,7 +171,7 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
       const node = calculatedNodes[i + rowOffset];
       const parents = commits[i].parents || [];
 
-      for (const parentHash of parents) {
+      for (const [parentIndex, parentHash] of parents.entries()) {
         const parentNode = nodesByHash.get(parentHash);
         if (parentNode) {
           const x1 = node.x;
@@ -179,30 +179,33 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
           const x2 = parentNode.x;
           const y2 = parentNode.y;
 
-          // GitKraken 式走法：同泳道直接垂直；换道在子节点下方一行内完成肘弯，
-          // 随后沿目标泳道垂直直下——不再画跨越多行的长斜线（长斜线会横穿其它泳道成一团）。
+          // Keep branch lines in their own lane: first-parent joins bend just before
+          // the parent; merge-parent forks bend just after the child.
+          // This prevents a tail from overlapping another branch's vertical line.
           let d: string;
           if (x1 === x2) {
             d = `M ${x1} ${y1} L ${x2} ${y2}`;
+          } else if (parentIndex === 0) {
+            const elbowY = Math.max(y1, y2 - rowHeight);
+            const elbowMid = (elbowY + y2) / 2;
+            d = `M ${x1} ${y1}`;
+            if (elbowY > y1) d += ` L ${x1} ${elbowY}`;
+            d += ` C ${x1} ${elbowMid}, ${x2} ${elbowMid}, ${x2} ${y2}`;
           } else {
             const elbowY = Math.min(y1 + rowHeight, y2);
             const elbowMid = (y1 + elbowY) / 2;
             d = `M ${x1} ${y1} C ${x1} ${elbowMid}, ${x2} ${elbowMid}, ${x2} ${elbowY}`;
             if (elbowY < y2) {
-              // 肘弯之后的下行沿用父节点泳道色（与目标泳道/父节点同色，且该纵向区间为该分支独占）
-              calculatedPaths.push({
-                id: `${commits[i].hash}-${parentHash}-lane`,
-                d: `M ${x2} ${elbowY} L ${x2} ${y2}`,
-                color: parentNode.color,
-                fromRow: node.index, toRow: parentNode.index,
-              });
+              d += ` L ${x2} ${y2}`;
             }
           }
 
           calculatedPaths.push({
             id: `${commits[i].hash}-${parentHash}`,
             d,
-            color: node.color,
+            // An edge keeps its branch color through the elbow and the tail.
+            // First-parent history follows the source branch; merge parents use their own lane.
+            color: parentIndex === 0 ? node.color : parentNode.color,
             fromRow: node.index, toRow: parentNode.index,
           });
         }
