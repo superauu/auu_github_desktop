@@ -1547,6 +1547,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             className="h-7 w-7 p-0 hover:text-git-deleted"
                             title={t('sidebar.dropTitle')}
                             onClick={async () => {
+                              // 与右键菜单的 drop-stash 同一确认防线（丢弃不可恢复）。
+                              if (!await confirmAction({ title: t('sidebar.ctx.dropStash'), description: t('composer.dropStashWarning'), detail: `stash@{${stash.index}} · ${stash.message}` })) return;
                               try {
                                 await stashDrop(stash.index);
                                 toast.info(t('sidebar.ctx.stashDropped'));

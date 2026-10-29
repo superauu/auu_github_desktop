@@ -921,6 +921,7 @@ export const en = {
   'resolver.allOurs': 'Applied current (HEAD) for all conflicts',
   'resolver.allTheirs': 'Applied incoming for all conflicts',
   'resolver.allBoth': 'Kept both sides for all conflicts',
+  'resolver.resolveAllWarning': 'Every conflict block in this file will be switched to one decision. The editor content is replaced wholesale (use "Reset markers" below to recover).',
   'resolver.stageHint': 'Click "Save & Mark Resolved" to stage.',
   'resolver.oursResolved': 'Applied current version and marked resolved',
   'resolver.theirsResolved': 'Applied incoming version and marked resolved',

@@ -127,12 +127,12 @@ export const AppLayout: React.FC = () => {
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
         e.preventDefault();
-        fetchRemote().catch(() => {});
+        fetchRemote().catch(error => toast.error(t('header.fetchFailed'), error?.message));
         return;
       }
       if (mod && !e.shiftKey && (e.key === 'l' || e.key === 'L')) {
         e.preventDefault();
-        pull().catch(() => {});
+        pull().catch(error => toast.error(t('header.pullFailed'), error?.message));
         return;
       }
       if (mod && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {

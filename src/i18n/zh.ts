@@ -931,6 +931,7 @@ export const zh = {
   'resolver.allOurs': '已全部采用当前更改 (HEAD)',
   'resolver.allTheirs': '已全部采用传入更改',
   'resolver.allBoth': '已全部保留双方更改',
+  'resolver.resolveAllWarning': '将把此文件的全部冲突块一次性改为同一决策，编辑器内容会被整体替换（如失误可用下方“重置标记”恢复）。',
   'resolver.stageHint': '请点击“保存并标记已解决”完成暂存。',
   'resolver.oursResolved': '已采用当前版本并标记已解决',
   'resolver.theirsResolved': '已采用传入版本并标记已解决',

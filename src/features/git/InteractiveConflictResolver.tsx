@@ -19,6 +19,7 @@ import {
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { confirmAction } from '@/stores/confirmStore';
 import {
   parseConflictBlocks,
   resolveSingleBlock,
@@ -240,7 +241,17 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     }
   };
 
-  const handleResolveAll = (resolution: 'current' | 'incoming' | 'both') => {
+  const handleResolveAll = async (resolution: 'current' | 'incoming' | 'both') => {
+    // 批量决策整体替换编辑器内容且非 textarea（Ctrl+Z 不可达），必须先确认；
+    // 失误恢复路径是工具栏「重置标记」。
+    if (!await confirmAction({
+      title: resolution === 'current'
+        ? t('resolver.allOurs')
+        : resolution === 'incoming'
+        ? t('resolver.allTheirs')
+        : t('resolver.allBoth'),
+      description: t('resolver.resolveAllWarning'),
+    })) return;
     const updated = resolveAllBlocks(content, resolution);
     setContent(updated);
     toast.success(
@@ -463,7 +474,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   };
 
   if (readError && !loading) {
-    return <div role="alert" className="p-6 text-sm text-destructive">{t('resolver.loadFailed')}: {readError}<Button onClick={() => void loadContent()}>{t('resolver.resetMarkers')}</Button></div>;
+    return <div role="alert" className="p-6 text-sm text-destructive">{t('resolver.loadFailed')}: {readError}<Button onClick={() => void loadContent()}>{t('composer.retry')}</Button></div>;
   }
 
   if (loading) {

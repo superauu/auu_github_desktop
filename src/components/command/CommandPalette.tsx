@@ -165,7 +165,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               </Command.Item>
 
               <Command.Item
+                disabled={!currentRepo}
                 onSelect={async () => {
+                  if (!currentRepo) return;
                   onOpenChange(false);
                   toast.info(t('header.fetching'));
                   try {
@@ -175,7 +177,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     toast.error(t('header.fetchFailed'), err.message);
                   }
                 }}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md aria-disabled:opacity-40 hover:bg-accent cursor-pointer text-xs"
               >
                 <RefreshCw className="h-3.5 w-3.5 text-git-branch" />
                 <span>{t('palette.gitFetch')}</span>
@@ -183,7 +185,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               </Command.Item>
 
               <Command.Item
+                disabled={!currentRepo}
                 onSelect={async () => {
+                  if (!currentRepo) return;
                   onOpenChange(false);
                   toast.info(t('header.pulling'));
                   try {
@@ -193,7 +197,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     toast.error(t('header.pullFailed'), err.message);
                   }
                 }}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md aria-disabled:opacity-40 hover:bg-accent cursor-pointer text-xs"
               >
                 <ArrowDown className="h-3.5 w-3.5 text-primary" />
                 <span>{t('palette.gitPull')}</span>
@@ -201,7 +205,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               </Command.Item>
 
               <Command.Item
+                disabled={!currentRepo}
                 onSelect={async () => {
+                  if (!currentRepo) return;
                   onOpenChange(false);
                   try {
                     if (!await pushFromUi()) return;
@@ -210,7 +216,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     toast.error(t('header.pushFailed'), err.message);
                   }
                 }}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md aria-disabled:opacity-40 hover:bg-accent cursor-pointer text-xs"
               >
                 <ArrowUp className="h-3.5 w-3.5 text-git-added" />
                 <span>{t('palette.gitPush')}</span>
