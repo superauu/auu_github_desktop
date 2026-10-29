@@ -56,6 +56,7 @@ export const AppLayout: React.FC = () => {
   const {
     setLeftSidebarWidth,
     setRightPaneWidth,
+    setHistoryPaneWidth,
     toggleEmbeddedTerminal,
     navigationPinned,
   } = useLayoutStore();
@@ -265,10 +266,10 @@ export const AppLayout: React.FC = () => {
             <ResizeHandle
               className="glass-resize"
               currentSize={panels.right}
-              onSizeChange={setRightPaneWidth}
+              onSizeChange={activeTab === 'history' ? setHistoryPaneWidth : setRightPaneWidth}
               minSize={220}
               maxSize={650}
-              defaultSize={DEFAULT_LAYOUT.rightPaneWidth}
+              defaultSize={activeTab === 'history' ? DEFAULT_LAYOUT.historyPaneWidth : DEFAULT_LAYOUT.rightPaneWidth}
               reverse
               title={t('layout.resizeRight')}
             />

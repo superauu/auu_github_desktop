@@ -132,6 +132,7 @@ test('layout migration widens the old default while preserving saved custom size
       await app.useLayoutStore.persist.rehydrate();
       const state = app.useLayoutStore.getState();
       assert.equal(state.rightPaneWidth, expected);
+      assert.equal(state.historyPaneWidth, oldWidth === 320 ? 320 : oldWidth);
       assert.equal(state.leftSidebarWidth, 212);
       assert.equal(state.navigationPinned, false);
     }
@@ -142,6 +143,38 @@ test('layout migration widens the old default while preserving saved custom size
     assert.equal(app.useLayoutStore.getState().rightPaneWidth, 320, 'new explicit sizes survive rehydration');
   } finally {
     app.useLayoutStore.getState().resetLayout();
+    if (previous === undefined) saved.delete(key); else saved.set(key, previous);
+  }
+});
+
+test('history and composer widths persist independently, including explicit legacy custom widths', async () => {
+  globalThis.window = { innerWidth: 1800, addEventListener() {}, removeEventListener() {} };
+  const key = 'auu-git-layout-storage', previous = saved.get(key);
+  let renderer, result;
+  function Probe() { result = app.useWorkspaceLayout(); return null; }
+  try {
+    saved.set(key, JSON.stringify({ version: 1, state: { rightPaneWidth: 320 } }));
+    await app.useLayoutStore.persist.rehydrate();
+    assert.equal(app.useLayoutStore.getState().rightPaneWidth, 320);
+    assert.equal(app.useLayoutStore.getState().historyPaneWidth, 320);
+    app.useLayoutStore.getState().resetLayout();
+    app.useRepoStore.setState({ currentRepo: { path: '/repo' }, activeTab: 'history', isLeftSidebarCollapsed: false, isRightPaneCollapsed: false });
+    await act(async () => { renderer = create(React.createElement(Probe)); });
+    assert.equal(result.panels.right, 320);
+    await act(async () => app.useLayoutStore.getState().setHistoryPaneWidth(352));
+    await act(async () => app.useRepoStore.setState({ activeTab: 'changes' }));
+    assert.equal(result.panels.right, 400);
+    await act(async () => app.useLayoutStore.getState().setRightPaneWidth(448));
+    await act(async () => app.useRepoStore.setState({ activeTab: 'history' }));
+    assert.equal(result.panels.right, 352);
+    await act(async () => app.useLayoutStore.persist.rehydrate());
+    assert.equal(app.useLayoutStore.getState().rightPaneWidth, 448);
+    assert.equal(app.useLayoutStore.getState().historyPaneWidth, 352);
+    await act(async () => app.useLayoutStore.getState().resetLayout());
+    assert.equal(result.panels.right, 320);
+  } finally {
+    await act(async () => renderer?.unmount());
+    app.useLayoutStore.getState().resetLayout(); app.useRepoStore.setState({ currentRepo: null }); delete globalThis.window;
     if (previous === undefined) saved.delete(key); else saved.set(key, previous);
   }
 });

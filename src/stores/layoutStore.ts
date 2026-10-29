@@ -5,6 +5,7 @@ export interface LayoutState {
   // 分栏宽度（单位：像素）
   leftSidebarWidth: number;
   rightPaneWidth: number;
+  historyPaneWidth: number;
   changesFileListWidth: number;
   actionsWorkflowsWidth: number;
   prListWidth: number;
@@ -16,6 +17,7 @@ export interface LayoutState {
   // 调节动作
   setLeftSidebarWidth: (width: number) => void;
   setRightPaneWidth: (width: number) => void;
+  setHistoryPaneWidth: (width: number) => void;
   setChangesFileListWidth: (width: number) => void;
   setActionsWorkflowsWidth: (width: number) => void;
   setPrListWidth: (width: number) => void;
@@ -32,6 +34,7 @@ export interface LayoutState {
 export const DEFAULT_LAYOUT = {
   leftSidebarWidth: 200,
   rightPaneWidth: 400,
+  historyPaneWidth: 320,
   changesFileListWidth: 260,
   actionsWorkflowsWidth: 260,
   prListWidth: 320,
@@ -51,6 +54,9 @@ export const useLayoutStore = create<LayoutState>()(
 
       setRightPaneWidth: (width: number) =>
         set({ rightPaneWidth: Math.max(220, Math.min(650, width)) }),
+
+      setHistoryPaneWidth: (width: number) =>
+        set({ historyPaneWidth: Math.max(220, Math.min(650, width)) }),
 
       setChangesFileListWidth: (width: number) =>
         set({ changesFileListWidth: Math.max(160, Math.min(500, width)) }),
@@ -77,11 +83,12 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'auu-git-layout-storage',
-      version: 1,
-      migrate: (persisted) => {
+      version: 2,
+      migrate: (persisted, version) => {
         const previous = (persisted && typeof persisted === 'object' ? persisted : {}) as Partial<LayoutState>;
         // Adopt the wider default for old default layouts; retain custom panel sizes.
-        return { ...previous, rightPaneWidth: previous.rightPaneWidth == null || previous.rightPaneWidth === 320 ? DEFAULT_LAYOUT.rightPaneWidth : previous.rightPaneWidth };
+        const rightPaneWidth = previous.rightPaneWidth == null || (version < 1 && previous.rightPaneWidth === 320) ? DEFAULT_LAYOUT.rightPaneWidth : previous.rightPaneWidth;
+        return { ...previous, rightPaneWidth, historyPaneWidth: previous.historyPaneWidth ?? (rightPaneWidth === DEFAULT_LAYOUT.rightPaneWidth ? DEFAULT_LAYOUT.historyPaneWidth : rightPaneWidth) };
       },
       storage: createJSONStorage(() => localStorage),
     }
