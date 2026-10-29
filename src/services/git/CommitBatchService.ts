@@ -171,7 +171,7 @@ export const commitBatchService = {
           if (restoring) {
             try {
               const actualHead = headOf(await gitService.getStatus(plan.repoPath));
-              if (actualHead !== (completed.at(-1)?.hash || plan.head)) throw new Error(tNow('batch.headChanged'));
+              if (actualHead !== (completed.at(-1)?.hash || plan.head)) throw new Error(tNow('batch.headChanged'), { cause: error });
               const currentPaths = new Set((await git(['ls-files', '-z'])).stdout.split('\0'));
               const originalPaths = new Set((await git(['ls-tree', '-r', '--name-only', '-z', originalIndex])).stdout.split('\0'));
               const restorePaths = pathsFor(plan, group.files).filter(path => currentPaths.has(path) || originalPaths.has(path));

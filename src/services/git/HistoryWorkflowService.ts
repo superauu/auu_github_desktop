@@ -139,7 +139,7 @@ export const historyWorkflowService = {
     } catch (error) {
       // An illegal pattern makes git exit 128; surface a readable hint instead of a bare stderr dump.
       if (options.regex && error instanceof GitExecutionError && /invalid regex|not a valid regular expression/i.test(error.stderr)) {
-        throw new Error(`Invalid regular expression: ${query}`);
+        throw new Error(`Invalid regular expression: ${query}`, { cause: error });
       }
       throw error;
     }

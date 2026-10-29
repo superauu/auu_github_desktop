@@ -152,7 +152,7 @@ async function loadToken(profileId: string | null): Promise<string | null> {
       }
       return null;
     } catch (err) {
-      throw new Error(tNow('err.keyringReadFailed').replace('{m}', String(err)));
+      throw new Error(tNow('err.keyringReadFailed').replace('{m}', String(err)), { cause: err });
     }
   }
   const legacy = isDefaultProfile ? localStorage.getItem(GITHUB_TOKEN_KEY) : null;

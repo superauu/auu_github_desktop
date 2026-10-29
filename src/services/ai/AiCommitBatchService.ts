@@ -32,7 +32,7 @@ export async function analyzeCommitBatch(plan: CommitBatchPlan, config: AiApiCon
     ], { signal: controller.signal, temperature: 0.2, maxTokens: 8000 }), controller.signal);
     return parseCommitBatchResult(raw, plan.files.map(file => file.path));
   } catch (error) {
-    if (timedOut && !signal.aborted) throw new Error(tNow('batch.analysisTimeout'));
+    if (timedOut && !signal.aborted) throw new Error(tNow('batch.analysisTimeout'), { cause: error });
     throw error;
   } finally { clearTimeout(timer); signal.removeEventListener('abort', cancel); }
 }

@@ -73,7 +73,7 @@ export async function summarizeReviewRange(input: AiReviewRangeInput, config: Ai
     ], { signal: controller.signal, temperature: 0.2, maxTokens: 4000 }), controller.signal);
     return parseReviewSummary(raw, input.commits);
   } catch (error) {
-    if (timedOut && !signal.aborted) throw new Error(tNow('review.summaryTimeout'));
+    if (timedOut && !signal.aborted) throw new Error(tNow('review.summaryTimeout'), { cause: error });
     throw error;
   } finally { clearTimeout(timer); signal.removeEventListener('abort', cancel); }
 }

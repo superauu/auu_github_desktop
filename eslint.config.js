@@ -15,8 +15,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-expressions': ['error', { allowTernary: true }],
-      // Error.cause requires ES2022; the application currently targets ES2020.
-      'preserve-caught-error': 'off',
+      // Error.cause 需要 ES2022，target 已升级，恢复 recommended 默认检查。
       'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },

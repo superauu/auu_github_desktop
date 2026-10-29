@@ -134,7 +134,7 @@ export async function generateReleaseNotes(repoPath: string, options: ReleaseNot
     const notice = truncated ? translate(language, 'releaseNotes.truncatedNote').replace('{total}', String(totalCommits)).replace('{cap}', String(commits.length)) : '';
     return { markdown: notice ? `${notice}\n\n${markdown}` : markdown, truncated, commitCount: commits.length };
   } catch (error) {
-    if (timedOut && !signal.aborted) throw new Error(tNow('releaseNotes.timeout'));
+    if (timedOut && !signal.aborted) throw new Error(tNow('releaseNotes.timeout'), { cause: error });
     throw error;
   } finally { clearTimeout(timer); signal.removeEventListener('abort', cancel); }
 }

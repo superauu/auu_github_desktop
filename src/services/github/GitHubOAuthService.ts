@@ -62,7 +62,7 @@ export class GitHubOAuthService {
         data.verification_uri = validateGitHubUrl(data.verification_uri);
         return data as DeviceCodeResponse;
       } catch (err: any) {
-        throw new Error(tNow('err.ghDeviceFailed').replace('{m}', err.message || String(err)));
+        throw new Error(tNow('err.ghDeviceFailed').replace('{m}', err.message || String(err)), { cause: err });
       }
     }
 
@@ -202,7 +202,7 @@ export class GitHubOAuthService {
             // 非 JSON 负载，按传输层瞬时错误处理
           }
         }
-        throw new Error(text);
+        throw new Error(text, { cause: err });
       }
       return JSON.parse(rawJson) as DeviceTokenResponse;
     }
