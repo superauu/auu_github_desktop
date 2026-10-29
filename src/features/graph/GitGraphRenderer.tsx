@@ -263,6 +263,19 @@ export const GitGraphRenderer: React.FC<GitGraphRendererProps> = ({
 
         return (
           <g key={commit.hash}>
+            {/* HEAD 同色肘线：从节点连到图列右缘（分支徽标的起点），建立「徽标→线→节点」视觉通路 */}
+            {isHead && (
+              <line
+                x1={node.x + avatarR}
+                y1={node.y}
+                x2={svgWidth - 2}
+                y2={node.y}
+                stroke={node.color}
+                strokeOpacity="0.45"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            )}
             {/* Selected: solid bright ring（去 glow 与虚线叠加，暗色小元素忌辉光） */}
             {isSelected && (
               <circle
