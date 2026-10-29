@@ -38,3 +38,11 @@ keyring = { version = "3", features = ["linux-native-sync-persistent", "crypto-r
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-window-state = "2.5.0"
+
+[profile.release]
+# 桌面 GUI 纯分发场景：thin LTO + 单 codegen 单元跨 crate 内联 + strip 符号表，
+# 三平台产物体积显著缩小（预期 -20~40%）。panic 策略保持默认 unwind（GUI 依赖
+# 标准库 unwind 语义的组件没有显式需求，不做 panic=abort 冒进）。
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
