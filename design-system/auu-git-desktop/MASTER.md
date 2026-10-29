@@ -34,6 +34,8 @@ Inspect changes → control staged content → write a message → commit → pu
 
 ## Typography and color
 
+- Chinese text prefers locally installed Microsoft YaHei UI, then Microsoft YaHei. Latin UI text keeps Inter and code keeps JetBrains Mono; Chinese comments use the same system Chinese font fallback. No Chinese font files are bundled.
+
 - Use the shared Inter/system sans-serif stack for navigation, filenames, branch labels, counts and prose. Reserve JetBrains Mono for code, hashes, line numbers and terminal output; reserve Orbitron for the brand wordmark.
 - Interface text is 13 px with a 20 px line height; secondary labels are 12 px with an 18 px line height. Panel titles use 13 px/600 weight, sidebar section headings 13 px/500 to match navigation text, other section labels 12 px/500, and ordinary text 400–500. Diff text remains 13 px and keeps its independent font-size control. Keep compact mode optional.
 - Primary navigation rows, tree headings and branch/tag/stash rows share a 30 px height (26 px in compact mode). Use 2 px between adjacent selectable rows and only a thin divider between tree sections; do not stack group margins, heading padding and divider padding. Panel headers share a 34 px height (30 px in compact mode).

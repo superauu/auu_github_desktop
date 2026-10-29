@@ -86,13 +86,13 @@
   --animate-fade-in: fade-in 0.15s ease-out;
   --animate-pulse-subtle: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 
-  --font-display: Orbitron Variable, Inter Variable, sans-serif;
+  --font-display: Orbitron Variable, Inter Variable, 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
   --font-sans:
-    Inter Variable, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei',
-    sans-serif;
+    Inter Variable, 'Microsoft YaHei UI', 'Microsoft YaHei', -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif;
   --font-mono:
-    'JetBrains Mono Variable', 'Cascadia Mono', 'Cascadia Code', ui-monospace,
+    'JetBrains Mono Variable', 'Cascadia Mono', 'Cascadia Code',
+    'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', ui-monospace,
     SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   @keyframes accordion-down {
