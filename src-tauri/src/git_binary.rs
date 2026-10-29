@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+use crate::git_process::lock_or_recover;
 
 static APPROVED: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
 static DEFAULT: OnceLock<Option<PathBuf>> = OnceLock::new();
@@ -52,12 +53,7 @@ pub fn resolve(value: Option<&str>) -> Result<PathBuf, String> {
         return default_git().ok_or_else(|| "Git was not found on the system PATH".into());
     }
     let path = custom_path(value)?;
-    if default_git().as_ref() == Some(&path)
-        || approved()
-            .lock()
-            .map_err(|error| error.to_string())?
-            .contains(&path)
-    {
+    if default_git().as_ref() == Some(&path) || lock_or_recover(approved()).contains(&path) {
         return Ok(path);
     }
     Err("Approve this Git executable in Settings before using it".into())
@@ -77,10 +73,7 @@ pub fn authorize_git_binary(app: tauri::AppHandle, path: String) -> Result<(), S
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => HashSet::new(),
         Err(error) => return Err(error.to_string()),
     };
-    approved()
-        .lock()
-        .map_err(|error| error.to_string())?
-        .extend(saved);
+    lock_or_recover(approved()).extend(saved);
     if resolve(path.to_str()).is_ok() {
         return Ok(());
     }
@@ -96,9 +89,7 @@ pub fn authorize_git_binary(app: tauri::AppHandle, path: String) -> Result<(), S
     {
         return Err("Git executable approval was cancelled".into());
     }
-    let _guard = crate::file_io::FILE_WRITES
-        .lock()
-        .map_err(|error| error.to_string())?;
+    let _guard = lock_or_recover(&crate::file_io::FILE_WRITES);
     let mut saved: HashSet<PathBuf> = match fs::read(&store) {
         Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| error.to_string())?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => HashSet::new(),
@@ -112,10 +103,7 @@ pub fn authorize_git_binary(app: tauri::AppHandle, path: String) -> Result<(), S
         &serde_json::to_string(&saved).map_err(|error| error.to_string())?,
         None,
     )?;
-    approved()
-        .lock()
-        .map_err(|error| error.to_string())?
-        .insert(path);
+    lock_or_recover(approved()).insert(path);
     Ok(())
 }
 

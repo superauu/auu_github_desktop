@@ -12,9 +12,10 @@ pub struct GitCommandResult {
     pub stderr: String,
 }
 
-/// 默认传输白名单：file 传输可读写任意本地仓库，仅对已授权的本地 clone 源临时放行。
-pub(crate) const DEFAULT_PROTOCOLS: &str = "https:http:ssh:git";
-pub(crate) const LOCAL_PROTOCOLS: &str = "https:http:ssh:git:file";
+/// 默认传输白名单。git://（git daemon 协议）无加密无认证且主流托管已弃用，与 file
+/// 一并排除：file 仅对已授权的本地源经 LOCAL_PROTOCOLS 按次放行，git:// 无放行通道。
+pub(crate) const DEFAULT_PROTOCOLS: &str = "https:http:ssh";
+pub(crate) const LOCAL_PROTOCOLS: &str = "https:http:ssh:file";
 
 const MAX_STDIN_BYTES: usize = 8 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: usize = 32 * 1024 * 1024;
@@ -25,7 +26,9 @@ const OUTPUT_GRACE: Duration = Duration::from_secs(2);
 static ACTIVE: Mutex<u32> = Mutex::new(0);
 static IDLE: Condvar = Condvar::new();
 
-fn lock_or_recover<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+/// 中毒自动恢复的锁获取：持锁线程 panic 后静态锁永久中毒会让全部后续命令失败，
+/// 各模块的静态锁一律经此函数获取（ poison 语义下 into_inner 的数据仍是完整的）。
+pub(crate) fn lock_or_recover<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     lock.lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -56,7 +59,13 @@ fn stop_process(child: &mut std::process::Child) {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
-        let _ = Command::new("taskkill.exe")
+        // 绝对路径解析防工作目录劫持（CreateProcess 搜索顺序含应用/当前目录）；
+        // SystemRoot 缺失等环境异常时退回裸名，保证超时强杀本身不被阻断。
+        let taskkill = match std::env::var_os("SystemRoot") {
+            Some(root) => std::path::PathBuf::from(root).join("System32/taskkill.exe"),
+            None => std::path::PathBuf::from("taskkill.exe"),
+        };
+        let _ = Command::new(taskkill)
             .args(["/PID", &child.id().to_string(), "/T", "/F"])
             .creation_flags(0x08000000)
             .stdout(Stdio::null())
@@ -337,6 +346,21 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("8 MiB"), "{error}");
+    }
+
+    #[test]
+    fn git_daemon_protocol_is_rejected_by_default() {
+        let directory = tempfile::tempdir().unwrap();
+        let result = run_git(
+            vec!["ls-remote".into(), "git://localhost/auugit-denied".into()],
+            directory.path().to_string_lossy().into_owned(),
+            None,
+            None,
+        )
+        .unwrap();
+        // git 在连接前就按 GIT_ALLOW_PROTOCOL 拒绝，断言不依赖网络可达性。
+        assert_ne!(result.exit_code, 0, "{}", result.stderr);
+        assert!(result.stderr.contains("not allowed"), "{}", result.stderr);
     }
 
     #[test]

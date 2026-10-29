@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 use tauri::Manager;
+use crate::git_process::lock_or_recover;
 
 /// git difftool/mergetool 惯例占位符。
 const MODES: [&str; 2] = ["diff", "merge"];
@@ -244,9 +245,7 @@ pub fn get_external_tools(app: tauri::AppHandle) -> Result<Vec<ExternalTool>, St
 pub fn set_external_tool(app: tauri::AppHandle, tool: ExternalTool) -> Result<Vec<ExternalTool>, String> {
     validate_tool(&tool)?;
     let store = store_path(&app)?;
-    let _guard = crate::file_io::FILE_WRITES
-        .lock()
-        .map_err(|error| error.to_string())?;
+    let _guard = lock_or_recover(&crate::file_io::FILE_WRITES);
     let mut tools = read_tools(&store)?;
     match tools.iter_mut().find(|existing| existing.id == tool.id) {
         Some(existing) => *existing = tool,
@@ -264,9 +263,7 @@ pub fn set_external_tool(app: tauri::AppHandle, tool: ExternalTool) -> Result<Ve
 #[tauri::command(async)]
 pub fn remove_external_tool(app: tauri::AppHandle, tool_id: String) -> Result<Vec<ExternalTool>, String> {
     let store = store_path(&app)?;
-    let _guard = crate::file_io::FILE_WRITES
-        .lock()
-        .map_err(|error| error.to_string())?;
+    let _guard = lock_or_recover(&crate::file_io::FILE_WRITES);
     let mut tools = read_tools(&store)?;
     tools.retain(|tool| tool.id != tool_id);
     write_tools(&store, &mut tools)?;

@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf, Component};
 use std::time::Duration;
 mod file_io;
 mod git_process;
-use git_process::{run_git, run_git_bytes, run_git_protocols, GitCommandResult, LOCAL_PROTOCOLS};
+use git_process::{
+    lock_or_recover, run_git, run_git_bytes, run_git_protocols, GitCommandResult, LOCAL_PROTOCOLS,
+};
 mod repository_access;
 mod repository_dialog;
 mod git_policy;
@@ -270,7 +272,7 @@ fn read_git_image(repo_path: String, file_path: String, revision: String, git_bi
 #[tauri::command(async)]
 fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, content: Option<String>, expected_content: Option<String>, remove: Option<bool>) -> Result<serde_json::Value, String> {
     repository_access::require(&repo_path)?;
-    let _guard = FILE_WRITES.lock().map_err(|e| e.to_string())?;
+    let _guard = lock_or_recover(&FILE_WRITES);
     let path = match scope.as_str() {
         "shared" => repo_file(repo_path.clone(), ".gitignore".into())?,
         "local" => {
@@ -300,7 +302,7 @@ fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, con
 
 #[tauri::command(async)]
 fn write_file_content(repo_path: String, file_path: String, content: String, expected_content: Option<String>) -> Result<(), String> {
-    let _guard = FILE_WRITES.lock().map_err(|e| e.to_string())?;
+    let _guard = lock_or_recover(&FILE_WRITES);
     let path = repo_file(repo_path, file_path)?;
     atomic_write(&path, &content, expected_content.as_deref())
 }

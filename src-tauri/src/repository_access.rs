@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+use crate::git_process::lock_or_recover;
 
 static ROOTS: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
 pub(crate) fn roots() -> &'static Mutex<HashSet<PathBuf>> {
@@ -39,11 +40,7 @@ pub fn resolve(path: &Path) -> Result<PathBuf, String> {
 
 pub fn require(path: &str) -> Result<PathBuf, String> {
     let resolved = resolve(Path::new(path))?;
-    if !roots()
-        .lock()
-        .map_err(|error| error.to_string())?
-        .contains(&resolved)
-    {
+    if !lock_or_recover(roots()).contains(&resolved) {
         return Err("Open or select this repository in AuuGit before accessing it".into());
     }
     Ok(resolved)
@@ -52,9 +49,7 @@ pub fn require(path: &str) -> Result<PathBuf, String> {
 /// Read-only directory browsing stays inside authorized roots, including resolved links.
 pub fn require_path(path: &str) -> Result<PathBuf, String> {
     let resolved = resolve(Path::new(path))?;
-    if roots()
-        .lock()
-        .map_err(|error| error.to_string())?
+    if lock_or_recover(roots())
         .iter()
         .any(|root| resolved.starts_with(root))
     {
@@ -65,9 +60,7 @@ pub fn require_path(path: &str) -> Result<PathBuf, String> {
 
 #[tauri::command(async)]
 pub fn list_repository_permissions(app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    let _guard = crate::file_io::FILE_WRITES
-        .lock()
-        .map_err(|error| error.to_string())?;
+    let _guard = lock_or_recover(&crate::file_io::FILE_WRITES);
     let store = app
         .path()
         .app_data_dir()
@@ -83,7 +76,7 @@ pub fn list_repository_permissions(app: tauri::AppHandle) -> Result<Vec<String>,
         .map(|path| crate::normalize_display_path(path))
         .collect();
     paths.sort();
-    *roots().lock().map_err(|error| error.to_string())? = saved;
+    *lock_or_recover(roots()) = saved;
     Ok(paths)
 }
 
@@ -97,9 +90,7 @@ pub fn revoke_repository_permission(
         return Err("Too many open repositories".into());
     }
     let path = resolve(Path::new(&path))?;
-    let _guard = crate::file_io::FILE_WRITES
-        .lock()
-        .map_err(|error| error.to_string())?;
+    let _guard = lock_or_recover(&crate::file_io::FILE_WRITES);
     let store = app
         .path()
         .app_data_dir()
@@ -118,7 +109,7 @@ pub fn revoke_repository_permission(
         &serde_json::to_string(&saved).map_err(|error| error.to_string())?,
         None,
     )?;
-    *roots().lock().map_err(|error| error.to_string())? = saved;
+    *lock_or_recover(roots()) = saved;
     Ok(open_paths
         .into_iter()
         .filter(|candidate| resolve(Path::new(candidate)).is_ok_and(|resolved| resolved == path))
@@ -131,9 +122,7 @@ fn grant(app: &tauri::AppHandle, path: PathBuf) -> Result<(), String> {
         .app_data_dir()
         .map_err(|error| error.to_string())?
         .join("repository-access.json");
-    let guard = crate::file_io::FILE_WRITES
-        .lock()
-        .map_err(|error| error.to_string())?;
+    let guard = lock_or_recover(&crate::file_io::FILE_WRITES);
     let mut saved: HashSet<PathBuf> = match fs::read(&store) {
         Ok(bytes) => serde_json::from_slice(&bytes).map_err(|error| error.to_string())?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => HashSet::new(),
@@ -147,10 +136,7 @@ fn grant(app: &tauri::AppHandle, path: PathBuf) -> Result<(), String> {
         &serde_json::to_string(&saved).map_err(|error| error.to_string())?,
         None,
     )?;
-    roots()
-        .lock()
-        .map_err(|error| error.to_string())?
-        .extend(saved);
+    lock_or_recover(roots()).extend(saved);
     drop(guard);
     Ok(())
 }
@@ -166,11 +152,7 @@ pub fn authorize_repository(
         return Err("Expected a repository directory".into());
     }
     list_repository_permissions(app.clone())?;
-    if roots()
-        .lock()
-        .map_err(|error| error.to_string())?
-        .contains(&resolved)
-    {
+    if lock_or_recover(roots()).contains(&resolved) {
         return Ok(());
     }
     let text = crate::repository_dialog::text(language.as_deref());
