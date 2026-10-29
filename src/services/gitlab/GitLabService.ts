@@ -8,6 +8,8 @@ import { ForgeApiError, type ForgePipeline, type ForgePipelineStatus, type Forge
  */
 const DEFAULT_SERVER = 'https://gitlab.com';
 const PER_PAGE = 30;
+const REQUEST_TIMEOUT_MS = 20_000;
+const DEFAULT_MAX_PAGES = 10;
 
 /** GitLab API 的流水线状态 → 归一化状态。 */
 export function mapPipelineStatus(raw: string): ForgePipelineStatus {
@@ -46,11 +48,22 @@ export class GitLabService {
   private async request<T>(path: string, params?: Record<string, string>): Promise<T> {
     const headers: Record<string, string> = {};
     if (this.token) headers['PRIVATE-TOKEN'] = this.token;
-    const res = await fetch(this.api(path, params), { headers });
+    const res = await fetch(this.api(path, params), { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!res.ok) {
       throw new ForgeApiError(res.status, `GitLab API ${res.status}: ${(await res.text()).slice(0, 300)}`);
     }
     return res.json() as Promise<T>;
+  }
+
+  /** 列表分页聚合：不足一页即止，DEFAULT_MAX_PAGES 封顶（与 GitHubService 同约定）。 */
+  private async pages<T>(path: string, params?: Record<string, string>): Promise<T[]> {
+    const result: T[] = [];
+    for (let page = 1; page <= DEFAULT_MAX_PAGES; page++) {
+      const chunk = await this.request<T[]>(path, { ...params, page: String(page), per_page: String(PER_PAGE) });
+      result.push(...chunk);
+      if (chunk.length < PER_PAGE) return result;
+    }
+    return result;
   }
 
   /** 校验 PAT 并返回当前用户。 */
@@ -71,11 +84,11 @@ export class GitLabService {
   }
 
   async listPullRequests(projectId: number, state: 'opened' | 'closed' | 'merged' | 'all' = 'opened'): Promise<ForgePullRequest[]> {
-    const items = await this.request<Array<{
+    const items = await this.pages<{
       iid: number; title: string; state: string; draft: boolean;
       source_branch: string; target_branch: string; created_at: string; updated_at: string; web_url: string;
       author: { username: string };
-    }>>(`/projects/${projectId}/merge_requests`, { state, per_page: String(PER_PAGE) });
+    }>(`/projects/${projectId}/merge_requests`, { state });
     return items.map((item) => ({
       number: item.iid,
       title: item.title,
@@ -97,9 +110,8 @@ export class GitLabService {
         source_branch: string; target_branch: string; created_at: string; updated_at: string; web_url: string;
         author: { username: string };
       }>(`/projects/${projectId}/merge_requests/${number}`),
-      this.request<Array<{ id: string; notes: Array<{ id: number; body: string; system: boolean; created_at: string; author: { username: string } }> }>>(
+      this.pages<{ id: string; notes: Array<{ id: number; body: string; system: boolean; created_at: string; author: { username: string } }> }>(
         `/projects/${projectId}/merge_requests/${number}/discussions`,
-        { per_page: String(PER_PAGE) },
       ).catch(() => []),
     ]);
     return {
@@ -122,9 +134,9 @@ export class GitLabService {
   }
 
   async listPipelines(projectId: number, ref?: string): Promise<ForgePipeline[]> {
-    const items = await this.request<Array<{
+    const items = await this.pages<{
       id: number; status: string; ref: string; created_at: string; web_url: string;
-    }>>(`/projects/${projectId}/pipelines`, { per_page: String(PER_PAGE), ...(ref ? { ref } : {}) });
+    }>(`/projects/${projectId}/pipelines`, ref ? { ref } : {});
     return items.map((item) => ({
       id: item.id,
       name: item.ref,

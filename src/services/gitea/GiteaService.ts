@@ -8,6 +8,8 @@ import { ForgeApiError, type ForgePipeline, type ForgePipelineStatus, type Forge
  * combined status 在各版本稳定可用）。
  */
 const PER_PAGE = 30;
+const REQUEST_TIMEOUT_MS = 20_000;
+const DEFAULT_MAX_PAGES = 10;
 
 export function mapPipelineStatus(raw: string): ForgePipelineStatus {
   switch (raw) {
@@ -40,11 +42,22 @@ export class GiteaService {
     for (const [key, value] of Object.entries(params || {})) url.searchParams.set(key, value);
     const headers: Record<string, string> = {};
     if (this.token) headers.Authorization = `token ${this.token}`;
-    const res = await fetch(url.toString(), { headers });
+    const res = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!res.ok) {
       throw new ForgeApiError(res.status, `Gitea API ${res.status}: ${(await res.text()).slice(0, 300)}`);
     }
     return res.json() as Promise<T>;
+  }
+
+  /** 列表分页聚合：不足一页即止，DEFAULT_MAX_PAGES 封顶（与 GitHubService 同约定）。 */
+  private async pages<T>(path: string, params?: Record<string, string>): Promise<T[]> {
+    const result: T[] = [];
+    for (let page = 1; page <= DEFAULT_MAX_PAGES; page++) {
+      const chunk = await this.request<T[]>(path, { ...params, page: String(page), limit: String(PER_PAGE) });
+      result.push(...chunk);
+      if (chunk.length < PER_PAGE) return result;
+    }
+    return result;
   }
 
   async verifyToken(): Promise<ForgeUser> {
@@ -53,12 +66,12 @@ export class GiteaService {
   }
 
   async listPullRequests(owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'open'): Promise<ForgePullRequest[]> {
-    const items = await this.request<Array<{
+    const items = await this.pages<{
       number: number; title: string; state: string; merged: boolean; draft?: boolean;
       base?: { ref?: string }; head?: { ref?: string };
       created_at: string; updated_at: string; html_url: string;
       user: { login: string };
-    }>>(`/repos/${owner}/${repo}/pulls`, { state, limit: String(PER_PAGE) });
+    }>(`/repos/${owner}/${repo}/pulls`, { state });
     return items.map((item) => ({
       number: item.number,
       title: item.title,
@@ -81,9 +94,8 @@ export class GiteaService {
         created_at: string; updated_at: string; html_url: string;
         user: { login: string };
       }>(`/repos/${owner}/${repo}/pulls/${number}`),
-      this.request<Array<{ id: number; body: string; created_at: string; user: { login: string } }>>(
+      this.pages<{ id: number; body: string; created_at: string; user: { login: string } }>(
         `/repos/${owner}/${repo}/issues/${number}/comments`,
-        { limit: String(PER_PAGE) },
       ).catch(() => []),
     ]);
     return {

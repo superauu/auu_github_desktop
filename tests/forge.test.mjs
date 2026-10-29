@@ -140,6 +140,31 @@ test('gitea service maps pulls and combined commit statuses', async () => {
   assert.deepEqual(pipelines.map((pipeline) => [pipeline.name, pipeline.status]), [['ci/build', 'success'], ['ci/lint', 'failed']]);
 });
 
+test('gitlab service paginates beyond the first page and stops on a partial page', async () => {
+  const service = new app.GitLabService();
+  service.configure('pat-token', 'https://gitlab.example.com');
+  originalFetch = globalThis.fetch;
+  const seenPages = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/api/v4/projects/42/merge_requests') {
+      const page = Number(url.searchParams.get('page'));
+      seenPages.push(page);
+      assert.equal(url.searchParams.get('per_page'), '30');
+      const item = (iid) => ({ iid, title: `MR ${iid}`, state: 'opened', draft: false, source_branch: 'b', target_branch: 'main', created_at: 't', updated_at: 't', web_url: `u${iid}`, author: { username: 'bob' } });
+      const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+      // 第一页满 30 条（无法判断是否还有下一页），第二页只有 3 条 → 第三页不再请求。
+      return json(page === 1 ? Array.from({ length: 30 }, (_, i) => item(i + 1)) : Array.from({ length: 3 }, (_, i) => item(31 + i)));
+    }
+    throw new Error(`unexpected fetch ${url.pathname}`);
+  };
+  const pulls = await service.listPullRequests(42, 'opened');
+  assert.deepEqual(seenPages, [1, 2]);
+  assert.equal(pulls.length, 33);
+  assert.equal(pulls[0].number, 1);
+  assert.equal(pulls[32].number, 33);
+});
+
 test('stale forge loads cannot overwrite the newer repository state', async () => {
   // forgeStore 依赖 localStorage mock（本文件原有用例只测 service 层，未装 mock）。
   const saved = new Map();
