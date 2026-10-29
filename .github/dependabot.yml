@@ -1,0 +1,27 @@
+# 依赖更新机器人：npm / cargo / github-actions 三生态周更。
+# actions 已钉 commit SHA（防标签劫持），dependabot 会以同名 PR 的方式更新 SHA。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    # tauri 主 crate 刻意钉在桌面 runtime 同 minor 线（~2.12），升级需与
+    # tauri.conf 的运行时对齐并跑发版验收，不进批量组。
+    ignore:
+      - dependency-name: tauri
+      - dependency-name: tauri-plugin-updater
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
