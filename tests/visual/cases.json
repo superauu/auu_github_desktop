@@ -1,0 +1,8 @@
+[
+  { "name": "history-dark-750x600", "width": 750, "height": 600, "theme": "dark" },
+  { "name": "history-light-750x600", "width": 750, "height": 600, "theme": "light" },
+  { "name": "history-dark-900x600", "width": 900, "height": 600, "theme": "dark" },
+  { "name": "history-light-900x600", "width": 900, "height": 600, "theme": "light" },
+  { "name": "history-dark-1280x720", "width": 1280, "height": 720, "theme": "dark" },
+  { "name": "history-light-1280x720", "width": 1280, "height": 720, "theme": "light" }
+]
