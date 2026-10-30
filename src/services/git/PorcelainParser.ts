@@ -343,11 +343,38 @@ export function parseGitTags(output: string): GitTag[] {
   return sortTagsDescending(tags);
 }
 
-/** 从标签名提取语义化版本元组（v0.3.10 → [0,3,10]；尾缀 rc/beta 按 -1 权重排在正式版后）。 */
-function versionTuple(name: string): number[] | null {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-?rc\.?(\d+))?/i.exec(name.trim());
+interface TagVersion { core: bigint[]; prerelease: string[] }
+
+/** Parse the whole version; keep support for legacy compact rc tags. */
+function tagVersion(name: string): TagVersion | null {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)|rc\.?(\d+))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/i.exec(name.trim());
   if (!match) return null;
-  return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] !== undefined ? -Number(match[4]) : 0];
+  const prerelease = match[4]?.replace(/^rc(\d+)$/i, 'rc.$1') || (match[5] !== undefined ? `rc.${match[5]}` : '');
+  return { core: match.slice(1, 4).map(BigInt), prerelease: prerelease ? prerelease.split('.') : [] };
+}
+
+const compareNumber = (a: bigint, b: bigint) => a < b ? -1 : a > b ? 1 : 0;
+
+/** Ascending version precedence; build metadata is deliberately ignored. */
+function compareTagVersions(a: TagVersion, b: TagVersion): number {
+  for (let index = 0; index < a.core.length; index++) {
+    const diff = compareNumber(a.core[index], b.core[index]);
+    if (diff) return diff;
+  }
+  if (!a.prerelease.length || !b.prerelease.length) {
+    return Number(!a.prerelease.length) - Number(!b.prerelease.length);
+  }
+  for (let index = 0; index < Math.max(a.prerelease.length, b.prerelease.length); index++) {
+    const left = a.prerelease[index], right = b.prerelease[index];
+    if (left === undefined) return -1;
+    if (right === undefined) return 1;
+    if (left === right) continue;
+    const leftNumeric = /^\d+$/.test(left), rightNumeric = /^\d+$/.test(right);
+    const diff = leftNumeric && rightNumeric ? compareNumber(BigInt(left), BigInt(right))
+      : leftNumeric !== rightNumeric ? (leftNumeric ? -1 : 1) : left < right ? -1 : 1;
+    if (diff) return diff;
+  }
+  return 0;
 }
 
 /**
@@ -357,20 +384,20 @@ function versionTuple(name: string): number[] | null {
  */
 export function sortTagsDescending(tags: GitTag[]): GitTag[] {
   return [...tags].sort((a, b) => {
-    const va = versionTuple(a.name);
-    const vb = versionTuple(b.name);
+    const va = tagVersion(a.name);
+    const vb = tagVersion(b.name);
     if (va && vb) {
-      for (let index = 0; index < Math.max(va.length, vb.length); index++) {
-        const diff = (vb[index] || 0) - (va[index] || 0);
-        if (diff) return diff;
-      }
-      return b.name.localeCompare(a.name);
+      return compareTagVersions(vb, va) || b.name.localeCompare(a.name);
     }
     if (va && !vb) return -1;
     if (!va && vb) return 1;
     const dateA = a.tagger?.date ? Date.parse(a.tagger.date) : NaN;
     const dateB = b.tagger?.date ? Date.parse(b.tagger.date) : NaN;
-    if (!Number.isNaN(dateA) && !Number.isNaN(dateB) && dateA !== dateB) return dateB - dateA;
+    // Undated lightweight tags follow dated tags. Comparing by name whenever
+    // just one date is missing would make the ordering non-transitive.
+    const timeA = Number.isNaN(dateA) ? -Infinity : dateA;
+    const timeB = Number.isNaN(dateB) ? -Infinity : dateB;
+    if (timeA !== timeB) return timeB - timeA;
     return b.name.localeCompare(a.name);
   });
 }

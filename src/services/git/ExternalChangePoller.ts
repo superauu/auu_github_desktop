@@ -43,12 +43,16 @@ export function createExternalChangePoller({ check, canCheck, shouldSkip = defau
   const tick = async () => {
     if (stopped) return;
     if (running) { wakePending = true; return; }
-    // A veto probe failure keeps the initial `false` (never veto on probe errors).
-    let vetoed = false;
-    try { vetoed = await shouldSkip(); } catch { /* keep false */ }
-    if (stopped) return;
+    // Own the entire tick, including the async probe, so focus events cannot
+    // start another probe/refresh while this one is waiting for Git.
     running = true;
-    try { if (!vetoed && canCheck()) await check(); }
+    try {
+      if (!canCheck()) return;
+      // Probe failures do not veto; a later refresh can surface the Git error.
+      let vetoed = false;
+      try { vetoed = await shouldSkip(); } catch { /* keep false */ }
+      if (!stopped && !vetoed && canCheck()) await check();
+    }
     catch (error) { console.warn('Repository refresh failed:', error); }
     finally {
       running = false;

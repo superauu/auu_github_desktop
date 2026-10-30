@@ -4,6 +4,7 @@ import { gitService } from './GitService';
 import { serializeGitWrite } from './GitQueue';
 import { normalizeInvokeError } from './invokeError';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { authorizeGitBinary } from '@/services/fs/RepositoryAccess';
 
 export type IgnoreScope = 'shared' | 'local';
 export type IgnoreMode = 'file' | 'typeHere' | 'typeTree' | 'typeAll' | 'directory' | 'custom';
@@ -63,7 +64,6 @@ export function appendIgnoreRules(content: string, rules: string[]): string {
 async function ignoreFile(repoPath: string, scope: IgnoreScope, content?: string, expectedContent?: string, remove = false): Promise<{ content: string; exists: boolean }> {
   const args = { repoPath, scope, content, expectedContent, remove, gitBinary: useSettingsStore.getState().gitCliPath?.trim() || 'git' };
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-    const { authorizeGitBinary } = await import('@/services/fs/RepositoryAccess');
     await authorizeGitBinary(args.gitBinary);
     const { invoke } = await import('@tauri-apps/api/core');
     // The Rust command always returns both fields (`json!({ "content", "exists" })`),

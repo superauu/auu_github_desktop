@@ -39,7 +39,7 @@ test('rc pre-releases sort below their final release; non-version tags fall back
     line('backup', '2026-09-01T00:00:00Z'),
   ].join('\n');
   const names = app.parseGitTags(input).map((tag) => tag.name);
-  // 版本命名优先于非版本命名；rc1 权重为负排在正式版之后；非版本按时间降序。
+  // 版本命名优先于非版本命名；预发布版本排在正式版之后；非版本按时间降序。
   assert.deepEqual(names, ['v0.5.2', 'v0.5.2-rc1', 'release-final', 'backup']);
 });
 
@@ -49,4 +49,31 @@ test('pure sorter is stable and does not mutate input', () => {
   const sorted = app.sortTagsDescending(tags);
   assert.deepEqual(sorted.map((tag) => tag.name), ['v1.10.0', 'v1.2.0', 'v1.0.0']);
   assert.deepEqual(tags.map((tag) => tag.name), snapshot, 'input array untouched');
+});
+
+test('later rc builds precede earlier rc builds, including compact legacy tag names', () => {
+  const input = ['v1.0.0-rc1', 'v1.0.0-rc10', 'v1.0.0-rc2', 'v1.0.0', 'v1.0.0-rc.11', 'v1.0.0rc.3'];
+  assert.deepEqual(app.parseGitTags(input.map(name => line(name)).join('\n')).map(tag => tag.name),
+    ['v1.0.0', 'v1.0.0-rc.11', 'v1.0.0-rc10', 'v1.0.0rc.3', 'v1.0.0-rc2', 'v1.0.0-rc1']);
+});
+
+test('mixed dated and undated non-version tags have a consistent order for every input permutation', () => {
+  const a = { name: 'a', tagger: { date: '2026-10-20T00:00:00Z' } };
+  const b = { name: 'b' };
+  const c = { name: 'c', tagger: { date: '2026-10-19T00:00:00Z' } };
+  for (const input of [[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]]) {
+    assert.deepEqual(app.sortTagsDescending(input).map(tag => tag.name), ['a', 'c', 'b']);
+  }
+  assert.deepEqual(app.sortTagsDescending([b, { name: 'z', tagger: { date: 'invalid' } }]).map(tag => tag.name), ['z', 'b']);
+});
+
+test('prerelease precedence handles alpha, beta, numeric identifiers and final releases', () => {
+  const ascending = ['v1.0.0-alpha', 'v1.0.0-alpha.1', 'v1.0.0-alpha.beta', 'v1.0.0-beta', 'v1.0.0-beta.2', 'v1.0.0-beta.11', 'v1.0.0-rc.1', 'v1.0.0'];
+  assert.deepEqual(app.parseGitTags(ascending.map(name => line(name)).join('\n')).map(tag => tag.name), [...ascending].reverse());
+});
+
+test('version parsing consumes the whole tag and preserves large numeric version ordering', () => {
+  const input = ['v1.0.0oops', 'v9999999999999999.0.0', 'v10000000000000000.0.0', 'v1.0.0+build.5'];
+  assert.deepEqual(app.parseGitTags(input.map(name => line(name)).join('\n')).map(tag => tag.name),
+    ['v10000000000000000.0.0', 'v9999999999999999.0.0', 'v1.0.0+build.5', 'v1.0.0oops']);
 });

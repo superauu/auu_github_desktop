@@ -100,6 +100,57 @@ test('a per-tick veto skips the refresh without stopping the schedule, and probe
   failing.stop(); assert.equal(clock.timers.size, 0);
 });
 
+test('focus bursts during a slow operation probe coalesce into one follow-up refresh', async () => {
+  const clock = fakeClock(), probe = deferred(), refresh = deferred();
+  let probes = 0, checks = 0;
+  const poller = app.createExternalChangePoller({
+    check: async () => { checks++; await refresh.promise; }, canCheck: () => true,
+    shouldSkip: async () => { probes++; await probe.promise; return false; },
+    now: clock.now, schedule: clock.schedule, cancel: clock.cancel,
+  });
+  try {
+    await clock.fire();
+    poller.wake(); poller.wake(); poller.touch();
+    assert.equal(clock.timers.size, 0, 'the probe is part of the running tick');
+    assert.equal(probes, 1);
+    probe.resolve(); await turn();
+    assert.equal(checks, 1);
+    refresh.resolve(); await turn();
+    assert.equal(clock.timers.size, 1);
+    assert.equal(clock.delay(), 200);
+    await clock.fire();
+    assert.equal(probes, 2); assert.equal(checks, 2);
+    assert.equal(clock.delay(), 10000);
+  } finally { poller.stop(); probe.resolve(); refresh.resolve(); await turn(); }
+});
+
+test('hidden or busy windows skip operation probes and recheck eligibility after a slow probe', async () => {
+  const clock = fakeClock(), probe = deferred();
+  let eligible = false, probes = 0, checks = 0;
+  const poller = app.createExternalChangePoller({
+    check: async () => { checks++; }, canCheck: () => eligible,
+    shouldSkip: async () => { probes++; await probe.promise; return false; },
+    now: clock.now, schedule: clock.schedule, cancel: clock.cancel,
+  });
+  try {
+    await clock.fire(); assert.equal(probes, 0); assert.equal(checks, 0);
+    eligible = true; await clock.fire(); assert.equal(probes, 1);
+    eligible = false; probe.resolve(); await turn(); assert.equal(checks, 0);
+    eligible = true; await clock.fire(); assert.equal(checks, 1);
+  } finally { poller.stop(); probe.resolve(); await turn(); }
+});
+
+test('stopping during an operation probe prevents refreshes and all future scheduling', async () => {
+  const clock = fakeClock(), probe = deferred(); let checks = 0;
+  const poller = app.createExternalChangePoller({
+    check: async () => { checks++; }, canCheck: () => true, shouldSkip: () => probe.promise,
+    now: clock.now, schedule: clock.schedule, cancel: clock.cancel,
+  });
+  await clock.fire(); poller.wake(); poller.stop(); poller.wake(); poller.touch();
+  probe.resolve(false); await turn();
+  assert.equal(checks, 0); assert.equal(clock.timers.size, 0);
+});
+
 test('notifications remain in session history after dismissal, bounded to 100 entries without disk persistence', () => {
   const store = app.useToastStore;
   store.setState({ toasts: [], history: [] });
