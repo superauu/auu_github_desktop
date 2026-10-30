@@ -10,6 +10,8 @@ pub struct GitCommandResult {
     pub exit_code: i32,
     pub stdout: String,
     pub stderr: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index_tree: Option<String>,
 }
 
 /// 默认传输白名单。git://（git daemon 协议）无加密无认证且主流托管已弃用，与 file
@@ -157,12 +159,20 @@ pub(crate) fn run_git_bytes_protocols(
     timeout: Duration,
     protocols: Option<&str>,
 ) -> Result<GitBytesResult, String> {
+    run_git_bytes_index(args, cwd, git_binary, stdin, timeout, protocols, None)
+}
+
+pub(crate) fn run_git_bytes_index(
+    args: Vec<String>, cwd: String, git_binary: Option<String>, stdin: Option<String>,
+    timeout: Duration, protocols: Option<&str>, index: Option<&std::path::Path>,
+) -> Result<GitBytesResult, String> {
     if stdin.as_ref().is_some_and(|content| content.len() > MAX_STDIN_BYTES) {
         return Err("Git input exceeds 8 MiB".into());
     }
     let _slot = acquire_slot();
     let binary = crate::git_binary::resolve(git_binary.as_deref())?;
     let mut command = Command::new(&binary);
+    if let Some(index) = index { command.env("GIT_INDEX_FILE", index); }
     command
         .args(args)
         .current_dir(cwd)
@@ -277,6 +287,7 @@ pub(crate) fn run_git_protocols(
         exit_code: result.exit_code,
         stdout: String::from_utf8_lossy(&result.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&result.stderr).into_owned(),
+        index_tree: None,
     })
 }
 

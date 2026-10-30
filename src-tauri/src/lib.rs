@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf, Component};
 use std::time::Duration;
 mod file_io;
 mod git_process;
+mod temp_index;
 use git_process::{
     lock_or_recover, run_git, run_git_bytes, run_git_protocols, GitCommandResult, LOCAL_PROTOCOLS,
 };
@@ -116,8 +117,9 @@ fn upstream_remote_name(command: &str, cwd: &str, git_binary: Option<&str>) -> O
 }
 
 #[tauri::command]
-async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<String>, stdin: Option<String>) -> Result<GitCommandResult, String> {
+async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<String>, stdin: Option<String>, index_tree: Option<String>) -> Result<GitCommandResult, String> {
     git_policy::validate(&args)?;
+    if let Some(tree) = index_tree.as_deref() { temp_index::validate(&args, tree)?; }
     // None = 默认收紧的传输白名单；仅已授权的本地 clone 源或 push/fetch/pull 的已授权本地远程对该次调用放行。
     let mut protocols: Option<&'static str> = None;
     let mut transport = false;
@@ -193,6 +195,7 @@ async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<Stri
         }
     }
     tauri::async_runtime::spawn_blocking(move || {
+        if let Some(tree) = index_tree { return temp_index::run(args, cwd, git_binary, stdin, &tree); }
         if transport {
             // 只读解析与传输命令顺序执行，各自短暂占用并发闸后即释放，不形成循环等待。
             protocols = protocols.or_else(|| transport_grant(&args, &cwd, git_binary.as_deref()));
