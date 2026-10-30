@@ -1,4 +1,5 @@
 import { uiReviewEn } from './uiReview';
+import { issuesEn } from './issues';
 import { commitBatchEn } from './commitBatch';
 import { remoteEn } from './remote';
 import { workflowEn } from './workflow';
@@ -26,6 +27,7 @@ import { workingReviewEn } from './workingReview';
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  ...issuesEn,
   'textMenu.title': 'Text actions',
   'textMenu.undo': 'Undo',
   'textMenu.redo': 'Redo',

@@ -8,6 +8,15 @@ const BEFORE_CONNECT_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 
 export function retryDevFetch(nativeFetch, { attempts = 4, backoffMs = 250 } = {}) {
   return async (input, init) => {
     const request = typeof Request !== 'undefined' && input instanceof Request ? input : undefined;
+    // Each test suite owns a short-lived loopback server. Do not reuse an idle
+    // pooled connection while another synchronous Git fixture blocks its loop;
+    // a dropped POST response is ambiguous and must not be retried as a write.
+    const url = new URL(request?.url || String(input), 'http://local.invalid');
+    if (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
+      const headers = new Headers(init?.headers || request?.headers);
+      headers.set('Connection', 'close');
+      init = { ...init, headers };
+    }
     const method = (init?.method || request?.method || 'GET').toUpperCase();
     const safe = method === 'GET' || method === 'HEAD' || isReadOnlyGitPost(request?.url || input, init);
     const signal = init?.signal || request?.signal;
@@ -38,7 +47,9 @@ function isReadOnlyGitPost(input, init) {
       if (/^--(literal-pathspecs|no-literal-pathspecs|no-optional-locks|no-pager|paginate)$/.test(args[index]) || /^--(git-dir|work-tree|namespace|config-env)=/.test(args[index])) { index++; continue; }
       break;
     }
-    return ['status', 'log', 'show', 'diff', 'rev-parse', 'for-each-ref', 'ls-files', 'ls-tree', 'cat-file', 'blame', 'check-ignore', 'show-ref', 'rev-list', 'diff-tree', '--version'].includes(args[index]);
+    // merge-tree previews may create content-addressed objects, but never move
+    // refs or modify the index/worktree. Repeating the preview is safe.
+    return ['status', 'log', 'show', 'diff', 'rev-parse', 'for-each-ref', 'ls-files', 'ls-tree', 'cat-file', 'blame', 'check-ignore', 'show-ref', 'rev-list', 'merge-tree', 'diff-tree', '--version'].includes(args[index]);
   } catch { return false; }
 }
 

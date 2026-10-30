@@ -1,4 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
+import { RelatedIssues } from '@/features/issues/RelatedIssues';
+import { refreshLinkedIssues } from '@/features/issues/refreshLinkedIssues';
+import { useGitHubScope } from '@/features/issues/useGitHubScope';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -55,6 +58,7 @@ export const PullRequestsView: React.FC = () => {
 
   const { fetchAndCheckoutPR } = useRepoStore(useShallow(state => ({ fetchAndCheckoutPR: state.fetchAndCheckoutPR })));
   const { t } = useI18n();
+  const githubScope = useGitHubScope();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -128,24 +132,30 @@ export const PullRequestsView: React.FC = () => {
 
   const handleMergePR = async () => {
     if (!activePR || !currentOwner || !currentRepoName) return;
+    const path = useRepoStore.getState().currentRepo?.path;
+    const valid = () => githubScope.isCurrent() && useRepoStore.getState().currentRepo?.path === path;
     if (!await confirmAction({ title: t('composer.mergePr'), description: t('pr.mergeConfirm').replace('{n}', String(activePR.number)).replace('{base}', activePR.base.ref), detail: activePR.title })) {
       return;
     }
+    if (!valid()) return;
     setIsMerging(true);
     try {
       const result = await githubService.mergePullRequest(currentOwner, currentRepoName, activePR.number, {
         mergeMethod,
+        expectedHeadSha: activePR.head.sha,
       });
+      if (!valid()) return;
       if (result.merged) {
         toast.success(t('pr.mergeMerged').replace('{n}', String(activePR.number)), result.message);
+        refreshLinkedIssues(activePR, currentOwner, currentRepoName, valid);
       } else {
         toast.info(result.message || t('pr.mergeNotMerged'));
       }
       await loadPullRequests();
     } catch (err: any) {
-      toast.error(t('pr.mergeFailed'), err?.message);
+      if (valid()) toast.error(t('pr.mergeFailed'), err?.message);
     } finally {
-      setIsMerging(false);
+      if (valid()) setIsMerging(false);
     }
   };
 
@@ -586,6 +596,7 @@ export const PullRequestsView: React.FC = () => {
                     <div className="p-4 rounded-lg border border-border/70 bg-background/50 font-sans text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap wrap-break-word">
                       {htmlToPlainText(activePR.body) || t('pr.noBody')}
                     </div>
+                    <RelatedIssues key={`${currentOwner}/${currentRepoName}/${activePR.number}/${activePR.state}/${activePR.merged_at}`} body={activePR.body} owner={currentOwner!} repo={currentRepoName!} />
                   </div>
                 </div>
               </ScrollArea>

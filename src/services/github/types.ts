@@ -95,8 +95,8 @@ export interface GitHubCheckRun {
   id: number;
   name: string;
   head_sha: string;
-  status: 'queued' | 'in_progress' | 'completed';
-  conclusion: 'success' | 'failure' | 'neutral' | 'cancelled' | 'timed_out' | 'action_required' | null;
+  status: 'queued' | 'in_progress' | 'completed' | 'waiting' | 'requested' | 'pending';
+  conclusion: 'success' | 'failure' | 'neutral' | 'cancelled' | 'timed_out' | 'action_required' | 'skipped' | 'stale' | 'startup_failure' | null;
   started_at: string;
   completed_at: string | null;
   html_url: string;

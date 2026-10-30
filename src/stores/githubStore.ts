@@ -249,6 +249,7 @@ interface GitHubState {
   // Pull Requests Controls
   loadPullRequests: () => Promise<void>;
   selectPR: (pr: GitHubPullRequest | null) => void;
+  openPullRequest: (pr: GitHubPullRequest) => void;
   setPRFilterState: (filter: 'open' | 'closed' | 'all') => void;
 
   // Push CI Watcher
@@ -590,6 +591,11 @@ export const useGitHubStore = create<GitHubState>((set, get) => {
       finally { if (valid()) set({ isLoadingPullRequests: false }); }
     },
     selectPR: (pr) => set({ selectedPR: pr }),
+    // Deep links must work for a closed PR or one outside the currently loaded page.
+    openPullRequest: (pr) => {
+      ticket('prs');
+      set(state => ({ selectedPR: pr, prFilterState: pr.state, pullRequests: [pr, ...state.pullRequests.filter(item => item.id !== pr.id)], isLoadingPullRequests: false, pullRequestsError: null }));
+    },
     setPRFilterState: (filter) => {
       ticket('repo'); set({ isLoading: false, prFilterState: filter, pullRequests: [], selectedPR: null });
       void get().loadPullRequests();

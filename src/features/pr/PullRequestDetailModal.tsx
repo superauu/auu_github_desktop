@@ -40,6 +40,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { htmlToPlainText } from '@/utils/htmlText';
+import { RelatedIssues } from '@/features/issues/RelatedIssues';
 
 interface PullRequestDetailModalProps {
   pr: GitHubPullRequest;
@@ -260,6 +261,8 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                     {htmlToPlainText(pr.body) || t('pr.noBody')}
                   </div>
                 </div>
+
+                <RelatedIssues body={pr.body} owner={owner} repo={repo} />
 
                 {timelineLoading && (
                   <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">

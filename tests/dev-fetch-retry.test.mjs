@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { retryDevFetch } from './dev-fetch-retry.mjs';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 
 const failure = code => new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) });
 
@@ -42,9 +44,38 @@ test('aggregate failures must all precede connection before retrying a POST', as
   assert.equal(calls, 1);
 });
 
+test('a dropped merge preview can retry while a real merge can never repeat after a dropped response', async () => {
+  for (const [args, expected] of [[['merge-tree', '--write-tree', '--name-only', '-z', 'a'.repeat(40), 'b'.repeat(40)], 2], [['merge', '--no-edit', 'topic'], 1]]) {
+    let calls = 0;
+    const fetch = retryDevFetch(async () => { if (++calls === 1) throw failure('UND_ERR_SOCKET'); return 'preview'; }, { backoffMs: 0 });
+    const operation = fetch('/api/git', { method: 'POST', body: JSON.stringify({ args }) });
+    if (expected === 2) assert.equal(await operation, 'preview'); else await assert.rejects(operation, /fetch failed/);
+    assert.equal(calls, expected);
+  }
+});
+
 test('cancellation is respected for a Request signal as well as init.signal', async () => {
   let calls = 0; const controller = new AbortController(); controller.abort();
   const fetch = retryDevFetch(async () => { calls++; throw failure('ECONNREFUSED'); }, { backoffMs: 0 });
   await assert.rejects(fetch(new Request('http://localhost/api/git', { method: 'POST', signal: controller.signal })), /fetch failed/);
   assert.equal(calls, 1);
+});
+
+test('loopback writes use fresh connections and preserve request headers and body', async () => {
+  const seen = [], sockets = new Set();
+  const server = createServer(async (request, response) => {
+    let body = ''; for await (const chunk of request) body += chunk;
+    seen.push({ connection: request.headers.connection, custom: request.headers['x-test'], body });
+    sockets.add(request.socket); response.end('saved');
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  try {
+    const fetch = retryDevFetch(globalThis.fetch), url = `http://127.0.0.1:${server.address().port}/api/git`;
+    for (let index = 0; index < 2; index++) {
+      const response = await fetch(url, { method: 'POST', headers: { 'X-Test': 'preserved' }, body: 'write once' });
+      assert.equal(await response.text(), 'saved');
+    }
+    assert.equal(sockets.size, 2);
+    assert.deepEqual(seen, Array.from({ length: 2 }, () => ({ connection: 'close', custom: 'preserved', body: 'write once' })));
+  } finally { await new Promise(resolve => server.close(resolve)); }
 });

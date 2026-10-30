@@ -1,4 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
+import { CurrentBranchIssue } from '@/features/issues/CurrentBranchIssue';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -141,10 +142,10 @@ export const AppLayout: React.FC = () => {
         return;
       }
 
-      // Alt+1~5 切换视图
-      if (e.altKey && ['1', '2', '3', '4', '5'].includes(e.key)) {
+      // Preserve existing shortcuts; Issues is Alt+6.
+      if (e.altKey && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
         e.preventDefault();
-        const views = ['changes', 'history', 'pullRequests', 'actions', 'forge'] as const;
+        const views = ['changes', 'history', 'pullRequests', 'actions', 'forge', 'issues'] as const;
         setActiveTab(views[Number(e.key) - 1]);
       }
     };
@@ -237,6 +238,7 @@ export const AppLayout: React.FC = () => {
           onOpenGitHubAuth={() => setGithubAuthOpen(true)}
         />
       </ErrorBoundary>
+      <CurrentBranchIssue />
 
       {/* Main 3-Column Work Area */}
       <div className="app-workspace flex-1 min-h-0 flex overflow-hidden relative">

@@ -15,6 +15,13 @@ import { aiCommitService } from '@/services/ai/AiCommitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/stores/toastStore';
+import type { IssueReference } from '@/services/github/issueTypes';
+import { IssuePicker } from '@/features/issues/IssuePicker';
+import { withClosingIssues } from '@/features/issues/issueLogic';
+import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
+import { useGitHubScope } from '@/features/issues/useGitHubScope';
+import { issueKey } from '@/features/issues/issueLogic';
+import { issuePRDraft, toIssueContext } from '@/services/ai/issueContext';
 
 const sourceRepositories = (context: PushContext | null) => (context?.remotes || []).flatMap(remote => {
   const seen = new Set<string>();
@@ -31,21 +38,26 @@ const sourceRepositories = (context: PushContext | null) => (context?.remotes ||
 interface CreatePullRequestModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialIssue?: IssueReference;
+  onCreated?: () => void;
 }
 
 export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   open,
   onOpenChange,
+  initialIssue,
+  onCreated,
 }) => {
   const { currentRepo, branches, commits, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, commits: state.commits, status: state.status })));
-  const { currentOwner, currentRepoName, loadPullRequests, selectPR } = useGitHubStore(useShallow(state => ({ currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, loadPullRequests: state.loadPullRequests, selectPR: state.selectPR })));
+  const { currentOwner, currentRepoName, loadPullRequests, openPullRequest } = useGitHubStore(useShallow(state => ({ currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, loadPullRequests: state.loadPullRequests, openPullRequest: state.openPullRequest })));
   const aiConfig = useSettingsStore(state => state.aiConfig);
   const { t } = useI18n();
+  const githubScope = useGitHubScope();
 
   const currentBranch =
-    branches.find((b) => b.isCurrent)?.name ||
-    status?.currentBranch ||
     currentRepo?.currentBranch ||
+    status?.currentBranch ||
+    branches.find((b) => b.isCurrent)?.name ||
     'main';
 
   const [headBranch, setHeadBranch] = useState(currentBranch);
@@ -64,19 +76,28 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const [publishedBranch, setPublishedBranch] = useState('');
   const [sourceError, setSourceError] = useState('');
   const [sourceAttempt, setSourceAttempt] = useState(0);
+  const [linkedIssues, setLinkedIssues] = useState<IssueReference[]>([]);
+  const [includeIssueContext, setIncludeIssueContext] = useState(false);
+  const linkedKey = linkedIssues.map(issueKey).join('\0');
+  const draftValue = useRef('');
+  draftValue.current = JSON.stringify([title, body]);
 
-  const targetKey = JSON.stringify([currentRepo?.path, currentRepo?.gitHubRemote, currentOwner, currentRepoName]);
+  const targetKey = JSON.stringify([currentRepo?.path, currentRepo?.gitHubRemote, currentOwner, currentRepoName, githubScope.key]);
   const repoPath = currentRepo?.path, gitHubRemote = currentRepo?.gitHubRemote;
   const sourceKey = JSON.stringify([targetKey, headBranch]);
   const session = useRef(0);
   const descriptionRequest = useRef(0);
-  useEffect(() => { descriptionRequest.current++; setIsGeneratingDesc(false); }, [open, targetKey, headBranch, baseBranch]);
+  useEffect(() => () => { session.current++; descriptionRequest.current++; }, []);
+  useEffect(() => { descriptionRequest.current++; setIsGeneratingDesc(false); }, [open, targetKey, headBranch, baseBranch, linkedKey, includeIssueContext]);
 
   // Reset the draft only on opening or changing its target, never on a background refresh.
   const initializeDraft = useEffectEvent(() => {
     setHeadBranch(currentBranch);
     setTitle(commits[0]?.subject || '');
     setBody(commits[0]?.body || '');
+    const linked = initialIssue || (currentRepo && useIssueWorkflowStore.getState().issueForBranch(currentRepo.path, currentBranch));
+    setLinkedIssues(linked ? [linked] : []);
+    setIncludeIssueContext(false);
   });
   useEffect(() => {
     session.current++;
@@ -137,29 +158,49 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const isCurrentTarget = () => {
     const repo = useRepoStore.getState().currentRepo;
     const github = useGitHubStore.getState();
-    return JSON.stringify([repo?.path, repo?.gitHubRemote, github.currentOwner, github.currentRepoName]) === targetKey;
+    return githubScope.isCurrent() && JSON.stringify([repo?.path, repo?.gitHubRemote, github.currentOwner, github.currentRepoName, githubScope.key]) === targetKey;
   };
 
   const handleGenerateDesc = async () => {
     if (!currentRepo || !headBranch || !baseBranch || !ready) return;
     const request = ++descriptionRequest.current;
     const currentSession = session.current;
+    const originalDraft = draftValue.current;
     setIsGeneratingDesc(true);
     try {
+      const issueContext = includeIssueContext ? await Promise.all(linkedIssues.slice(0, 5).map(async reference => toIssueContext(reference, await githubService.getIssue(reference.owner, reference.repo, reference.number)))) : undefined;
+      if (request !== descriptionRequest.current || currentSession !== session.current || !isCurrentTarget()) return;
       const generated = await aiCommitService.generatePRDescriptionResult({
         repoPath: currentRepo.path,
         base: currentRepo.gitHubRemote ? `refs/remotes/${currentRepo.gitHubRemote}/${baseBranch}` : baseBranch,
         head: `refs/heads/${headBranch}`,
         aiConfig,
+        issueContext,
       });
       if (request !== descriptionRequest.current || currentSession !== session.current || !isCurrentTarget()) return;
       if (generated.fallback) toast.warning(t('composer.fallbackTitle'), t('composer.fallbackDesc'));
-      if (await confirmAction({ title: t('composer.preview'), description: generated.source === 'llm' ? `AI · ${generated.model}` : t(generated.fallback ? 'composer.localFallback' : 'composer.localRules'), detail: generated.message, confirmLabel: t('composer.useMessage'), danger: false }) && request === descriptionRequest.current && currentSession === session.current && isCurrentTarget()) setBody(generated.message);
+      if (draftValue.current !== originalDraft) { toast.warning(t('issueFlow.draftChanged')); return; }
+      if (await confirmAction({ title: t('composer.preview'), description: generated.source === 'llm' ? `AI · ${generated.model}` : t(generated.fallback ? 'composer.localFallback' : 'composer.localRules'), detail: withClosingIssues(generated.message, linkedIssues), confirmLabel: t('composer.useMessage'), danger: false }) && request === descriptionRequest.current && currentSession === session.current && isCurrentTarget() && draftValue.current === originalDraft) setBody(generated.message);
     } catch (err: any) {
       if (currentSession === session.current && isCurrentTarget()) toast.error(t('pr.aiGenerateFailed'), err?.message);
     } finally {
       if (request === descriptionRequest.current) setIsGeneratingDesc(false);
     }
+  };
+
+  const draftFromIssues = async () => {
+    if (!linkedIssues.length || isGeneratingDesc || isSubmitting) return;
+    const request = ++descriptionRequest.current, originalDraft = draftValue.current;
+    setIsGeneratingDesc(true);
+    try {
+      const contexts = await Promise.all(linkedIssues.slice(0, 5).map(async reference => toIssueContext(reference, await githubService.getIssue(reference.owner, reference.repo, reference.number))));
+      if (request !== descriptionRequest.current || !isCurrentTarget()) return;
+      const result = issuePRDraft(contexts);
+      if (draftValue.current !== originalDraft) { toast.warning(t('issueFlow.draftChanged')); return; }
+      const accepted = await confirmAction({ title: t('issueFlow.draftPR'), description: t('issueFlow.previewHint'), detail: `${result.title}\n\n${withClosingIssues(result.body, linkedIssues)}`, confirmLabel: t('composer.useMessage'), danger: false });
+      if (accepted && request === descriptionRequest.current && isCurrentTarget() && draftValue.current === originalDraft) { setTitle(result.title); setBody(result.body); }
+    } catch (reason) { if (request === descriptionRequest.current && isCurrentTarget()) toast.error(t('pr.aiGenerateFailed'), reason instanceof Error ? reason.message : String(reason)); }
+    finally { if (request === descriptionRequest.current) setIsGeneratingDesc(false); }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -178,15 +219,16 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
         head: sameRepository ? publishedBranch.trim() : `${source.owner}:${publishedBranch.trim()}`,
         ...(!sameRepository ? { headRepo: source.repo } : {}),
         base: baseBranch,
-        body: body.trim(),
+        body: withClosingIssues(body, linkedIssues),
       });
       if (currentSession !== session.current || !isCurrentTarget()) return;
       toast.success(t('pr.created').replace('{n}', String(created.number)), created.html_url);
       await loadPullRequests();
       if (currentSession !== session.current || !isCurrentTarget()) return;
       const fresh = useGitHubStore.getState().pullRequests.find(pr => pr.number === created.number);
-      if (fresh) selectPR(fresh);
+      openPullRequest(fresh || created);
       onOpenChange(false);
+      onCreated?.();
     } catch (err: any) {
       if (currentSession !== session.current || !isCurrentTarget()) return;
       const message: string = err?.message || t('pr.createFailed');
@@ -292,6 +334,14 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             <Input aria-label={t('remote.prSourceBranch')} value={publishedBranch} disabled={isSubmitting || sourceFor !== sourceKey} onChange={event => setPublishedBranch(event.target.value)} />
           </label>
           {source && baseBranch && baseFor === targetKey && <p className="rounded-lg bg-muted p-2 text-xs break-all">{source.owner}/{source.repo}:{publishedBranch} → {currentOwner}/{currentRepoName}:{baseBranch}</p>}
+
+          <IssuePicker selected={linkedIssues} onChange={setLinkedIssues} disabled={isSubmitting} />
+          {!!linkedIssues.length && <div className="space-y-2 text-xs">
+            <Button type="button" size="xs" variant="outline" disabled={isGeneratingDesc || isSubmitting} onClick={() => void draftFromIssues()}>{t('issueFlow.draftPR')}</Button>
+            <label className="flex items-start gap-2"><input type="checkbox" checked={includeIssueContext} disabled={isGeneratingDesc || isSubmitting} onChange={event => setIncludeIssueContext(event.target.checked)} /><span>{t('issueFlow.includeContext')}</span></label>
+            <p className="text-[11px] text-muted-foreground">{t('issueFlow.contextHint')}</p>
+          </div>}
+          {!!linkedIssues.length && baseBranch !== defaultBase && <p className="text-xs text-amber-600 dark:text-amber-400">{t('issues.nonDefaultBase')}</p>}
 
           {/* Title */}
           <label className="space-y-1 block">

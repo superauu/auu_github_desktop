@@ -20,6 +20,7 @@ import {
   X,
   Trash2,
   GitPullRequest,
+  CircleDot,
   Archive,
   GitMerge,
   UploadCloud,
@@ -718,6 +719,14 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             />
             <span>{t('sidebar.history')}</span>
           </div>
+        </button>
+
+        <button
+          aria-current={activeTab === 'issues' ? 'page' : undefined}
+          onClick={() => { setActiveTab('issues'); onNavigate?.(); }}
+          className={cn('w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-medium transition-colors', activeTab === 'issues' ? 'bg-accent text-accent-foreground shadow-2xs font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50')}
+        >
+          <CircleDot className="h-3.5 w-3.5" /><span>{t('issues.nav')}</span>
         </button>
 
         <button

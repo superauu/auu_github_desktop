@@ -8,11 +8,19 @@ npx playwright install chromium
 npm run test:visual
 ```
 
-Playwright starts an isolated local Vite server on `127.0.0.1:5179`, runs six
-screenshot cases and four interaction tests, waits for the actual application and
+Playwright starts an isolated local Vite server on `127.0.0.1:5179`, runs nine
+screenshot cases and nine interaction tests, waits for the actual application and
 fonts, and compares PNG screenshots. Interaction tests cover keyboard navigation,
 context-menu focus restoration, dialog focus trapping, repository-specific search
-state and recovery from failed file reads.
+state and recovery from failed file reads. Issue tests cover create/edit/comment,
+close/reopen, label and assignee preservation, issue-to-branch-to-PR navigation,
+reading server-confirmed closure after a simulated merge, and narrow layouts.
+Issue writes and GitHub merge behavior are simulated in tab-local memory; no real
+issues, comments, branches or pull requests are created by these browser tests.
+Workflow checks also cover branch-aware task banners, opt-in generation context,
+preview-before-replace behavior, partial CI failures and refreshes that preserve drafts.
+Review evidence uses an in-memory bridge response restricted to full-index diff
+reads on the synthetic fixture repository. All other bridge calls remain blocked.
 The test fails on browser errors or attempts to contact repository APIs or external
 services. It uses a clean browser context per case, a fixed viewport and pixel
 ratio, and bundled test-only CJK fonts; it does not access saved repositories.

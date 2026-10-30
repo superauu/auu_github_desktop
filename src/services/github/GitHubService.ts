@@ -1,4 +1,5 @@
 import { tNow } from '@/i18n';
+import type { GitHubCommitStatus, GitHubIssue, GitHubLabel, IssueInput, IssueListOptions, IssueSearchResult, IssueTimelineEvent, IssueUser } from './issueTypes';
 import {
   GitHubCheckRun,
   GitHubJob,
@@ -103,6 +104,64 @@ export class GitHubService {
 
   setToken(token: string | null) {
     this.token = token;
+  }
+
+  private async issueRequest<T>(owner: string, repo: string, suffix: string, method = 'GET', body?: unknown): Promise<T> {
+    const res = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${suffix}`, {
+      method, headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      cache: 'no-store', signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new GitHubApiError(res.status, await this.extractGitHubError(res));
+    return res.json();
+  }
+
+  async searchIssues(owner: string, repo: string, options: IssueListOptions): Promise<IssueSearchResult> {
+    const quote = (value: string) => `"${value.replace(/[\\"]/g, '\\$&')}"`;
+    const query = [`repo:${owner}/${repo}`, 'is:issue', options.state === 'all' ? '' : `is:${options.state}`,
+      options.query.trim() ? `${quote(options.query.trim())} in:title,body` : '',
+      options.label ? `label:${quote(options.label)}` : '', options.assignee ? `assignee:${quote(options.assignee)}` : ''].filter(Boolean).join(' ');
+    const params = new URLSearchParams({ q: query, sort: 'updated', order: 'desc', per_page: '30', page: String(options.page) });
+    const res = await fetch(`https://api.github.com/search/issues?${params}`, { headers: this.getHeaders(), cache: 'no-store', signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new GitHubApiError(res.status, await this.extractGitHubError(res));
+    const data: IssueSearchResult = await res.json();
+    return { ...data, items: data.items.filter(issue => !issue.pull_request) };
+  }
+
+  async getIssue(owner: string, repo: string, number: number): Promise<GitHubIssue> {
+    const issue = await this.issueRequest<GitHubIssue>(owner, repo, `issues/${number}`);
+    if (issue.pull_request) throw new Error(tNow('issues.notIssue'));
+    return issue;
+  }
+  createIssue(owner: string, repo: string, input: IssueInput): Promise<GitHubIssue> {
+    return this.issueRequest(owner, repo, 'issues', 'POST', input);
+  }
+  updateIssue(owner: string, repo: string, number: number, input: Partial<IssueInput> & { state?: 'open' | 'closed'; state_reason?: 'completed' | 'not_planned' | 'reopened' }): Promise<GitHubIssue> {
+    return this.issueRequest(owner, repo, `issues/${number}`, 'PATCH', input);
+  }
+  getIssueComments(owner: string, repo: string, number: number): Promise<GitHubIssueComment[]> {
+    return this.pages(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${number}/comments?per_page=100`, undefined, 'no-store');
+  }
+  createIssueComment(owner: string, repo: string, number: number, body: string): Promise<GitHubIssueComment> {
+    return this.issueRequest(owner, repo, `issues/${number}/comments`, 'POST', { body });
+  }
+  getIssueTimeline(owner: string, repo: string, number: number): Promise<IssueTimelineEvent[]> {
+    return this.pages(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${number}/timeline?per_page=100`, undefined, 'no-store');
+  }
+  getIssueLabels(owner: string, repo: string): Promise<GitHubLabel[]> {
+    return this.pages(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/labels?per_page=100`, undefined, 'no-store');
+  }
+  getIssueAssignees(owner: string, repo: string): Promise<IssueUser[]> {
+    return this.pages(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/assignees?per_page=100`, undefined, 'no-store');
+  }
+  getPullRequest(owner: string, repo: string, number: number): Promise<GitHubPullRequest> {
+    return this.issueRequest(owner, repo, `pulls/${number}`);
+  }
+  getWorkflowCheckRuns(owner: string, repo: string, sha: string): Promise<{ total_count: number; check_runs: GitHubCheckRun[] }> {
+    return this.issueRequest(owner, repo, `commits/${encodeURIComponent(sha)}/check-runs?filter=latest&per_page=100`);
+  }
+  getWorkflowCommitStatuses(owner: string, repo: string, sha: string): Promise<{ total_count: number; statuses: GitHubCommitStatus[] }> {
+    return this.issueRequest(owner, repo, `commits/${encodeURIComponent(sha)}/status?per_page=100`);
   }
 
   private getHeaders(): HeadersInit {
@@ -458,7 +517,7 @@ export class GitHubService {
     owner: string,
     repo: string,
     pullNumber: number,
-    options?: { mergeMethod?: 'merge' | 'squash' | 'rebase'; commitTitle?: string; commitMessage?: string }
+    options?: { mergeMethod?: 'merge' | 'squash' | 'rebase'; commitTitle?: string; commitMessage?: string; expectedHeadSha?: string }
   ): Promise<{ merged: boolean; message: string }> {
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/merge`,
@@ -470,6 +529,7 @@ export class GitHubService {
         },
         body: JSON.stringify({
           merge_method: options?.mergeMethod || 'merge',
+          ...(options?.expectedHeadSha ? { sha: options.expectedHeadSha } : {}),
           commit_title: options?.commitTitle,
           commit_message: options?.commitMessage,
         }),

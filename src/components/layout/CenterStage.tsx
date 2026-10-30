@@ -7,6 +7,7 @@ const WorkingChangesView = lazy(() => import('@/features/git/WorkingChangesView'
 const CommitHistoryView = lazy(() => import('@/features/git/CommitHistoryView').then((module) => ({ default: module.CommitHistoryView })));
 const ActionsDashboardView = lazy(() => import('@/features/actions/ActionsDashboardView').then((module) => ({ default: module.ActionsDashboardView })));
 const PullRequestsView = lazy(() => import('@/features/pr/PullRequestsView').then((module) => ({ default: module.PullRequestsView })));
+const IssuesView = lazy(() => import('@/features/issues/IssuesView').then(module => ({ default: module.IssuesView })));
 const ForgeView = lazy(() => import('@/features/forge/ForgeView').then((module) => ({ default: module.ForgeView })));
 
 import { useLayoutStore } from '@/stores/layoutStore';
@@ -46,6 +47,8 @@ export const CenterStage: React.FC<CenterStageProps> = ({
         return <ActionsDashboardView onOpenAuthDialog={onOpenGitHubAuth} />;
       case 'pullRequests':
         return <PullRequestsView />;
+      case 'issues':
+        return <IssuesView onOpenAuthDialog={onOpenGitHubAuth} />;
       case 'forge':
         return <ForgeView />;
       case 'changes':

@@ -18,6 +18,9 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import { FilePath } from '@/components/ui/FilePath';
 import { AiCommitBatchDialog } from '@/features/git/AiCommitBatchDialog';
 import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
+import { useCurrentBranchIssue } from '@/features/issues/useCurrentBranchIssue';
+import { issueKey } from '@/features/issues/issueLogic';
+import { issueCommitDraft, toIssueContext } from '@/services/ai/issueContext';
 
 export function useComposerDraft(repoPath?: string, branch?: string) {
   const [busy, setBusy] = useState(false);
@@ -45,6 +48,9 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<GenerationResult | null>(null);
   const [scopeOpen, setScopeOpen] = useState(false);
+  const currentTask = useCurrentBranchIssue();
+  const [includeIssue, setIncludeIssue] = useState(false);
+  const taskKey = currentTask.reference ? issueKey(currentTask.reference) : '';
   const [batchContext, setBatchContext] = useState<{ path: string; branch: string } | null>(null);
   useEffect(() => { setBatchContext(null); }, [currentRepo?.path, status?.currentBranch]);
   const generation = useRef(0);
@@ -60,7 +66,8 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   useEffect(() => {
     generation.current++;
     setPreview(null); setGenerating(false);
-  }, [currentRepo?.path, currentRepo?.currentBranch]);
+    setIncludeIssue(false);
+  }, [currentRepo?.path, currentTask.branch, taskKey, currentTask.scope]);
   useEffect(() => {
     const signature = scopeKey + amend;
     if (signature !== scopeSignature.current) { generation.current++; setPreview(null); setOrigin(null); setGenerating(false); scopeSignature.current = signature; }
@@ -74,7 +81,8 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     const request = ++generation.current;
     setGenerating(true);
     try {
-      const result = await aiCommitService.generateCommitMessageResult({ repoPath: currentRepo.path, files: scope.files, aiConfig });
+      const issueContext = includeIssue && currentTask.issue && currentTask.reference ? [toIssueContext(currentTask.reference, currentTask.issue)] : undefined;
+      const result = await aiCommitService.generateCommitMessageResult({ repoPath: currentRepo.path, files: scope.files, aiConfig, issueContext });
       if (request !== generation.current || useRepoStore.getState().currentRepo?.path !== currentRepo.path) return;
       // Generated text always remains reviewable before it replaces a user's draft.
       setPreview(result);
@@ -161,6 +169,15 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     {/* 单滚动模型：根容器整体滚动，按钮区粘底——矮面板下表单不再被挤成碎条，
         高度充裕时布局与之前完全一致（mt-auto 保证按钮区贴底） */}
     <div className="p-4 space-y-4">
+    {currentTask.reference && <section aria-label={t('issueFlow.commitContext')} className="rounded-lg border border-border p-3 space-y-2 text-xs">
+      <p className="break-words">{taskKey}{currentTask.issue ? ` · ${currentTask.issue.title}` : ''}</p>
+      <Button variant="outline" size="xs" disabled={busy || generating || !currentTask.issue} onClick={() => {
+        if (!currentTask.reference || !currentTask.issue) return;
+        setPreview({ message: issueCommitDraft(toIssueContext(currentTask.reference, currentTask.issue), currentTask.issue.labels.some(label => label.name.toLowerCase() === 'bug')), source: 'builtin', fallback: false });
+      }}>{t('issueFlow.draftCommit')}</Button>
+      <label className="flex items-start gap-2"><input type="checkbox" checked={includeIssue} disabled={busy || generating || !currentTask.issue} onChange={event => { generation.current++; setIncludeIssue(event.target.checked); setPreview(null); }} /><span>{t('issueFlow.includeContext')}</span></label>
+      <p className="text-muted-foreground text-[11px]">{t('issueFlow.contextHint')}</p>
+    </section>}
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2"><label htmlFor="commit-title" className="font-medium">{t('composer.title')}</label><Button variant="outline" size="xs" onClick={generate} disabled={generating || busy || !scope.files.length}><Sparkles className="h-3.5 w-3.5" />{t(generating ? 'composer.generating' : 'composer.generate')}</Button></div>
       <div className="flex items-center justify-between gap-2 text-[12px] text-muted-foreground">

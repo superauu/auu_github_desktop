@@ -13,6 +13,8 @@ interface CreateBranchModalProps {
   onOpenChange: (open: boolean) => void;
   defaultBaseBranch?: string;
   defaultCommitHash?: string;
+  defaultBranchName?: string;
+  onCreated?: (name: string) => void;
 }
 
 export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
@@ -20,6 +22,8 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
   onOpenChange,
   defaultBaseBranch,
   defaultCommitHash,
+  defaultBranchName,
+  onCreated,
 }) => {
   const { currentRepo, branches, status, commits, createBranch } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, status: state.status, commits: state.commits, createBranch: state.createBranch })));
   const { t } = useI18n();
@@ -30,7 +34,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
     currentRepo?.currentBranch ||
     'main';
 
-  const [branchName, setBranchName] = useState('');
+  const [branchName, setBranchName] = useState(defaultBranchName || '');
   const [baseType, setBaseType] = useState<'current' | 'branch' | 'commit'>(
     defaultCommitHash ? 'commit' : 'current'
   );
@@ -48,6 +52,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
   // 每次打开时同步右键菜单传入的基底分支/提交，否则会被忽略而总是从 HEAD 创建
   React.useEffect(() => {
     if (!open) return;
+    if (defaultBranchName) setBranchName(defaultBranchName);
     if (defaultCommitHash) {
       setBaseType('commit');
       setSelectedCommitHash(defaultCommitHash);
@@ -55,7 +60,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
       setBaseType('branch');
       setSelectedBaseBranch(defaultBaseBranch);
     }
-  }, [open, defaultBaseBranch, defaultCommitHash]);
+  }, [open, defaultBaseBranch, defaultCommitHash, defaultBranchName]);
 
   if (!open) return null;
 
@@ -84,6 +89,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
 
     try {
       await createBranch(cleanName, startPoint, checkoutAfterCreate);
+      onCreated?.(cleanName);
       toast.success(
         `${t('create.success').replace('{name}', cleanName)}`,
         checkoutAfterCreate ? t('create.switched') : t('create.stayed')
