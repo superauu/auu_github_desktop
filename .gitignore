@@ -46,3 +46,5 @@ src-tauri/gen/schemas/
 .zcode/
 /tests/visual/diffs/
 /tests/visual/actual/
+/test-results/
+/playwright-report/

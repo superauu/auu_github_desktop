@@ -1,0 +1,12 @@
+/* Test-only CJK fonts keep developer PCs and Windows CI on the same glyphs.
+   The normal application and the original CUA fixture keep their own fonts. */
+@import '@fontsource/noto-sans-sc/400.css';
+@import '@fontsource/noto-sans-sc/500.css';
+@import '@fontsource/noto-sans-sc/600.css';
+@import '@fontsource/noto-sans-sc/700.css';
+
+:root {
+  --font-sans: 'Inter Variable', 'Noto Sans SC', sans-serif;
+  --font-display: 'Orbitron Variable', 'Inter Variable', 'Noto Sans SC', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'Noto Sans SC', monospace;
+}

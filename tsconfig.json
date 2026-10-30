@@ -22,5 +22,5 @@
   },
   // vite.config.ts 与 scripts/*.ts（dev 中间件与 git-policy 镜像）随裸 `tsc`（npm run build /
   // npx tsc --noEmit）一并做类型检查，消除只查 src 的盲区。
-  "include": ["src", "vite.config.ts", "scripts"]
+  "include": ["src", "vite.config.ts", "scripts", "playwright.config.ts", "e2e"]
 }

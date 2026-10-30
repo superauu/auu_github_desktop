@@ -1,5 +1,44 @@
 # UI visual regression
 
+## Automated Chromium checks
+
+```sh
+npm ci
+npx playwright install chromium
+npm run test:visual
+```
+
+Playwright starts an isolated local Vite server on `127.0.0.1:5179`, runs six
+screenshot cases and four interaction tests, waits for the actual application and
+fonts, and compares PNG screenshots. Interaction tests cover keyboard navigation,
+context-menu focus restoration, dialog focus trapping, repository-specific search
+state and recovery from failed file reads.
+The test fails on browser errors or attempts to contact repository APIs or external
+services. It uses a clean browser context per case, a fixed viewport and pixel
+ratio, and bundled test-only CJK fonts; it does not access saved repositories.
+
+Reviewed automated baselines live under `baselines/playwright-win32/`. They are
+separate from the original CUA JPEGs. Other operating systems require separately
+reviewed baselines in `baselines/playwright-<platform>/`. Use the locked Playwright
+version and its installed Chromium; system browsers can render differently.
+
+CI runs the Windows cases without updating baselines. Missing baselines fail too.
+Failures retain actual/expected/diff images, traces and an HTML report in
+`test-results/` and `playwright-report/`, uploaded as an Actions artifact.
+Open the local report with `npx playwright show-report`.
+
+For an intentional UI or browser-version change, explicitly regenerate candidates:
+
+```sh
+npx playwright test --update-snapshots
+```
+
+Inspect every changed PNG and diff before committing. Never update snapshots in
+CI or accept them only because the current test fails. Keep behavior/keyboard tests:
+pixel comparisons do not prove interaction correctness.
+
+## Original CUA captures
+
 Run `npm run dev`, then open `/tests/visual/index.html?theme=dark` (or `theme=light`).
 This development-only entry uses the actual application components with deterministic commits,
 multiple graph lanes, long branch names, ref overflow, and WIP changes. Network access is blocked;

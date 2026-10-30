@@ -44,7 +44,7 @@ Merge, rebase, and history editing include previews or recovery mechanisms. Hist
 
 ## Installation
 
-The release workflow provides packages for three platforms: **Windows x64** (installer / MSI / standalone executable), **macOS** (dmg for Intel and Apple Silicon), and **Linux** (AppImage / deb / rpm). Automatic updates currently cover Windows only; macOS and Linux users should download new versions from Releases manually.
+The release workflow provides packages for three platforms: **Windows x64** (installer / MSI / standalone executable), **macOS** (dmg for Intel and Apple Silicon), and **Linux** (AppImage / deb / rpm). The workflow supports signed automatic updates for Windows, macOS, and Linux AppImage when the platform's update artifact and signature are uploaded and included in the update manifest. For deb / rpm installations or unavailable updates, download the new version from Releases manually.
 
 1. Install [Git](https://git-scm.com/downloads) and ensure the app can find it.
 2. Download the package for your platform from [Releases](https://github.com/superauu/auu_github_desktop/releases/latest): `AuuGit_<version>_x64-setup.exe` (or MSI) on Windows, `<version>_x64.dmg` (Intel) or `<version>_aarch64.dmg` (Apple Silicon) on macOS, and AppImage, deb, or rpm on Linux.
@@ -118,6 +118,8 @@ npm run tauri -- build -- --locked
 
 `npm run build` produces frontend assets. The final command creates desktop bundles under `src-tauri/target/release/bundle/`. Builds with signed automatic updates also require signing credentials that match the app's updater public key.
 
+Run visual regression checks with `npm run test:visual`; install its browser first with `npx playwright install chromium`. Windows CI checks both themes at three viewport sizes and retains screenshot diffs and browser traces on failure. See the [visual regression guide](tests/visual/README.md) for baseline review and other platforms.
+
 Credential backends are enabled per platform: Windows Credential Manager, macOS Keychain, and Linux keyutils with Secret Service. Linux needs an available Secret Service and session D-Bus at runtime. Releases and desktop regression validation currently target Windows x64.
 
 ## Project structure
@@ -140,7 +142,7 @@ scripts/         Release version validation
 1. Keep the application version consistent across `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`.
 2. Run tests, release version validation, and the frontend build.
 3. Configure the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The signing key must match the updater public key embedded in the app.
-4. Push a `v<version>` tag matching the application version. The Windows release workflow builds, signs, and uploads installers and update metadata to a GitHub Release; the macOS and Linux build matrix attaches its platform packages to the same Release (the `latest.json` update manifest currently covers Windows only).
+4. Push a `v<version>` tag matching the application version. The Windows release workflow builds, signs, and uploads installers and update metadata to a GitHub Release; the macOS and Linux build matrix attaches its platform packages to the same Release and merges available macOS and Linux AppImage update signatures into `latest.json`. Platforms with missing signatures are skipped, so verify the manifest after publishing.
 
 A manual workflow run produces Actions artifacts. The current workflow publishes a GitHub Release only when triggered by a version tag push.
 

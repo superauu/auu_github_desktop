@@ -1,21 +1,23 @@
-// 测试专用：对真实本地 dev server（vite middleware）的 fetch 做连接层透明重试。
-// 全量并发跑测试时，Windows 高负载下 loopback 连接偶发被拒/超时/被重置（undici 报
-// TypeError: fetch failed）。ECONNRESET 一类断流也参与重试：loopback 上绝大多数
-// reset 发生在服务端受理之前，而各测试以 git 终态读回做断言，万一真的重复执行了
-// 写操作会立刻在断言上显形——净收益是消除偶发。
+// Test-only loopback retries. A disconnected response does not prove that a
+// POST was never executed: retrying it can cherry-pick or commit twice.
 // 必须装在 nativeFetch 一层：测试内安装的请求计数拦截器不受影响；整体替换
 // globalThis.fetch 的失败模拟 mock（如 oauth-resilience）也不会被误重试。
 const CONNECT_ERROR_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET']);
+const BEFORE_CONNECT_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT']);
 
 export function retryDevFetch(nativeFetch, { attempts = 4, backoffMs = 250 } = {}) {
   return async (input, init) => {
+    const request = typeof Request !== 'undefined' && input instanceof Request ? input : undefined;
+    const method = (init?.method || request?.method || 'GET').toUpperCase();
+    const safe = method === 'GET' || method === 'HEAD' || isReadOnlyGitPost(request?.url || input, init);
+    const signal = init?.signal || request?.signal;
     let lastError;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         return await nativeFetch(input, init);
       } catch (error) {
         lastError = error;
-        if (attempt >= attempts || init?.signal?.aborted || !isConnectLevelFailure(error)) throw error;
+        if (attempt >= attempts || signal?.aborted || !isConnectLevelFailure(error, safe ? CONNECT_ERROR_CODES : BEFORE_CONNECT_CODES)) throw error;
         await new Promise(resolve => setTimeout(resolve, backoffMs * 2 ** (attempt - 1)));
       }
     }
@@ -23,8 +25,25 @@ export function retryDevFetch(nativeFetch, { attempts = 4, backoffMs = 250 } = {
   };
 }
 
-function isConnectLevelFailure(error) {
+// Git reads also use POST to the local bridge. Keep this whitelist deliberately
+// narrow: an unknown command or body must never gain an ambiguous retry.
+function isReadOnlyGitPost(input, init) {
+  try {
+    if (new URL(String(input), 'http://local.invalid').pathname !== '/api/git' || typeof init?.body !== 'string') return false;
+    const args = JSON.parse(init.body).args;
+    if (!Array.isArray(args) || args.some(arg => typeof arg !== 'string')) return false;
+    let index = 0;
+    while (index < args.length) {
+      if (['-c', '-C', '--git-dir', '--work-tree', '--namespace', '--config-env'].includes(args[index])) { index += 2; continue; }
+      if (/^--(literal-pathspecs|no-literal-pathspecs|no-optional-locks|no-pager|paginate)$/.test(args[index]) || /^--(git-dir|work-tree|namespace|config-env)=/.test(args[index])) { index++; continue; }
+      break;
+    }
+    return ['status', 'log', 'show', 'diff', 'rev-parse', 'for-each-ref', 'ls-files', 'ls-tree', 'cat-file', 'blame', 'check-ignore', 'show-ref', 'rev-list', 'diff-tree', '--version'].includes(args[index]);
+  } catch { return false; }
+}
+
+function isConnectLevelFailure(error, codes) {
   // happy-eyeballs 下所有地址族连接失败会聚合成 AggregateError。
-  if (error instanceof AggregateError) return true;
-  return Boolean(error?.cause && CONNECT_ERROR_CODES.has(error.cause.code));
+  if (error instanceof AggregateError) return error.errors.length > 0 && error.errors.every(cause => isConnectLevelFailure(cause, codes));
+  return codes.has(error?.code) || Boolean(error?.cause && isConnectLevelFailure(error.cause, codes));
 }

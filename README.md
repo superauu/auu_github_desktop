@@ -44,7 +44,7 @@ Git 写操作会在状态栏显示当前操作、已用时间和排队数量。�
 
 ## 安装与使用
 
-当前发布流程提供三平台安装包：**Windows x64**（安装包 / MSI / 独立可执行文件）、**macOS**（Intel 与 Apple Silicon 的 dmg）和 **Linux**（AppImage / deb / rpm）。自动更新当前仅覆盖 Windows，macOS 与 Linux 需要升级时请从 Releases 手动下载新版本。
+当前发布流程提供三平台安装包：**Windows x64**（安装包 / MSI / 独立可执行文件）、**macOS**（Intel 与 Apple Silicon 的 dmg）和 **Linux**（AppImage / deb / rpm）。发布流程支持 Windows、macOS 和 Linux AppImage 的签名自动更新；对应平台的更新产物与签名需要成功上传并写入更新清单。使用 deb / rpm 或未收到更新时，请从 Releases 手动下载新版本。
 
 1. 安装 [Git](https://git-scm.com/downloads)，并确保应用能够找到 Git。
 2. 在 [Releases](https://github.com/superauu/auu_github_desktop/releases/latest) 下载对应平台的安装包：Windows 为 `AuuGit_<版本>_x64-setup.exe`（或 MSI），macOS 为 `<版本>_x64.dmg`（Intel）或 `<版本>_aarch64.dmg`（Apple Silicon），Linux 为 AppImage、deb 或 rpm。
@@ -120,6 +120,8 @@ npm run tauri -- build -- --locked
 
 `npm run build` 生成前端文件；桌面安装包通过最后一条命令生成，位于 `src-tauri/target/release/bundle/`。带自动更新签名的构建还需要匹配应用公钥的签名私钥配置。
 
+视觉回归使用 `npm run test:visual`：首次运行前执行 `npx playwright install chromium`。Windows CI 会检查明暗主题及三种窗口尺寸，失败时保存截图差异与浏览器跟踪；基线审阅和其他平台的运行说明见 [视觉回归指南](tests/visual/README.md)。
+
 凭据存储按平台启用：Windows Credential Manager、macOS Keychain、Linux keyutils 与 Secret Service。Linux 运行时需要可用的 Secret Service 和会话 D-Bus。当前发布和桌面回归验证仍以 Windows x64 为准。
 
 ## 项目结构
@@ -143,7 +145,7 @@ scripts/         发布版本校验
 2. 编写 `releases/v<新版本>.md` 发版说明（tag 构建会硬校验其存在且非空；缺失时 `check:release --require-notes` 也会提前拦截）。
 3. 运行测试、版本校验和前端构建。
 4. 配置 GitHub Actions Secrets：`TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，并保持私钥与应用内更新公钥匹配。
-5. 推送匹配应用版本号的 `v<版本>` 标签。Windows 发布工作流会构建、签名并上传安装包及更新清单到 GitHub Release；macOS 与 Linux 构建矩阵会把对应平台安装包挂载到同一个 Release，并把两平台的更新签名合并进 `latest.json`（三平台均收到自动更新）。
+5. 推送匹配应用版本号的 `v<版本>` 标签。Windows 发布工作流会构建、签名并上传安装包及更新清单到 GitHub Release；macOS 与 Linux 构建矩阵会把对应平台安装包挂载到同一个 Release，并把可用的 macOS 与 Linux AppImage 更新签名合并进 `latest.json`。缺失签名的平台会被跳过，发布后需核对更新清单。
 
 手动触发构建会生成 Actions 构建产物；只有推送版本标签才会执行当前流程中的 Release 发布步骤。
 

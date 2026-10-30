@@ -44,7 +44,13 @@ const repo: RepositoryInfo = { id: 'visual-fixture', name: 'workspace-ui-fixture
 
 function prepare() {
   // No network requests or native Git writes; all preferences remain in this tab's memory.
-  window.fetch = async () => { throw new Error('Network disabled in the UI visual fixture'); };
+  const networkAttempts: string[] = [];
+  document.documentElement.dataset.uiFixtureNetworkAttempts = '[]';
+  window.fetch = async input => {
+    networkAttempts.push(input instanceof Request ? input.url : String(input));
+    document.documentElement.dataset.uiFixtureNetworkAttempts = JSON.stringify(networkAttempts);
+    throw new Error('Network disabled in the UI visual fixture');
+  };
   useLayoutStore.persist.setOptions({ storage: { getItem: () => null, setItem() {}, removeItem() {} } });
   useWorkspaceSessionStore.persist.setOptions({ storage: { getItem: () => null, setItem() {}, removeItem() {} } });
   useLayoutStore.setState(DEFAULT_LAYOUT);
@@ -58,7 +64,14 @@ function prepare() {
   };
   useThemeStore.setState({ setTheme: applyTheme });
   applyTheme(new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : 'dark');
-  gitService.getCommitFiles = async () => files.slice(0, 2);
+  let filesFailed = false;
+  const failFiles = new URLSearchParams(location.search).get('failFiles') === '1';
+  gitService.getCommitFiles = async path => {
+    if (failFiles && !filesFailed) { filesFailed = true; throw new Error('Fixture file load failed'); }
+    return path === repo.path ? files.slice(0, 2) : [{ path: 'other-only.ts', status: 'modified', staged: false }];
+  };
+  gitService.getGitVersion = async () => 'git version 2.50.0 (fixture)';
+  gitService.getRepoOperationState = async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false });
   gitService.getPushContext = async () => ({ branch: longBranch, remote: 'origin', targetBranch: longBranch, upstream: `origin/${longBranch}`, remotes: [], ahead: 0, behind: 0 });
   gitService.findCommits = async (_path, query) => commits.filter(commit => commit.subject.toLowerCase().includes(query.toLowerCase()));
   useGitHubStore.setState({ user: null, isAuthenticated: false, profiles: [], fetchCommitChecks: async () => [] });
@@ -71,6 +84,17 @@ function prepare() {
       if (commit) useRepoStore.setState({ selectedBranch: target, selectedCommit: commit, scrollToCommitHash: commit.hash });
     },
   });
+  if (new URLSearchParams(location.search).get('interactions') === '1') {
+    const other: RepositoryInfo = { ...repo, id: 'other-fixture', path: '/__auugit_other_fixture__', name: 'other-ui-fixture', currentBranch: 'main' };
+    const otherCommit: GitCommit = { ...commits[0], hash: 'f'.repeat(40), shortHash: 'fffffff', subject: 'Other repository commit', refs: ['HEAD -> main'] };
+    useRepoStore.setState({ openTabs: [repo, other], recentRepos: [repo, other],
+      setCurrentRepo: async selected => {
+        const list = selected?.path === repo.path ? commits : [otherCommit];
+        useRepoStore.setState({ currentRepo: selected, commits: list, selectedCommit: list[0], activeTab: 'history' });
+        return true;
+      },
+    });
+  }
 }
 
 function Fixture() {
@@ -81,6 +105,7 @@ function Fixture() {
 }
 
 if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
+  if (new URLSearchParams(location.search).get('automation') === '1') await import('../../tests/visual/automation.css');
   prepare();
   createRoot(document.getElementById('root')!).render(<Fixture />);
 }
