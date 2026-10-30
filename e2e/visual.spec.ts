@@ -21,7 +21,9 @@ for (const scenario of cases) {
     await page.goto(`/tests/visual/index.html?theme=${scenario.theme}&automation=1`);
     await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true', { timeout: 45_000 });
     await expect(page.getByText('workspace-ui-fixture', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('Merge workspace review improvements', { exact: true }).first()).toBeVisible();
+    // This title also appears in the inspector before the lazy history view is ready.
+    await expect(page.locator('[data-commit-row]').first()).toBeVisible();
+    await expect(page.locator('[data-commit-row]').first()).toContainText('Merge workspace review improvements');
     await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
     await page.mouse.move(-1, -1);
     await expect(page).toHaveScreenshot(`${scenario.name}.png`);

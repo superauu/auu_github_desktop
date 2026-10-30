@@ -18,8 +18,8 @@ async function split(page: Page, extra = '') {
   await dialog.getByLabel('提交标题', { exact: true }).fill('feat: first');
   await dialog.getByRole('button', { name: '添加提交', exact: true }).click();
   await dialog.getByLabel('提交标题', { exact: true }).nth(1).fill('feat: second');
-  await dialog.getByRole('combobox', { name: '分配到提交: task.ts @@ -1,1 +1,1 @@', exact: true }).selectOption({ label: '1. feat: first' });
-  await dialog.getByRole('combobox', { name: '分配到提交: task.ts @@ -20,1 +20,1 @@', exact: true }).selectOption({ label: '2. feat: second' });
+  await dialog.getByRole('combobox', { name: '分配到提交: task.ts 原 1 行 → 新 1 行', exact: true }).selectOption({ label: '1. feat: first' });
+  await dialog.getByRole('combobox', { name: '分配到提交: task.ts 原 20 行 → 新 20 行', exact: true }).selectOption({ label: '2. feat: second' });
   return dialog;
 }
 const writes = async (page: Page) => JSON.parse(await page.locator('html').getAttribute('data-hunk-fixture-writes') || '[]') as { title: string; units: string[] }[];
@@ -54,7 +54,7 @@ test('a partial hook failure keeps completed results and explicitly reloads only
   await dialog.getByRole('button', { name: '读取剩余暂存改动并重新分组', exact: true }).click();
   await expect(dialog.getByText('2 个暂存块', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveValue('');
-  await expect(dialog.getByRole('combobox', { name: /分配到提交: task.ts @@ -1,/ })).toHaveCount(0);
+  await expect(dialog.getByRole('combobox', { name: '分配到提交: task.ts 原 1 行 → 新 1 行', exact: true })).toHaveCount(0);
   expect(await writes(page)).toHaveLength(1);
 });
 
@@ -77,4 +77,59 @@ test('cancelled capture cannot populate a late plan and an empty index explains 
   await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
   dialog = await open(page, '&noStaged=1');
   await expect(dialog.getByRole('alert')).toContainText('尚无已暂存改动'); expect(await writes(page)).toHaveLength(0);
+});
+
+test('AI proposals preserve manual groups until applied, then remain editable before committing', async ({ page }) => {
+  const dialog = await split(page, '&ai=1');
+  await dialog.getByRole('button', { name: 'AI 建议分组', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: '应用建议并替换当前分组', exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: first');
+  await expect(dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true })).toBeDisabled();
+  expect(await writes(page)).toHaveLength(0);
+  await dialog.getByRole('button', { name: '保留当前分组', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: first');
+  await dialog.getByRole('button', { name: 'AI 建议分组', exact: true }).click();
+  await dialog.getByRole('button', { name: '应用建议并替换当前分组', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: staged feature');
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).first()).toHaveValue('实现第一处暂存变更。');
+  expect(await writes(page)).toHaveLength(0);
+  await dialog.getByRole('combobox', { name: '分配到提交: assets/logo.bin 整体文件 / 元数据', exact: true }).selectOption('');
+  await dialog.getByRole('region', { name: '提交 1', exact: true }).getByRole('button', { name: '预览本次提交差异', exact: true }).click();
+  await expect(dialog.getByRole('region', { name: '提交差异预览', exact: true })).toContainText('+first feature');
+  await dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true }).click();
+  await expect(dialog.getByText('已创建 2 个提交', { exact: true })).toBeVisible();
+  expect(await writes(page)).toEqual([{ title: 'feat: staged feature', units: ['h0:0'] }, { title: 'chore: staged assets', units: ['h0:1'] }]);
+});
+
+test('cancelled AI responses cannot overwrite later manual edits', async ({ page }) => {
+  const dialog = await split(page, '&ai=1&aiSlow=1');
+  await dialog.getByRole('button', { name: 'AI 建议分组', exact: true }).click();
+  await dialog.getByRole('button', { name: '取消 AI 分析', exact: true }).click();
+  await dialog.getByLabel('提交标题', { exact: true }).first().fill('Manual after cancellation');
+  await expect(page.locator('html')).toHaveAttribute('data-hunk-fixture-ai-responses', '1');
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('Manual after cancellation');
+  await expect(dialog.getByRole('button', { name: '应用建议并替换当前分组', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true })).toBeEnabled();
+  expect(await writes(page)).toHaveLength(0);
+});
+
+for (const scenario of ['aiInvalid', 'aiStale', 'aiStaleOnApply']) test(`AI ${scenario} preserves the manual plan and creates no commits`, async ({ page }) => {
+  const dialog = await split(page, `&ai=1&${scenario}=1`);
+  await dialog.getByRole('button', { name: 'AI 建议分组', exact: true }).click();
+  if (scenario === 'aiStaleOnApply') await dialog.getByRole('button', { name: '应用建议并替换当前分组', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText(scenario === 'aiInvalid' ? 'AI 分组无效' : '暂存区已变化');
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: first');
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toBeEnabled();
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('reloading a snapshot discards an in-flight AI result and starts with fresh groups', async ({ page }) => {
+  const dialog = await split(page, '&ai=1&aiSlow=1');
+  await dialog.getByRole('button', { name: 'AI 建议分组', exact: true }).click();
+  await dialog.getByRole('button', { name: '重新读取并清空分组', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveValue('');
+  await expect(page.locator('html')).toHaveAttribute('data-hunk-fixture-ai-responses', '1');
+  await expect(dialog.getByRole('button', { name: '应用建议并替换当前分组', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'AI 建议分组', exact: true })).toBeEnabled();
+  expect(await writes(page)).toHaveLength(0);
 });

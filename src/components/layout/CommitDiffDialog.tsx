@@ -2,6 +2,8 @@ import { ImageDiffView } from '@/features/git/ImageDiffView';
 import { isImagePath } from '@/services/git/ImageDiffService';
 import { DiffFontControl } from '@/components/ui/DiffFontControl';
 import { VirtualRows } from '@/components/ui/VirtualRows';
+import { DiffHunkHeader } from '@/components/ui/DiffHunkHeader';
+import { diffHunkStats, formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { DiffTools, highlightDiff } from '@/components/ui/DiffTools';
@@ -20,7 +22,7 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
   image?: { repoPath: string; before: string; after: string; beforePath?: string };
   path: string; hash: string; lines: ParsedDiffLine[]; loading: boolean; error: string | null; onClose: () => void; onReload: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const diffFontSize = useSettingsStore(state => state.diffFontSize);
   const wrap = useSettingsStore(state => state.diffWrapLines);
   const [query, setQuery] = useState('');
@@ -69,7 +71,8 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
   const activeLoading = jumped ? jumped.loading : loading;
   const activeError = jumped ? jumped.error : error;
   const rows = useMemo(() => split ? computeSplitRows(activeLines) : [], [split, activeLines]);
-  const contents = useMemo(() => split ? rows.map(row => row.headerContent || `${row.left?.content || ''}\n${row.right?.content || ''}`) : activeLines.map(line => line.content), [split, rows, activeLines]);
+  const stats = useMemo(() => diffHunkStats(activeLines), [activeLines]);
+  const contents = useMemo(() => split ? rows.map(row => row.isHeader ? formatDiffHunkLabel(row.headerContent || '', lang) : `${row.left?.content || ''}\n${row.right?.content || ''}`) : activeLines.map(line => line.type === 'header' ? formatDiffHunkLabel(line.content, lang) : line.content), [split, rows, activeLines, lang]);
   const handleReload = useCallback(() => { if (jumped) loadJumpDiff(jumped.path); else onReload(); }, [jumped, loadJumpDiff, onReload]);
   const lineClass = (type?: string) => type === 'add' ? 'diff-line-add' : type === 'delete' ? 'diff-line-del' : type === 'header' ? 'diff-line-header' : '';
   const modeToggle = snapshotAvailable && <div className="flex gap-1">
@@ -92,10 +95,10 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
         <DiffTools query={query} onQueryChange={setQuery} contents={contents} targetId={diffId} onReload={handleReload} />
         <div id={diffId} data-text-context style={{ fontSize: diffFontSize }} className={cn('flex-1 min-h-0 overflow-auto font-mono leading-6 select-text', wrap && 'diff-wrap')} role="region" tabIndex={0} aria-label={t('changes.viewDiff')}>
           {activeLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : activeError ? <p role="alert" className="p-6 text-destructive">{activeError}</p> : !activeLines.length ? <p className="p-6 text-muted-foreground">{t('rightPane.noTextDiff')}</p> : split ?
-            <div className="min-w-[800px]"><VirtualRows items={rows} renderRow={(row, index) => row.isHeader ? <div key={index} className="diff-line-header px-3 whitespace-pre">{row.headerContent}</div> : <div key={index} className="grid grid-cols-2">
+            <div className="min-w-[800px]"><VirtualRows items={rows} renderRow={(row, index) => row.isHeader ? <div key={index} className="diff-line-header px-3 py-1"><DiffHunkHeader header={row.headerContent || ''} stats={stats.get(row.sourceIndex ?? -1)} query={query} /></div> : <div key={index} className="grid grid-cols-2">
               {[row.left, row.right].map((side, sideIndex) => <div key={sideIndex} className={cn('flex min-w-0 border-r border-border', lineClass(side?.type))}><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{side?.lineNo}</span><span data-diff-content className="whitespace-pre overflow-x-auto px-2">{highlightDiff(side?.content || '', query)}</span></div>)}
             </div>} /></div> :
-            <VirtualRows items={activeLines} contentWidth={!wrap} renderRow={(line, index) => <div key={index} className={cn('flex whitespace-pre pr-6', lineClass(line.type))}><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.oldNo}</span><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.newNo}</span><span data-diff-content>{highlightDiff(line.content, query)}</span></div>} />}
+            <VirtualRows items={activeLines} contentWidth={!wrap} renderRow={(line, index) => line.type === 'header' ? <div key={index} className="diff-line-header px-3 py-1"><DiffHunkHeader header={line.content} stats={stats.get(index)} query={query} /></div> : <div key={index} className={cn('flex whitespace-pre pr-6', lineClass(line.type))}><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.oldNo}</span><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.newNo}</span><span data-diff-content>{highlightDiff(line.content, query)}</span></div>} />}
         </div>
       </>}
     </div>

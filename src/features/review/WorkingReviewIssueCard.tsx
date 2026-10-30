@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { useWorkingReviewStore, useWorkingReviewDraftStore, type WorkingReviewIssue } from '@/stores/workingReviewStore';
 import { deleteWorkingReviewIssue } from './workingReviewIssueActions';
+import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 
 export function WorkingReviewIssueCard({ recordKey, issue, index, onLocate, changed = false }: {
   recordKey: string; issue: WorkingReviewIssue; index: number; onLocate?: () => void; changed?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [editing, setEditing] = useState(false), [original, setOriginal] = useState(''), [error, setError] = useState(false);
   const draftKey = JSON.stringify(['edit', recordKey, issue.id]);
   const draft = useWorkingReviewDraftStore(state => state.drafts[draftKey] ?? issue.text);
@@ -24,7 +25,7 @@ export function WorkingReviewIssueCard({ recordKey, issue, index, onLocate, chan
       {error && <p role="alert" className="text-destructive">{t('workingReview.editChanged')}</p>}
       <div className="flex justify-end gap-2"><Button type="button" size="xs" variant="ghost" onClick={() => { setEditing(false); setError(false); }}>{t('common.cancel')}</Button><Button type="submit" size="xs" disabled={!draft.trim()}>{t('workingReview.saveEdit')}</Button></div>
     </form> : <p className={issue.resolved ? 'line-through text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre-wrap [overflow-wrap:anywhere]'}>{issue.text}</p>}
-    {issue.origin?.header && <p className="font-mono text-muted-foreground [overflow-wrap:anywhere]">{issue.origin.header}</p>}
+    {issue.origin?.header && <p className="text-muted-foreground [overflow-wrap:anywhere]" title={issue.origin.header}>{formatDiffHunkLabel(issue.origin.header, lang)}</p>}
     {changed && <p className="text-muted-foreground">{t('workingReview.contentChanged')}</p>}
     <div className="flex flex-wrap items-center gap-2">
       <label className="flex items-center gap-2"><input data-testid={`working-review-resolve-${issue.id}`} type="checkbox" checked={issue.resolved} onChange={event => useWorkingReviewStore.getState().updateIssue(recordKey, issue.id, event.target.checked)} aria-label={t(issue.resolved ? 'workingReview.reopenIssue' : 'workingReview.resolve')} />{t(issue.resolved ? 'workingReview.resolved' : 'workingReview.unresolved')}</label>

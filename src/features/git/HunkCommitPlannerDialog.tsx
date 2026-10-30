@@ -6,12 +6,14 @@ import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
 import { hunkCommitService, HunkCommitError, validateHunkGroups, type HunkCommitPlan, type HunkCommitGroup, type HunkCommitResult } from '@/services/git/HunkCommitService';
+import { HunkAiSuggestions } from './HunkAiSuggestions';
+import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 
 let sequence = 0;
 const emptyGroup = (): HunkCommitGroup => ({ id: `hunk-group-${++sequence}`, title: '', body: '', units: [] });
 type Phase = 'reading' | 'review' | 'checking' | 'writing' | 'done' | 'stopped';
 export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPath: string; branch: string; onClose: () => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [plan, setPlan] = useState<HunkCommitPlan | null>(null);
   const [groups, setGroups] = useState<HunkCommitGroup[]>([]);
   const [phase, setPhase] = useState<Phase>('reading');
@@ -22,13 +24,16 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
   const [recovery, setRecovery] = useState('');
   const [search, setSearch] = useState(''), [limit, setLimit] = useState(50);
   const [stopping, setStopping] = useState(false);
+  const [aiBlocked, setAiBlocked] = useState(false), [revision, setRevision] = useState(0);
+  const aiBlockedRef = useRef(false);
+  const updateAiBlocked = useCallback((value: boolean) => { aiBlockedRef.current = value; setAiBlocked(value); }, []);
   const abort = useRef<AbortController | null>(null), generation = useRef(0), previewGeneration = useRef(0), mounted = useRef(true), submitting = useRef(false), stop = useRef(false);
   const current = () => { const state = useRepoStore.getState(); return state.currentRepo?.path === repoPath && (state.status?.currentBranch || state.currentRepo.currentBranch) === branch; };
   const writing = phase === 'writing' || phase === 'checking';
-  const editable = phase === 'review' && !previewing;
+  const editable = phase === 'review' && !previewing && !aiBlocked;
   let assigned = 0, valid = false;
   if (plan) { try { assigned = validateHunkGroups(plan, groups, false).size; validateHunkGroups(plan, groups); valid = true; } catch { /* Show guidance until the groups are complete. */ } }
-  const change = (update: (previous: HunkCommitGroup[]) => HunkCommitGroup[]) => { previewGeneration.current++; setPreview(null); setGroups(update); };
+  const change = (update: (previous: HunkCommitGroup[]) => HunkCommitGroup[]) => { previewGeneration.current++; setPreview(null); setRevision(value => value + 1); setGroups(update); };
   const read = async () => {
     if (submitting.current) return;
     abort.current?.abort(); const controller = new AbortController(); abort.current = controller;
@@ -57,7 +62,7 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
     finally { if (mounted.current && id === previewGeneration.current) setPreviewing(false); }
   };
   const submit = async () => {
-    if (!plan || !valid || !editable || submitting.current) return;
+    if (!plan || !valid || !editable || submitting.current || aiBlockedRef.current) return;
     submitting.current = true; setPhase('checking'); setError(''); setPreview(null);
     const reviewed = groups.map(group => ({ ...group, units: [...group.units] }));
     try {
@@ -87,12 +92,15 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
         {phase === 'writing' && <p role="status">{t('hunkPlan.writing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))}{stopping && ` · ${t('hunkPlan.stopRequested')}`}</p>}
         {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap wrap-break-word">{error}</p>}
         {plan && (phase === 'review' || writing) && <>
+          {phase === 'review' && <HunkAiSuggestions plan={plan} blocked={writing || previewing} revision={revision} onBlockedChange={updateAiBlocked} onApply={suggested => {
+            previewGeneration.current++; setPreview(null); setGroups(suggested.map(group => ({ ...group, id: `hunk-group-${++sequence}`, units: [...group.units] })));
+          }} />}
           <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{t('hunkPlan.count').replace('{n}', String(plan.units.length))}</strong><span className="text-xs text-muted-foreground">{t('hunkPlan.remaining').replace('{n}', String(plan.units.length - assigned))}</span></div>
           <section aria-label={t('hunkPlan.pool')} className="space-y-2">
             <input type="search" aria-label={t('hunkPlan.search')} placeholder={t('hunkPlan.search')} value={search} onChange={event => { setSearch(event.target.value); setLimit(50); }} className="w-full h-9 px-3 border border-input bg-background rounded-md text-sm" />
             <ul className="max-h-80 overflow-auto space-y-2">{units.slice(0, limit).map(unit => <li key={unit.id} className="border border-border rounded-md p-3 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm min-w-0 break-all font-mono">{unit.path}</span><select disabled={!editable} aria-label={`${t('hunkPlan.assign')}: ${unit.path} ${unit.label}`} value={groups.find(group => group.units.includes(unit.id))?.id || ''} onChange={event => change(previous => previous.map(group => ({ ...group, units: group.id === event.target.value ? [...group.units, unit.id] : group.units.filter(id => id !== unit.id) })))} className="h-8 max-w-full min-w-0 border border-input bg-background rounded-md px-2 text-xs"><option value="">{t('hunkPlan.unassigned')}</option>{groups.map((group, index) => <option key={group.id} value={group.id}>{index + 1}. {group.title || t('hunkPlan.group')}</option>)}</select></div>
-              <details className="text-xs"><summary className="cursor-pointer min-h-7 break-all">{unit.kind === 'file' ? t('hunkPlan.wholeFile') : unit.label}</summary><pre className="max-h-60 overflow-auto bg-muted p-2 rounded select-text">{unit.patch}</pre></details>
+              <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm min-w-0 break-all font-mono">{unit.path}</span><select disabled={!editable} aria-label={`${t('hunkPlan.assign')}: ${unit.path} ${unit.kind === 'file' ? t('hunkPlan.wholeFile') : formatDiffHunkLabel(unit.label, lang)}`} value={groups.find(group => group.units.includes(unit.id))?.id || ''} onChange={event => change(previous => previous.map(group => ({ ...group, units: group.id === event.target.value ? [...group.units, unit.id] : group.units.filter(id => id !== unit.id) })))} className="h-8 max-w-full min-w-0 border border-input bg-background rounded-md px-2 text-xs"><option value="">{t('hunkPlan.unassigned')}</option>{groups.map((group, index) => <option key={group.id} value={group.id}>{index + 1}. {group.title || t('hunkPlan.group')}</option>)}</select></div>
+              <details className="text-xs"><summary className="cursor-pointer min-h-7 break-all" title={unit.label}>{unit.kind === 'file' ? t('hunkPlan.wholeFile') : formatDiffHunkLabel(unit.label, lang)}</summary><pre className="max-h-60 overflow-auto bg-muted p-2 rounded select-text">{unit.patch}</pre></details>
             </li>)}</ul>
             {units.length > limit && <Button variant="outline" onClick={() => setLimit(value => value + 50)}>{t('hunkPlan.showMore')}</Button>}
           </section>
@@ -106,6 +114,7 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
             <label className="block text-xs space-y-1"><span>{t('hunkPlan.subject')}</span><input disabled={!editable} value={group.title} maxLength={120} onChange={event => change(previous => previous.map(value => value.id === group.id ? { ...value, title: event.target.value } : value))} className="w-full h-9 px-3 border border-input bg-background rounded-md text-sm" /></label>
             <label className="block text-xs space-y-1"><span>{t('hunkPlan.body')}</span><textarea disabled={!editable} value={group.body} maxLength={6000} onChange={event => change(previous => previous.map(value => value.id === group.id ? { ...value, body: event.target.value } : value))} className="w-full min-h-16 p-3 border border-input bg-background rounded-md text-sm" /></label>
             <p className="text-xs text-muted-foreground break-all">{[...new Set(plan.units.filter(unit => group.units.includes(unit.id)).map(unit => unit.path))].join(' · ')}</p>
+            {group.reason && <p className="text-xs text-muted-foreground whitespace-pre-wrap wrap-break-word">{t('hunkAi.reason')}：{group.reason}</p>}
             <Button size="sm" variant="outline" disabled={!editable || !group.units.length} onClick={() => void inspect(index)}>{t('hunkPlan.preview')}</Button>
           </section>)}
           <Button variant="outline" disabled={!editable || groups.length >= 12} onClick={() => change(previous => [...previous, emptyGroup()])}><Plus className="h-4 w-4" />{t('hunkPlan.newGroup')}</Button>
