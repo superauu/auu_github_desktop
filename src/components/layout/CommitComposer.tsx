@@ -21,6 +21,7 @@ import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
 import { useCurrentBranchIssue } from '@/features/issues/useCurrentBranchIssue';
 import { issueKey } from '@/features/issues/issueLogic';
 import { issueCommitDraft, toIssueContext } from '@/services/ai/issueContext';
+import { useHunkPlanDialogStore } from '@/stores/hunkPlanDialogStore';
 
 export function useComposerDraft(repoPath?: string, branch?: string) {
   const [busy, setBusy] = useState(false);
@@ -52,6 +53,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   const [includeIssue, setIncludeIssue] = useState(false);
   const taskKey = currentTask.reference ? issueKey(currentTask.reference) : '';
   const [batchContext, setBatchContext] = useState<{ path: string; branch: string } | null>(null);
+  const hunkContext = useHunkPlanDialogStore(state => state.context);
   useEffect(() => { setBatchContext(null); }, [currentRepo?.path, status?.currentBranch]);
   const generation = useRef(0);
   const draft = useRef('');
@@ -153,7 +155,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   const disabled = busy || generating || !title.trim() || (!scope.files.length && !amend);
   const actionLabel = amend ? t('rightPane.commitAmend') : scope.stageAll ? t('rightPane.stageAllCommit') : t('rightPane.commit');
   return <div className="h-full min-h-0 flex flex-col text-[13px] overflow-y-auto" onKeyDown={(event) => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !batchContext && !disabled) { event.preventDefault(); void submit(); }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !batchContext && !hunkContext && !disabled) { event.preventDefault(); void submit(); }
   }}>
     <section className="mx-4 mt-4 shrink-0 rounded-lg border border-border bg-muted/30 p-3 space-y-1" aria-label={t('composer.scope')}>
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -201,6 +203,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     </div>}
     </div>
     <div className="commit-actions sticky bottom-0 z-10 mt-auto space-y-2 border-t border-border bg-card/95 backdrop-blur-sm p-4">
+      <Button variant="outline" className="w-full min-h-9" disabled={busy || generating || amend || !currentRepo || !status} title={t('hunkPlan.scope')} onClick={() => currentRepo && status && useHunkPlanDialogStore.getState().open(currentRepo.path, status.currentBranch)}>{t('hunkPlan.button')}</Button>
       <Button variant="outline" className="w-full min-h-9" disabled={busy || generating || amend || !currentRepo || !status || !(status.staged.length + status.unstaged.length + status.untracked.length)} title={t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => currentRepo && status && setBatchContext({ path: currentRepo.path, branch: status.currentBranch })}><Sparkles className="h-4 w-4 text-muted-foreground" />{t('batch.button')}</Button>
       <Button disabled={disabled} className="w-full h-10 font-semibold" onClick={() => void submit()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="truncate">{actionLabel}{scope.files.length ? ` (${scope.files.length})` : ''}</span></Button>
       <Button disabled={disabled} variant="outline" className="w-full h-9" onClick={() => void submit(true)}><Send className="h-4 w-4" />{t(amend ? 'composer.amendPush' : scope.stageAll ? 'rightPane.stageAllCommitPush' : 'rightPane.commitPush')}</Button>

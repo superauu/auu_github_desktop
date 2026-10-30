@@ -16,6 +16,7 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { gitService } from '@/services/git/GitService';
 import type { GitCommit, GitBranch, GitFileChange, RepositoryInfo } from '@/services/git/types';
 import { prepareIssueFixture } from './IssueFixture';
+import { prepareHunkPlanFixture } from './HunkPlanFixture';
 
 const hash = (index: number) => (index + 1).toString(16).padStart(40, '0');
 const longBranch = 'feature/workspace-review-with-an-intentionally-long-branch-name';
@@ -86,6 +87,7 @@ function prepare() {
     },
   });
   if (new URLSearchParams(location.search).get('issues') === '1') prepareIssueFixture(repo);
+  if (new URLSearchParams(location.search).get('hunks') === '1') prepareHunkPlanFixture(repo);
   if (new URLSearchParams(location.search).get('interactions') === '1') {
     const other: RepositoryInfo = { ...repo, id: 'other-fixture', path: '/__auugit_other_fixture__', name: 'other-ui-fixture', currentBranch: 'main' };
     const otherCommit: GitCommit = { ...commits[0], hash: 'f'.repeat(40), shortHash: 'fffffff', subject: 'Other repository commit', refs: ['HEAD -> main'] };

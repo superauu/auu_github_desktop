@@ -8,6 +8,7 @@ export interface GitCommandResult {
   exitCode: number;
   stdout: string;
   stderr: string;
+  indexTree?: string;
 }
 
 export class GitExecutionError extends Error {
@@ -45,14 +46,15 @@ export async function executeGit(args: string[], cwd: string, stdin?: string): P
 }
 
 /** Keep preflight, recovery refs and the operation in one application write queue. */
-export async function executeGitTransaction<T>(cwd: string, run: (git: (args: string[], stdin?: string) => Promise<GitCommandResult>) => Promise<T>): Promise<T> {
+export type GitTransactionRunner = (args: string[], stdin?: string, indexTree?: string) => Promise<GitCommandResult>;
+export async function executeGitTransaction<T>(cwd: string, run: (git: GitTransactionRunner) => Promise<T>): Promise<T> {
   const started = Date.now();
   let command = 'transaction';
   try {
-    const result = await serializeGitWrite(cwd, () => run((args, stdin) => {
+    const result = await serializeGitWrite(cwd, () => run((args, stdin, indexTree) => {
       if (!isReadOnlyGitCommand(args)) command = getGitCommand(args);
       updateGitWriteCommand(cwd, getGitCommand(args));
-      return executeGitNow(args, cwd, stdin);
+      return executeGitNow(args, cwd, stdin, indexTree);
     }));
     recordGitOperation(command, cwd, started);
     return result;
@@ -67,7 +69,7 @@ function recordGitOperation(command: string, repoPath: string, started: number, 
     action: retry && !cancelled ? { label: tNow('operationLog.retryFetch'), onClick: retry } : undefined });
 }
 
-async function executeGitNow(args: string[], cwd: string, stdin?: string): Promise<GitCommandResult> {
+async function executeGitNow(args: string[], cwd: string, stdin?: string, indexTree?: string): Promise<GitCommandResult> {
   const customPath = useSettingsStore.getState().gitCliPath?.trim() || 'git';
 
   // Check if running inside Tauri 2 desktop window
@@ -83,6 +85,7 @@ async function executeGitNow(args: string[], cwd: string, stdin?: string): Promi
         cwd,
         gitBinary: customPath,
         stdin,
+        ...(indexTree ? { indexTree } : {}),
       });
 
       // Only `diff --no-index` uses exit code 1 to mean "differences found";
@@ -117,6 +120,7 @@ async function executeGitNow(args: string[], cwd: string, stdin?: string): Promi
         cwd,
         gitBinary: customPath,
         stdin,
+        ...(indexTree ? { indexTree } : {}),
       }),
     });
 

@@ -11,6 +11,7 @@ import { Header } from './Header';
 import { LeftSidebar } from './LeftSidebar';
 import { CenterStage } from './CenterStage';
 import { RightPane } from './RightPane';
+import { HunkCommitPlannerHost } from '@/features/git/HunkCommitPlannerHost';
 import { StatusBar } from './StatusBar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { CommandPalette } from '@/components/command/CommandPalette';
@@ -278,6 +279,7 @@ export const AppLayout: React.FC = () => {
             />
         )}
         <ErrorBoundary><RightPane overlay={inspectorOverlay} open={inspectorOpen} onClose={() => setInspectorOpen(false)} onOpenAiSettings={() => { setSettingsTab('ai'); setSettingsOpen(true); }} /></ErrorBoundary>
+        <ErrorBoundary><HunkCommitPlannerHost /></ErrorBoundary>
       </div>
 
       {/* Bottom Status Bar */}

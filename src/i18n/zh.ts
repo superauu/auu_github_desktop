@@ -1,5 +1,6 @@
 import { uiReviewZh } from './uiReview';
 import { issuesZh } from './issues';
+import { hunkPlanZh } from './hunkPlan';
 import { commitBatchZh } from './commitBatch';
 import { remoteZh } from './remote';
 import { workflowZh } from './workflow';
@@ -27,6 +28,7 @@ import { workingReviewZh } from './workingReview';
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
  */
 export const zh = {
+  ...hunkPlanZh,
   ...issuesZh,
   'textMenu.title': '文本操作',
   'textMenu.undo': '撤销',

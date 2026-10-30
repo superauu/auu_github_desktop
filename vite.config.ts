@@ -10,6 +10,7 @@ import { directoryScope } from './scripts/dev-directory-scope.ts';
 import { initTarget, isLocalCloneSource, isNullDevice, localTransportPath, noIndexPaths, submoduleAddSource, transportCandidates, validateGitArguments, worktreeMoveTargets } from './scripts/git-policy.ts';
 import { createGitBinaryResolver } from './scripts/git-binary.ts';
 import { AI_REQUEST_TIMEOUT_MS } from './src/services/ai/aiLimits.ts';
+import { runWithTempIndex, validateTempIndexArguments } from './scripts/dev-temp-index.ts';
 
 const MAX_BODY = 8 * 1024 * 1024;
 const json = (res: ServerResponse, status: number, data: unknown) => {
@@ -146,6 +147,7 @@ export function gitApiPlugin(): Plugin {
           if (url.pathname === '/git') {
             if (!Array.isArray(data.args) || !data.args.every((value: unknown) => typeof value === 'string')) throw new Error('Invalid Git command');
             const { command, index } = validateGitArguments(data.args);
+            if (data.indexTree !== undefined) validateTempIndexArguments(data.args, data.indexTree);
             data.cwd = await allowedPath(data.cwd || process.cwd());
             if (command === 'clone') {
               const separator = data.args.indexOf('--');
@@ -296,6 +298,12 @@ export function gitApiPlugin(): Plugin {
             });
             if (!directory?.isDirectory()) {
               json(res, 400, { exitCode: -1, stdout: '', stderr: `Repository directory is unavailable: ${cwd}`, errorCode: 'REPOSITORY_DIRECTORY_UNAVAILABLE' });
+              return;
+            }
+            if (data.indexTree !== undefined) {
+              const controller = new AbortController();
+              res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+              json(res, 200, await runWithTempIndex(gitBinary, args, cwd, stdin, data.indexTree, controller.signal));
               return;
             }
             // 默认收紧传输白名单（与 src-tauri DEFAULT_PROTOCOLS 一致）；仅上面校验过的授权本地
