@@ -700,6 +700,19 @@ fn restart_application(app: tauri::AppHandle) {
 mod tests {
     use super::*;
     #[test]
+    fn generated_updater_platforms_match_the_native_updater_contract() {
+        // Shared with the JS manifest generator tests. macOS targets must use
+        // `darwin`, which is the name the installed updater actually requests.
+        let release: tauri_plugin_updater::RemoteRelease = serde_json::from_str(include_str!(
+            "../../tests/fixtures/updater-latest.json"
+        ))
+        .unwrap();
+        for platform in ["windows-x86_64", "darwin-aarch64", "darwin-x86_64", "linux-x86_64"] {
+            assert!(release.download_url(platform).is_ok(), "missing {platform}");
+            assert!(release.signature(platform).is_ok(), "missing signature for {platform}");
+        }
+    }
+    #[test]
     fn rejects_unsafe_ai_header_values_instead_of_panicking() {
         assert!(header_value("Bearer token").is_ok());
         assert!(header_value("sk-abc123_xyz").is_ok());

@@ -2,7 +2,7 @@
  * 把 macOS/Linux 更新器产物合并进 Windows 作业生成的 latest.json。
  *
  * 背景：三平台并行构建，Windows 作业先上传只含 windows-x86_64 的 latest.json；
- * attach-to-release 作业在 release 出现后下载它、把 macos-aarch64 / macos-x86_64 /
+ * attach-to-release 作业在 release 出现后下载它、把 darwin-aarch64 / darwin-x86_64 /
  * linux-x86_64 的签名与下载 URL 合并进去，再 --clobber 覆盖上传。任何平台缺失
  * 签名时只跳过该平台（manifest 其余部分保持有效），绝不阻塞发布。
  *
@@ -30,8 +30,8 @@ function parseArgs(argv) {
 export function platformOf(artifactName) {
   if (artifactName.endsWith('.app.tar.gz')) {
     // Tauri 的 macOS 归档名用 aarch64 / x64（不是 x86_64），两者都接受以防上游改名。
-    if (artifactName.includes('aarch64')) return 'macos-aarch64';
-    if (/(^|[^a-z])x64([^a-z]|$)/.test(artifactName) || artifactName.includes('x86_64')) return 'macos-x86_64';
+    if (artifactName.includes('aarch64')) return 'darwin-aarch64';
+    if (/(^|[^a-z])x64([^a-z]|$)/.test(artifactName) || artifactName.includes('x86_64')) return 'darwin-x86_64';
     return null;
   }
   if (artifactName.endsWith('.AppImage')) return 'linux-x86_64';

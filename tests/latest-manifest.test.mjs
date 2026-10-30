@@ -1,6 +1,6 @@
 /**
  * latest.json 三平台合并（scripts/merge-latest-manifest.mjs）回归防线：
- * 1. macos-aarch64 / macos-x86_64（x64 命名）/ linux-x86_64 三平台合并，
+ * 1. darwin-aarch64 / darwin-x86_64（x64 命名）/ linux-x86_64 三平台合并，
  *    version/notes/pub_date/windows 条目原样保留，URL 指向 release 下载地址；
  * 2. 无签名的产物（或未知形态如 *-setup.exe.sig）跳过不报错；
  * 3. 空 manifest / 非 updater 结构拒绝（fail loud）；
@@ -34,9 +34,9 @@ after(async () => {
 });
 
 test('platformOf classifies updater artifact names', () => {
-  assert.equal(platformOf('AuuGit_0.6.3_aarch64.app.tar.gz'), 'macos-aarch64');
-  assert.equal(platformOf('AuuGit_0.6.3_x64.app.tar.gz'), 'macos-x86_64');
-  assert.equal(platformOf('AuuGit_0.6.3_x86_64.app.tar.gz'), 'macos-x86_64');
+  assert.equal(platformOf('AuuGit_0.6.3_aarch64.app.tar.gz'), 'darwin-aarch64');
+  assert.equal(platformOf('AuuGit_0.6.3_x64.app.tar.gz'), 'darwin-x86_64');
+  assert.equal(platformOf('AuuGit_0.6.3_x86_64.app.tar.gz'), 'darwin-x86_64');
   assert.equal(platformOf('AuuGit_0.6.3_amd64.AppImage'), 'linux-x86_64');
   // Windows 安装器签名与未知形态不归属任何更新器平台。
   assert.equal(platformOf('AuuGit_0.6.3_x64-setup.exe'), null);
@@ -59,18 +59,20 @@ test('merges three platforms and preserves the windows entry', async () => {
     manifestPath, artifactsDir: artifacts, tag: 'v0.6.3', repo: 'owner/repo',
   });
 
-  assert.deepEqual(added.sort(), ['linux-x86_64', 'macos-aarch64', 'macos-x86_64']);
+  assert.deepEqual(added.sort(), ['darwin-aarch64', 'darwin-x86_64', 'linux-x86_64']);
   assert.deepEqual(skipped, []);
   assert.equal(manifest.version, '0.6.3');
   assert.equal(manifest.notes, 'release notes');
   assert.equal(manifest.pub_date, '2026-10-29T00:00:00Z');
   assert.equal(manifest.platforms['windows-x86_64'].signature, 'win-sig');
-  assert.equal(manifest.platforms['macos-aarch64'].signature, 'sig-aarch64');
-  assert.equal(manifest.platforms['macos-aarch64'].url, 'https://github.com/owner/repo/releases/download/v0.6.3/AuuGit_0.6.3_aarch64.app.tar.gz');
-  assert.equal(manifest.platforms['macos-x86_64'].signature, 'sig-x64');
+  assert.equal(manifest.platforms['darwin-aarch64'].signature, 'sig-aarch64');
+  assert.equal(manifest.platforms['darwin-aarch64'].url, 'https://github.com/owner/repo/releases/download/v0.6.3/AuuGit_0.6.3_aarch64.app.tar.gz');
+  assert.equal(manifest.platforms['darwin-x86_64'].signature, 'sig-x64');
   assert.equal(manifest.platforms['linux-x86_64'].url, 'https://github.com/owner/repo/releases/download/v0.6.3/AuuGit_0.6.3_amd64.AppImage');
   // windows 条目仍在首位（既有键先列），新键按产物文件名排序（确定性输出）。
-  assert.deepEqual(Object.keys(manifest.platforms), ['windows-x86_64', 'macos-aarch64', 'linux-x86_64', 'macos-x86_64']);
+  assert.deepEqual(Object.keys(manifest.platforms), ['windows-x86_64', 'darwin-aarch64', 'linux-x86_64', 'darwin-x86_64']);
+  const contract = JSON.parse(await fs.readFile(new URL('./fixtures/updater-latest.json', import.meta.url), 'utf8'));
+  assert.deepEqual(Object.keys(manifest.platforms).sort(), Object.keys(contract.platforms).sort(), 'the same platform keys are consumed by the Rust updater contract test');
 });
 
 test('skips unsigned artifacts and unknown signatures without failing', async () => {
