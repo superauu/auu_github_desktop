@@ -7,11 +7,16 @@
       // Isolate storage before application modules hydrate their persisted stores.
       (() => {
         const values = new Map();
+        // Opt-in restart tests persist only the isolated fixture's hunk draft
+        // in this tab's session storage. Never read real application keys.
+        const restart = new URLSearchParams(location.search).has('draftReload');
+        const draftKey = 'auugit-hunk-plan-drafts', fixtureKey = 'auugit-ui-fixture-hunk-draft';
+        const nativeGet = Storage.prototype.getItem, nativeSet = Storage.prototype.setItem, nativeRemove = Storage.prototype.removeItem;
         Object.assign(Storage.prototype, {
-          getItem(key) { return values.get(String(key)) ?? null; },
-          setItem(key, value) { values.set(String(key), String(value)); },
-          removeItem(key) { values.delete(String(key)); },
-          clear() { values.clear(); },
+          getItem(key) { return restart && key === draftKey ? nativeGet.call(sessionStorage, fixtureKey) : values.get(String(key)) ?? null; },
+          setItem(key, value) { if (restart && key === draftKey) nativeSet.call(sessionStorage, fixtureKey, String(value)); else values.set(String(key), String(value)); },
+          removeItem(key) { if (restart && key === draftKey) nativeRemove.call(sessionStorage, fixtureKey); else values.delete(String(key)); },
+          clear() { values.clear(); if (restart) nativeRemove.call(sessionStorage, fixtureKey); },
           key(index) { return Array.from(values.keys())[index] ?? null; },
         });
         Object.defineProperty(Storage.prototype, 'length', { configurable: true, get() { return values.size; } });

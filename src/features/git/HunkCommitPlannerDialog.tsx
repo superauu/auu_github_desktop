@@ -8,6 +8,7 @@ import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
 import { hunkCommitService, HunkCommitError, validateHunkGroups, type HunkCommitPlan, type HunkCommitGroup, type HunkCommitResult } from '@/services/git/HunkCommitService';
 import { HunkAiSuggestions } from './HunkAiSuggestions';
 import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
+import { createHunkDraftSession, type HunkDraftResult, type HunkDraftSession } from '@/services/git/HunkPlanDraftService';
 
 let sequence = 0;
 const emptyGroup = (): HunkCommitGroup => ({ id: `hunk-group-${++sequence}`, title: '', body: '', units: [] });
@@ -25,24 +26,45 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
   const [search, setSearch] = useState(''), [limit, setLimit] = useState(50);
   const [stopping, setStopping] = useState(false);
   const [aiBlocked, setAiBlocked] = useState(false), [revision, setRevision] = useState(0);
+  const [draft, setDraft] = useState<HunkDraftResult | null>(null), [draftBusy, setDraftBusy] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<'' | 'saved' | 'unavailable'>(''), [dirty, setDirty] = useState(false);
+  const draftSession = useRef<HunkDraftSession | null>(null);
   const aiBlockedRef = useRef(false);
   const updateAiBlocked = useCallback((value: boolean) => { aiBlockedRef.current = value; setAiBlocked(value); }, []);
   const abort = useRef<AbortController | null>(null), generation = useRef(0), previewGeneration = useRef(0), mounted = useRef(true), submitting = useRef(false), stop = useRef(false);
   const current = () => { const state = useRepoStore.getState(); return state.currentRepo?.path === repoPath && (state.status?.currentBranch || state.currentRepo.currentBranch) === branch; };
   const writing = phase === 'writing' || phase === 'checking';
-  const editable = phase === 'review' && !previewing && !aiBlocked;
+  const pendingDraft = draft?.status === 'matching' || draft?.status === 'stale';
+  const editable = phase === 'review' && !previewing && !aiBlocked && !pendingDraft && !draftBusy;
   let assigned = 0, valid = false;
   if (plan) { try { assigned = validateHunkGroups(plan, groups, false).size; validateHunkGroups(plan, groups); valid = true; } catch { /* Show guidance until the groups are complete. */ } }
-  const change = (update: (previous: HunkCommitGroup[]) => HunkCommitGroup[]) => { previewGeneration.current++; setPreview(null); setRevision(value => value + 1); setGroups(update); };
-  const read = async () => {
+  const persistDraft = useEffectEvent(() => {
+    if (dirty && phase === 'review' && !pendingDraft && !draftBusy) setDraftStatus(draftSession.current?.save(groups) ? 'saved' : 'unavailable');
+  });
+  useEffect(() => { persistDraft(); }, [groups, dirty, phase, pendingDraft, draftBusy]);
+  const change = (update: (previous: HunkCommitGroup[]) => HunkCommitGroup[]) => { previewGeneration.current++; setPreview(null); setRevision(value => value + 1); setDirty(true); setGroups(update); };
+  const read = async (discardDraft = false) => {
     if (submitting.current) return;
     abort.current?.abort(); const controller = new AbortController(); abort.current = controller;
     const id = ++generation.current; previewGeneration.current++;
+    const cleared = !discardDraft || !draftSession.current || draftSession.current.clear();
+    draftSession.current = null; setDraft(null); setDraftBusy(false); setDirty(false); setDraftStatus(cleared ? '' : 'unavailable');
     setPlan(null); setGroups([]); setCompleted([]); setRecovery(''); setError(''); setPreview(null); setPreviewing(false); setPhase('reading'); setSearch(''); setLimit(50); setStopping(false); stop.current = false;
     try {
       const snapshot = await hunkCommitService.capture(repoPath, controller.signal);
       if (!mounted.current || id !== generation.current) return;
       if (!current() || snapshot.branch !== branch) throw new Error(t('hunkPlan.stale'));
+      let session: HunkDraftSession | null = null;
+      try { session = await createHunkDraftSession(snapshot); } catch { /* Manual planning remains usable without local storage or hashing. */ }
+      if (!mounted.current || id !== generation.current) return;
+      if (!current()) throw new Error(t('hunkPlan.stale'));
+      draftSession.current = session;
+      if (!session) setDraftStatus('unavailable');
+      else if (discardDraft) { if (!session.clear()) setDraftStatus('unavailable'); }
+      else {
+        const saved = session.load(); setDraft(saved);
+        if (saved.status === 'unavailable' || saved.status === 'invalid') setDraftStatus('unavailable');
+      }
       setPlan(snapshot); setGroups([emptyGroup()]); setPhase('review');
     } catch (reason) { if (mounted.current && id === generation.current) { setError(reason instanceof Error ? reason.name === 'AbortError' ? t('hunkPlan.cancelled') : reason.message : String(reason)); setPhase('stopped'); } }
   };
@@ -52,6 +74,18 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
     mounted.current = true; start();
     return invalidate;
   }, [repoPath, branch, invalidate]);
+  const restoreDraft = async () => {
+    if (!plan || draft?.status !== 'matching' || draftBusy || submitting.current) return;
+    const id = generation.current; setDraftBusy(true); setError('');
+    try {
+      await hunkCommitService.verify(plan);
+      if (!mounted.current || id !== generation.current) return;
+      if (!current()) throw new Error(t('hunkPlan.stale'));
+      setGroups(draft.groups.map(group => ({ ...group, id: `hunk-group-${++sequence}`, units: [...group.units] })));
+      setDraft(null); setDirty(true); setRevision(value => value + 1);
+    } catch (reason) { if (mounted.current && id === generation.current) { setError(reason instanceof Error ? reason.message : String(reason)); setPhase('stopped'); } }
+    finally { if (mounted.current && id === generation.current) setDraftBusy(false); }
+  };
   const inspect = async (index: number) => {
     if (!plan || !editable || submitting.current) return;
     const id = ++previewGeneration.current; setPreviewing(true); setError(''); setPreview(null);
@@ -62,7 +96,7 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
     finally { if (mounted.current && id === previewGeneration.current) setPreviewing(false); }
   };
   const submit = async () => {
-    if (!plan || !valid || !editable || submitting.current || aiBlockedRef.current) return;
+    if (!plan || !valid || !editable || submitting.current || aiBlockedRef.current || pendingDraft || draftBusy) return;
     submitting.current = true; setPhase('checking'); setError(''); setPreview(null);
     const reviewed = groups.map(group => ({ ...group, units: [...group.units] }));
     try {
@@ -70,6 +104,9 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
       const paths = new Set(plan.units.filter(unit => reviewed.some(group => group.units.includes(unit.id))).map(unit => unit.path));
       if (!await confirmWorkingReview(repoPath, branch, plan.files.filter(file => paths.has(file.path)), false, plan.head)) { if (mounted.current) { setPhase('review'); onClose(); } return; }
       if (!mounted.current || !current()) throw new Error(t('hunkPlan.stale'));
+      // A crash or lost response during commit creation must not resurrect a
+      // pre-execution plan on the next launch. Git state is always reread.
+      setDirty(false); setDraftStatus(draftSession.current?.clear() ? '' : 'unavailable');
       setPhase('writing');
       const result = await hunkCommitService.execute(plan, reviewed, { canContinue: () => mounted.current && current() && !stop.current, onProgress: commits => {
         if (useRepoStore.getState().currentRepo?.path === repoPath) useRepoStore.setState({ redoStack: [] });
@@ -91,9 +128,17 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
         {phase === 'checking' && <p role="status">{t('workingReview.checking')}</p>}
         {phase === 'writing' && <p role="status">{t('hunkPlan.writing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))}{stopping && ` · ${t('hunkPlan.stopRequested')}`}</p>}
         {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap wrap-break-word">{error}</p>}
+        {draftStatus && <p role="status" className="text-xs text-muted-foreground">{t(draftStatus === 'saved' ? 'hunkDraft.saved' : 'hunkDraft.unavailable')}</p>}
         {plan && (phase === 'review' || writing) && <>
-          {phase === 'review' && <HunkAiSuggestions plan={plan} blocked={writing || previewing} revision={revision} onBlockedChange={updateAiBlocked} onApply={suggested => {
-            previewGeneration.current++; setPreview(null); setGroups(suggested.map(group => ({ ...group, id: `hunk-group-${++sequence}`, units: [...group.units] })));
+          {pendingDraft && <section aria-label={t('hunkDraft.title')} className="border border-border rounded-lg p-3 space-y-3">
+            <h3 className="font-medium text-sm">{t('hunkDraft.title')}</h3>
+            <p className="text-sm">{t(draft.status === 'matching' ? 'hunkDraft.matching' : 'hunkDraft.stale')}</p>
+            <ol className="list-decimal pl-5 text-xs space-y-1">{draft.groups.map((group, index) => <li key={index} className="break-all">{group.title || t('hunkPlan.subject')} · {t('hunkPlan.count').replace('{n}', String(group.units.length))}</li>)}</ol>
+            <div className="flex flex-wrap gap-2">{draft.status === 'matching' && <Button size="sm" disabled={draftBusy} onClick={() => void restoreDraft()}>{t('hunkDraft.restore')}</Button>}<Button size="sm" variant="outline" disabled={draftBusy} onClick={() => { const cleared = draftSession.current?.clear(); setDraft(null); setDraftStatus(cleared ? '' : 'unavailable'); }}>{t('hunkDraft.discard')}</Button></div>
+            {draftBusy && <p role="status" className="text-xs">{t('hunkAi.applying')}</p>}
+          </section>}
+          {phase === 'review' && <HunkAiSuggestions plan={plan} blocked={writing || previewing || pendingDraft || draftBusy} revision={revision} onBlockedChange={updateAiBlocked} onApply={suggested => {
+            previewGeneration.current++; setPreview(null); setDirty(true); setGroups(suggested.map(group => ({ ...group, id: `hunk-group-${++sequence}`, units: [...group.units] })));
           }} />}
           <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{t('hunkPlan.count').replace('{n}', String(plan.units.length))}</strong><span className="text-xs text-muted-foreground">{t('hunkPlan.remaining').replace('{n}', String(plan.units.length - assigned))}</span></div>
           <section aria-label={t('hunkPlan.pool')} className="space-y-2">
@@ -127,7 +172,7 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
       </div>
       <footer className="flex flex-wrap justify-end gap-2 p-4 border-t border-border">
         <Button variant="outline" disabled={writing} onClick={onClose}>{t('common.close')}</Button>
-        {phase === 'reading' ? <Button variant="outline" onClick={() => { generation.current++; abort.current?.abort(); setError(t('hunkPlan.cancelled')); setPhase('stopped'); }}>{t('hunkPlan.cancelRead')}</Button> : !writing && <Button variant="outline" disabled={previewing} onClick={() => void read()}>{t(completed.length ? 'hunkPlan.retryRemaining' : 'hunkPlan.reload')}</Button>}
+        {phase === 'reading' ? <Button variant="outline" onClick={() => { generation.current++; abort.current?.abort(); setError(t('hunkPlan.cancelled')); setPhase('stopped'); }}>{t('hunkPlan.cancelRead')}</Button> : !writing && <Button variant="outline" disabled={previewing || draftBusy} onClick={() => void read(true)}>{t(completed.length ? 'hunkPlan.retryRemaining' : 'hunkPlan.reload')}</Button>}
         {phase === 'review' && <Button disabled={!valid || !editable} onClick={() => void submit()}>{t('hunkPlan.confirm').replace('{n}', String(groups.length))}</Button>}
         {phase === 'writing' && <Button variant="outline" disabled={stopping} onClick={() => { stop.current = true; setStopping(true); }}>{t('hunkPlan.stop')}</Button>}
       </footer>
