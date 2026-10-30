@@ -1,6 +1,6 @@
 import { version } from '../../../package.json';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Settings,
   Terminal,
@@ -84,7 +84,7 @@ export const ExternalToolsSection: React.FC = () => {
     });
     return () => { active = false; };
     // initExternalTools 是稳定的 store action，桌面判定不变时无需重跑。
-  }, [desktop]);
+  }, [desktop, initExternalTools]);
 
   if (!desktop) return null;
 
@@ -300,13 +300,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const aiTestRequest = useRef(0);
   const aiTestController = useRef<AbortController | null>(null);
   const aiTestResultRef = useRef<HTMLDivElement>(null);
+  const invalidateAiTest = useCallback(() => { aiTestRequest.current++; aiTestController.current?.abort(); }, []);
   useEffect(() => {
     aiTestRequest.current++;
     aiTestController.current?.abort();
     setIsTestingAi(false);
     setAiTestResult(null);
-    return () => { aiTestRequest.current++; aiTestController.current?.abort(); };
-  }, [open, aiConfig]);
+    return invalidateAiTest;
+  }, [open, aiConfig, invalidateAiTest]);
   useEffect(() => { aiTestResultRef.current?.scrollIntoView({ block: 'nearest' }); }, [aiTestResult]);
 
   // Load real Git version dynamically
@@ -324,6 +325,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
   // Git CLI 路径检测：300ms 防抖 + 过期守卫（照上方 AI 测试 effect 的模式），避免输入每个字符都触发一次检测
   const gitDetectRequest = useRef(0);
+  const invalidateGitDetection = useCallback(() => { gitDetectRequest.current++; }, []);
   useEffect(() => {
     if (!open) return;
     const request = ++gitDetectRequest.current;
@@ -335,8 +337,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
         .catch(() => { if (request === gitDetectRequest.current) setGitVersion(t('settings.git.detectFailed')); })
         .finally(() => { if (request === gitDetectRequest.current) setIsDetectingGit(false); });
     }, 300);
-    return () => { clearTimeout(timer); gitDetectRequest.current++; };
-  }, [open, gitCliPath, t]);
+    return () => { clearTimeout(timer); invalidateGitDetection(); };
+  }, [open, gitCliPath, t, invalidateGitDetection]);
 
   useEffect(() => {
     if (credentialError) toast.error(t('settings.ai.testFailed'), credentialError);

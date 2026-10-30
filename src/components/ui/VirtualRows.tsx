@@ -12,12 +12,15 @@ export function VirtualRows<T>({ items, renderRow, rowHeight = 24, threshold = 3
   const [revision, setRevision] = useState(0);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => { setWidth(0); }, [items, contentWidth]);
+  // Measurements belong to this item list and estimate, even before a row is observed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- These inputs explicitly invalidate the measurement cache.
   const measured = useMemo(() => new Map<number, number>(), [items, rowHeight]);
   const virtual = items.length > threshold;
   const offsets = useMemo(() => {
     const result = [0];
     for (let index = 0; index < items.length; index++) result.push(result[index] + (measured.get(index) || rowHeight));
     return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ResizeObserver mutates measured; revision publishes those changes.
   }, [items.length, measured, rowHeight, revision]);
   const lowerBound = (value: number) => {
     let low = 0, high = items.length;

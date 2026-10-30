@@ -9,7 +9,7 @@ import { useShallow } from 'zustand/react/shallow';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { confirmAction } from '@/stores/confirmStore';
 import { Button } from '@/components/ui/button';
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useEffectEvent, useRef } from 'react';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { gitService } from '@/services/git/GitService';
 import {
@@ -99,6 +99,7 @@ export const CommitHistoryView: React.FC = () => {
   const [searchError, setSearchError] = useState('');
   const [searchComplete, setSearchComplete] = useState(false);
   const searchRequest = useRef(0);
+  const invalidateSearch = useCallback(() => { searchRequest.current++; }, []);
   const scrollSave = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastScroll = useRef(savedView.scrollTop);
   const previousQuery = useRef(searchQuery);
@@ -123,29 +124,34 @@ export const CommitHistoryView: React.FC = () => {
   useEffect(() => {
     const element = viewportRef.current;
     if (!element) return;
-    element.scrollTop = savedView.scrollTop;
+    const savedTop = useWorkspaceSessionStore.getState().historyViews[repoPath]?.scrollTop ?? 0;
+    element.scrollTop = savedTop;
+    lastScroll.current = savedTop;
+    restoringScroll.current = savedTop > 0;
     const update = () => setViewport({ top: element.scrollTop, height: element.clientHeight });
     const observer = new ResizeObserver(update); observer.observe(element); update();
     return () => { observer.disconnect(); clearTimeout(scrollSave.current); updateView({ scrollTop: lastScroll.current }); };
-  }, []);
+  }, [repoPath, updateView]);
 
-  // Auto-scroll to selected commit or target branch commit
+  // Selection is the trigger; the timer reads the latest filtered rows without
+  // re-centering a manually scrolled list on every background refresh.
+  const revealSelection = useEffectEvent((hashToScroll: string, explicit: boolean) => {
+    const index = filteredCommits.findIndex((commit) => commit.hash === hashToScroll);
+    if (index >= 0 && viewportRef.current) {
+      const top = (index + (hasWip ? 1 : 0)) * ROW_H;
+      if (explicit || top < viewportRef.current.scrollTop || top + ROW_H > viewportRef.current.scrollTop + viewportRef.current.clientHeight) viewportRef.current.scrollTo({ top: Math.max(0, top - viewportRef.current.clientHeight / 2), behavior: 'auto' });
+    }
+    const el = document.getElementById(`commit-row-${hashToScroll}`);
+    if (explicit && el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+    if (explicit) useRepoStore.getState().setScrollToCommitHash(null);
+  });
   useEffect(() => {
     if (restoringScroll.current && !scrollToCommitHash) { restoringScroll.current = false; return; }
     restoringScroll.current = false;
     const hashToScroll = scrollToCommitHash || selectedCommit?.hash;
     if (!hashToScroll) return;
 
-    const timer = setTimeout(() => {
-      const index = filteredCommits.findIndex((commit) => commit.hash === hashToScroll);
-      if (index >= 0 && viewportRef.current) {
-        const top = (index + (hasWip ? 1 : 0)) * ROW_H;
-        if (scrollToCommitHash || top < viewportRef.current.scrollTop || top + ROW_H > viewportRef.current.scrollTop + viewportRef.current.clientHeight) viewportRef.current.scrollTo({ top: Math.max(0, top - viewportRef.current.clientHeight / 2), behavior: 'auto' });
-      }
-      const el = document.getElementById(`commit-row-${hashToScroll}`);
-      if (scrollToCommitHash && el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-      if (scrollToCommitHash) useRepoStore.getState().setScrollToCommitHash(null);
-    }, 60);
+    const timer = setTimeout(() => revealSelection(hashToScroll, !!scrollToCommitHash), 60);
 
     return () => clearTimeout(timer);
   }, [scrollToCommitHash, selectedCommit?.hash]);
@@ -168,8 +174,8 @@ export const CommitHistoryView: React.FC = () => {
       }).catch((error: Error) => { if (request === searchRequest.current) setSearchError(error.message); })
         .finally(() => { if (request === searchRequest.current) setSearchBusy(false); });
     }, 250);
-    return () => { clearTimeout(timer); searchRequest.current++; };
-  }, [repoPath, searchQuery, searchMode, searchPath]);
+    return () => { clearTimeout(timer); invalidateSearch(); };
+  }, [repoPath, searchQuery, searchMode, searchPath, searchIdentity, invalidateSearch]);
 
   const filteredCommits = useMemo(() => remoteResults?.query === searchIdentity && searchQuery.trim() ? remoteResults.commits : commits.filter((c) => {
     if (!searchQuery.trim()) return true;

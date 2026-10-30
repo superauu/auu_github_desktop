@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -77,11 +77,17 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
       if (id === generation.current && mounted.current) { setTiming(previous => previous && ({ ...previous, finishedAt: Date.now() })); setError(reason instanceof Error ? reason.name === 'AbortError' ? t('batch.cancelled') : reason.message : String(reason)); setPhase('ready'); }
     }
   };
+  // Opening a repository/branch session snapshots the AI settings. Editing a
+  // group or switching language must not discard the plan by analyzing again.
+  const startSession = useEffectEvent(() => {
+    if (latest.current.config.provider === 'openai-compatible' && latest.current.config.apiKey.trim()) void analyze();
+  });
+  const invalidateSession = useCallback(() => { mounted.current = false; generation.current++; abort.current?.abort(); }, []);
   useEffect(() => {
     mounted.current = true;
-    if (latest.current.config.provider === 'openai-compatible' && latest.current.config.apiKey.trim()) void analyze();
-    return () => { mounted.current = false; generation.current++; abort.current?.abort(); };
-  }, [repoPath, branch]);
+    startSession();
+    return invalidateSession;
+  }, [repoPath, branch, invalidateSession]);
 
   const push = async (target: PushTarget, commits: CompletedBatchCommit[]) => {
     setPushState('pushing'); setErrorOrigin('git'); setError('');

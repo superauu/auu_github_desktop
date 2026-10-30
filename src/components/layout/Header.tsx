@@ -263,13 +263,14 @@ export const Header: React.FC<HeaderProps> = ({
   } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, switchProfile: state.switchProfile, addProfile: state.addProfile })));
   const { t } = useI18n();
   useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
+  const repoPath = currentRepo?.path;
   useEffect(() => {
     let active = true;
     setPushTarget(null);
-    if (currentRepo && status?.currentBranch) void gitService.getPushContext(currentRepo.path, status.currentBranch)
+    if (repoPath && status?.currentBranch) void gitService.getPushContext(repoPath, status.currentBranch)
       .then(context => { if (active && context.remote) setPushTarget({ remote: context.remote, targetBranch: context.targetBranch }); }).catch(() => {});
     return () => { active = false; };
-  }, [currentRepo?.path, status?.currentBranch, status?.trackingBranch, branches]);
+  }, [repoPath, status?.currentBranch, status?.trackingBranch, branches]);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [branchFilter, setBranchFilter] = useState('');

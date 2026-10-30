@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useI18n } from '@/i18n';
+import { tNow, useI18n } from '@/i18n';
 import { confirmAction } from '@/stores/confirmStore';
 import { toast } from '@/stores/toastStore';
 import { gitService } from '@/services/git/GitService';
@@ -61,13 +61,14 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
   const [files, setFiles] = useState<GitFileChange[]>([]);
 
   const request = useRef(0);
+  const invalidate = useCallback(() => { request.current++; }, []);
 
   /** 把 bisect 相关 git 报错可读化：脏工作区给出明确指引，其余原样透出。 */
   const readable = useCallback((err: unknown) => {
     const raw = err instanceof Error ? err.message : String(err);
-    if (DIRTY_TREE.test(raw)) return `${t('bisect.dirtyBlocked')}\n${raw}`;
+    if (DIRTY_TREE.test(raw)) return `${tNow('bisect.dirtyBlocked')}\n${raw}`;
     return raw;
-  }, [t]);
+  }, []);
 
   /** 进入/恢复测试步骤：刷新当前候选与剩余估算。 */
   const refreshTesting = useCallback(async (myRequest: number) => {
@@ -84,8 +85,13 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
 
   /** 展示结果步骤：拉取首个坏提交信息与变更文件概要。 */
   const showResult = useCallback(async (hash: string, known?: BisectCandidate) => {
-    setFirstBad(known && known.hash === hash ? known : await bisectService.commitInfo(repoPath, hash));
-    setFiles(await gitService.getCommitFiles(repoPath, hash).catch(() => []));
+    const id = request.current;
+    const [info, changed] = await Promise.all([
+      known && known.hash === hash ? known : bisectService.commitInfo(repoPath, hash),
+      gitService.getCommitFiles(repoPath, hash).catch(() => []),
+    ]);
+    if (id !== request.current) return;
+    setFirstBad(info); setFiles(changed);
     setPhase('result');
   }, [repoPath]);
 
@@ -101,7 +107,7 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
         if (await bisectService.isBisecting(repoPath)) {
           if (cancelled) return;
           setPhase('testing');
-          toast.info(t('bisect.resumed'));
+          toast.info(tNow('bisect.resumed'));
           await refreshTesting(myRequest);
           return;
         }
@@ -110,8 +116,8 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
         if (!cancelled) { setError(readable(err)); setPhase('range'); }
       }
     })();
-    return () => { cancelled = true; };
-  }, [repoPath]);
+    return () => { cancelled = true; invalidate(); };
+  }, [repoPath, showResult, refreshTesting, readable, invalidate]);
 
   // 范围预览：好..坏之间待测提交数（方向错误时为 0，由开始按钮拦截）。
   useEffect(() => {

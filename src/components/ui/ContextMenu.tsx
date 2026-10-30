@@ -43,6 +43,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     if (!open || !portalTarget) return;
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const menu = menuRef.current;
     const frame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true }));
     // Adjust position to stay strictly within viewport
     const menuWidth = 220;
@@ -85,7 +86,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
     return () => {
       cancelAnimationFrame(frame);
-      if (menuRef.current?.contains(document.activeElement) || document.activeElement === document.body) previousFocus?.focus({ preventScroll: true });
+      if (menu?.contains(document.activeElement) || document.activeElement === document.body) previousFocus?.focus({ preventScroll: true });
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('scroll', handleScroll, true);

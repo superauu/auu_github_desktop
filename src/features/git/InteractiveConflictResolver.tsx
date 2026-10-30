@@ -1,7 +1,7 @@
 import { AiTaskDialog } from './AiTaskDialog';
 import { ConflictAiSuggestion } from './ConflictAiSuggestion';
 import { useShallow } from 'zustand/react/shallow';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -16,7 +16,7 @@ import {
   Shield,
   Download,
 } from 'lucide-react';
-import { useI18n } from '@/i18n';
+import { tNow, useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { confirmAction } from '@/stores/confirmStore';
@@ -87,11 +87,13 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
   const [stagesLoading, setStagesLoading] = useState(false);
   const [stagesError, setStagesError] = useState<string | null>(null);
   const stagesId = useRef(0);
+  const repoPath = currentRepo?.path;
+  const invalidateContent = useCallback(() => { loadId.current++; }, []);
+  const invalidateStages = useCallback(() => { stagesId.current++; }, []);
 
   // Load file content
-  const loadContent = async () => {
+  const loadContent = useCallback(async () => {
     const request = ++loadId.current;
-    const repoPath = currentRepo?.path;
     setLoading(true); setReadError(null); originalContent.current = undefined;
     try {
       const text = await readWorkingFile(filePath);
@@ -101,16 +103,16 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
       const parsed = parseConflictBlocks(text);
       setInitialConflictCount(parsed.totalConflicts);
     } catch (err: any) {
-      if (request === loadId.current) { setReadError(err.message); setContent(''); toast.error(t('resolver.loadFailed'), err.message); }
+      if (request === loadId.current && useRepoStore.getState().currentRepo?.path === repoPath) { setReadError(err.message); setContent(''); toast.error(tNow('resolver.loadFailed'), err.message); }
     } finally {
       if (request === loadId.current) setLoading(false);
     }
-  };
+  }, [filePath, repoPath, readWorkingFile]);
 
   useEffect(() => {
     setAiBlock(null); void loadContent();
-    return () => { loadId.current++; };
-  }, [filePath, currentRepo?.path]);
+    return invalidateContent;
+  }, [loadContent, invalidateContent]);
 
   // Parse conflicts from current edited content
   const parsed = useMemo(() => parseConflictBlocks(content), [content]);
@@ -161,9 +163,8 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
   // F3：读取索引中的三阶段版本（git show :1:/:2:/:3:）。服务层大小护栏（>2MB）与
   // 路径校验失败会走到 stagesError，UI 提供重试；缺失基线（add/add）按 null 透传。
-  const loadStages = async () => {
+  const loadStages = useCallback(async () => {
     const request = ++stagesId.current;
-    const repoPath = useRepoStore.getState().currentRepo?.path;
     if (!repoPath) return;
     setStagesLoading(true);
     setStagesError(null);
@@ -178,7 +179,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     } finally {
       if (request === stagesId.current) setStagesLoading(false);
     }
-  };
+  }, [filePath, repoPath]);
 
   useEffect(() => {
     setExpandedCompare(new Set());
@@ -188,8 +189,8 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     setStagesLoading(false);
     if (!hasConflicts) return;
     void loadStages();
-    return () => { stagesId.current++; };
-  }, [filePath, currentRepo?.path, hasConflicts]);
+    return invalidateStages;
+  }, [loadStages, hasConflicts, invalidateStages]);
 
   const toggleBlockCompare = (index: number) => {
     setExpandedCompare(previous => {

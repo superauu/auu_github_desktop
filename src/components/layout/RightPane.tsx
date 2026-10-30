@@ -2,7 +2,7 @@ import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Clock, CheckCircle2, Copy, FileCode, GitCommit, Layers, List, Network, X } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -47,21 +47,23 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
   const request = useRef(0);
+  const invalidatePreview = useCallback(() => { request.current++; }, []);
+  const repoPath = currentRepo?.path, commitHash = selectedCommit?.hash;
   const fetchChecks = useGitHubStore(state => state.fetchCommitChecks);
   useEffect(() => {
     let cancelled = false;
-    request.current++;
+    invalidatePreview();
     setFiles([]); setChecks([]); setPreview(null); setFilesError(null); setLoading(false); setFileFilter('');
-    if (activeTab === 'history' && currentRepo && selectedCommit) {
+    if (activeTab === 'history' && repoPath && commitHash) {
       setLoading(true);
-      void gitService.getCommitFiles(currentRepo.path, selectedCommit.hash)
+      void gitService.getCommitFiles(repoPath, commitHash)
         .then(result => { if (!cancelled) setFiles(result); })
         .catch((error: Error) => { if (!cancelled) setFilesError(error.message); })
         .finally(() => { if (!cancelled) setLoading(false); });
-      void fetchChecks(selectedCommit.hash).then(result => { if (!cancelled) setChecks(result); }).catch(() => {});
+      void fetchChecks(commitHash).then(result => { if (!cancelled) setChecks(result); }).catch(() => {});
     }
-    return () => { cancelled = true; request.current++; };
-  }, [currentRepo?.path, selectedCommit?.hash, activeTab, fetchChecks, reload]);
+    return () => { cancelled = true; invalidatePreview(); };
+  }, [repoPath, commitHash, activeTab, fetchChecks, reload, invalidatePreview]);
 
   const inspect = async (file: GitFileChange) => {
     if (!currentRepo || !selectedCommit) return;

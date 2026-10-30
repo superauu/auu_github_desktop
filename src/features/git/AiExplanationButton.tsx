@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Sparkles, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
@@ -18,12 +18,13 @@ export function AiExplanationButton({ repoPath, scope, onOpenSettings }: { repoP
   const [error, setError] = useState('');
   const request = useRef(0);
   const abort = useRef<AbortController | null>(null);
+  const invalidate = useCallback(() => { request.current++; abort.current?.abort(); }, []);
   const scopeKey = JSON.stringify(scope);
   const configured = config.provider === 'openai-compatible' && !!config.apiKey.trim();
   useEffect(() => {
     request.current++; abort.current?.abort(); setOpen(false); setContext(null); setAnswer(''); setError(''); setBusy(false);
-    return () => { request.current++; abort.current?.abort(); };
-  }, [repoPath, scopeKey]);
+    return invalidate;
+  }, [repoPath, scopeKey, invalidate]);
   const close = () => { request.current++; abort.current?.abort(); setBusy(false); setOpen(false); };
   const inspect = async () => {
     const id = ++request.current; setOpen(true); setBusy(true); setError(''); setAnswer(''); setContext(null);

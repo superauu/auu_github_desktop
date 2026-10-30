@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
 import { useRepoStore } from '@/stores/repoStore';
@@ -13,7 +13,9 @@ export function BranchOperationPicker({ open, onOpenChange, initialBranch, mode 
   const candidates = branches.filter(branch => !branch.isCurrent);
   const [selection, setSelection] = useState('');
   const [preview, setPreview] = useState(false);
-  useEffect(() => { if (open) { setSelection(initialBranch || candidates[0]?.name || ''); setPreview(!!initialBranch); } }, [open, initialBranch, repoPath]);
+  // Candidate refs are an opening snapshot; background fetches preserve the user's selection.
+  const initializeSelection = useEffectEvent(() => { setSelection(initialBranch || candidates[0]?.name || ''); setPreview(!!initialBranch); });
+  useEffect(() => { if (open) initializeSelection(); }, [open, initialBranch, repoPath]);
   if (!open) return null;
   const source = candidates.find(branch => branch.name === selection);
   if (preview && source && current) return <DragDropActionModal open onOpenChange={onOpenChange} sourceBranch={source} targetBranch={current} initialAction={mode === 'merge' ? 'merge' : 'rebase-target'} fixedAction />;

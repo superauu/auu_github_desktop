@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import type { GitFileChange, GitStatusResult } from '@/services/git/types';
 import { captureWorkingReview, type WorkingReviewIdentity } from '@/services/git/WorkingReviewService';
 import { useWorkingReviewStore, workingReviewKey, workingReviewStatus, type WorkingReviewRecord } from '@/stores/workingReviewStore';
@@ -28,14 +28,18 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
   const branch = status?.currentBranch ?? '';
   const scope = JSON.stringify([repo, branch, status?.headOid]);
   const fileSignature = JSON.stringify(files.map(workingFileVersionKey));
-  const candidates = files.filter(file => file.status !== 'conflicted' && hasReview(records[workingReviewKey(repo, branch, file.path)]));
-  const candidateSignature = JSON.stringify(candidates.map(workingFileVersionKey));
+  const candidates = useMemo(() => files.filter(file => file.status !== 'conflicted' && hasReview(records[workingReviewKey(repo, branch, file.path)])), [files, records, repo, branch]);
   const cache = useRef<{ scope: string; revision: number; status: GitStatusResult | null; files: string; snapshots: Map<string, WorkingReviewIdentity | null>; previous: Map<string, WorkingReviewIdentity | null> } | null>(null);
   // 证据版本：任何会改变 stateFor 结果的时机（快照异步落地/批次重置/选中证据更新）都 +1，
   // 供调用方把重活 memo 化（states 的函数闭包每渲染重建，调用方无法直接跟踪其变化）。
   const [evidenceVersion, render] = useState(0);
   const selectedKey = selected?.file ? workingFileVersionKey(selected.file) : '';
   const selectedSnapshot = selected?.snapshot;
+  // A newly started verification batch can reuse the selected file's latest
+  // evidence. Selection changes update that evidence separately below.
+  const seedSelectedEvidence = useEffectEvent((batch: NonNullable<typeof cache.current>) => {
+    if (selectedKey && selectedSnapshot) batch.snapshots.set(selectedKey, { fingerprint: selectedSnapshot.fingerprint, hunks: selectedSnapshot.hunks });
+  });
 
   useEffect(() => {
     if (!repo || !status) return;
@@ -46,7 +50,7 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
       cache.current = { scope, revision, status, files: fileSignature, snapshots: new Map(), previous };
     }
     const batch = cache.current;
-    if (selectedKey && selectedSnapshot) batch.snapshots.set(selectedKey, { fingerprint: selectedSnapshot.fingerprint, hunks: selectedSnapshot.hunks });
+    seedSelectedEvidence(batch);
     const missing = candidates.filter(file => !batch.snapshots.has(workingFileVersionKey(file)));
     render(value => value + 1);
     void Promise.all(Array.from({ length: Math.min(4, missing.length) }, async () => {
@@ -60,7 +64,7 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
       }
     }));
     return () => { cancelled = true; };
-  }, [repo, scope, status, revision, fileSignature, candidateSignature]);
+  }, [repo, scope, status, revision, fileSignature, files, candidates]);
 
   useEffect(() => {
     const batch = cache.current;
@@ -70,7 +74,7 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
     }
   }, [scope, status, revision, selectedKey, selectedSnapshot]);
 
-  const states = new Map(files.map(file => {
+  const stateSnapshot = useMemo(() => ({ evidenceVersion, states: new Map(files.map(file => {
     const key = workingFileVersionKey(file), record = records[workingReviewKey(repo, branch, file.path)];
     if (file.status === 'conflicted' || !hasReview(record)) return [key, pending] as const;
     const batch = cache.current;
@@ -83,12 +87,14 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
     if (!snapshot) return [key, { ...pending, failed: true }] as const;
     const result = workingReviewStatus(record, snapshot);
     return [key, { ...result, totalHunks: snapshot.hunks.length, kind: result.unresolved ? 'issues' : result.approved ? 'approved' : result.approvedHunks ? 'partial' : 'pending' } as WorkingFileReviewState] as const;
-  }));
+  })) }), [files, records, repo, branch, scope, revision, status, selectedKey, selectedSnapshot, evidenceVersion]);
+  const states = stateSnapshot.states;
+  const stateFor = useCallback((file: GitFileChange) => states.get(workingFileVersionKey(file)) ?? pending, [states]);
   const values = [...states.values()];
   return {
-    stateFor: (file: GitFileChange) => states.get(workingFileVersionKey(file)) ?? pending,
+    stateFor,
     /** 每渲染都变化的引用没有跟踪价值；证据版本 + records 覆盖 states 的全部输入源。 */
-    evidenceVersion,
+    evidenceVersion: stateSnapshot.evidenceVersion,
     records,
     approved: values.filter(state => state.kind === 'approved').length,
     checking: values.filter(state => state.kind === 'checking').length,

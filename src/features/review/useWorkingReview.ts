@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { captureWorkingReview, type WorkingReviewSnapshot } from '@/services/git/WorkingReviewService';
 import type { GitFileChange, GitStatusResult } from '@/services/git/types';
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
@@ -14,7 +14,11 @@ export function useWorkingReview(repo: string, status: GitStatusResult | null, f
   const [retry, setRetry] = useState(0);
   const [noteTarget, setNoteTarget] = useState<string | null | undefined>(undefined);
   useEffect(() => { setNoteTarget(undefined); }, [view]);
+  // view already contains every file-version field. Capture its current object
+  // only when that identity or the displayed evidence changes.
+  const readFileVersion = useEffectEvent(() => file);
   useEffect(() => {
+    const file = readFileVersion();
     if (!repo || !file || loading || error || file.status === 'conflicted') return;
     let active = true;
     captureWorkingReview(repo, file).then(snapshot => {

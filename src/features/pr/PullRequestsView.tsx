@@ -85,12 +85,13 @@ export const PullRequestsView: React.FC = () => {
   }, [pullRequests, prFilterState, searchQuery]);
 
   const activePR = filteredPRs.find(pr => pr.id === selectedPR?.id) || filteredPRs[0] || null;
+  const activePRNumber = activePR?.number, activePRHead = activePR?.head.sha;
 
   useEffect(() => {
     let cancelled = false;
     setRealReviewStatus('PENDING'); setRealChecks(null);
-    if (activePR && currentOwner && currentRepoName) {
-      void githubService.getPullRequestReviews(currentOwner, currentRepoName, activePR.number).then((reviews) => {
+    if (activePRNumber !== undefined && activePRHead && currentOwner && currentRepoName) {
+      void githubService.getPullRequestReviews(currentOwner, currentRepoName, activePRNumber).then((reviews) => {
         if (cancelled) return;
         const latest = new Map<string, string>();
         for (const review of [...reviews].sort((a, b) => a.id - b.id)) {
@@ -99,14 +100,14 @@ export const PullRequestsView: React.FC = () => {
         const states = [...latest.values()];
         setRealReviewStatus(states.includes('CHANGES_REQUESTED') ? 'CHANGES_REQUESTED' : states.includes('APPROVED') ? 'APPROVED' : 'PENDING');
       }).catch(() => { if (!cancelled) setRealReviewStatus('PENDING'); });
-      void githubService.getCommitChecks(currentOwner, currentRepoName, activePR.head.sha).then((checks) => {
+      void githubService.getCommitChecks(currentOwner, currentRepoName, activePRHead).then((checks) => {
         if (cancelled) return;
         setRealChecks({ total: checks.length, success: checks.filter((check) => check.conclusion === 'success').length,
           failure: checks.filter((check) => check.status === 'completed' && check.conclusion !== 'success' && check.conclusion !== 'neutral').length });
       }).catch(() => { if (!cancelled) setRealChecks(null); });
     }
     return () => { cancelled = true; };
-  }, [activePR?.number, activePR?.head.sha, currentOwner, currentRepoName]);
+  }, [activePRNumber, activePRHead, currentOwner, currentRepoName]);
 
   const handleCheckoutPR = async () => {
     if (!activePR) return;

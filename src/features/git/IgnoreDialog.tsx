@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
   const [checking, setChecking] = useState(false);
   const [reload, setReload] = useState(0);
   const request = useRef(0);
+  const invalidatePreview = useCallback(() => { request.current++; }, []);
   const drafts = useRef<Partial<Record<IgnoreScope, string>>>({});
   const built = useMemo(() => {
     try { return { rules: buildIgnoreRules(paths, mode, custom), error: '' }; }
@@ -64,8 +65,8 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
         if (request.current === id) setPreview(value);
       }).catch(error => { if (request.current === id) setError(String(error.message || error)); });
     }, 250);
-    return () => { clearTimeout(timer); request.current++; };
-  }, [repoPath, scope, snapshot, content, paths]);
+    return () => { clearTimeout(timer); invalidatePreview(); };
+  }, [repoPath, scope, snapshot, content, paths, invalidatePreview]);
 
   const save = async () => {
     if (!snapshot || !preview) return;

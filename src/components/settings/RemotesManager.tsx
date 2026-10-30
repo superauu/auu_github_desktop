@@ -25,6 +25,7 @@ export const RemotesManager: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [savingBinding, setSavingBinding] = useState(false);
   const loadGeneration = React.useRef(0);
+  const invalidateLoad = React.useCallback(() => { loadGeneration.current++; }, []);
   const [isLoading, setIsLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -55,8 +56,8 @@ export const RemotesManager: React.FC = () => {
   useEffect(() => {
     setRemotes([]); setLoadError('');
     load();
-    return () => { loadGeneration.current++; };
-  }, [load]);
+    return invalidateLoad;
+  }, [load, invalidateLoad]);
 
   if (!repoPath) return null;
 

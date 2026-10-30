@@ -16,7 +16,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import { useI18n } from '@/i18n';
+import { tNow, useI18n } from '@/i18n';
 import {
   githubService,
   PR_FILES_SOFT_LIMIT,
@@ -100,7 +100,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
       })
       .catch(err => {
         if (session !== sessionRef.current) return;
-        setFilesError(err?.message || t('prReview.filesLoadFailed'));
+        setFilesError(err?.message || tNow('prReview.filesLoadFailed'));
       });
     void Promise.all([
       githubService.getPullRequestReviews(owner, repo, pr.number),
@@ -116,10 +116,10 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
         if (session !== sessionRef.current) return;
         // 401/403：无权限/只读 token，隐藏提交评审区并显示可读提示
         if (isAuthDeniedError(err)) { setForbidden(true); setTimelineError(''); }
-        else setTimelineError(err?.message || t('prReview.loadFailed'));
+        else setTimelineError(err?.message || tNow('prReview.loadFailed'));
         setTimelineLoading(false);
       });
-    // t 仅用于错误兜底文案，语言切换不需要重新拉取
+    // Error fallbacks read the current language without reloading the review draft.
   }, [owner, repo, pr?.number, reloadTick]);
 
   const timeline = useMemo(() => mergeTimeline(issueComments, reviews), [issueComments, reviews]);

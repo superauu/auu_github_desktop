@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { 
   Activity, 
   AlertTriangle, 
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useI18n } from '@/i18n';
+import { tNow, useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import type { RepoHealthDiagnosis } from '@/services/git/types';
 
@@ -34,26 +34,31 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
   const [report, setReport] = useState<RepoHealthDiagnosis | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const runDiagnosis = async () => {
-    if (!currentRepo) return;
+  const repoPath = currentRepo?.path;
+  const request = useRef(0);
+  const invalidate = useCallback(() => { request.current++; }, []);
+  const runDiagnosis = useCallback(async () => {
+    if (!open || !repoPath) return;
+    const id = ++request.current;
+    const active = () => id === request.current && useRepoStore.getState().currentRepo?.path === repoPath;
     setLoading(true);
+    setReport(null);
     setError(null);
     try {
       const res = await diagnoseRepository();
-      setReport(res);
+      if (active()) setReport(res);
     } catch (err: any) {
-      console.error(t('diag.failed'), err);
-      setError(err?.message || t('diag.failedDesc'));
+      if (active()) setError(err?.message || tNow('diag.failedDesc'));
     } finally {
-      setLoading(false);
+      if (active()) setLoading(false);
     }
-  };
+  }, [open, repoPath, diagnoseRepository]);
 
   useEffect(() => {
-    if (open && currentRepo) {
-      runDiagnosis();
-    }
-  }, [open, currentRepo?.path]);
+    setReport(null); setError(null); setLoading(false);
+    void runDiagnosis();
+    return invalidate;
+  }, [runDiagnosis, invalidate]);
 
   if (!open) return null;
 

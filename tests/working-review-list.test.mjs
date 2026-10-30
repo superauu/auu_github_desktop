@@ -47,6 +47,23 @@ test('never-reviewed files are immediately pending without loading every diff', 
   } finally { await act(async () => renderer?.unmount()); }
 });
 
+test('unrelated rerenders retain the review query function without repeating captures', async () => {
+  let renderer;
+  const files = [file(), file('b.ts')], state = status();
+  approve();
+  const props = { status: state, files };
+  try {
+    await act(async () => { renderer = create(React.createElement(Probe, props)); });
+    const stateFor = latest.stateFor, reads = calls.length;
+    await act(async () => renderer.update(React.createElement(Probe, { ...props, unrelated: 'appearance changed' })));
+    assert.equal(latest.stateFor, stateFor);
+    assert.equal(calls.length, reads);
+    await act(async () => app.useWorkingReviewStore.getState().approveFile(key(), snapshot(), false));
+    assert.notEqual(latest.stateFor, stateFor);
+    assert.equal(latest.stateFor(files[0]).kind, 'pending');
+  } finally { await act(async () => renderer?.unmount()); }
+});
+
 test('approving or reopening the selected file updates its list status immediately', async () => {
   let renderer; const item = file(), snap = snapshot(), props = { status: status(), files: [item], selected: { file: item, snapshot: snap } };
   try {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Copy, RefreshCw, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
@@ -33,6 +33,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
   const [error, setError] = useState('');
   const abort = useRef<AbortController | null>(null), generation = useRef(0), mounted = useRef(true), touched = useRef(false);
   const latest = useRef({ config, lang }); latest.current = { config, lang };
+  const invalidate = useCallback(() => { mounted.current = false; generation.current++; abort.current?.abort(); }, []);
   const explained = EXPLAINED_ERRORS.some(key => t(key) === error);
 
   useEffect(() => {
@@ -42,8 +43,8 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
     listTagsNewestFirst(repoPath)
       .then(list => { if (!cancelled && mounted.current) { setTags(list); if (list.length && !touched.current) setFromChoice(list[0].name); } })
       .catch(() => {});
-    return () => { cancelled = true; mounted.current = false; generation.current++; abort.current?.abort(); };
-  }, [repoPath]);
+    return () => { cancelled = true; invalidate(); };
+  }, [repoPath, invalidate]);
 
   const generate = async () => {
     if (generating || !configured) return;

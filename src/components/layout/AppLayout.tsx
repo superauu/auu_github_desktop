@@ -169,10 +169,11 @@ export const AppLayout: React.FC = () => {
   }, [compactMode]);
 
   // Active windows poll at 10s; idle windows back off. Focus changes are debounced.
+  const repoPath = currentRepo?.path;
   useEffect(() => {
-    if (!currentRepo) return;
+    if (!repoPath) return;
     const poller = createExternalChangePoller({ check: checkExternalChanges,
-      canCheck: () => document.visibilityState === 'visible' && getPendingGitWrites(currentRepo.path) === 0 });
+      canCheck: () => document.visibilityState === 'visible' && getPendingGitWrites(repoPath) === 0 });
     const wake = () => { if (document.visibilityState === 'visible') poller.wake(); };
     window.addEventListener('focus', wake);
     document.addEventListener('visibilitychange', wake);
@@ -185,10 +186,10 @@ export const AppLayout: React.FC = () => {
       window.removeEventListener('pointerdown', poller.touch);
       window.removeEventListener('keydown', poller.touch);
     };
-  }, [currentRepo?.path, checkExternalChanges]);
+  }, [repoPath, checkExternalChanges]);
   // Background Auto Fetch timer
   useEffect(() => {
-    if (!currentRepo || autoFetchInterval === 'never') return;
+    if (!repoPath || autoFetchInterval === 'never') return;
 
     let intervalMs = 10 * 60 * 1000;
     if (autoFetchInterval === '5m') intervalMs = 5 * 60 * 1000;
@@ -196,14 +197,14 @@ export const AppLayout: React.FC = () => {
     if (autoFetchInterval === '30m') intervalMs = 30 * 60 * 1000;
 
     const timer = setInterval(() => {
-      if (document.visibilityState !== 'visible' || getPendingGitWrites(currentRepo.path) > 0) return;
+      if (document.visibilityState !== 'visible' || getPendingGitWrites(repoPath) > 0) return;
       fetchRemote().catch((err) => {
         console.warn('Auto fetch failed silently:', err);
       });
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [currentRepo?.path, autoFetchInterval, fetchRemote]);
+  }, [repoPath, autoFetchInterval, fetchRemote]);
 
   const handleOpenRepoDialog = (mode: 'open' | 'clone' | 'init' = 'open') => {
     setRepoDialogMode(mode);

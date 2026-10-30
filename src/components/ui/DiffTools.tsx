@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -25,13 +25,13 @@ export function DiffTools({ query, onQueryChange, contents, targetId, onReload }
   const ignore = useSettingsStore(state => state.diffIgnoreWhitespace);
   const [cursor, setCursor] = useState(0);
   const matches = useMemo(() => query ? contents.flatMap((text, index) => text.toLowerCase().includes(query.toLowerCase()) ? [index] : []) : [], [contents, query]);
-  const reveal = (position: number) => {
+  const reveal = useCallback((position: number) => {
     if (!matches.length) return;
     const next = (position + matches.length) % matches.length;
     setCursor(next);
     document.getElementById(targetId)?.querySelector('[data-virtual-count]')?.dispatchEvent(new CustomEvent('auugit-focus-row', { detail: matches[next] }));
-  };
-  useEffect(() => { setCursor(0); if (query && matches.length) reveal(0); }, [query, matches]);
+  }, [matches, targetId]);
+  useEffect(() => { setCursor(0); if (query && matches.length) reveal(0); }, [query, matches, reveal]);
   return <div className="workspace-divider shrink-0 flex flex-wrap items-center gap-2 border-b border-border px-3 py-1.5 text-[12px]">
     <input aria-label={t('diff.search')} placeholder={t('diff.search')} value={query} maxLength={128} onChange={event => onQueryChange(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); reveal(cursor + (event.shiftKey ? -1 : 1)); } }} className="glass-control h-7 min-w-24 flex-1 max-w-56 px-2" />
     {query && <span className="text-muted-foreground">{matches.length ? cursor + 1 : 0}/{matches.length}</span>}

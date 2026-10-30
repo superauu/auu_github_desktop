@@ -15,6 +15,7 @@ export function useWindowChrome() {
   const performing = useRef(false);
   const mounted = useRef(false);
   const resizeRead = useRef(0);
+  const invalidateResize = useCallback(() => { resizeRead.current++; }, []);
   const { t } = useI18n();
   const report = useCallback((error: unknown) => {
     toast.error(t('window.operationFailed'), error instanceof Error ? error.message : String(error));
@@ -52,8 +53,8 @@ export function useWindowChrome() {
       }).catch(failed);
       void readMaximized().catch(failed);
     } catch (error) { failed(error); }
-    return () => { cancelled = true; resizeRead.current++; disposers.forEach(dispose => dispose()); };
-  }, [desktop, report, readMaximized]);
+    return () => { cancelled = true; invalidateResize(); disposers.forEach(dispose => dispose()); };
+  }, [desktop, report, readMaximized, invalidateResize]);
 
   const perform = useCallback(async (action: WindowAction) => {
     if (!desktop || performing.current) return;

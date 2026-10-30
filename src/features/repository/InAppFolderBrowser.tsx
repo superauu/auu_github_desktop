@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Folder,
   HardDrive,
@@ -14,7 +14,7 @@ import {
   listDirectories,
   ListDirsResult,
 } from '@/services/fs/DirectoryService';
-import { useI18n } from '@/i18n';
+import { tNow, useI18n } from '@/i18n';
 
 interface InAppFolderBrowserProps {
   initialPath?: string;
@@ -32,25 +32,30 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDir = async (path?: string) => {
+  const request = useRef(0);
+  const invalidate = useCallback(() => { request.current++; }, []);
+  const loadDir = useCallback(async (path?: string) => {
+    const id = ++request.current;
     setIsLoading(true);
     setError(null);
     try {
       const res: ListDirsResult = await listDirectories(path);
+      if (id !== request.current) return;
       setCurrentPath(res.currentPath);
       setParentPath(res.parentPath);
       setDirectories(res.directories);
     } catch (err: any) {
-      setError(err.message || t('browser.loadFailed'));
+      if (id === request.current) setError(err.message || tNow('browser.loadFailed'));
     } finally {
-      setIsLoading(false);
+      if (id === request.current) setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadDir(initialPath);
+    void loadDir(initialPath);
+    return invalidate;
     // initialPath 变化时重新加载目录（如同一浏览器实例被复用并传入新路径）
-  }, [initialPath]);
+  }, [initialPath, loadDir, invalidate]);
 
   return (
     <div className="rounded-xl border border-border/80 bg-background/80 overflow-hidden text-xs flex flex-col max-h-64 animate-in fade-in-50">
@@ -89,6 +94,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
             size="xs"
             variant="default"
             className="shrink-0 h-6 px-2 text-[12px] gap-1"
+            disabled={isLoading}
             onClick={() => onSelectPath(currentPath)}
           >
             <Check className="h-3 w-3" />

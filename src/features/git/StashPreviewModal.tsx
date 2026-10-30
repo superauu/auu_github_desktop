@@ -20,13 +20,15 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
   const { currentRepo } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo })));
   const [patchLines, setPatchLines] = useState<ParsedDiffLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const repoPath = currentRepo?.path;
 
   useEffect(() => {
-    if (!stash || !currentRepo) return;
+    setPatchLines([]); setIsLoading(false);
+    if (!stash || !repoPath) return;
     let cancelled = false;
     setIsLoading(true);
     gitService
-      .getStashPatch(currentRepo.path, stash.index)
+      .getStashPatch(repoPath, stash.index)
       .then((lines) => {
         if (!cancelled) setPatchLines(lines);
       })
@@ -39,7 +41,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
     return () => {
       cancelled = true;
     };
-  }, [stash]);
+  }, [stash, repoPath]);
 
   if (!stash) return null;
 

@@ -4,18 +4,18 @@ import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
-  { ignores: ['node_modules/**', 'dist/**', 'src-tauri/**', '.test-tmp-*/**', '.test-safety-*/**'] },
+  { ignores: ['node_modules/**', 'dist/**', 'src-tauri/**', '.test-tmp-*/**', '.test-safety-*/**', 'test-results/**', 'playwright-report/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // React 19 hooks 静态防线：rules-of-hooks 抓条件/循环内 hook（真 bug 类，当前零违规）。
-  // exhaustive-deps（48 处，多为「只跑一次」的有意模式）与 v7 的 compiler 类规则
-  // （set-state-in-effect 76 处/refs 9 处/immutability 6 处）需逐条评估修行为，单独立项后启用。
+  // All effects are checked. Measurement-cache invalidation has two documented
+  // local exceptions; compiler-oriented rules remain a separate migration.
   {
     files: ['src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'off',
+      'react-hooks/exhaustive-deps': 'error',
     },
   },
   {

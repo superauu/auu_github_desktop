@@ -71,6 +71,7 @@ import { externalToolService, type ExternalToolConfig, type ExternalToolMode } f
 import { GitBlameLine, GitCommit, GitFileChange } from '@/services/git/types';
 
 const isDesktopRuntime = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const EMPTY_FILES: GitFileChange[] = [];
 
 export const WorkingChangesView: React.FC = () => {
   // 只消费稳定 action：getState 取用，不订阅整店（布局 store 会在拖拽分栏时高频写入）。
@@ -123,9 +124,9 @@ export const WorkingChangesView: React.FC = () => {
   const [fileCommits, setFileCommits] = useState<GitCommit[]>([]);
   const [loadingFileData, setLoadingFileData] = useState(false);
 
-  const stagedFiles = status?.staged || [];
-  const unstagedFiles = status?.unstaged || [];
-  const untrackedFiles = status?.untracked || [];
+  const stagedFiles = status?.staged || EMPTY_FILES;
+  const unstagedFiles = status?.unstaged || EMPTY_FILES;
+  const untrackedFiles = status?.untracked || EMPTY_FILES;
 
   const activeFile = selectedFile || stagedFiles[0] || unstagedFiles[0] || untrackedFiles[0];
   const workingReview = useWorkingReview(currentRepo?.path ?? '', status, activeFile, fileDiffLines, fileDiffLoading, ignoreWhitespace, fileDiffError, workingChangesRevision);
@@ -134,13 +135,8 @@ export const WorkingChangesView: React.FC = () => {
   const [fileSearch, setFileSearch] = useState('');
   const [reviewFilter, setReviewFilter] = useState<WorkingReviewFilter>('all');
   const fileListFiltered = !!fileSearch.trim() || reviewFilter !== 'all';
-  // 仅作可见文件 useMemo 的失效键：evidenceVersion/records/选中快照覆盖 stateFor 的全部输入源，
-  // 原来每次渲染都对全部文件做 string 化（大仓库数千变更时 GC 压力大）。
-  const reviewStateSignature = useMemo(
-    () => JSON.stringify(allFiles.map(file => { const state = fileReviews.stateFor(file); return [state.kind, state.unresolved]; })),
-    [allFiles, fileReviews.evidenceVersion, fileReviews.records, workingReview.verifiedSnapshot, activeFile],
-  );
-  const visibleFiles = useMemo(() => filterWorkingReviewFiles(allFiles, fileSearch, reviewFilter, fileReviews.stateFor), [allFiles, fileSearch, reviewFilter, reviewStateSignature]);
+  const stateFor = fileReviews.stateFor;
+  const visibleFiles = useMemo(() => filterWorkingReviewFiles(allFiles, fileSearch, reviewFilter, stateFor), [allFiles, fileSearch, reviewFilter, stateFor]);
   const visibleStaged = useMemo(() => visibleFiles.filter(file => file.staged), [visibleFiles]);
   const visibleUnstaged = useMemo(() => visibleFiles.filter(file => !file.staged && file.status !== 'untracked'), [visibleFiles]);
   const visibleUntracked = useMemo(() => visibleFiles.filter(file => file.status === 'untracked'), [visibleFiles]);
@@ -275,14 +271,15 @@ export const WorkingChangesView: React.FC = () => {
   }, [activeFile?.path]);
 
   // 按需加载 Blame / 文件历史
+  const repoPath = currentRepo?.path, activeFilePath = activeFile?.path;
   useEffect(() => {
-    if (!currentRepo || !activeFile || contentMode === 'diff') return;
+    if (!repoPath || !activeFilePath || contentMode === 'diff') return;
     let cancelled = false;
     setLoadingFileData(true);
     const loader =
       contentMode === 'blame'
-        ? gitService.blameFile(currentRepo.path, activeFile.path)
-        : gitService.getCommitsForFile(currentRepo.path, activeFile.path);
+        ? gitService.blameFile(repoPath, activeFilePath)
+        : gitService.getCommitsForFile(repoPath, activeFilePath);
     loader
       .then((data) => {
         if (cancelled) return;
@@ -301,7 +298,7 @@ export const WorkingChangesView: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [contentMode, activeFile?.path, currentRepo?.path]);
+  }, [contentMode, activeFilePath, repoPath]);
 
   const getStatusBadge = (statusType: string) => {
     switch (statusType) {

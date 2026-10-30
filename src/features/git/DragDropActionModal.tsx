@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GitMerge, Loader2, RefreshCw, X } from 'lucide-react';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
@@ -28,18 +28,22 @@ export function DragDropActionModal({ open, onOpenChange, sourceBranch: source, 
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const previewKey = JSON.stringify([repoPath, source?.name, source?.isRemote, target?.name, target?.isRemote]);
+  const sourceName = source?.name, sourceRemote = source?.isRemote;
+  const targetName = target?.name, targetRemote = target?.isRemote;
+  const sourceRef = useMemo(() => sourceName === undefined ? null : { name: sourceName, isRemote: !!sourceRemote, isCurrent: false }, [sourceName, sourceRemote]);
+  const targetRef = useMemo(() => targetName === undefined ? null : { name: targetName, isRemote: !!targetRemote, isCurrent: false }, [targetName, targetRemote]);
   const [loadedKey, setLoadedKey] = useState('');
   const [noFf, setNoFf] = useState(false);
   const [message, setMessage] = useState('');
   useEffect(() => { setAction(initialAction); setNoFf(false); setMessage(''); }, [open, previewKey, initialAction]);
   useEffect(() => {
     let active = true; setPreview(null); setLoadedKey(''); setError('');
-    if (!open || !repoPath || !source || !target) return;
+    if (!open || !repoPath || !sourceRef || !targetRef) return;
     setChecking(true);
-    branchSafetyService.preview(repoPath, source, target).then(result => { if (active) { setPreview(result); setLoadedKey(previewKey); } })
+    branchSafetyService.preview(repoPath, sourceRef, targetRef).then(result => { if (active) { setPreview(result); setLoadedKey(previewKey); } })
       .catch(error => { if (active) setError(error.message); }).finally(() => { if (active) setChecking(false); });
     return () => { active = false; };
-  }, [open, previewKey, revision]);
+  }, [open, previewKey, revision, repoPath, sourceRef, targetRef]);
   if (!open || !source || !target || !repoPath) return null;
   const affected = action === 'rebase-source' ? source : target;
   const upstream = action === 'rebase-source' ? target : source;

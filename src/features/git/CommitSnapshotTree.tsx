@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, FileText, FileWarning, Folder, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VirtualRows } from '@/components/ui/VirtualRows';
@@ -37,6 +37,7 @@ export function CommitSnapshotTree({ repoPath, commitHash, onViewDiff, canViewDi
   const wrapLines = useSettingsStore(state => state.diffWrapLines);
   const requestRef = useRef(0);
   const contentRequestRef = useRef(0);
+  const invalidateSnapshot = useCallback(() => { requestRef.current++; contentRequestRef.current++; }, []);
   const [snapshot, setSnapshot] = useState<CommitSnapshot | null>(null);
   const [changed, setChanged] = useState<ReadonlySet<string> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,8 +67,8 @@ export function CommitSnapshotTree({ repoPath, commitHash, onViewDiff, canViewDi
       setError(loadError instanceof Error ? loadError.message : String(loadError));
       setLoading(false);
     });
-    return () => { requestRef.current++; };
-  }, [repoPath, commitHash, reloadTick]);
+    return invalidateSnapshot;
+  }, [repoPath, commitHash, reloadTick, invalidateSnapshot]);
 
   const filteredEntries = useMemo(() => {
     const entries = snapshot?.entries ?? [];

@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useEffectEvent, useRef } from 'react';
 import { GitPullRequest, X, Loader2, Check, Sparkles } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -66,30 +66,35 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const [sourceAttempt, setSourceAttempt] = useState(0);
 
   const targetKey = JSON.stringify([currentRepo?.path, currentRepo?.gitHubRemote, currentOwner, currentRepoName]);
+  const repoPath = currentRepo?.path, gitHubRemote = currentRepo?.gitHubRemote;
   const sourceKey = JSON.stringify([targetKey, headBranch]);
   const session = useRef(0);
   const descriptionRequest = useRef(0);
   useEffect(() => { descriptionRequest.current++; setIsGeneratingDesc(false); }, [open, targetKey, headBranch, baseBranch]);
 
   // Reset the draft only on opening or changing its target, never on a background refresh.
+  const initializeDraft = useEffectEvent(() => {
+    setHeadBranch(currentBranch);
+    setTitle(commits[0]?.subject || '');
+    setBody(commits[0]?.body || '');
+  });
   useEffect(() => {
     session.current++;
     setIsSubmitting(false);
     if (!open) return;
-    setHeadBranch(currentBranch);
-    setTitle(commits[0]?.subject || '');
-    setBody(commits[0]?.body || '');
+    initializeDraft();
     setError(null);
     // The values above intentionally snapshot the draft at the start of this session.
   }, [open, targetKey]);
 
+  const snapshotBaseCandidates = useEffectEvent(() => branches.filter(branch => branch.isRemote && branch.remoteName === gitHubRemote)
+    .map(branch => branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1)));
   useEffect(() => {
     let active = true;
     setBaseBranch(''); setDefaultBase(''); setBaseFor(''); setLoadingBase(false);
     if (!open || !currentOwner || !currentRepoName) return;
     setLoadingBase(true);
-    const candidates = branches.filter(branch => branch.isRemote && branch.remoteName === currentRepo?.gitHubRemote)
-      .map(branch => branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1));
+    const candidates = snapshotBaseCandidates();
     void githubService.getRepositoryDefaultBranch(currentOwner, currentRepoName)
       .then(value => { if (active) { setBaseBranch(value); setDefaultBase(value); setBaseFor(targetKey); } })
       .catch(() => {
@@ -100,13 +105,13 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       .finally(() => { if (active) setLoadingBase(false); });
     return () => { active = false; };
     // Branches are a snapshot for the fallback; refreshing refs must not overwrite a chosen base.
-  }, [open, targetKey]);
+  }, [open, targetKey, currentOwner, currentRepoName, gitHubRemote]);
 
   useEffect(() => {
     let active = true;
     setSourceContext(null); setSourceFor(''); setSourceId(''); setPublishedBranch(''); setSourceError('');
-    if (!open || !currentRepo || !headBranch) return;
-    void gitService.getPushContext(currentRepo.path, headBranch).then(context => {
+    if (!open || !repoPath || !headBranch) return;
+    void gitService.getPushContext(repoPath, headBranch).then(context => {
       if (!active) return;
       const options = sourceRepositories(context);
       const preferred = options.filter(option => option.remote === context.remote);
@@ -116,7 +121,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     }).catch(reason => { if (active) setSourceError(reason?.message || t('remote.loadFailed')); });
     return () => { active = false; };
     // sourceKey includes the target identity and local branch; old replies are discarded above.
-  }, [open, sourceKey, sourceAttempt, t]);
+  }, [open, sourceKey, sourceAttempt, t, repoPath, headBranch]);
 
   const sources = sourceFor === sourceKey ? sourceRepositories(sourceContext) : [];
   const source = sources.find(option => option.id === sourceId);
