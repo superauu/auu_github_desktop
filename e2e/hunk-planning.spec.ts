@@ -133,3 +133,113 @@ test('reloading a snapshot discards an in-flight AI result and starts with fresh
   await expect(dialog.getByRole('button', { name: 'AI 建议分组', exact: true })).toBeEnabled();
   expect(await writes(page)).toHaveLength(0);
 });
+
+async function reopen(page: Page) {
+  await page.getByRole('dialog', { name: '规划代码块提交' }).getByRole('button', { name: '关闭', exact: true }).last().click();
+  await page.getByRole('button', { name: '按暂存代码块规划提交', exact: true }).click();
+  return page.getByRole('dialog', { name: '规划代码块提交' });
+}
+
+test('saved groups restore only on request, preserving order, messages and unassigned units', async ({ page }) => {
+  let dialog = await split(page, '&ai=1');
+  await dialog.getByLabel('详细说明', { exact: true }).first().fill('Persist this explanation');
+  await dialog.getByRole('region', { name: '提交 2', exact: true }).getByRole('button', { name: '向前移动此提交', exact: true }).click();
+  await expect(dialog.getByRole('status').filter({ hasText: '规划草稿已保存在本机' })).toBeVisible();
+  dialog = await reopen(page);
+  await expect(dialog.getByRole('region', { name: '发现提交规划草稿', exact: true })).toContainText('暂存快照匹配');
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveValue('');
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'AI 建议分组', exact: true })).toBeDisabled();
+  expect(await writes(page)).toHaveLength(0);
+  await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: second');
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).nth(1)).toHaveValue('Persist this explanation');
+  await expect(dialog.getByRole('combobox', { name: '分配到提交: task.ts 原 20 行 → 新 20 行', exact: true }).locator('option:checked')).toHaveText('1. feat: second');
+  await expect(dialog.getByText('1 个块暂不提交', { exact: true })).toBeVisible();
+  expect(await writes(page)).toHaveLength(0);
+  await expect(dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true })).toBeEnabled();
+  await expect(page.locator('#commit-title')).toHaveValue('Existing ordinary draft');
+});
+
+test('a fresh page can recover a saved plan, then submission clears the draft before writing', async ({ page }) => {
+  await split(page, '&draftReload=1');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true');
+  await page.getByRole('button', { name: '按暂存代码块规划提交', exact: true }).click();
+  let dialog = page.getByRole('dialog', { name: '规划代码块提交' });
+  await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: first');
+  expect(await writes(page)).toHaveLength(0);
+  await dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true }).click();
+  await expect(dialog.getByText('已创建 2 个提交', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('auugit-hunk-plan-drafts'))).toBeNull();
+  dialog = await reopen(page);
+  await expect(dialog.getByText('1 个暂存块', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: '恢复草稿', exact: true })).toHaveCount(0);
+});
+
+for (const scenario of ['draftHead', 'draftIndex']) test(`a ${scenario} change prevents stale draft restoration`, async ({ page }) => {
+  await split(page, '&draftReload=1');
+  const dialog = await open(page, `&draftReload=1&${scenario}=1`);
+  await expect(dialog.getByRole('region', { name: '发现提交规划草稿', exact: true })).toContainText('不能恢复旧分配');
+  await expect(dialog.getByRole('button', { name: '恢复草稿', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: '丢弃草稿并重新规划', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toBeEnabled();
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveValue('');
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('restoration verifies live Git state again before applying any saved assignments', async ({ page }) => {
+  await split(page, '&draftReload=1');
+  const dialog = await open(page, '&draftReload=1&draftRestoreStale=1');
+  await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('暂存区已变化');
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: '恢复草稿', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: '重新读取并清空分组', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveValue('');
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('explicit reload clears saved grouping instead of offering it again', async ({ page }) => {
+  let dialog = await split(page);
+  await dialog.getByRole('button', { name: '重新读取并清空分组', exact: true }).click();
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveValue('');
+  dialog = await reopen(page);
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: '恢复草稿', exact: true })).toHaveCount(0);
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('storage quota failure explains draft loss and leaves manual planning usable', async ({ page }) => {
+  const dialog = await split(page, '&draftQuota=1');
+  await expect(dialog.getByRole('status').filter({ hasText: '本机草稿无法读取或保存' })).toBeVisible();
+  await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: first');
+  await expect(dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true })).toBeEnabled();
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('closing during restore prevents a late verification from populating a reopened planner', async ({ page }) => {
+  await split(page, '&draftRestoreSlow=1');
+  let dialog = await reopen(page);
+  await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
+  dialog = await reopen(page);
+  await expect(page.locator('html')).toHaveAttribute('data-hunk-fixture-draft-checks', '1');
+  await expect(dialog.getByRole('button', { name: '恢复草稿', exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toHaveValue('');
+  await expect(dialog.getByLabel('提交标题', { exact: true })).toBeDisabled();
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('applied AI groups survive reopening without another model request', async ({ page }) => {
+  let dialog = await open(page, '&ai=1');
+  await dialog.getByRole('button', { name: 'AI 建议分组', exact: true }).click();
+  await dialog.getByRole('button', { name: '应用建议并替换当前分组', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: '提交标题', exact: true }).first()).toHaveValue('feat: staged feature');
+  dialog = await reopen(page);
+  await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: '提交标题', exact: true }).first()).toHaveValue('feat: staged feature');
+  await expect(dialog.getByRole('region', { name: '提交 1', exact: true })).toContainText('第一处功能改动可独立审核');
+  await expect(page.locator('html')).toHaveAttribute('data-hunk-fixture-ai-requests', '1');
+  expect(await writes(page)).toHaveLength(0);
+});

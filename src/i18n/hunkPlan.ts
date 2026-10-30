@@ -1,4 +1,10 @@
 export const hunkPlanZh = {
+  'hunkDraft.title': '发现提交规划草稿',
+  'hunkDraft.matching': '草稿与当前仓库、分支、HEAD 及暂存快照匹配。可恢复分组、顺序和说明，恢复后仍需单独确认提交。',
+  'hunkDraft.stale': 'HEAD 或暂存快照已变化，不能恢复旧分配。请丢弃草稿后重新规划。',
+  'hunkDraft.restore': '恢复草稿', 'hunkDraft.discard': '丢弃草稿并重新规划',
+  'hunkDraft.saved': '规划草稿已保存在本机，保留 30 天。关闭后可重新打开恢复；开始创建提交或重新读取时会清除草稿。',
+  'hunkDraft.unavailable': '本机草稿无法读取或保存。可继续手动规划，关闭后本次编辑可能无法恢复。',
   'recovery.op.split-commits': '代码块批量提交前',
   'hunkAi.title': 'AI 代码块分组建议', 'hunkAi.analyze': 'AI 建议分组',
   'hunkAi.scope': '点击分析会将当前暂存快照中的文件路径、代码块清单和差异摘录发送给已配置的 AI。建议覆盖全部暂存块，应用后可继续调整或将部分块留在暂存区。',
@@ -33,6 +39,12 @@ export const hunkPlanZh = {
 } as const;
 
 export const hunkPlanEn: Record<keyof typeof hunkPlanZh, string> = {
+  'hunkDraft.title': 'Saved commit plan found',
+  'hunkDraft.matching': 'The draft matches this repository, branch, HEAD and staged snapshot. Restore groups, order and messages; creating commits still requires a separate confirmation.',
+  'hunkDraft.stale': 'HEAD or the staged snapshot changed. Old assignments cannot be restored. Discard the draft and plan again.',
+  'hunkDraft.restore': 'Restore draft', 'hunkDraft.discard': 'Discard draft and start again',
+  'hunkDraft.saved': 'Plan saved locally for 30 days. Reopen to restore it. Starting commit creation or reloading clears the draft.',
+  'hunkDraft.unavailable': 'The local draft could not be read or saved. Manual planning is available, but edits may not survive closing.',
   'recovery.op.split-commits': 'Before staged-hunk commits',
   'hunkAi.title': 'AI staged-unit suggestions', 'hunkAi.analyze': 'Suggest groups with AI',
   'hunkAi.scope': 'Analyze sends the current staged file paths, unit manifest and diff excerpts to your configured AI. Suggestions cover every staged unit; after applying, you can edit groups or leave units staged.',

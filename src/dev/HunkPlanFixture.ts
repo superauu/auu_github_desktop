@@ -21,14 +21,25 @@ export function prepareHunkPlanFixture(repo: RepositoryInfo) {
       { id: 'f1', path: 'assets/logo.bin', paths: ['assets/logo.bin'], kind: 'file', label: 'Whole file', patch: 'Binary files a/assets/logo.bin and b/assets/logo.bin differ' },
     ],
   };
+  if (params.has('draftHead')) snapshot.head = 'd'.repeat(40);
+  if (params.has('draftIndex')) snapshot.index += ' changed';
+  if (params.has('draftQuota')) {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) { if (key === 'auugit-hunk-plan-drafts') throw new DOMException('Fixture storage full', 'QuotaExceededError'); setItem.call(this, key, value); };
+  }
   const written: { title: string; units: string[] }[] = [];
   document.documentElement.dataset.hunkFixtureWrites = '[]';
   document.documentElement.dataset.hunkFixturePreviews = '0';
   document.documentElement.dataset.hunkFixtureAiRequests = '0';
   document.documentElement.dataset.hunkFixtureAiResponses = '0';
+  document.documentElement.dataset.hunkFixtureDraftChecks = '0';
   let stale = false, checks = 0;
   if (params.has('ai')) useSettingsStore.setState({ aiConfig: { provider: 'openai-compatible', protocol: 'chat-completions', endpoint: 'https://fixture.invalid/v1', model: 'fixture-model', apiKey: 'fixture-only' } });
-  hunkCommitService.verify = async () => { checks++; if (stale || (params.has('aiStaleOnApply') && checks === 3)) throw Error('分支、HEAD 或暂存区已变化，请重新读取剩余改动。'); };
+  hunkCommitService.verify = async () => {
+    if (params.has('draftRestoreSlow')) await new Promise(resolve => setTimeout(resolve, 1200));
+    document.documentElement.dataset.hunkFixtureDraftChecks = String(Number(document.documentElement.dataset.hunkFixtureDraftChecks) + 1);
+    checks++; if (stale || params.has('draftRestoreStale') || (params.has('aiStaleOnApply') && checks === 3)) throw Error('分支、HEAD 或暂存区已变化，请重新读取剩余改动。');
+  };
   aiHunkCommitService.analyze = async plan => {
     document.documentElement.dataset.hunkFixtureAiRequests = String(Number(document.documentElement.dataset.hunkFixtureAiRequests) + 1);
     // Deliberately ignore abort to exercise the UI's late-response protection.
