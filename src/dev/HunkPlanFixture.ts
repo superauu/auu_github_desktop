@@ -6,9 +6,11 @@ import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { RepositoryInfo, GitFileChange } from '@/services/git/types';
 import { aiHunkCommitService, parseHunkAiResult } from '@/services/ai/AiHunkCommitService';
+import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 
 export function prepareHunkPlanFixture(repo: RepositoryInfo) {
   const params = new URLSearchParams(location.search);
+  if (params.has('hunkCrossIssue')) useIssueWorkflowStore.getState().linkBranch(repo.path, repo.currentBranch!, { owner: 'upstream', repo: 'other-project', number: 12 });
   const raw = (from: number, label: string) => `diff --git a/task.ts b/task.ts\n--- a/task.ts\n+++ b/task.ts\n@@ -${from},1 +${from},1 @@\n-before ${from}\n+${label}\n`;
   const readableHeader = '@@ -47,6 +47,8 @@ The commit panel sits beside the diff at typical laptop widths';
   const readableDiff = `diff --git a/task.ts b/task.ts\n--- a/task.ts\n+++ b/task.ts\n${readableHeader}\n context 47\n context 48\n context 49\n+new line one\n+new line two\n context 50\n context 51\n context 52\n`;
@@ -28,7 +30,9 @@ export function prepareHunkPlanFixture(repo: RepositoryInfo) {
     Storage.prototype.setItem = function (key, value) { if (key === 'auugit-hunk-plan-drafts') throw new DOMException('Fixture storage full', 'QuotaExceededError'); setItem.call(this, key, value); };
   }
   const written: { title: string; units: string[] }[] = [];
+  const messages: { title: string; body: string }[] = [];
   document.documentElement.dataset.hunkFixtureWrites = '[]';
+  document.documentElement.dataset.hunkFixtureMessages = '[]';
   document.documentElement.dataset.hunkFixturePreviews = '0';
   document.documentElement.dataset.hunkFixtureAiRequests = '0';
   document.documentElement.dataset.hunkFixtureAiResponses = '0';
@@ -89,7 +93,9 @@ export function prepareHunkPlanFixture(repo: RepositoryInfo) {
       await new Promise(resolve => setTimeout(resolve, params.has('slowWrite') ? 1200 : 80));
       if (params.has('failSecond') && completed.length === 1) throw new HunkCommitError('Fixture hook rejected the second commit', completed, 'refs/auugit/recovery/fixture');
       written.push({ title: group.title, units: [...group.units] });
+      messages.push({ title: group.title, body: group.body });
       document.documentElement.dataset.hunkFixtureWrites = JSON.stringify(written);
+      document.documentElement.dataset.hunkFixtureMessages = JSON.stringify(messages);
       completed.push({ hash: String(written.length).repeat(40), title: group.title, units: [...group.units] });
       options.onProgress?.([...completed]);
     }

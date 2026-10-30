@@ -243,3 +243,84 @@ test('applied AI groups survive reopening without another model request', async 
   await expect(page.locator('html')).toHaveAttribute('data-hunk-fixture-ai-requests', '1');
   expect(await writes(page)).toHaveLength(0);
 });
+
+test('selected issue references preview, cancel, persist and reach commits and PR creation', async ({ page }) => {
+  let dialog = await split(page, '&issues=1&workflow=1&ai=1');
+  await dialog.getByRole('textbox', { name: '详细说明', exact: true }).nth(1).fill('Keep the second explanation');
+  const issue = dialog.getByRole('region', { name: '提交的 Issue 引用', exact: true });
+  await expect(issue).toContainText('fixture/project#12');
+  await issue.getByRole('checkbox', { name: '2. feat: second', exact: true }).check();
+  await issue.getByRole('button', { name: '预览 Issue 引用', exact: true }).click();
+  const preview = dialog.getByRole('region', { name: 'Issue 引用预览', exact: true });
+  await expect(preview).toContainText('Keep the second explanation'); await expect(preview).toContainText('Refs fixture/project#12');
+  await expect(dialog.getByRole('button', { name: 'AI 建议分组', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).nth(1)).toHaveValue('Keep the second explanation');
+  await issue.getByRole('button', { name: '保留原说明', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true })).toBeEnabled();
+  await issue.getByRole('button', { name: '预览 Issue 引用', exact: true }).click();
+  await issue.getByRole('button', { name: '应用 Issue 引用', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).first()).toHaveValue('');
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).nth(1)).toHaveValue('Keep the second explanation\n\nRefs fixture/project#12');
+  await issue.getByRole('button', { name: '预览 Issue 引用', exact: true }).click();
+  await expect(issue.getByRole('status')).toHaveText('选中的提交已包含此 Issue 的 Refs 引用。');
+  dialog = await reopen(page);
+  await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).nth(1)).toHaveValue('Keep the second explanation\n\nRefs fixture/project#12');
+  expect(await writes(page)).toHaveLength(0);
+  await dialog.getByRole('button', { name: '按顺序创建 2 个提交', exact: true }).click();
+  await expect(dialog.getByText('已创建 2 个提交', { exact: true })).toBeVisible();
+  expect(JSON.parse(await page.locator('html').getAttribute('data-hunk-fixture-messages') || '[]')).toEqual([{ title: 'feat: first', body: '' }, { title: 'feat: second', body: 'Keep the second explanation\n\nRefs fixture/project#12' }]);
+  await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
+  await page.getByRole('button', { name: /^拉取请求 \d+$/ }).click();
+  await page.getByRole('button', { name: '新建拉取请求', exact: true }).click();
+  const pr = page.getByRole('dialog');
+  await expect(pr.getByRole('button', { name: '移除关联 fixture/project#12', exact: true })).toBeVisible();
+  await pr.locator('button[type="submit"]').click();
+  await expect(pr).toHaveCount(0);
+  await page.getByRole('button', { name: '合并', exact: true }).click();
+  await page.getByRole('dialog', { name: '合并拉取请求' }).getByRole('button', { name: '确认操作', exact: true }).click();
+  await expect(page.getByRole('region', { name: '当前任务', exact: true })).toContainText('已关闭');
+  const calls = JSON.parse(await page.locator('html').getAttribute('data-issue-fixture-writes') || '[]') as { kind: string; data: { body?: string } }[];
+  expect(calls.find(call => call.kind === 'create-pr')?.data.body).toContain('Closes fixture/project#12');
+  expect(calls.filter(call => call.kind === 'update-issue')).toHaveLength(0);
+  expect(calls.filter(call => call.kind === 'merge-pr')).toHaveLength(1);
+});
+
+test('cross-repository task references keep their full identity', async ({ page }) => {
+  const dialog = await split(page, '&issues=1&workflow=1&hunkCrossIssue=1');
+  const issue = dialog.getByRole('region', { name: '提交的 Issue 引用', exact: true });
+  await expect(issue.getByRole('link', { name: '查看当前 Issue ↗', exact: true })).toHaveAttribute('href', 'https://github.com/upstream/other-project/issues/12');
+  await issue.getByRole('checkbox', { name: '1. feat: first', exact: true }).check();
+  await issue.getByRole('button', { name: '预览 Issue 引用', exact: true }).click();
+  await issue.getByRole('button', { name: '应用 Issue 引用', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).first()).toHaveValue('Refs upstream/other-project#12');
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('a changed staging snapshot rejects issue reference application without replacing prose', async ({ page }) => {
+  const dialog = await split(page, '&issues=1&workflow=1&draftRestoreStale=1');
+  await dialog.getByRole('textbox', { name: '详细说明', exact: true }).first().fill('Original description');
+  const issue = dialog.getByRole('region', { name: '提交的 Issue 引用', exact: true });
+  await issue.getByRole('checkbox', { name: '1. feat: first', exact: true }).check();
+  await issue.getByRole('button', { name: '预览 Issue 引用', exact: true }).click();
+  await issue.getByRole('button', { name: '应用 Issue 引用', exact: true }).click();
+  await expect(issue.getByRole('alert')).toContainText('暂存区已变化');
+  await expect(dialog.getByRole('textbox', { name: '详细说明', exact: true }).first()).toHaveValue('Original description');
+  expect(await writes(page)).toHaveLength(0);
+});
+
+test('opening the linked issue preserves the plan draft for returning to changes', async ({ page }) => {
+  let dialog = await split(page, '&issues=1&workflow=1');
+  await dialog.getByRole('button', { name: '查看当前 Issue', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('[data-issue-detail="12"]')).toBeVisible();
+  await page.getByRole('button', { name: /^工作区变更/ }).click();
+  await page.getByRole('button', { name: '按暂存代码块规划提交', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '规划代码块提交' });
+  await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
+  await expect(dialog.getByRole('textbox', { name: '提交标题', exact: true }).first()).toHaveValue('feat: first');
+  await page.setViewportSize({ width: 680, height: 600 });
+  expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  expect(await writes(page)).toHaveLength(0);
+});

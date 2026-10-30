@@ -1,4 +1,13 @@
 export const hunkPlanZh = {
+  'hunkIssue.title': '提交的 Issue 引用', 'hunkIssue.noTask': '当前分支尚未关联 Issue，可在 Issue 详情中关联后为提交添加引用。',
+  'hunkIssue.scope': '为选中的提交添加带仓库名的 Refs 引用。引用随提交说明一起保存；创建 PR 时沿用当前分支的 Issue 关联，并单独选择关闭引用。',
+  'hunkIssue.select': '选择需要引用此 Issue 的提交', 'hunkIssue.preview': '预览 Issue 引用', 'hunkIssue.previewTitle': 'Issue 引用预览',
+  'hunkIssue.previewHint': '检查以下提交的完整说明。应用后仍可编辑，并需单独确认创建提交。',
+  'hunkIssue.apply': '应用 Issue 引用', 'hunkIssue.cancel': '保留原说明', 'hunkIssue.view': '查看当前 Issue',
+  'hunkIssue.applied': 'Issue 引用已添加，可继续编辑、保存草稿并预览提交差异。', 'hunkIssue.already': '选中的提交已包含此 Issue 的 Refs 引用。',
+  'hunkIssue.changed': '分组、Issue 关联或账号已变化，原说明保留，请重新预览。',
+  'hunkIssue.invalid': 'Issue 或提交选择无效，请重新选择。', 'hunkIssue.tooLong': '添加引用后说明将超过 6000 字符，请先缩短说明；本次未修改任何分组。',
+  'hunkIssue.unclosed': '请先闭合提交说明中的代码块或注释，确保新引用能被识别；本次未修改任何分组。',
   'hunkDraft.title': '发现提交规划草稿',
   'hunkDraft.matching': '草稿与当前仓库、分支、HEAD 及暂存快照匹配。可恢复分组、顺序和说明，恢复后仍需单独确认提交。',
   'hunkDraft.stale': 'HEAD 或暂存快照已变化，不能恢复旧分配。请丢弃草稿后重新规划。',
@@ -39,6 +48,15 @@ export const hunkPlanZh = {
 } as const;
 
 export const hunkPlanEn: Record<keyof typeof hunkPlanZh, string> = {
+  'hunkIssue.title': 'Issue references for commits', 'hunkIssue.noTask': 'This branch has no linked issue. Link it in issue details to add commit references.',
+  'hunkIssue.scope': 'Add fully qualified Refs lines to selected commits. References are saved with commit messages. PR creation uses the branch issue association and lets you choose closing references separately.',
+  'hunkIssue.select': 'Select commits that reference this issue', 'hunkIssue.preview': 'Preview issue references', 'hunkIssue.previewTitle': 'Issue reference preview',
+  'hunkIssue.previewHint': 'Review the complete messages below. Applying leaves them editable; creating commits requires a separate confirmation.',
+  'hunkIssue.apply': 'Apply issue references', 'hunkIssue.cancel': 'Keep original messages', 'hunkIssue.view': 'View current issue',
+  'hunkIssue.applied': 'Issue references added. Continue editing, saving the draft and previewing commit diffs.', 'hunkIssue.already': 'Selected commits already contain a Refs line for this issue.',
+  'hunkIssue.changed': 'Groups, the issue association or account changed. Original messages are preserved; preview again.',
+  'hunkIssue.invalid': 'Invalid issue or commit selection. Select again.', 'hunkIssue.tooLong': 'Adding the reference would exceed 6,000 characters. Shorten the description first; no groups were changed.',
+  'hunkIssue.unclosed': 'Close code fences or comments in the description first so the new reference can be recognized. No groups were changed.',
   'hunkDraft.title': 'Saved commit plan found',
   'hunkDraft.matching': 'The draft matches this repository, branch, HEAD and staged snapshot. Restore groups, order and messages; creating commits still requires a separate confirmation.',
   'hunkDraft.stale': 'HEAD or the staged snapshot changed. Old assignments cannot be restored. Discard the draft and plan again.',

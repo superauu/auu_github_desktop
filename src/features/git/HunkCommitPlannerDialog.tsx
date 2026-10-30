@@ -9,12 +9,15 @@ import { hunkCommitService, HunkCommitError, validateHunkGroups, type HunkCommit
 import { HunkAiSuggestions } from './HunkAiSuggestions';
 import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 import { createHunkDraftSession, type HunkDraftResult, type HunkDraftSession } from '@/services/git/HunkPlanDraftService';
+import { useCurrentBranchIssue } from '@/features/issues/useCurrentBranchIssue';
+import { HunkIssueReferences } from './HunkIssueReferences';
 
 let sequence = 0;
 const emptyGroup = (): HunkCommitGroup => ({ id: `hunk-group-${++sequence}`, title: '', body: '', units: [] });
 type Phase = 'reading' | 'review' | 'checking' | 'writing' | 'done' | 'stopped';
 export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPath: string; branch: string; onClose: () => void }) {
   const { t, lang } = useI18n();
+  const currentTask = useCurrentBranchIssue();
   const [plan, setPlan] = useState<HunkCommitPlan | null>(null);
   const [groups, setGroups] = useState<HunkCommitGroup[]>([]);
   const [phase, setPhase] = useState<Phase>('reading');
@@ -30,12 +33,15 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
   const [draftStatus, setDraftStatus] = useState<'' | 'saved' | 'unavailable'>(''), [dirty, setDirty] = useState(false);
   const draftSession = useRef<HunkDraftSession | null>(null);
   const aiBlockedRef = useRef(false);
+  const [issueBlocked, setIssueBlocked] = useState(false);
+  const issueBlockedRef = useRef(false);
+  const updateIssueBlocked = useCallback((value: boolean) => { issueBlockedRef.current = value; setIssueBlocked(value); }, []);
   const updateAiBlocked = useCallback((value: boolean) => { aiBlockedRef.current = value; setAiBlocked(value); }, []);
   const abort = useRef<AbortController | null>(null), generation = useRef(0), previewGeneration = useRef(0), mounted = useRef(true), submitting = useRef(false), stop = useRef(false);
   const current = () => { const state = useRepoStore.getState(); return state.currentRepo?.path === repoPath && (state.status?.currentBranch || state.currentRepo.currentBranch) === branch; };
   const writing = phase === 'writing' || phase === 'checking';
   const pendingDraft = draft?.status === 'matching' || draft?.status === 'stale';
-  const editable = phase === 'review' && !previewing && !aiBlocked && !pendingDraft && !draftBusy;
+  const editable = phase === 'review' && !previewing && !aiBlocked && !issueBlocked && !pendingDraft && !draftBusy;
   let assigned = 0, valid = false;
   if (plan) { try { assigned = validateHunkGroups(plan, groups, false).size; validateHunkGroups(plan, groups); valid = true; } catch { /* Show guidance until the groups are complete. */ } }
   const persistDraft = useEffectEvent(() => {
@@ -96,7 +102,7 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
     finally { if (mounted.current && id === previewGeneration.current) setPreviewing(false); }
   };
   const submit = async () => {
-    if (!plan || !valid || !editable || submitting.current || aiBlockedRef.current || pendingDraft || draftBusy) return;
+    if (!plan || !valid || !editable || submitting.current || aiBlockedRef.current || issueBlockedRef.current || pendingDraft || draftBusy) return;
     submitting.current = true; setPhase('checking'); setError(''); setPreview(null);
     const reviewed = groups.map(group => ({ ...group, units: [...group.units] }));
     try {
@@ -137,9 +143,10 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
             <div className="flex flex-wrap gap-2">{draft.status === 'matching' && <Button size="sm" disabled={draftBusy} onClick={() => void restoreDraft()}>{t('hunkDraft.restore')}</Button>}<Button size="sm" variant="outline" disabled={draftBusy} onClick={() => { const cleared = draftSession.current?.clear(); setDraft(null); setDraftStatus(cleared ? '' : 'unavailable'); }}>{t('hunkDraft.discard')}</Button></div>
             {draftBusy && <p role="status" className="text-xs">{t('hunkAi.applying')}</p>}
           </section>}
-          {phase === 'review' && <HunkAiSuggestions plan={plan} blocked={writing || previewing || pendingDraft || draftBusy} revision={revision} onBlockedChange={updateAiBlocked} onApply={suggested => {
+          {phase === 'review' && <HunkAiSuggestions plan={plan} blocked={writing || previewing || issueBlocked || pendingDraft || draftBusy} revision={revision} onBlockedChange={updateAiBlocked} onApply={suggested => {
             previewGeneration.current++; setPreview(null); setDirty(true); setGroups(suggested.map(group => ({ ...group, id: `hunk-group-${++sequence}`, units: [...group.units] })));
           }} />}
+          {phase === 'review' && <HunkIssueReferences plan={plan} groups={groups} task={currentTask} blocked={writing || previewing || aiBlocked || pendingDraft || draftBusy} onBlockedChange={updateIssueBlocked} onApply={suggested => change(() => suggested)} onNavigate={onClose} />}
           <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{t('hunkPlan.count').replace('{n}', String(plan.units.length))}</strong><span className="text-xs text-muted-foreground">{t('hunkPlan.remaining').replace('{n}', String(plan.units.length - assigned))}</span></div>
           <section aria-label={t('hunkPlan.pool')} className="space-y-2">
             <input type="search" aria-label={t('hunkPlan.search')} placeholder={t('hunkPlan.search')} value={search} onChange={event => { setSearch(event.target.value); setLimit(50); }} className="w-full h-9 px-3 border border-input bg-background rounded-md text-sm" />
