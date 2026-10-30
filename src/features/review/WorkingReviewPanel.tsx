@@ -6,9 +6,10 @@ import { useWorkingReviewStore, useWorkingReviewDraftStore, useWorkingReviewStor
 import { toast } from '@/stores/toastStore';
 import { WorkingReviewIssueCard } from './WorkingReviewIssueCard';
 import type { WorkingReviewController } from './useWorkingReview';
+import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 
 export function WorkingReviewPanel({ review, filtered, onNext, onLocate }: { review: WorkingReviewController; filtered: boolean; onNext?: () => void; onLocate?: (issue: WorkingReviewIssue) => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const draftKey = JSON.stringify([review.key, review.snapshot?.fingerprint, review.noteTarget]);
   const text = useWorkingReviewDraftStore(state => state.drafts[draftKey] ?? '');
   const setDraft = useWorkingReviewDraftStore(state => state.setDraft);
@@ -42,7 +43,7 @@ export function WorkingReviewPanel({ review, filtered, onNext, onLocate }: { rev
     {review.noteTarget !== undefined && <div className="px-3 pb-3 flex flex-col gap-2 max-h-72 overflow-y-auto">
       {issues.map((issue, index) => <WorkingReviewIssueCard key={issue.id} recordKey={review.key} issue={issue} index={index} changed={issue.snapshot !== review.snapshot?.fingerprint} onLocate={onLocate ? () => onLocate(issue) : undefined} />)}
       <form onSubmit={event => { event.preventDefault(); save(); }} className="flex flex-col gap-2">
-        <label htmlFor="working-review-note" className="font-mono text-muted-foreground truncate">{target?.header ?? t(review.noteTarget ? 'workingReview.hunkChanged' : 'workingReview.wholeFile')}</label>
+        <label htmlFor="working-review-note" className="text-muted-foreground truncate" title={target?.header}>{target ? formatDiffHunkLabel(target.header, lang) : t(review.noteTarget ? 'workingReview.hunkChanged' : 'workingReview.wholeFile')}</label>
         <textarea id="working-review-note" ref={textarea} aria-label={t('workingReview.issueText')} aria-describedby="working-review-draft-hint" name="reviewNote" autoComplete="off" value={text} maxLength={6000} onChange={event => setDraft(draftKey, event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) { event.preventDefault(); save(); } }} placeholder={t('workingReview.issuePlaceholder')} rows={2} className="w-full rounded border border-input bg-background p-2 resize-y focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring" />
         <div className="flex flex-wrap items-center justify-end gap-2"><span id="working-review-draft-hint" className="mr-auto text-muted-foreground">{t('workingReview.draftHint')}</span><Button type="button" size="xs" variant="ghost" onClick={() => review.setNoteTarget(undefined)}>{t('common.close')}</Button><Button type="submit" size="xs" disabled={!canSave}>{t('workingReview.addIssue')}</Button></div>
       </form>

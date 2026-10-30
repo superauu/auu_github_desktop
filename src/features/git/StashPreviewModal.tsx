@@ -1,6 +1,8 @@
 import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DiffHunkHeader } from '@/components/ui/DiffHunkHeader';
+import { diffHunkStats } from '@/utils/diffHunkLabel';
 import { Archive, X, Loader2 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
@@ -21,6 +23,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
   const [patchLines, setPatchLines] = useState<ParsedDiffLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const repoPath = currentRepo?.path;
+  const stats = useMemo(() => diffHunkStats(patchLines), [patchLines]);
 
   useEffect(() => {
     setPatchLines([]); setIsLoading(false);
@@ -95,7 +98,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
                   key={idx}
                   className="diff-line-header px-4 py-1 font-semibold select-none font-mono text-[11px] mt-1 first:mt-0"
                 >
-                  {line.content}
+                  <DiffHunkHeader header={line.content} stats={stats.get(idx)} />
                 </div>
               ) : (
                 <div

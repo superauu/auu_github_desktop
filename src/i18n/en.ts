@@ -1,4 +1,5 @@
 import { uiReviewEn } from './uiReview';
+import { diffHunkEn } from './diffHunk';
 import { issuesEn } from './issues';
 import { hunkPlanEn } from './hunkPlan';
 import { commitBatchEn } from './commitBatch';
@@ -28,6 +29,7 @@ import { workingReviewEn } from './workingReview';
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  ...diffHunkEn,
   ...hunkPlanEn,
   ...issuesEn,
   'textMenu.title': 'Text actions',

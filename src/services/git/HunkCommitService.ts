@@ -6,7 +6,7 @@ import type { GitFileChange } from './types';
 import { tNow } from '@/i18n';
 
 export interface CommitUnit { id: string; path: string; paths: string[]; kind: 'hunk' | 'file'; label: string; patch: string }
-export interface HunkCommitGroup { id: string; title: string; body: string; units: string[] }
+export interface HunkCommitGroup { id: string; title: string; body: string; units: string[]; reason?: string }
 export interface HunkCommitPlan {
   repoPath: string; branch: string; head: string; baseTree: string; indexTree: string;
   index: string; flags: string; files: GitFileChange[]; units: CommitUnit[];
@@ -21,7 +21,7 @@ const nul = (paths: string[]) => paths.join('\0') + '\0';
 const aborted = (signal?: AbortSignal) => { if (signal?.aborted) throw new DOMException('Aborted', 'AbortError'); };
 const treeOf = (value?: string) => { if (!value || !oid(value)) throw new Error(tNow('hunkPlan.invalidTree')); return value; };
 
-export function validateHunkGroups(plan: HunkCommitPlan, groups: HunkCommitGroup[], messages = true) {
+export function validateHunkGroups(plan: Pick<HunkCommitPlan, 'units'>, groups: HunkCommitGroup[], messages = true) {
   if (!groups.length || groups.length > 12) throw new Error(tNow('hunkPlan.invalidGroups'));
   const available = new Set(plan.units.map(unit => unit.id)), used = new Set<string>();
   for (const group of groups) {
@@ -74,6 +74,9 @@ async function candidateTree(git: GitTransactionRunner, plan: HunkCommitPlan, se
 }
 
 export const hunkCommitService = {
+  async verify(plan: HunkCommitPlan) {
+    return executeGitTransaction(plan.repoPath, git => assertCurrent(git, plan));
+  },
   async capture(repoPath: string, signal?: AbortSignal): Promise<HunkCommitPlan> {
     return executeGitTransaction(repoPath, async git => {
       aborted(signal);

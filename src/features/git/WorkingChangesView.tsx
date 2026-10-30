@@ -25,6 +25,7 @@ import { FilePath } from '@/components/ui/FilePath';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { moveListFocus } from '@/utils/listKeyboard';
 import { computeSplitRows } from '@/utils/diffRows';
+import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 import React, { useState, useMemo, useEffect, useRef, useId } from 'react';
 import { DiffTools } from '@/components/ui/DiffTools';
 import { useGitActivity } from '@/hooks/useGitActivity';
@@ -108,7 +109,7 @@ export const WorkingChangesView: React.FC = () => {
     resolveFileTheirs,
     resetFileConflictMarkers,
   } = useRepoStore(useShallow(state => ({ status: state.status, selectedFile: state.selectedFile, setSelectedFile: state.setSelectedFile, fileDiffLines: state.fileDiffLines, fileDiffLoading: state.fileDiffLoading, fileDiffError: state.fileDiffError, loadFileDiff: state.loadFileDiff, commits: state.commits, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, currentRepo: state.currentRepo, stageFile: state.stageFile, unstageFile: state.unstageFile, stageHunk: state.stageHunk, unstageHunk: state.unstageHunk, discardHunk: state.discardHunk, stageAll: state.stageAll, unstageAll: state.unstageAll, discardChanges: state.discardChanges, stashPush: state.stashPush, resolveFileOurs: state.resolveFileOurs, resolveFileTheirs: state.resolveFileTheirs, resetFileConflictMarkers: state.resetFileConflictMarkers })));
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const [selectedLines, setSelectedLines] = useState<Set<number>>(() => new Set());
   const [lineBusy, setLineBusy] = useState(false);
@@ -494,7 +495,7 @@ export const WorkingChangesView: React.FC = () => {
     });
     return () => cancelAnimationFrame(frame);
   }, [locateTarget, activeFile?.path, activeFile?.staged, fileDiffLoading, fileDiffError, fileDiffLines, workingReview.snapshot, workingReview.ready, diffId]);
-  const diffContents = useMemo(() => diffMode === 'split' ? splitRows.map(row => row.headerContent || `${row.left?.content || ''}\n${row.right?.content || ''}`) : fileDiffLines.map(line => line.content), [diffMode, splitRows, fileDiffLines]);
+  const diffContents = useMemo(() => diffMode === 'split' ? splitRows.map(row => row.isHeader ? formatDiffHunkLabel(row.headerContent || '', lang) : `${row.left?.content || ''}\n${row.right?.content || ''}`) : fileDiffLines.map(line => line.type === 'header' ? formatDiffHunkLabel(line.content, lang) : line.content), [diffMode, splitRows, fileDiffLines, lang]);
 
   // 块级操作：按 @@ 头切分 hunk，并为统一视图的每个块头记录索引
   const hunks = useMemo(() => groupDiffIntoHunks(fileDiffLines), [fileDiffLines]);

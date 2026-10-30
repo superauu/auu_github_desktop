@@ -189,3 +189,10 @@ test('HEAD advancing during commit setup stops the sequence after reporting its 
   finally { globalThis.fetch = previous; }
   assert.deepEqual(snapshot(repo), before); assert.equal(git(repo, 'rev-list', '--count', 'HEAD').trim(), '3'); assert.equal(git(repo, 'log', '-1', '--format=%s').trim(), 'one');
 });
+
+test('AI snapshot verification is read-only and rejects an edited staging area', async () => {
+  const repo = await staged(), plan = await app.hunkCommitService.capture(repo), before = snapshot(repo), head = git(repo, 'rev-parse', 'HEAD');
+  await app.hunkCommitService.verify(plan); assert.deepEqual(snapshot(repo), before); assert.equal(git(repo, 'rev-parse', 'HEAD'), head);
+  git(repo, 'restore', '--staged', 'a.txt'); const edited = snapshot(repo);
+  await assert.rejects(app.hunkCommitService.verify(plan), /变化|changed/); assert.deepEqual(snapshot(repo), edited); assert.equal(git(repo, 'for-each-ref', 'refs/auugit/recovery'), '');
+});
