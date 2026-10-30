@@ -1,3 +1,4 @@
+import { overviewEn } from './overview';
 import { uiReviewEn } from './uiReview';
 import { diffHunkEn } from './diffHunk';
 import { issuesEn } from './issues';
@@ -29,6 +30,7 @@ import { workingReviewEn } from './workingReview';
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  ...overviewEn,
   ...diffHunkEn,
   ...hunkPlanEn,
   ...issuesEn,

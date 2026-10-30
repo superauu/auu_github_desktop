@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import { prepareOverviewFixture } from './OverviewFixture';
 // Standalone Vite development entry. This module is not imported by the production app.
 import { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -88,6 +89,7 @@ function prepare() {
   });
   if (new URLSearchParams(location.search).get('issues') === '1') prepareIssueFixture(repo);
   if (new URLSearchParams(location.search).get('hunks') === '1') prepareHunkPlanFixture(repo);
+  if (new URLSearchParams(location.search).get('overview') === '1') prepareOverviewFixture(repo);
   if (new URLSearchParams(location.search).get('interactions') === '1') {
     const other: RepositoryInfo = { ...repo, id: 'other-fixture', path: '/__auugit_other_fixture__', name: 'other-ui-fixture', currentBranch: 'main' };
     const otherCommit: GitCommit = { ...commits[0], hash: 'f'.repeat(40), shortHash: 'fffffff', subject: 'Other repository commit', refs: ['HEAD -> main'] };

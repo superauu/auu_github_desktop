@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { loadOperationHistory, saveOperationHistory } from './operationHistoryStorage';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -20,6 +21,7 @@ export interface OperationEntry extends Omit<ToastItem, 'duration'> {
 interface ToastState {
   toasts: ToastItem[];
   history: OperationEntry[];
+  historyStorageFailed: boolean;
   record: (entry: Omit<OperationEntry, 'id' | 'createdAt'>) => void;
   clearHistory: () => void;
   consumeAction: (id: string) => void;
@@ -31,13 +33,15 @@ interface ToastState {
   warning: (title: string, description?: string) => string;
 }
 
+const savedHistory = loadOperationHistory();
+const historyState = (history: OperationEntry[]) => ({ history, historyStorageFailed: !saveOperationHistory(history) });
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
-  history: [],
-  record: (entry) => set(state => ({ history: [{ ...entry, description: entry.description && entry.description.length > 64000 ? `${entry.description.slice(0, 64000)}…` : entry.description,
-    id: `operation-${Date.now()}-${Math.random().toString(36).slice(2)}`, createdAt: Date.now() }, ...state.history].slice(0, 100) })),
-  clearHistory: () => set({ history: [] }),
-  consumeAction: (id) => set(state => ({ history: state.history.map(entry => entry.id === id ? { ...entry, action: undefined } : entry),
+  history: savedHistory.history, historyStorageFailed: savedHistory.failed,
+  record: (entry) => set(state => historyState([{ ...entry, description: entry.description && entry.description.length > 64000 ? `${entry.description.slice(0, 64000)}…` : entry.description,
+    id: `operation-${Date.now()}-${Math.random().toString(36).slice(2)}`, createdAt: Date.now() }, ...state.history].slice(0, 100))),
+  clearHistory: () => set(historyState([])),
+  consumeAction: (id) => set(state => ({ ...historyState(state.history.map(entry => entry.id === id ? { ...entry, action: undefined } : entry)),
     toasts: state.toasts.map(entry => entry.id === id ? { ...entry, action: undefined } : entry) })),
 
   addToast: (toast) => {
@@ -46,7 +50,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
 
     set((state) => ({
       toasts: [...state.toasts, { ...toast, id }],
-      history: [{ ...toast, id, createdAt: Date.now(), description: toast.description && toast.description.length > 64000 ? `${toast.description.slice(0, 64000)}…` : toast.description }, ...state.history].slice(0, 100),
+      ...historyState([{ ...toast, id, createdAt: Date.now(), description: toast.description && toast.description.length > 64000 ? `${toast.description.slice(0, 64000)}…` : toast.description }, ...state.history].slice(0, 100)),
     }));
 
     if (duration > 0) {

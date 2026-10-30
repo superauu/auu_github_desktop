@@ -672,6 +672,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
       </div>
       {/* Top Primary Navigation (Changes, History, PRs, Actions) */}
       <div className="glass-primary-nav flex flex-col gap-0.5 p-2 border-b border-border/60">
+        <button aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => { setActiveTab('overview'); onNavigate?.(); }} className={cn('w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-medium transition-colors', activeTab === 'overview' ? 'bg-accent text-accent-foreground shadow-2xs font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50')}><Folder className="h-3.5 w-3.5" />{t('overview.title')}</button>
         <button
           aria-current={activeTab === 'changes' ? 'page' : undefined}
           onClick={() => { setActiveTab('changes'); onNavigate?.(); }}

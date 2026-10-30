@@ -8,8 +8,7 @@ npx playwright install chromium
 npm run test:visual
 ```
 
-Playwright starts an isolated local Vite server on `127.0.0.1:5179`, runs nine
-screenshot cases and nine interaction tests, waits for the actual application and
+Playwright starts an isolated local Vite server on `127.0.0.1:5179`, runs screenshot cases and workflow interaction tests, waits for the actual application and
 fonts, and compares PNG screenshots. Interaction tests cover keyboard navigation,
 context-menu focus restoration, dialog focus trapping, repository-specific search
 state and recovery from failed file reads. Issue tests cover create/edit/comment,
@@ -24,6 +23,8 @@ reads on the synthetic fixture repository. All other bridge calls remain blocked
 The test fails on browser errors or attempts to contact repository APIs or external
 services. It uses a clean browser context per case, a fixed viewport and pixel
 ratio, and bundled test-only CJK fonts; it does not access saved repositories.
+
+Overview cases cover distinct file counts, unavailable repositories, cancellation, account changes with late CI replies, searching beyond the first batch, navigation and narrow layouts. History restart cases use an isolated fixture key in tab-local session storage, restoring only metadata and verifying that callbacks and credentials are absent. They do not read real application storage.
 
 Reviewed automated baselines live under `baselines/playwright-win32/`. They are
 separate from the original CUA JPEGs. Other operating systems require separately

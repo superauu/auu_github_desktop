@@ -9,14 +9,18 @@
         const values = new Map();
         // Opt-in restart tests persist only the isolated fixture's hunk draft
         // in this tab's session storage. Never read real application keys.
-        const restart = new URLSearchParams(location.search).has('draftReload');
+        const params = new URLSearchParams(location.search);
+        const restart = params.has('draftReload');
+        const historyRestart = params.has('historyReload');
         const draftKey = 'auugit-hunk-plan-drafts', fixtureKey = 'auugit-ui-fixture-hunk-draft';
+        const isPersistent = key => (restart && key === draftKey) || (historyRestart && key === 'auugit-operation-history');
+        const fixtureStorageKey = key => key === draftKey ? fixtureKey : 'auugit-ui-fixture-history';
         const nativeGet = Storage.prototype.getItem, nativeSet = Storage.prototype.setItem, nativeRemove = Storage.prototype.removeItem;
         Object.assign(Storage.prototype, {
-          getItem(key) { return restart && key === draftKey ? nativeGet.call(sessionStorage, fixtureKey) : values.get(String(key)) ?? null; },
-          setItem(key, value) { if (restart && key === draftKey) nativeSet.call(sessionStorage, fixtureKey, String(value)); else values.set(String(key), String(value)); },
-          removeItem(key) { if (restart && key === draftKey) nativeRemove.call(sessionStorage, fixtureKey); else values.delete(String(key)); },
-          clear() { values.clear(); if (restart) nativeRemove.call(sessionStorage, fixtureKey); },
+          getItem(key) { return isPersistent(key) ? nativeGet.call(sessionStorage, fixtureStorageKey(key)) : values.get(String(key)) ?? null; },
+          setItem(key, value) { if (isPersistent(key)) nativeSet.call(sessionStorage, fixtureStorageKey(key), String(value)); else values.set(String(key), String(value)); },
+          removeItem(key) { if (isPersistent(key)) nativeRemove.call(sessionStorage, fixtureStorageKey(key)); else values.delete(String(key)); },
+          clear() { values.clear(); if (restart) nativeRemove.call(sessionStorage, fixtureKey); if (historyRestart) nativeRemove.call(sessionStorage, 'auugit-ui-fixture-history'); },
           key(index) { return Array.from(values.keys())[index] ?? null; },
         });
         Object.defineProperty(Storage.prototype, 'length', { configurable: true, get() { return values.size; } });

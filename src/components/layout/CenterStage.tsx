@@ -3,6 +3,7 @@ import React, { lazy, Suspense } from 'react';
 import { useRepoStore } from '@/stores/repoStore';
 import { WelcomeView } from '@/features/repository/WelcomeView';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+const RepositoryOverview = lazy(() => import('@/features/repository/RepositoryOverview').then(module => ({ default: module.RepositoryOverview })));
 const WorkingChangesView = lazy(() => import('@/features/git/WorkingChangesView').then((module) => ({ default: module.WorkingChangesView })));
 const CommitHistoryView = lazy(() => import('@/features/git/CommitHistoryView').then((module) => ({ default: module.CommitHistoryView })));
 const ActionsDashboardView = lazy(() => import('@/features/actions/ActionsDashboardView').then((module) => ({ default: module.ActionsDashboardView })));
@@ -31,7 +32,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
   const { isEmbeddedTerminalOpen, setEmbeddedTerminalOpen } = useLayoutStore(useShallow(state => ({ isEmbeddedTerminalOpen: state.isEmbeddedTerminalOpen, setEmbeddedTerminalOpen: state.setEmbeddedTerminalOpen })));
   const { t } = useI18n();
 
-  if (!currentRepo) {
+  if (!currentRepo && activeTab !== 'overview') {
     return (
       <WelcomeView
         onOpenRepo={onOpenRepoDialog}
@@ -43,6 +44,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
 
   const renderActiveView = () => {
     switch (activeTab) {
+      case 'overview': return <RepositoryOverview />;
       case 'actions':
         return <ActionsDashboardView onOpenAuthDialog={onOpenGitHubAuth} />;
       case 'pullRequests':
@@ -67,7 +69,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {/* key 触发重挂载：切视图时轻微上浮淡入（200ms ease-out），reduced-motion 下自动禁用 */}
         <div
-          key={`${currentRepo.path}:${activeTab}`}
+          key={activeTab === 'overview' ? 'overview' : `${currentRepo?.path}:${activeTab}`}
           className="flex-1 flex flex-col overflow-hidden min-h-0 animate-in fade-in duration-200 slide-in-from-bottom-2 ease-out"
         >
           <ErrorBoundary><Suspense fallback={<div role="status" aria-label={t('common.loading')} className="p-6 animate-pulse">…</div>}>{renderActiveView()}</Suspense></ErrorBoundary>

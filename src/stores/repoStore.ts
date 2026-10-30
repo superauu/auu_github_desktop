@@ -27,7 +27,7 @@ import { LAST_ACTIVE_REPO_KEY, OPEN_TABS_KEY, RECENT_REPOS_KEY, loadRepositoryLi
 import { authorizeRepository, isRepositoryAccessCancelled, RepositoryAccessCancelledError } from '@/services/fs/RepositoryAccess';
 
 /** The legacy review value is accepted only to redirect old navigation state to history. */
-export type MainNavTab = 'changes' | 'review' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests' | 'issues' | 'forge';
+export type MainNavTab = 'overview' | 'changes' | 'review' | 'history' | 'branches' | 'tags' | 'actions' | 'pullRequests' | 'issues' | 'forge';
 
 /** 逐字段比较变更文件，替代 JSON.stringify 全量序列化（大仓库每 tick 数 MB 字符串分配）。 */
 export const isFileChangeEqual = (a: GitFileChange, b: GitFileChange): boolean =>
