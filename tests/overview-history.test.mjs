@@ -80,6 +80,9 @@ test('stored diagnostics redact URL credentials, tokens, authorization headers a
   app.saveOperationHistory([{ ...entry(), description: secret }]); const raw = values.get(app.OPERATION_HISTORY_KEY);
   for (const value of ['private-password', 'private-token', 'private-bearer', 'ghp_12345678901234567890', 'private-api', 'secret-key']) assert.ok(!raw.includes(value));
   assert.match(raw, /redacted/);
+  const quoted = 'password="a private password" secret=\'two secret parts\' api_key="escaped\\" private content" token="unfinished secret value';
+  const redacted = app.redactOperationText(quoted);
+  for (const value of ['private password', 'two secret parts', 'escaped', 'private content', 'unfinished secret value']) assert.ok(!redacted.includes(value));
 });
 test('history retention bounds count, age and text size and ignores invalid or future entries', () => {
   app.saveOperationHistory(Array.from({ length: 150 }, (_, i) => ({ ...entry(i), description: 'x'.repeat(20000) })));

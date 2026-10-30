@@ -7,6 +7,7 @@ export function redactOperationText(text: string) {
     .replace(/(https?:\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
     .replace(/\b(?:gh[pousr]_[a-z\d_]{12,}|github_pat_[a-z\d_]{12,}|sk-[a-z\d_-]{16,})\b/gi, '[redacted]')
     .replace(/\b(Bearer|Basic)\s+[a-z\d+/=_\-.]+/gi, '$1 [redacted]')
+    .replace(/((?:access_token|refresh_token|api[_-]?key|password|token|secret|authorization)["']?\s*[:=]\s*)(["'])(?:\\[\s\S]|(?!\2)[^\\])*(?:\2|$)/gi, '$1$2[redacted]$2')
     .replace(/((?:access_token|refresh_token|api[_-]?key|password|token|secret|authorization)["']?\s*[:=]\s*["']?)[^\s&"'<>]+/gi, '$1[redacted]');
 }
 function normalize(value: unknown): OperationEntry | null {
