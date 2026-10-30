@@ -151,7 +151,7 @@ test('stopping during an operation probe prevents refreshes and all future sched
   assert.equal(checks, 0); assert.equal(clock.timers.size, 0);
 });
 
-test('notifications remain in session history after dismissal, bounded to 100 entries without disk persistence', () => {
+test('notifications remain after dismissal and persist bounded metadata for 100 history entries', () => {
   const store = app.useToastStore;
   store.setState({ toasts: [], history: [] });
   const id = store.getState().addToast({ type: 'error', title: 'fetch failed', description: 'offline', duration: 0 });
@@ -159,8 +159,10 @@ test('notifications remain in session history after dismissal, bounded to 100 en
   assert.equal(store.getState().toasts.length, 0); assert.equal(store.getState().history[0].description, 'offline');
   for (let i = 0; i < 110; i++) store.getState().record({ type: 'success', title: `operation ${i}` });
   assert.equal(store.getState().history.length, 100); assert.equal(store.getState().history[0].title, 'operation 109');
-  assert.ok(![...saved.values()].some(value => value.includes('operation 109')));
+  const persisted = JSON.parse(saved.get('auugit-operation-history'));
+  assert.equal(persisted.entries.length, 100); assert.equal(persisted.entries[0].title, 'operation 109');
   store.getState().clearHistory(); assert.equal(store.getState().history.length, 0);
+  assert.equal(saved.has('auugit-operation-history'), false);
 });
 
 test('completed notification actions are consumed in both toast and operation history', () => {
@@ -178,7 +180,7 @@ test('operation history filters failures, preserves retry errors, and opens reco
   app.useToastStore.getState().record({ type: 'error', title: 'failure example', repoPath: 'original-repo', description: 'offline', action: { label: 'Retry fetch', onClick: async () => { throw new Error('still offline'); } } });
   act(() => { renderer = create(React.createElement(app.OperationHistoryDialog, { onClose() {}, onRecovery: path => { recovered = path; } })); });
   try {
-    act(() => renderer.root.findByType('select').props.onChange({ target: { value: 'errors' } }));
+    act(() => renderer.root.findAllByType('select').find(select => select.props['aria-label'] === '筛选操作').props.onChange({ target: { value: 'errors' } }));
     assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /success example/);
     const retry = renderer.root.findAllByType('button').find(button => button.children.includes('Retry fetch'));
     await act(async () => retry.props.onClick()); assert.match(JSON.stringify(renderer.toJSON()), /still offline/);

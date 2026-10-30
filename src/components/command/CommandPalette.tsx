@@ -102,6 +102,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
             {/* View Navigation */}
             <Command.Group heading={t('palette.group.nav')} className="px-2 py-1">
+              <Command.Item onSelect={() => { setActiveTab('overview'); onOpenChange(false); }} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-accent cursor-pointer text-xs"><FolderGit2 className="h-4 w-4" />{t('overview.title')}</Command.Item>
               <Command.Item
                 onSelect={() => {
                   setActiveTab('changes');

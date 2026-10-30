@@ -1,0 +1,26 @@
+export const overviewZh = {
+  'overview.title': '多仓库总览', 'overview.scope': '汇集已打开与最近使用的仓库。同步计数基于本机已获取的远端引用；CI 使用当前 GitHub 账号，检查跟踪分支的远端提交。',
+  'overview.refresh': '刷新总览', 'overview.stop': '停止刷新', 'overview.stopped': '已停止安排新的读取，已开始的读取会继续完成。',
+  'overview.search': '搜索仓库名称或路径', 'overview.filter': '筛选仓库', 'overview.all': '全部仓库', 'overview.attention': '需要处理', 'overview.empty': '没有匹配的仓库。',
+  'overview.reading': '正在读取仓库状态…', 'overview.pending': '尚未读取', 'overview.retry': '重新读取', 'overview.authorize': '授权并读取', 'overview.permission': '此仓库需要授权后读取。',
+  'overview.changed': '{n} 个改动文件', 'overview.conflicts': '{n} 个冲突文件', 'overview.clean': '工作区干净', 'overview.ahead': '{n} 个待推送', 'overview.behind': '落后 {n} 个提交',
+  'overview.noTracking': '未配置跟踪分支', 'overview.localTime': '本机状态读取于', 'overview.openChanges': '查看变更', 'overview.openHistory': '查看历史', 'overview.openCI': '查看 CI',
+  'overview.ciHint': 'CI 对应远端跟踪提交，本地未推送提交尚不包含在此结果内。', 'overview.ci.loading': '正在读取 CI…',
+  'overview.ci.auth': '连接 GitHub 账号后查看 CI', 'overview.ci.unpublished': '没有可检查的远端跟踪提交', 'overview.ci.unsupported': '跟踪远端不是单一 GitHub 仓库',
+  'overview.ci.none': '未发现检查', 'overview.ci.passing': '检查通过', 'overview.ci.running': '检查进行中', 'overview.ci.failed': '检查未通过', 'overview.ci.neutral': '检查中立或跳过', 'overview.ci.unknown': '检查结果不完整',
+  'overview.operation': 'Git 操作：', 'overview.operation.none': '没有进行中的 Git 操作', 'overview.more': '再显示 24 个仓库',
+  'operationLog.storageFailed': '本机操作记录无法读取或保存，当前会话仍可使用。', 'operationLog.repoFilter': '筛选操作所属仓库', 'operationLog.search': '搜索操作记录', 'operationLog.allRepos': '全部仓库',
+} as const;
+export const overviewEn: Record<keyof typeof overviewZh, string> = {
+  'overview.title': 'Repository overview', 'overview.scope': 'Open and recent repositories. Sync counts use locally fetched remote refs. CI uses the current GitHub account and the remote tracking commit.',
+  'overview.refresh': 'Refresh overview', 'overview.stop': 'Stop refresh', 'overview.stopped': 'No more reads will start. In-flight reads may finish.',
+  'overview.search': 'Search repository name or path', 'overview.filter': 'Filter repositories', 'overview.all': 'All repositories', 'overview.attention': 'Needs attention', 'overview.empty': 'No matching repositories.',
+  'overview.reading': 'Reading repository status…', 'overview.pending': 'Not read yet', 'overview.retry': 'Read again', 'overview.authorize': 'Authorize and read', 'overview.permission': 'Authorize this repository to read its status.',
+  'overview.changed': '{n} changed files', 'overview.conflicts': '{n} conflicted files', 'overview.clean': 'Clean working tree', 'overview.ahead': '{n} unpushed', 'overview.behind': '{n} commits behind',
+  'overview.noTracking': 'No upstream tracking branch', 'overview.localTime': 'Local status read at', 'overview.openChanges': 'Open changes', 'overview.openHistory': 'Open history', 'overview.openCI': 'Open CI',
+  'overview.ciHint': 'CI belongs to the remote tracking commit and excludes local unpushed commits.', 'overview.ci.loading': 'Reading CI…',
+  'overview.ci.auth': 'Connect GitHub to view CI', 'overview.ci.unpublished': 'No remote tracking commit to check', 'overview.ci.unsupported': 'Tracking remote is not a single GitHub repository',
+  'overview.ci.none': 'No checks found', 'overview.ci.passing': 'Checks passed', 'overview.ci.running': 'Checks running', 'overview.ci.failed': 'Checks failed', 'overview.ci.neutral': 'Neutral or skipped checks', 'overview.ci.unknown': 'Incomplete check results',
+  'overview.operation': 'Git operation: ', 'overview.operation.none': 'No Git operation in progress', 'overview.more': 'Show 24 more repositories',
+  'operationLog.storageFailed': 'Local operation history could not be read or saved. This session remains usable.', 'operationLog.repoFilter': 'Filter by repository', 'operationLog.search': 'Search operation history', 'operationLog.allRepos': 'All repositories',
+};

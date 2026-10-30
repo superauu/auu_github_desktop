@@ -8,6 +8,10 @@ AI helps explain changes, draft descriptions, and suggest resolutions. The app d
 
 [Download](https://github.com/superauu/auu_github_desktop/releases/latest) · [Report an issue](https://github.com/superauu/auu_github_desktop/issues)
 
+Repository overview reads open and recent repositories: branches, distinct changed files, conflicts, in-progress operations and sync counts. It displays up to 24 repositories per batch with at most three concurrent reads, search, attention filtering, individual retries and cancellation. Unavailable repositories report separate errors; native repositories require an explicit authorization action if not already approved. Sync counts use locally fetched refs; overview refresh does not fetch. CI uses the current GitHub account and the remote tracking commit, combines Checks and legacy statuses, identifies incomplete results and shows the ref/SHA. Links open the exact checked commit; local unpushed commits are excluded. Account changes discard old results. Cards open the correct repository's changes/history; overview is also available from the welcome page and command palette.
+
+Recent operations persist locally across sessions, keeping up to 100 entries for 30 days with repository, timestamp, outcome, duration and bounded diagnostics. Common credential formats are redacted before storage and callbacks are omitted. After restart, search, repository/error filters, copying diagnostics and recovery navigation remain available, while old retry buttons are not restored. Clearing removes saved history. Storage failures are visible and do not disable the current session.
+
 ## Features
 
 | Feature | What it does |
