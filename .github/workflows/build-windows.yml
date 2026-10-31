@@ -91,6 +91,10 @@ jobs:
           Write-Host "`n=== Prepared Artifacts ==="
           Get-ChildItem -Path output_exe | Format-Table Name, Length, LastWriteTime
 
+      - name: Generate third-party notices
+        # 构建完成后运行：cargo registry 已解压，许可文本可现场提取；产物随 output_exe/* 进 Release。
+        run: node scripts/generate-notices.mjs --out output_exe/THIRD-PARTY-NOTICES-windows-x64.md
+
       - name: Generate Updater latest.json
         shell: powershell
         run: |

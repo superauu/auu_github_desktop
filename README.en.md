@@ -185,7 +185,7 @@ A manual workflow run produces Actions artifacts. The current workflow publishes
 
 This project is released under the [GPL-3.0-or-later](LICENSE) license. Copyright © 2026 superauu
 
-You are free to use, study, modify, and redistribute this project; distributing a modified form requires licensing the derivative work under the same license. Third-party dependencies keep their original licenses; refer to each upstream project.
+You are free to use, study, modify, and redistribute this project; distributing a modified form requires licensing the derivative work under the same license. Third-party dependencies keep their original licenses; refer to each upstream project. The full inventory (including license texts) is attached to every release as `THIRD-PARTY-NOTICES-<platform>.md` and can be generated locally with `npm run notices`.
 
 ## Code signing policy
 

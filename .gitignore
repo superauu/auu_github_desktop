@@ -48,3 +48,4 @@ src-tauri/gen/schemas/
 /tests/visual/actual/
 /test-results/
 /playwright-report/
+THIRD-PARTY-NOTICES*.md
