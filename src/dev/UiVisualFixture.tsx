@@ -8,6 +8,7 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import '@fontsource-variable/orbitron';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { AppTextContextMenu } from '@/components/ui/AppTextContextMenu';
 import { useRepoStore } from '@/stores/repoStore';
 import { DEFAULT_LAYOUT, useLayoutStore } from '@/stores/layoutStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -18,6 +19,7 @@ import { gitService } from '@/services/git/GitService';
 import type { GitCommit, GitBranch, GitFileChange, RepositoryInfo } from '@/services/git/types';
 import { prepareIssueFixture } from './IssueFixture';
 import { prepareHunkPlanFixture } from './HunkPlanFixture';
+import { prepareWorkingReviewFixture } from './WorkingReviewFixture';
 
 const hash = (index: number) => (index + 1).toString(16).padStart(40, '0');
 const longBranch = 'feature/workspace-review-with-an-intentionally-long-branch-name';
@@ -89,6 +91,7 @@ function prepare() {
   });
   if (new URLSearchParams(location.search).get('issues') === '1') prepareIssueFixture(repo);
   if (new URLSearchParams(location.search).get('hunks') === '1') prepareHunkPlanFixture(repo);
+  if (new URLSearchParams(location.search).get('review') === '1') prepareWorkingReviewFixture();
   if (new URLSearchParams(location.search).get('overview') === '1') prepareOverviewFixture(repo);
   if (new URLSearchParams(location.search).get('interactions') === '1') {
     const other: RepositoryInfo = { ...repo, id: 'other-fixture', path: '/__auugit_other_fixture__', name: 'other-ui-fixture', currentBranch: 'main' };
@@ -107,7 +110,9 @@ function Fixture() {
   useEffect(() => {
     void document.fonts.ready.then(() => requestAnimationFrame(() => { document.documentElement.dataset.uiFixtureReady = 'true'; }));
   }, []);
-  return <AppLayout />;
+  // Production shell mounts the global text context menu in App; the fixture
+  // shell mirrors that so text-editing behavior is exercisable end to end.
+  return <><AppTextContextMenu /><AppLayout /></>;
 }
 
 if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
