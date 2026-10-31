@@ -19,6 +19,7 @@ import {
   Trash2,
   GitCompare,
   GitMerge,
+  Puzzle,
 } from 'lucide-react';
 import { Github } from '@/components/ui/brandIcons';
 import { useShallow } from 'zustand/react/shallow';
@@ -36,6 +37,7 @@ import { requestAiText, type AiProtocol } from '@/services/ai/AiClient';
 import { RemotesManager } from './RemotesManager';
 import { RepositoryPermissions } from './RepositoryPermissions';
 import { CursorThemePicker } from './CursorThemePicker';
+import { IntegrationsSection } from './IntegrationsSection';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, LogOut } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -264,7 +266,7 @@ interface SettingsDialogProps {
   onOpenGitHubAuth?: () => void;
 }
 
-type SettingsTab = 'general' | 'git' | 'github' | 'ai' | 'appearance' | 'shortcuts';
+type SettingsTab = 'general' | 'git' | 'github' | 'ai' | 'appearance' | 'shortcuts' | 'integrations';
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   open,
@@ -461,6 +463,19 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </button>
 
               <button
+                aria-current={activeTab === 'integrations' ? 'page' : undefined} onClick={() => setActiveTab('integrations')}
+                className={cn(
+                  "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
+                  activeTab === 'integrations'
+                    ? "bg-accent text-accent-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <Puzzle className="h-3.5 w-3.5" />
+                <span className="min-w-0 flex-1 truncate">{t('errors.settings.tab')}</span>
+              </button>
+
+              <button
                 aria-current={activeTab === 'shortcuts' ? 'page' : undefined} onClick={() => setActiveTab('shortcuts')}
                 className={cn(
                   "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
@@ -490,6 +505,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               {activeTab === 'ai' && t('settings.panel.ai')}
               {activeTab === 'github' && t('settings.panel.github')}
               {activeTab === 'shortcuts' && t('settings.panel.shortcuts')}
+              {activeTab === 'integrations' && t('errors.settings.panel')}
             </span>
             <Button
               variant="ghost"
@@ -701,6 +717,13 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 <RemotesManager />
                 <RepositoryPermissions />
                 <ExternalToolsSection />
+              </div>
+            )}
+
+            {/* Integrations Tab */}
+            {activeTab === 'integrations' && (
+              <div className="space-y-4">
+                <IntegrationsSection />
               </div>
             )}
 

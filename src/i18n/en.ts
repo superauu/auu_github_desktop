@@ -26,6 +26,7 @@ import { forgeEn } from './forge';
 import { reviewEn } from './review';
 import { workingReviewEn } from './workingReview';
 import { crashReportingEn } from './crashReporting';
+import { errorsEn } from './errors';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
@@ -1424,6 +1425,7 @@ export const en = {
   ...optimizationEn,
   ...workingReviewEn,
   ...crashReportingEn,
+  ...errorsEn,
 } as const;
 
 export type TranslationKey = keyof typeof en;
