@@ -31,9 +31,8 @@ output_exe/
 __pycache__/
 *.pyc
 
-# Isolated regression-test repositories and bundles
-.test-tmp-*
-.test-safety-*
+# 本地回归测试的临时仓库、日志与脚本产物（各测试文件的 mkdtemp 前缀都以 .test- 开头）
+.test-*
 
 # Local AI development skills
 /.agent/skills/
