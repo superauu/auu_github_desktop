@@ -49,7 +49,7 @@ function IssueWorkspace() {
   const refresh = () => setAttempt(value => value + 1);
   const filter = (update: () => void) => { update(); setPage(1); setSelected(null); };
   return <div className="@container flex flex-col h-full min-h-0" data-issues-workspace>
-    <header className="issues-toolbar">
+    <header className="app-toolbar">
       <div className="issues-toolbar-group">
         <Button variant="ghost" size="icon" className="issues-icon-btn" disabled={loading} aria-label={t('issues.refresh')} title={t('issues.refresh')} onClick={refresh}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /></Button>
         <Button size="toolbar" className="" onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" />{t('issues.create')}</Button>

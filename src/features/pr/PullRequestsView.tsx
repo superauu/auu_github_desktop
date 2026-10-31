@@ -179,7 +179,7 @@ export const PullRequestsView: React.FC = () => {
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Header Filter Bar */}
-      <div className="min-h-[34px] py-1 px-3 border-b border-border bg-card flex flex-wrap gap-2 items-center justify-between text-xs shrink-0">
+      <div className="app-toolbar justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <Button variant="ghost" size="icon-sm" onClick={() => loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" title={t('pr.refreshTitle')}>
             <RotateCw className={cn('h-3.5 w-3.5', isLoadingPullRequests && 'animate-spin')} />

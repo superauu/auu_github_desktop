@@ -23,7 +23,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
 
     const variantClasses = {
-      default: "glass-button glass-button-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98]",
+      default: "border border-primary/45 bg-primary/15 text-primary rounded hover:bg-primary/25 active:scale-[0.98]",
       destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90 active:scale-[0.98]",
       outline: "glass-button glass-button-outline border border-border bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground active:scale-[0.98]",
       secondary: "glass-button glass-button-secondary bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80 active:scale-[0.98]",

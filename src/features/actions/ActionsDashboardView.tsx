@@ -88,7 +88,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Banner: Auth Info */}
-      <div className="min-h-[34px] py-1 px-3 border-b border-border bg-card flex flex-wrap items-center justify-between text-xs shrink-0">
+      <div className="app-toolbar justify-between">
         <div className="flex items-center gap-2">
           <Workflow className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-foreground">{t('actions.title')}</span>

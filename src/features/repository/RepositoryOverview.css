@@ -12,17 +12,6 @@
 }
 
 /* ── 工具条 ─────────────────────────────────────────────── */
-.overview-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  min-height: 34px;
-  padding: 3px 10px 3px 12px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-card);
-  flex-shrink: 0;
-}
 .overview-toolbar-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .overview-read-count {
   display: inline-flex;
