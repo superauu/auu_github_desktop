@@ -174,4 +174,18 @@ scripts/         发布版本校验
 
 ## 反馈与贡献
 
-欢迎提交 [Issue](https://github.com/superauu/auu_github_desktop/issues) 或 Pull Request。报告问题时，请说明应用版本、系统版本、复现步骤和实际表现；涉及 Git 操作时，也请描述分支与工作区状态。
+欢迎提交 [Issue](https://github.com/superauu/auu_github_desktop/issues) 或 Pull Request。报告问题时，请说明应用版本、系统版本、复现步骤和实际表现；涉及 Git 操作时，也请描述分支与工作区状态。贡献流程与条款见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 隐私与 AI
+
+- **本机存储**：仓库内容、提交前审核意见、最近操作记录、界面偏好仅保存在本机，不会上传到任何服务器；应用不含遥测或使用统计。
+- **凭据**：GitHub、GitLab、Gitea 的访问令牌保存在操作系统的原生凭据库（Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service），不落明文文件。
+- **AI 功能**：默认关闭；开启后由你自行配置模型端点与密钥。AI 请求从本地应用直连你配置的服务商，不经过任何中间服务器——开发者无法看到你的代码、提示词或对话。发送哪些内容（如提交说明生成时包含的差异片段）由功能触发时决定，服务商侧的隐私处理取决于该服务商的条款。
+- **自动更新**：启动后访问 GitHub Releases 获取更新清单（`latest.json`），不回传任何本机信息。
+
+## 许可证
+
+本项目基于 [GPL-3.0-or-later](LICENSE) 许可证发布。Copyright © 2026 superauu
+
+你可以自由地使用、学习、修改和再分发本项目；以修改后的形式分发时，衍生作品需要以相同许可证开源。第三方依赖各自遵循其原始许可证，以各上游声明为准。
+
