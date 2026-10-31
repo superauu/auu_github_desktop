@@ -1023,3 +1023,12 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
   line-height: 20px;
   flex-shrink: 0;
 }
+
+/* 工具条内按钮组：统一 6px 组内间距（此前 6px/8px 混用导致跨页按钮错位 2px） */
+.app-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}

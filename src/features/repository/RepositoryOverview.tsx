@@ -94,7 +94,7 @@ export function RepositoryOverview({ onOpenGitHubAuth }: { onOpenGitHubAuth?: ()
   };
   return <section aria-label={t('overview.title')} className="repository-overview">
     <header className="app-toolbar">
-      <div className="overview-toolbar-group">
+      <div className="app-toolbar-group">
         {busy ? <Button size="xs" variant="ghost" onClick={stopRead}><Square aria-hidden="true" size={11} />{t('overview.stop')}</Button> : <Button size="xs" variant="ghost" onClick={() => void refresh()}><RefreshCw aria-hidden="true" size={12} />{t('overview.refresh')}</Button>}
         <span className="overview-read-count">{busy && <LoaderCircle aria-hidden="true" size={11} className="overview-spinner" />}{t('overview.readCount').replace('{read}', number.format(known.length)).replace('{total}', number.format(repos.length))}</span>
       </div>

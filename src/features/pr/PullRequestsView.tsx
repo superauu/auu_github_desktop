@@ -180,7 +180,7 @@ export const PullRequestsView: React.FC = () => {
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Header Filter Bar */}
       <div className="app-toolbar justify-between">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="app-toolbar-group">
           <Button variant="ghost" size="icon-sm" onClick={() => loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" title={t('pr.refreshTitle')}>
             <RotateCw className={cn('h-3.5 w-3.5', isLoadingPullRequests && 'animate-spin')} />
           </Button>
@@ -195,7 +195,7 @@ export const PullRequestsView: React.FC = () => {
           </Badge>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="app-toolbar-group">
           {/* State Filter Buttons */}
           <div className="glass-segmented">
             <button

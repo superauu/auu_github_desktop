@@ -1,6 +1,5 @@
 /* Issues 页：与总览/提交历史一致的桌面工具条 + 密集行范式。
    移除网页式大标题、带标签表单与圆角卡片列表。 */
-.issues-toolbar-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .issues-scope { color: var(--color-muted-foreground); font-size: 12px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 .issues-tools { display: flex; align-items: center; gap: 6px; min-width: 0; margin-left: auto; }

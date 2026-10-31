@@ -89,7 +89,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Banner: Auth Info */}
       <div className="app-toolbar justify-between">
-        <div className="flex items-center gap-2">
+        <div className="app-toolbar-group">
           <Workflow className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-foreground">{t('actions.title')}</span>
           {currentOwner && currentRepoName && (
@@ -105,7 +105,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="app-toolbar-group">
           {!isAuthenticated && (
             <Button
               variant="outline"
