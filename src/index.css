@@ -748,7 +748,7 @@ body { font-size: var(--text-xs); line-height: 20px; }
 .history-columns, .history-toolbar { background: hsl(var(--card)); }
 /* Inset dividers preserve the full row height, keeping refs centered on SVG nodes. */
 .history-row { box-shadow: inset 0 -1px hsl(var(--border) / 0.25); }
-.history-row[aria-current='true'] { background: hsl(var(--history-selection)); box-shadow: inset 2px 0 hsl(var(--primary)), inset 0 -1px hsl(var(--border) / 0.25); }
+.history-row[aria-current='true'] { background: color-mix(in srgb, hsl(var(--primary)) 12%, transparent); box-shadow: inset 2px 0 hsl(var(--primary)), inset 0 -1px hsl(var(--border) / 0.25); }
 .history-ref { box-shadow: none; }
 /* 本地分支徽标取所在泳道色（参考 GitKraken：徽标 / 连接线 / 节点同色，当前分支加深一档） */
 .history-ref[data-lane-ref] { background: hsl(var(--row-lane, var(--graph-lane-1)) / 0.16); border-color: hsl(var(--row-lane, var(--graph-lane-1)) / 0.42); color: hsl(var(--row-lane, var(--graph-lane-1))); }
@@ -873,8 +873,9 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
   line-height: 20px;
 }
 .glass-primary-nav > button[aria-current='page'] {
-  background: hsl(var(--history-selection));
+  background: color-mix(in srgb, hsl(var(--primary)) 12%, transparent);
   box-shadow: inset 2px 0 0 hsl(var(--primary));
+  border-radius: 4px;
 }
 .glass-primary-nav > button > div { min-width: 0; }
 .glass-primary-nav > button > div > svg { flex-shrink: 0; }

@@ -1001,7 +1001,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                                     }}
                                     onContextMenu={(e) => handleBranchContextMenu(e, branch)}
                                     className={cn(
-                                      "group flex items-center justify-between px-2 py-1 rounded-md text-xs transition-colors cursor-pointer",
+                                      "group flex items-center justify-between px-2 py-1 rounded text-xs transition-colors cursor-pointer",
                                       dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                                       draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                                       branch.isCurrent
@@ -1078,7 +1078,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                             dragOverBranchName === branch.name && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/25 shadow-md scale-[1.02]",
                             draggedBranch?.name === branch.name && "opacity-40 border-dashed border-primary",
                             branch.isCurrent
-                              ? "bg-primary/20 text-primary font-semibold border border-primary/40 shadow-2xs"
+                              ? "bg-primary/12 text-foreground font-semibold shadow-[inset_2px_0_0_hsl(var(--primary))]"
                               : isSelected
                               ? "bg-accent text-foreground font-medium border border-border/80 shadow-2xs"
                               : "text-muted-foreground hover:text-foreground hover:bg-accent/40"

@@ -136,7 +136,7 @@
 .overview-repository { position: relative; min-width: 0; box-shadow: inset 0 -1px hsl(var(--border) / 0.35); }
 .overview-repo-main { padding: 7px 12px; min-width: 0; transition: background-color .15s; }
 .overview-repository:hover > .overview-repo-main { background: color-mix(in srgb, var(--color-accent) 32%, transparent); }
-.overview-repository[data-current] > .overview-repo-main { background: color-mix(in srgb, var(--color-primary) 4%, transparent); box-shadow: inset 2px 0 var(--color-primary); }
+.overview-repository[data-current] > .overview-repo-main { background: color-mix(in srgb, var(--color-primary) 12%, transparent); box-shadow: inset 2px 0 var(--color-primary); }
 .overview-repository[data-expanded] > .overview-repo-main { background: color-mix(in srgb, var(--color-accent) 45%, transparent); }
 
 /* ── 行内容 ─────────────────────────────────────────────── */

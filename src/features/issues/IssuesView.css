@@ -50,7 +50,7 @@
   transition: background-color .15s;
 }
 .issues-row:hover { background: color-mix(in srgb, var(--color-accent) 32%, transparent); }
-.issues-row[aria-current='true'] { background: color-mix(in srgb, var(--color-accent) 55%, transparent); box-shadow: inset 2px 0 var(--color-primary), inset 0 -1px hsl(var(--border) / 0.35); }
+.issues-row[aria-current='true'] { background: color-mix(in srgb, var(--color-primary) 12%, transparent); box-shadow: inset 2px 0 var(--color-primary), inset 0 -1px hsl(var(--border) / 0.35); }
 .issues-row:focus-visible { outline: 2px solid var(--color-ring); outline-offset: -2px; }
 .issues-row-title { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; overflow-wrap: anywhere; }
 .issues-state-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--color-git-added); }
