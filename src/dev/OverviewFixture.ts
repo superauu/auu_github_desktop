@@ -15,6 +15,21 @@ export function prepareOverviewFixture(repo: RepositoryInfo) {
     unstaged: path === repo.path ? [{ path: 'a.ts', staged: false, status: 'modified' }] : path === '/__overview_2__' ? [{ path: 'merge.ts', staged: false, status: 'conflicted' }] : [], untracked: [] });
   let reads = 0;
   document.documentElement.dataset.overviewFixtureReads = '0';
+  // 「查看变更」进入变更页会触发审核证据采集（useWorkingReviewFileList → executeGit），
+  // 是否赶在组件卸载前发出请求是一个竞态，会让网络护栏偶发误报。这里按 HunkPlanFixture
+  // 的模式拦截 a.ts 的 diff 请求直接回罐头数据：采集照常工作，且不计入 network attempts。
+  const aTsDiff = 'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,1 @@\n-overview base line\n+overview changed line\n';
+  const disabledFetch = window.fetch;
+  window.fetch = async (input, init) => {
+    if (input === '/api/git' && init?.method === 'POST' && typeof init.body === 'string') {
+      const data = JSON.parse(init.body);
+      const args: unknown[] = Array.isArray(data.args) ? data.args : [];
+      if (args.includes('--literal-pathspecs') && args.includes('diff') && args.includes('--full-index') && args.includes('a.ts')) {
+        return new Response(JSON.stringify({ stdout: aTsDiff, stderr: '', exitCode: args.includes('--no-index') ? 1 : 0 }));
+      }
+    }
+    return disabledFetch(input, init);
+  };
   overviewService.local = async (item, authorized) => {
     document.documentElement.dataset.overviewFixtureReads = String(++reads);
     await new Promise(resolve => setTimeout(resolve, params.has('overviewSlow') ? 1200 : 30));
