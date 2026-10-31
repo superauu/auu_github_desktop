@@ -26,6 +26,8 @@ export interface SettingsState {
   /** 崩溃报告严格 opt-in：默认关；开启后 Rust/前端 beforeSend 实时放行（见 CrashReportingService）。 */
   crashReports: boolean;
   autoFetchInterval: 'never' | '5m' | '10m' | '30m';
+  /** Errors 集成轮询间隔（PRD docs/errors-integration-prd.md §6.2/§9）：秒，预设 30/60/120/300，下限 30。 */
+  errorsPollingIntervalSec: number;
   aiConfig: AiApiConfig;
   language: Language;
   // 外部 diff/merge 工具（F4）：只做后端配置文件的镜像，绝不落入 localStorage。
@@ -45,6 +47,7 @@ export interface SettingsState {
   setReviewBeforeCommit: (enabled: boolean) => void;
   setCrashReports: (enabled: boolean) => void;
   setAutoFetchInterval: (interval: 'never' | '5m' | '10m' | '30m') => void;
+  setErrorsPollingInterval: (sec: number) => void;
   setAiConfig: (config: Partial<AiApiConfig>) => void;
   setLanguage: (lang: Language) => void;
   saveExternalTool: (tool: ExternalToolConfig) => Promise<ExternalToolConfig[]>;
@@ -70,6 +73,7 @@ const DEFAULT_SETTINGS = {
   reviewBeforeCommit: true,
   crashReports: false,
   autoFetchInterval: '10m' as const,
+  errorsPollingIntervalSec: 60,
   language: 'zh' as const,
   externalTools: [] as ExternalToolConfig[],
   aiConfig: {
@@ -94,6 +98,10 @@ function loadSettings() {
         cursorTheme: normalizeCursorTheme(parsed.cursorTheme),
         diffFontSize: typeof parsed.diffFontSize === 'number' && [12, 13, 14, 16, 18].includes(parsed.diffFontSize) ? parsed.diffFontSize : 13,
         reviewBeforeCommit: typeof parsed.reviewBeforeCommit === 'boolean' ? parsed.reviewBeforeCommit : true,
+        errorsPollingIntervalSec:
+          typeof parsed.errorsPollingIntervalSec === 'number' && [30, 60, 120, 300].includes(parsed.errorsPollingIntervalSec)
+            ? parsed.errorsPollingIntervalSec
+            : 60,
         crashReports: parsed.crashReports === true,
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
@@ -127,6 +135,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
         reviewBeforeCommit: get().reviewBeforeCommit,
         crashReports: get().crashReports,
         autoFetchInterval: get().autoFetchInterval,
+        errorsPollingIntervalSec: get().errorsPollingIntervalSec,
         aiConfig: get().aiConfig,
         language: get().language,
         ...partial,
@@ -222,6 +231,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
     setDiffWrapLines: (diffWrapLines) => { set({ diffWrapLines }); persist({ diffWrapLines }); },
     setReviewBeforeCommit: (reviewBeforeCommit) => { set({ reviewBeforeCommit }); persist({ reviewBeforeCommit }); },
     setCrashReports: (crashReports) => { set({ crashReports }); persist({ crashReports }); syncCrashReporting(crashReports); },
+    setErrorsPollingInterval: (errorsPollingIntervalSec) => { set({ errorsPollingIntervalSec }); persist({ errorsPollingIntervalSec }); },
     setDiffIgnoreWhitespace: (diffIgnoreWhitespace) => { set({ diffIgnoreWhitespace }); persist({ diffIgnoreWhitespace }); },
 
     setAutoFetchInterval: (autoFetchInterval: 'never' | '5m' | '10m' | '30m') => {

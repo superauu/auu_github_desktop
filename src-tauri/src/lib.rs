@@ -622,6 +622,45 @@ fn delete_forge_token(service: String, profile_id: Option<String>) -> Result<(),
     }
 }
 
+/// 集成凭证（错误追踪等外部平台，PRD docs/errors-integration-prd.md §6.2）：
+/// 条目 "integration_token:<connectionId>"。connectionId 限定受限字符集
+/// （字母数字/-/_，8–64 位），白名单外一律拒绝（fail closed），防止拼接出任意 keyring 条目。
+fn integration_entry(connection_id: &str) -> Result<keyring::Entry, String> {
+    let id = connection_id.trim();
+    let valid = (8..=64).contains(&id.len())
+        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    if !valid {
+        return Err("Invalid integration connection id".into());
+    }
+    keyring::Entry::new("auugit", &format!("integration_token:{}", id)).map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+fn store_integration_token(token: String, connection_id: String) -> Result<(), String> {
+    let entry = integration_entry(&connection_id)?;
+    entry.set_password(&token).map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+fn get_integration_token(connection_id: String) -> Result<Option<String>, String> {
+    let entry = integration_entry(&connection_id)?;
+    match entry.get_password() {
+        Ok(token) => Ok(Some(token)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command(async)]
+fn delete_integration_token(connection_id: String) -> Result<(), String> {
+    let entry = integration_entry(&connection_id)?;
+    match entry.delete_credential() {
+        Ok(_) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[tauri::command(async)]
 fn store_ai_key(key: String) -> Result<(), String> {
     let entry = keyring::Entry::new("auugit", "ai_api_key").map_err(|e| e.to_string())?;
@@ -727,6 +766,9 @@ pub fn run() {
             store_forge_token,
             get_forge_token,
             delete_forge_token,
+            store_integration_token,
+            get_integration_token,
+            delete_integration_token,
             execute_git,
             open_terminal,
             repository_access::authorize_repository,
@@ -847,6 +889,18 @@ mod tests {
         // service 白名单外（含大小写变体与 GitHub 本身——GitHub 走既有命令）拒绝。
         for bad in ["github", "GitHub", "", "gitlab.com", "bitbucket"] {
             assert!(forge_service(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn integration_token_entries_validate_connection_ids_fail_closed() {
+        // uuid 风格 id 与受限字符集 id 放行。
+        assert!(integration_entry("0f2a4c8e-6b1d-4f3a-9c8e-7b2d1a0f9e8c").is_ok());
+        assert!(integration_entry("conn-ab12cd34").is_ok());
+        // 注入形态与异常输入一律拒绝：冒号会切出相邻 keyring 条目、路径分隔符、
+        // 空白、非 ASCII、超长；首尾空白被 trim 后按剩余长度判定。
+        for bad in ["", "   ", "a:b", "../escape", "a/b", "a\\b", "连接id", "a b", "x".repeat(65).as_str()] {
+            assert!(integration_entry(bad).is_err(), "{bad}");
         }
     }
 }
