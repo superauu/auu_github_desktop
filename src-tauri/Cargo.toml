@@ -26,6 +26,8 @@ tempfile = "3.27"
 
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tauri-plugin-notification = "2.7.0"
+# 崩溃上报（opt-in）：DSN 由编译期环境变量注入，未注入时客户端完全不创建。
+sentry = { version = "0.49.5", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }

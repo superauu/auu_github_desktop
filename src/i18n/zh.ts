@@ -25,6 +25,7 @@ import { signingZh } from './signing';
 import { forgeZh } from './forge';
 import { reviewZh } from './review';
 import { workingReviewZh } from './workingReview';
+import { crashReportingZh } from './crashReporting';
 /**
  * 中文资源包（基准语言）
  * 键名采用扁平命名空间风格，与 en.ts 一一对应。
@@ -1438,4 +1439,5 @@ export const zh = {
   ...resilienceZh,
   ...optimizationZh,
   ...workingReviewZh,
+  ...crashReportingZh,
 } as const;

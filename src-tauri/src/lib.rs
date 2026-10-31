@@ -635,8 +635,73 @@ fn get_ai_key() -> Result<Option<String>, String> {
     match entry.get_password() { Ok(key) => Ok(Some(key)), Err(keyring::Error::NoEntry) => Ok(None), Err(e) => Err(e.to_string()) }
 }
 
+// ---------------------------------------------------------------------------
+// 崩溃上报（严格 opt-in）：DSN 经编译期 AUUGIT_SENTRY_DSN 注入，未注入时客户端
+// 完全不创建。开关存于前端设置（默认关），通过 set_crash_reporting 翻译成进程内
+// 原子量；before_send 在开关关闭时丢弃事件、开启时清洗本地路径后再上报。
+// ---------------------------------------------------------------------------
+static CRASH_REPORTS_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[tauri::command]
+fn set_crash_reporting(enabled: bool) {
+    CRASH_REPORTS_ENABLED.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn user_home_dirs() -> Vec<String> {
+    let mut homes = Vec::new();
+    for key in ["USERPROFILE", "HOME"] {
+        if let Ok(home) = std::env::var(key) { if !home.trim().is_empty() { homes.push(home); } }
+    }
+    homes
+}
+
+fn scrub_json_value(value: &mut serde_json::Value, homes: &[String]) -> bool {
+    use serde_json::Value;
+    let mut changed = false;
+    match value {
+        Value::String(text) => {
+            let mut next = text.clone();
+            for home in homes {
+                if next.contains(home.as_str()) { next = next.replace(home.as_str(), "~"); changed = true; }
+            }
+            if changed { *text = next; }
+        }
+        Value::Array(items) => for item in items { changed |= scrub_json_value(item, homes); },
+        Value::Object(map) => for (_, item) in map.iter_mut() { changed |= scrub_json_value(item, homes); },
+        _ => {}
+    }
+    changed
+}
+
+/// 上报前的最后一道闸：开关关闭丢弃；开启则把事件里出现的用户主目录替换为 `~`。
+pub(crate) fn prepare_crash_event(enabled: bool, mut event: sentry::protocol::Event<'static>) -> Option<sentry::protocol::Event<'static>> {
+    if !enabled { return None; }
+    let homes = user_home_dirs();
+    if !homes.is_empty() {
+        if let Ok(mut value) = serde_json::to_value(&event) {
+            scrub_json_value(&mut value, &homes);
+            if let Ok(clean) = serde_json::from_value::<sentry::protocol::Event<'static>>(value) { event = clean; }
+        }
+    }
+    Some(event)
+}
+
+fn init_crash_reporting() {
+    let Some(dsn) = option_env!("AUUGIT_SENTRY_DSN").map(str::trim).filter(|dsn| !dsn.is_empty()) else { return };
+    // ClientOptions 是 #[non_exhaustive]（0.49 起不能用结构体字面量 + ..Default 组合），走 default 后赋值。
+    let mut options = sentry::ClientOptions::default();
+    options.release = Some(std::borrow::Cow::Owned(format!("auugit@{}", env!("CARGO_PKG_VERSION"))));
+    options.before_send = Some(std::sync::Arc::new(|event| {
+        prepare_crash_event(CRASH_REPORTS_ENABLED.load(std::sync::atomic::Ordering::Relaxed), event)
+    }));
+    let guard = sentry::init((dsn, options));
+    // 进程级常驻客户端：guard 释放会阻断退出并终止上报，这里有意让其存活到进程结束。
+    std::mem::forget(guard);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    init_crash_reporting();
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -655,6 +720,7 @@ pub fn run() {
     );
     builder
         .invoke_handler(tauri::generate_handler![
+            set_crash_reporting,
             store_github_token,
             get_github_token,
             delete_github_token,
@@ -702,6 +768,35 @@ fn restart_application(app: tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crash_events_are_dropped_while_disabled_and_scrubbed_when_enabled() {
+        let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).unwrap_or_else(|_| r"C:\Users\fixture".to_string());
+        let frame = sentry::protocol::Stacktrace {
+            frames: vec![sentry::protocol::Frame {
+                abs_path: Some(format!("{home}\\src\\lib.rs")),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let exception = sentry::protocol::Exception {
+            ty: "panic".into(),
+            value: Some("boom".into()),
+            stacktrace: Some(frame),
+            ..Default::default()
+        };
+        let event = sentry::protocol::Event {
+            exception: vec![exception].into(),
+            ..Default::default()
+        };
+        assert!(prepare_crash_event(false, event.clone()).is_none(), "开关关闭时必须丢弃事件");
+        let shipped = prepare_crash_event(true, event).expect("开关开启时应放行");
+        let serialized = serde_json::to_string(&shipped).unwrap();
+        assert!(!serialized.contains(&home), "上报内容不得包含用户主目录原文");
+        assert!(serialized.contains("~"), "主目录应被替换为 ~");
+        assert!(serialized.contains("lib.rs"), "调用栈文件名保留以便定位");
+    }
+
     #[test]
     fn generated_updater_platforms_match_the_native_updater_contract() {
         // Shared with the JS manifest generator tests. macOS targets must use

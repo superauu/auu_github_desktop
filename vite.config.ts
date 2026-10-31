@@ -422,6 +422,8 @@ if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encodin
 }
 export default defineConfig({
   plugins: [react(), gitApiPlugin()],
+  // 崩溃上报的 release 标记：与应用版本号绑定，crash-free 率按 tag 归组。
+  define: { __APP_VERSION__: JSON.stringify(auugitPackage.version) },
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   build: {
     // 桌面本地分发不泄露源码；sourcemap 让 ErrorBoundary 复制的压缩栈可还原，

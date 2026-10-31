@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { applyCursorTheme, normalizeCursorTheme, type CursorThemeId } from '@/utils/cursorThemes';
 import type { AiProtocol } from '@/services/ai/AiClient';
 import { externalToolService, type ExternalToolConfig } from '@/services/tools/ExternalToolService';
+import { syncCrashReporting } from '@/services/crash/CrashReportingService';
 import { tNow } from '@/i18n';
 
 export interface AiApiConfig {
@@ -22,6 +23,8 @@ export interface SettingsState {
   diffWrapLines: boolean;
   diffIgnoreWhitespace: boolean;
   reviewBeforeCommit: boolean;
+  /** 崩溃报告严格 opt-in：默认关；开启后 Rust/前端 beforeSend 实时放行（见 CrashReportingService）。 */
+  crashReports: boolean;
   autoFetchInterval: 'never' | '5m' | '10m' | '30m';
   aiConfig: AiApiConfig;
   language: Language;
@@ -40,6 +43,7 @@ export interface SettingsState {
   setDiffWrapLines: (enabled: boolean) => void;
   setDiffIgnoreWhitespace: (enabled: boolean) => void;
   setReviewBeforeCommit: (enabled: boolean) => void;
+  setCrashReports: (enabled: boolean) => void;
   setAutoFetchInterval: (interval: 'never' | '5m' | '10m' | '30m') => void;
   setAiConfig: (config: Partial<AiApiConfig>) => void;
   setLanguage: (lang: Language) => void;
@@ -64,6 +68,7 @@ const DEFAULT_SETTINGS = {
   diffWrapLines: false,
   diffIgnoreWhitespace: false,
   reviewBeforeCommit: true,
+  crashReports: false,
   autoFetchInterval: '10m' as const,
   language: 'zh' as const,
   externalTools: [] as ExternalToolConfig[],
@@ -89,6 +94,7 @@ function loadSettings() {
         cursorTheme: normalizeCursorTheme(parsed.cursorTheme),
         diffFontSize: typeof parsed.diffFontSize === 'number' && [12, 13, 14, 16, 18].includes(parsed.diffFontSize) ? parsed.diffFontSize : 13,
         reviewBeforeCommit: typeof parsed.reviewBeforeCommit === 'boolean' ? parsed.reviewBeforeCommit : true,
+        crashReports: parsed.crashReports === true,
         aiConfig: {
           ...DEFAULT_SETTINGS.aiConfig,
           ...(parsed.aiConfig || {}),
@@ -119,6 +125,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
         diffWrapLines: get().diffWrapLines,
         diffIgnoreWhitespace: get().diffIgnoreWhitespace,
         reviewBeforeCommit: get().reviewBeforeCommit,
+        crashReports: get().crashReports,
         autoFetchInterval: get().autoFetchInterval,
         aiConfig: get().aiConfig,
         language: get().language,
@@ -214,6 +221,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
     },
     setDiffWrapLines: (diffWrapLines) => { set({ diffWrapLines }); persist({ diffWrapLines }); },
     setReviewBeforeCommit: (reviewBeforeCommit) => { set({ reviewBeforeCommit }); persist({ reviewBeforeCommit }); },
+    setCrashReports: (crashReports) => { set({ crashReports }); persist({ crashReports }); syncCrashReporting(crashReports); },
     setDiffIgnoreWhitespace: (diffIgnoreWhitespace) => { set({ diffIgnoreWhitespace }); persist({ diffIgnoreWhitespace }); },
 
     setAutoFetchInterval: (autoFetchInterval: 'never' | '5m' | '10m' | '30m') => {

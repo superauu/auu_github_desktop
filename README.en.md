@@ -176,6 +176,7 @@ A manual workflow run produces Actions artifacts. The current workflow publishes
 ## Privacy and AI
 
 - **Local storage**: repository contents, pre-commit review notes, recent operation history, and UI preferences stay on this machine and are never uploaded anywhere; the app contains no telemetry or usage analytics.
+- **Crash reports**: off by default, optional in Settings. When enabled, crashes upload only the error stack, app version, and OS type (local paths are replaced) — never repository contents or personal data.
 - **Credentials**: GitHub, GitLab, and Gitea access tokens are stored in the operating system's native credential store (Windows Credential Manager / macOS Keychain / Linux Secret Service), never in plaintext files.
 - **AI features**: disabled by default; when enabled, you configure the model endpoint and key yourself. AI requests go directly from the local app to the provider you configured, with no intermediary server — the developer cannot see your code, prompts, or conversations. What gets sent (such as diff snippets included in commit message generation) is decided at the moment a feature runs; privacy handling on the provider side depends on that provider's terms.
 - **Auto-update**: the app fetches the update manifest (`latest.json`) from GitHub Releases after startup and sends nothing back.

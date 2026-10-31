@@ -284,10 +284,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setAutoFetchInterval,
     reviewBeforeCommit,
     setReviewBeforeCommit,
+    crashReports,
+    setCrashReports,
     aiConfig,
     credentialError,
     setAiConfig,
-  } = useSettingsStore(useShallow(state => ({ gitCliPath: state.gitCliPath, setGitCliPath: state.setGitCliPath, compactMode: state.compactMode, setCompactMode: state.setCompactMode, autoFetchInterval: state.autoFetchInterval, setAutoFetchInterval: state.setAutoFetchInterval, reviewBeforeCommit: state.reviewBeforeCommit, setReviewBeforeCommit: state.setReviewBeforeCommit, aiConfig: state.aiConfig, credentialError: state.credentialError, setAiConfig: state.setAiConfig })));
+  } = useSettingsStore(useShallow(state => ({ gitCliPath: state.gitCliPath, setGitCliPath: state.setGitCliPath, compactMode: state.compactMode, setCompactMode: state.setCompactMode, autoFetchInterval: state.autoFetchInterval, setAutoFetchInterval: state.setAutoFetchInterval, reviewBeforeCommit: state.reviewBeforeCommit, setReviewBeforeCommit: state.setReviewBeforeCommit, crashReports: state.crashReports, setCrashReports: state.setCrashReports, aiConfig: state.aiConfig, credentialError: state.credentialError, setAiConfig: state.setAiConfig })));
   const { t, lang } = useI18n();
   const setLang = useSettingsStore((st) => st.setLanguage);
 
@@ -588,6 +590,21 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         setCompactMode(e.target.checked);
                         toast.info(e.target.checked ? t('settings.appearance.compactOn') : t('settings.appearance.compactOff'));
                       }}
+                      className="rounded border-input text-primary h-4 w-4 cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border">
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <label htmlFor="crash-reports" className="font-medium text-foreground cursor-pointer">{t('crashReports.setting')}</label>
+                      <div className="text-[12px] text-muted-foreground">{t('crashReports.settingDesc')}</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      id="crash-reports" checked={crashReports}
+                      onChange={(e) => setCrashReports(e.target.checked)}
                       className="rounded border-input text-primary h-4 w-4 cursor-pointer"
                     />
                   </div>
