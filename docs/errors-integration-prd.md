@@ -2,11 +2,11 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | v2.0 |
-| 状态 | 已评审定稿，按里程碑逐步开发 |
+| 文档版本 | v2.1 |
+| 状态 | 技术修订版（功能范围与 v2.0 一致），按里程碑逐步开发 |
 | 日期 | 2026-11-01 |
 | 适用产品 | AuuGit Desktop |
-| 覆盖 | 取代 v1.0 初稿《Issue Center / Error Tracking Integration》（整合三轮评审结论：模块更名、多来源显示、域化架构） |
+| 覆盖 | 取代 v1.0 初稿《Issue Center / Error Tracking Integration》；v2.1 为 v2.0 的技术修订，修订记录见文末 |
 
 ---
 
@@ -33,7 +33,7 @@ Error → Branch → Code Fix → Commit → PR → Verification → Resolve
 
 - 不重造 Sentry 服务端；采集、聚合、告警、长期存储仍由第三方平台负责。
 - v1 不做运行时第三方插件加载；"自定义 Provider"以声明式 HTTP 配置形式过渡。
-- 不做事件级（event）明细管理，只处理聚合后的 issue/group。
+- 不做事件级（event）明细管理，只处理聚合后的 issue/group；但允许获取**单个代表性事件**（latest event）用于渲染堆栈，二者不冲突。
 - 不满足导航准入条件的外部系统（如值班系统）不进主导航，仅作上下文或外链。
 
 ## 2. 术语与三层词表
@@ -114,8 +114,9 @@ interface DomainContribution {
 const datadog: ProviderManifest = {
   id: 'datadog', name: 'Datadog',
   domains: [
-    { domain: 'error-tracking', capabilities: ['list-issues', 'issue-detail', 'stacktrace'] },
-    { domain: 'observability',  capabilities: ['query-logs', 'view-metrics'] },
+    { domain: 'error-tracking', capabilities: ['error-tracking:list-issues', 'error-tracking:issue-detail', 'error-tracking:stacktrace'] },
+    // 示意：observability 的能力词汇表在该域落地时由核心定义
+    { domain: 'observability',  capabilities: ['observability:query-logs', 'observability:view-metrics'] },
   ],
 };
 ```
@@ -137,7 +138,23 @@ error-tracking:resolve-in-release  标记"下个 release 解决"
 error-tracking:ignore           忽略
 ```
 
+能力类型为核心字面量联合，词汇表外的字符串无法通过编译（拼写错误编译期暴露）：
+
+```ts
+type ErrorTrackingCapability =
+  | 'error-tracking:list-issues'
+  | 'error-tracking:issue-detail'
+  | 'error-tracking:latest-event'
+  | 'error-tracking:stacktrace'
+  | 'error-tracking:suspect-commits'
+  | 'error-tracking:resolve'
+  | 'error-tracking:resolve-in-release'
+  | 'error-tracking:ignore';
+```
+
 域视图按 capability 渲染操作项：来源未声明 `resolve` 就不显示"标记已解决"按钮，**禁止到处 if 判断字段缺失**。
+
+**声明能力 ≠ 生效能力**：manifest 声明的是适配器实现的能力；单次操作能否执行还取决于当前凭证的实际权限与 issue 当前状态。权限不足（如 403）按**操作级错误**处理（见 §8.3），不得升级为连接故障，也不得据此改写 `connection.domains`。
 
 ### 4.4 导航显示逻辑
 
@@ -151,7 +168,7 @@ function shouldShowDomain(domain: DomainId, connections: ProviderConnection[]): 
 // connection.status === 'connected' 只决定页内形态：正常 / 按连接降级横幅 / 重连引导
 ```
 
-`connection.domains` = Provider manifest 声明的域 ∩ 该凭证实际可访问的域，**在每次连接测试/刷新时重算**，不使用陈旧缓存。
+`connection.domains` = Provider manifest 声明的域 ∩ 该凭证实际可访问的域。**仅在权限检查成功时重算**（连接测试/刷新返回成功）；网络异常或请求失败视为"本次未知"，**保留上一次已验证的域集合**——网络故障不是"权限为空"，不得导致菜单消失。
 
 ## 5. 统一数据模型
 
@@ -201,6 +218,32 @@ status 归一：
 
 *reprocessing 归一为 unresolved 并在详情页用 rawStatus 标注。
 
+### 5.3 IssueGitLink（Issue ↔ Git 实体持久化关联）
+
+错误与分支/提交/PR 的关联必须持久化，**不能只靠分支名或提交信息反推**。用户建了修复分支、重启应用后，必须仍能从 issue 找回全部关联实体。
+
+```ts
+interface IssueGitLink {
+  id: string;
+  connectionId: string;
+  externalProjectId: string;
+  issueId: string;             // 平台 issue/group id（含 shortId）
+
+  repoKey: string;             // 仓库稳定标识，见下
+  branchNames: string[];       // 关联分支（可多个）
+  commitShas: string[];
+  pullRequests: { provider: string; number: number; url: string }[];
+
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+- **仓库身份（repoKey）**：规范化 remote origin URL 优先（去末尾 `.git`、统一大小写与协议），无 remote 时回退工作区绝对路径。**不得只依赖路径**——用户移动仓库目录后凭 remote URL 重新关联。
+- **持久化**：仓库级本地存储（与 §6.2 项目映射同位置同键规则）。
+- **失效处理**：分支被删除/重命名后，链接标记为 stale 并在详情页如实显示（"关联分支已删除"），**不得静默指向其他分支**；commit SHA 天然稳定；PR 开合/合并状态在详情页实时查询。
+- 生命周期：一个 issue 可关联多个分支；支持手动解除关联；任何变更刷新 `updatedAt`。
+
 ## 6. 连接与配置模型
 
 ### 6.1 Connection
@@ -236,6 +279,7 @@ interface ProjectMapping {
 | 非敏感连接配置 | localStorage 独立键 `auu_git_error_connections` | 仿 `auu_git_forge_accounts` 先例，不塞进扁平的 `auu_git_settings` |
 | 全局偏好 | settingsStore 扁平 key | `errorsPollingIntervalSec`（默认 60，下限 30）等 |
 | 项目映射 | 随仓库持久化 | 与仓库身份绑定；机制参照 openTabs/recent 的仓库级存储 |
+| IssueGitLink（Issue↔Git 关联） | 仓库级本地存储，键为 repoKey（规范化 remote URL 优先，路径回退） | 与项目映射同规则；不依赖工作区路径 |
 | issue 数据缓存 | **仅内存** | 隐私最小化，不持久化错误内容 |
 
 ### 6.3 连接流程（Sentry，照 ForgeView「未连接→连接表单、已连接→数据面板」模式）
@@ -249,8 +293,16 @@ interface ProjectMapping {
 
 ### 6.4 安全与隐私（强制）
 
-- Token 只在 Rust/keyring 层流转；TS 层通过 invoke 取用，不写日志。
-- 崩溃报告（已上线的 crash reporting）面包屑必须脱敏：网络请求面包屑不得包含 Authorization 头与 token；发版前用环境变量钩子验证。
+**Token 的真实边界（v1 与现有 forge/GitHubService 架构保持一致）**：
+
+- 存储：token 仅存 OS Keyring，绝不落 localStorage / settings 文件。
+- 使用：桌面端直连 fetch，provider（TS）经 `invoke` 从 keyring 取 token 后放入请求头——**token 会进入 WebView 进程内存**，这是现有架构的事实，v1 接受此边界，不声称"token 不进 TS 层"。
+- 不外泄：token 不写日志、不写崩溃报告（crash reporting 面包屑对 Authorization 头强制脱敏，发版前用环境变量钩子验证）。
+- 请求目标限制：仅允许 http(s)；自托管 Base URL 由用户显式配置；未来声明式 Provider 的目标地址需用户逐条确认，防止配置被滥用于访问内网资源。
+- v2 硬化选项（本期范围外，留档）：Rust 侧"凭证读取 + 授权请求"代理，token 不返回 WebView；触发条件为声明式 Provider 落地或出现明确安全诉求。
+
+其余约束：
+
 - issue 内容不持久化；轮询数据仅存内存。
 - 后续所有模块的凭证一律沿用此模式，形成「集成凭证 → keyring」的统一惯例。
 
@@ -286,6 +338,7 @@ interface ProjectMapping {
 - **作用域**：`本仓库`（默认，仅当前仓库映射的项目）/ `全部`（所有连接的所有映射项目）。作用域同时决定徽标口径。
 - **来源筛选**：`全部来源`（默认，合并列表）或单条连接。连接是筛选项的最小单位（"公司 Sentry" / "个人 Sentry" 可区分）。
 - **合并列表**：全部来源时按 `lastSeen` 倒序统一排序；severity 是筛选器 + 行内色点，不参与默认排序。
+- **分页与完整性**：合并列表为多源增量合并——每条连接维护独立分页 cursor，首屏各取一页（约 25 条）合并排序；「加载更多」按需拉取各来源下一页后重新归并。全局排序仅对**已加载结果**成立；当存在来源尚未加载完时，列表底部以中性文案说明"仅显示已加载的 N 条"，不给出已到末尾的完整性暗示。
 - 行内容：来源 chip（provider 图标 + 连接名 · 项目名）、标题、eventCount / affectedUsers / 相对时间、快捷操作（创建修复分支、打开外链）。末列固定轨道，遵守按钮体系。
 - **详情页**：完整堆栈帧（每帧可尝试跳转本地文件）、suspect commit（可用时显示并可跳 commit）、release / environment / rawStatus、rawData 折叠区、头部来源 chip +「在 Sentry 中打开」。单来源筛选下的详情页与合并列表的详情页是**同一组件**。
 
@@ -321,7 +374,8 @@ interface ProjectMapping {
 - 按钮使用既有体系（toolbar / icon-sm / icon-xs / outline 变体 / tinted 主按钮），**禁 className 覆写**；同级动作同款式同位置。
 - 选中态：primary/12 tint + 2px 青色左条；暗色炭灰 + 青点缀，禁蓝紫底与蓝紫渐变。
 - 三栏布局遵守 Radix 滚动容器防截断约束。
-- 全部文案走 `t()`，i18n 键前缀 `errors.*`（词典 `src/i18n/errors.ts`），**异常消息也翻译**；收尾中英双语截图验证。
+- 客户端自身文案全部走 `t()`，i18n 键前缀 `errors.*`（词典 `src/i18n/errors.ts`）；收尾中英双语截图验证。
+- **平台返回的内容保持原文**：Exception message、堆栈、文件路径、原始状态值不做翻译（保证可搜索性、AI 上下文与排查一致性）；中文解释只能作为 AI 辅助层的附加信息，原文必须保留。
 
 ## 8. 修复工作流
 
@@ -333,23 +387,26 @@ interface ProjectMapping {
 
 ### 8.2 引用标记（M4）
 
-- 提交信息正文行：`Fixes {shortId}`（如 `Fixes FRONTEND-ABC`）。
-- PR 创建时描述自动携带 `Fixes {shortId}` + externalUrl 链接。
+- **中性引用标记，不用自动关闭关键字**：`Fixes`/`Closes` 在 GitHub 等平台有"自动关闭 Issue"语义，而错误平台的短 ID 并非 Git 平台可解析的引用，默认不使用。
+- 提交信息 trailer：`Error-Tracking: {providerId}/{shortId}`（如 `Error-Tracking: sentry/FRONTEND-ABC`）。
+- PR 描述模板：`Related production error: Sentry FRONTEND-ABC ({externalUrl})` + 修复摘要。
+- 自动关闭关键字仅在目标平台明确支持且用户显式开启时生成（v1 默认关闭）——Git 工作流状态与错误平台状态保持解耦。
 - 引用标记由集成层生成，复用现有 CommitComposer / PR 创建流。
 
 ### 8.3 状态回写（M4）
 
 - 详情页操作：标记已解决 / 忽略（capability `resolve` / `ignore`）。
 - 「下个 release 解决」选项：Sentry `statusDetails.inNextRelease`，与 git release 语义对齐。
-- 回写成功后列表状态即时更新；失败按连接降级横幅处理。
+- 回写成功后列表状态即时更新。
+- **操作级错误 ≠ 连接级错误**：单个回写失败（403 无写权限、issue 状态已被他人变更、网络抖动）以操作级错误提示呈现并保留重试，**不改变连接健康状态、不触发来源降级横幅**。连接健康态仅由连接测试/同步刷新的结论变更（§6.3）。
 - 自动 resolve-on-merge（PR 合并后回写）为 P2 评估项，需要 PR 状态轮询，v1 不做。
 
 ### 8.4 堆栈跳转本地文件（M3 起，核心差异化价值）
 
 - 每个堆栈帧提供"跳转"尝试：
-  1. 应用映射配置的 `sourcePathPrefixMap` 前缀替换；
-  2. 未配置映射时按文件名 + 相对路径后缀模糊匹配本地工作区；
-  3. 均失败 → 显示原始路径、禁用跳转（明确"不可跳转"，不静默失败）。
+1. 应用映射配置的 `sourcePathPrefixMap` 前缀替换（高置信，直接跳转）；
+2. 未配置映射时按文件名 + 相对路径后缀模糊匹配，**按置信度分档**：唯一高置信匹配 → 直接跳转；多个候选（重名 `index.ts`/`utils.ts` 等）→ 弹出文件选择器由用户确认；低置信或无候选 → 落入第 3 档；
+3. 不可定位 → 显示原始路径、禁用跳转（明确"不可跳转"，不静默失败），提供复制路径与手动搜索入口。
 - 跳转落点：优先客户端内打开并定位行号；若客户端暂无只读代码视图，回退为调用系统默认编辑器打开。**M3 开工前定案**（见 §12 开放问题）。
 
 ### 8.5 AI 修复（M5）
@@ -357,6 +414,8 @@ interface ProjectMapping {
 - 新建 `AiErrorFixService`，照"每功能一个薄 service"惯例调用 `AiClient.requestAiText`。
 - 输入：issue 详情 + 堆栈 + 经路径映射定位到的本地文件内容。
 - 输出：修复提案（改动说明 + patch），进入**现有审查放行流**——AI 负责生成，用户负责放行，**禁止自动提交**。
+- **上下文约束**：自动收集的源码限制文件数与总 token 预算；跳过敏感文件（`.env`、密钥、credentials 等按 ignore 规则）。
+- **工作区保护**：应用 patch 前检查工作区无未提交修改，否则要求先提交/暂存或新建分支，**禁止覆盖用户进行中的工作**。
 
 ## 9. 同步机制
 
@@ -371,7 +430,7 @@ interface ProjectMapping {
 
 ### 10.1 通用规范
 
-- Provider 实现为纯 TS service（`src/services/errors/providers/<id>.ts`），前端直接 fetch，照 GitHubService/GitLabService 先例。
+- Provider 实现为纯 TS service（`src/services/errors/providers/<id>.ts`），前端直接 fetch，照 GitHubService/GitLabService 先例（token 边界与缓解措施见 §6.4）。
 - web 预览模式下经 vite `/api` 中间件代理转发（`vite.config.ts` 的 git-api-plugin 新增 `/api/errors/*`），避免 CORS；桌面端直连。
 - 每个平台一个文件 + 一个 manifest；解析逻辑与网络请求分离，便于 fixture 单测。
 - 平台优先级：Sentry **P0**；Rollbar、Bugsnag **P1**；Raygun、声明式 HTTP Provider **P2**。
@@ -422,13 +481,13 @@ interface ProjectMapping {
 
 - `types.ts`（域注册表、capability 枚举、ProviderManifest、UnifiedErrorIssue、Connection）、`normalize.ts`、`errorsStore` 骨架。
 - keyring 三命令 + Rust 单测。
-- **验收**：归一映射表驱动单测通过；`shouldShowDomain` 单测覆盖（存在性/健康态分离）；settings/localStorage 无 token 明文。
+- **验收**：归一映射表驱动单测通过；`shouldShowDomain` 单测覆盖（存在性/健康态分离）；capability 字面量联合编译期校验（词汇表外字符串无法编译）；settings/localStorage 无 token 明文。
 
 ### M2 连接与凭证
 
 - Sentry provider（testConnection / listOrgs / listProjects / listIssues / getIssue / latestEvent / resolve）。
 - 设置集成分区 + Sentry 连接流程（token→org→项目）+ 连接管理（启用/禁用/删除/测试）。
-- **验收**：真实 token 走通连接；错误 token / 断网呈现错误态；删除连接后 keyring 条目清除；grep 确认 localStorage 无明文凭证。
+- **验收**：真实 token 走通连接；错误 token / 断网呈现错误态；**只读权限 token 验证**——resolve 等写操作返回操作级错误（403 提示补权限），连接状态不劣化、不出现降级横幅；删除连接后 keyring 条目清除；grep 确认 localStorage 无明文凭证。
 
 ### M3 Errors 页 v1
 
@@ -438,7 +497,7 @@ interface ProjectMapping {
 ### M4 修复工作流
 
 - 创建修复分支、引用标记（commit/PR）、标记已解决 / 忽略 / 下个 release 解决。
-- **验收**：从 issue 一键建分支并产出带 `Fixes {shortId}` 的提交与 PR；回写后列表状态即时更新；分支名模板单测。
+- **验收**：从 issue 一键建分支并产出含中性引用 trailer 的提交与 PR；回写后列表状态即时更新；分支名模板单测；**重启恢复**——创建修复分支后关闭并重新打开 AuuGit，仍能从 issue 找回关联的分支、commit 与 PR；分支被删除/重命名后链接显示 stale，不得指向其他分支。
 
 ### M5 AI 修复
 
@@ -447,7 +506,7 @@ interface ProjectMapping {
 
 ### M6 多 Provider 扩展
 
-- Rollbar、Bugsnag（P1）；声明式 HTTP Provider（P2）。
+- 先接 Rollbar 验证扩展成本，再接 Bugsnag（P1）；声明式 HTTP Provider 可延期至后续版本（P2）。
 - **验收**：新增 provider 未改动域视图与导航代码（仅注册文件 + fixture）；三平台同列表合并展示。
 
 ## 13. 测试要求
@@ -473,3 +532,19 @@ interface ProjectMapping {
 ## 15. v1 范围一句话
 
 **只做 Sentry → Errors 页 → 看错误 → 跳代码 → 建修复分支 → 带引用提交/PR → 回写解决**；Tasks/CI-CD/Observability 仅要求架构"允许它们未来出现"（域注册表 + capability 词汇表 + 多域 manifest，几乎零成本预留）。
+
+---
+
+## 修订记录
+
+### v2.1（2026-11-01，技术修订，功能范围不变）
+
+1. 新增 §5.3 IssueGitLink 持久化关联模型与 repoKey 仓库身份规则（规范化 remote URL 优先，路径回退）；M4 验收增加重启恢复与 stale 分支处理。
+2. Capability 统一 `domain:action` 命名空间并定义核心字面量联合类型（修正 §4.2 示例与 §4.3 规则的不一致）；明确"声明能力 ≠ 生效能力"，403 走操作级错误。
+3. 重写 §6.4 安全边界：如实描述 v1 直连架构下 token 进入 WebView 内存的事实与缓解措施；补充请求目标限制与 v2 Rust 授权代理硬化选项。
+4. §4.4 明确 `connection.domains` 仅在权限检查成功时重算，网络失败保留已验证集合。
+5. §7.2 增加多来源合并列表的分页规则（每连接独立 cursor、增量归并、"仅显示已加载"中性提示）。
+6. §8.2 引用标记改为中性 trailer `Error-Tracking: {providerId}/{shortId}`，弃用默认 `Fixes` 自动关闭关键字。
+7. §8.3 区分操作级错误与连接级错误，回写失败不劣化连接状态。
+8. §7.5 修正 i18n 边界：平台异常内容保持原文，仅客户端自身文案翻译。
+9. §8.4 堆栈模糊匹配改三档置信度策略（唯一直跳/多候选选择器/不可定位显式提示）；§8.5 增加 AI 上下文预算与工作区保护约束；§1 澄清"获取最新事件"与非目标不冲突；M2 增加只读 token 验收；M6 调整为 Rollbar 优先。
