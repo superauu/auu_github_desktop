@@ -762,8 +762,8 @@ export const WorkingChangesView: React.FC = () => {
                         </div>
                         <Button
                           variant="ghost"
-                          size="xs"
-                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted shrink-0"
+                          size="icon-sm"
+                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted shrink-0"
                           title={t('changes.unstageTitle')}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -819,8 +819,8 @@ export const WorkingChangesView: React.FC = () => {
                             <>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 text-git-deleted hover:text-git-deleted hover:bg-rose-500/10"
+                                size="icon-sm"
+                                className="text-git-deleted hover:text-git-deleted hover:bg-destructive/10"
                                 title={t('changes.openConflictTool')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -832,8 +832,8 @@ export const WorkingChangesView: React.FC = () => {
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 text-git-added hover:text-git-added hover:bg-emerald-500/10"
+                                size="icon-sm"
+                                className="text-git-added hover:text-git-added hover:bg-git-added/10"
                                 title={t('changes.takeOurs')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -849,8 +849,8 @@ export const WorkingChangesView: React.FC = () => {
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 text-cyan-700 dark:text-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10"
+                                size="icon-sm"
+                                className="text-primary hover:bg-primary/10"
                                 title={t('changes.takeTheirs')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -866,8 +866,8 @@ export const WorkingChangesView: React.FC = () => {
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                size="icon-sm"
+                                className="text-muted-foreground hover:text-foreground"
                                 title={t('changes.resetMarkers')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -883,8 +883,8 @@ export const WorkingChangesView: React.FC = () => {
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 hover:text-git-added"
+                                size="icon-sm"
+                                className="hover:text-git-added"
                                 title={t('changes.resolvedTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -902,8 +902,8 @@ export const WorkingChangesView: React.FC = () => {
                             <>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 hover:text-git-deleted"
+                                size="icon-sm"
+                                className="hover:text-git-deleted"
                                 title={t('changes.discardTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -914,8 +914,8 @@ export const WorkingChangesView: React.FC = () => {
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 hover:text-git-added"
+                                size="icon-sm"
+                                className="hover:text-git-added"
                                 title={t('changes.stageTitle')}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -980,8 +980,8 @@ export const WorkingChangesView: React.FC = () => {
                         </div>
                         <Button
                           variant="ghost"
-                          size="xs"
-                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-added shrink-0"
+                          size="icon-sm"
+                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-added shrink-0"
                           title={t('changes.trackStageTitle')}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1149,7 +1149,7 @@ export const WorkingChangesView: React.FC = () => {
               <Button
                 variant="outline"
                 size="xs"
-                className="h-6 text-[12px] gap-1"
+                className="text-[12px] gap-1"
                 onClick={() => {
                   if (activeFile.staged) {
                     runGitAction(

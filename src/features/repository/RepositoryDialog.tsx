@@ -199,8 +199,8 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
           </div>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            size="icon-xs"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => onOpenChange(false)}
           >
             <X className="h-3.5 w-3.5" />
@@ -329,7 +329,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                       size="xs"
                       onClick={handleInit}
                       disabled={isProcessing}
-                      className="text-[12px] h-6 border-amber-500/30 text-amber-300 hover:bg-amber-500/20"
+                      className="text-[12px] border-amber-500/30 text-amber-300 hover:bg-amber-500/20"
                     >
                       {t('repo.initHere')}
                     </Button>

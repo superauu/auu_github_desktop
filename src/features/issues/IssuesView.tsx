@@ -52,7 +52,7 @@ function IssueWorkspace() {
     <header className="issues-toolbar">
       <div className="issues-toolbar-group">
         <Button variant="ghost" size="icon" className="issues-icon-btn" disabled={loading} aria-label={t('issues.refresh')} title={t('issues.refresh')} onClick={refresh}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /></Button>
-        <Button size="sm" className="h-7" onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" />{t('issues.create')}</Button>
+        <Button size="toolbar" className="" onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" />{t('issues.create')}</Button>
         <span className="issues-scope" title={`${scope.owner}/${scope.repo}`}>{scope.owner}/{scope.repo}</span>
       </div>
       <div className="issues-tools">

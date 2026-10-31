@@ -126,8 +126,8 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
           </div>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            size="icon-xs"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => onOpenChange(false)}
           >
             <X className="h-3.5 w-3.5" />
@@ -249,17 +249,17 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
             <Button
               type="button"
               variant="outline"
-              size="xs"
+              size="toolbar"
               onClick={() => onOpenChange(false)}
-              className="h-7 text-xs"
+              className=""
             >
               {t('common.cancel')}
             </Button>
             <Button
               type="submit"
-              size="xs"
+              size="toolbar"
               disabled={!branchName.trim() || isSubmitting}
-              className="h-7 text-xs gap-1.5"
+              className="gap-1.5"
             >
               {isSubmitting ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

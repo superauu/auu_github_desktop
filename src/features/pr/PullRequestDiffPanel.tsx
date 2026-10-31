@@ -185,10 +185,10 @@ export const PullRequestDiffPanel: React.FC<PullRequestDiffPanelProps> = ({
             className="w-full resize-none rounded-md border border-input bg-background/80 p-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
           />
           <div className="flex items-center justify-end gap-1.5">
-            <Button type="button" variant="ghost" size="xs" className="h-6 text-[11px]" onClick={() => { setDraftTarget(null); setDraftText(''); }}>
+            <Button type="button" variant="ghost" size="xs" className="text-[11px]" onClick={() => { setDraftTarget(null); setDraftText(''); }}>
               {t('common.cancel')}
             </Button>
-              <Button type="button" variant="outline" size="xs" className="h-6 text-[11px] gap-1" disabled={!draftText.trim()} onClick={submitDraft} data-pr-add-draft="true">
+              <Button type="button" variant="outline" size="xs" className="text-[11px] gap-1" disabled={!draftText.trim()} onClick={submitDraft} data-pr-add-draft="true">
                 <MessageSquare className="h-2.5 w-2.5" />
                 <span>{t('prReview.commentSubmit')}</span>
               </Button>

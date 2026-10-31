@@ -65,8 +65,8 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
           {parentPath !== null ? (
             <Button
               variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+              size="icon-xs"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
               onClick={() => loadDir(parentPath)}
               title={t('browser.backTitle')}
             >
@@ -75,8 +75,8 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
           ) : (
             <Button
               variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+              size="icon-xs"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
               onClick={() => loadDir('')}
               title={t('browser.drivesTitle')}
             >
@@ -93,7 +93,7 @@ export const InAppFolderBrowser: React.FC<InAppFolderBrowserProps> = ({
           <Button
             size="xs"
             variant="default"
-            className="shrink-0 h-6 px-2 text-[12px] gap-1"
+            className="shrink-0 px-2 text-[12px] gap-1"
             disabled={isLoading}
             onClick={() => onSelectPath(currentPath)}
           >

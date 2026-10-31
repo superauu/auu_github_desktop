@@ -49,19 +49,19 @@ export const WorkflowYamlViewerModal: React.FC = () => {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              size="xs"
+              size="toolbar"
               onClick={handleCopy}
-              className="h-7 px-2 text-[11px] gap-1 font-mono"
+              className="text-[11px] gap-1 font-mono"
             >
               {isCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
               <span>{isCopied ? t('logs.copied') : t('yaml.copy')}</span>
             </Button>
             <Button
               variant="ghost"
-              size="xs"
+              size="icon-sm"
               onClick={closeWorkflowYaml}
               aria-label={t('common.close')}
-              className="h-7 w-7 p-0 hover:text-rose-400"
+              className="hover:text-destructive"
             >
               <X className="h-4 w-4" />
             </Button>

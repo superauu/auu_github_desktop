@@ -156,7 +156,7 @@ export const ExternalToolsSection: React.FC = () => {
         <div className="space-y-2 rounded-lg border border-border p-2.5 bg-accent/20">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium">{t('externalTools.formTitle')}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6" aria-label={t('common.close')} onClick={dismissForm}>
+            <Button variant="ghost" size="icon-xs" className="" aria-label={t('common.close')} onClick={dismissForm}>
               <X className="h-3 w-3" />
             </Button>
           </div>
@@ -222,10 +222,10 @@ export const ExternalToolsSection: React.FC = () => {
                 {modeBadge(tool.mode)}
                 <span className="font-medium shrink-0">{tool.name}</span>
                 <span title={tool.program} className="min-w-0 flex-1 truncate font-mono text-[12px] text-muted-foreground">{tool.program}</span>
-                <Button variant="ghost" size="xs" className="h-6 w-6 p-0 shrink-0" aria-label={`${t('externalTools.edit')}: ${tool.name}`} onClick={() => startEdit(tool)}>
+                <Button variant="ghost" size="xs" className="p-0 shrink-0" aria-label={`${t('externalTools.edit')}: ${tool.name}`} onClick={() => startEdit(tool)}>
                   <Pencil className="h-3 w-3" />
                 </Button>
-                <Button variant="ghost" size="xs" className="h-6 w-6 p-0 shrink-0 hover:text-destructive" aria-label={`${t('externalTools.delete')}: ${tool.name}`} onClick={() => void deleteTool(tool)}>
+                <Button variant="ghost" size="xs" className="p-0 shrink-0 hover:text-destructive" aria-label={`${t('externalTools.delete')}: ${tool.name}`} onClick={() => void deleteTool(tool)}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
@@ -491,8 +491,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </span>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
               aria-label={t('common.close')} onClick={() => onOpenChange(false)}
             >
               <X className="h-3.5 w-3.5" />
@@ -793,10 +793,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <div className="pt-1 flex items-center justify-end">
                       <Button
                         variant="outline"
-                        size="xs"
+                        size="toolbar"
                         onClick={handleTestAiConnection}
                         disabled={isTestingAi}
-                        className="h-7 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                        className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
                       >
                         <Sparkles className="h-3 w-3" />
                         <span>{isTestingAi ? t('settings.ai.testing') : t('settings.ai.testBtn')}</span>
@@ -821,14 +821,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         {t('settings.github.accountsTitle')} <span className="text-muted-foreground font-normal">({profiles.length})</span>
                       </div>
                       <Button
-                        size="xs"
+                        size="toolbar"
                         variant="outline"
                         onClick={() => {
                           onOpenChange(false);
                           addProfile();
                           onOpenGitHubAuth?.();
                         }}
-                        className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                        className="gap-1 border-primary/40 text-primary hover:bg-primary/10"
                       >
                         <Plus className="h-3 w-3" />
                         <span>{t('profiles.addAccount')}</span>
@@ -865,10 +865,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                               {!isActive && (
                                 <Button
-                                  size="xs"
+                                  size="toolbar"
                                   variant="outline"
                                   onClick={() => { void switchProfile(profile.id); }}
-                                  className="gap-1 text-xs h-7"
+                                  className="gap-1"
                                 >
                                   <span>{t('settings.github.switchTo')}</span>
                                 </Button>

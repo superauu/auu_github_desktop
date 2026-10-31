@@ -226,8 +226,8 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
           </div>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-lg"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground rounded-lg"
             onClick={() => onOpenChange(false)}
           >
             <X className="h-4 w-4" />
@@ -263,14 +263,14 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
               <div className="flex flex-col gap-1.5 items-end">
                 <Button
                   variant="destructive"
-                  size="xs"
+                  size="toolbar"
                   onClick={() => {
                     logout();
                     toast.info(t('auth.logoutToast'));
                     // 登出会按 Profile 语义移除当前凭据并自动切到剩余账号，关闭对话框避免中间态闪烁
                     onOpenChange(false);
                   }}
-                  className="h-7 text-xs gap-1"
+                  className="gap-1"
                 >
                   <LogOut className="h-3 w-3" />
                   <span>{t('auth.logout')}</span>
@@ -359,7 +359,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                     <Button
                       onClick={handleStartOAuth}
                       disabled={isStartingOAuth}
-                      className="w-full text-xs h-9 gap-2 shadow-xs font-medium"
+                      className="w-full text-xs gap-2 shadow-xs font-medium"
                     >
                       {isStartingOAuth ? (
                         <>
@@ -445,7 +445,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                         variant="ghost"
                         size="xs"
                         onClick={handleCancelOAuth}
-                        className="h-6 text-[12px] text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        className="text-[12px] text-destructive hover:bg-destructive/10"
                       >
                         {t('auth.cancelOauth')}
                       </Button>

@@ -129,8 +129,8 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
           </div>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-lg"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground rounded-lg"
             onClick={() => onOpenChange(false)}
           >
             <X className="h-4 w-4" />

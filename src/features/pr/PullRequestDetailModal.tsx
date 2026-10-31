@@ -213,11 +213,11 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <Button variant="ghost" size="xs" onClick={() => window.open(pr.html_url, '_blank')}
-              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" title={t('pr.viewOnWeb')}>
+              className="p-0 text-muted-foreground hover:text-foreground" title={t('pr.viewOnWeb')}>
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
             <Button variant="ghost" size="xs" onClick={onClose} disabled={submitting}
-              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" aria-label={t('common.close')} title={t('common.close')}>
+              className="p-0 text-muted-foreground hover:text-foreground" aria-label={t('common.close')} title={t('common.close')}>
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -273,7 +273,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                 {timelineError && (
                   <div role="alert" className="text-xs text-destructive flex items-center gap-2 flex-wrap">
                     <span>{timelineError}</span>
-                    <Button type="button" variant="outline" size="xs" className="h-6 text-[11px]" onClick={() => setReloadTick(v => v + 1)}>
+                    <Button type="button" variant="outline" size="xs" className="text-[11px]" onClick={() => setReloadTick(v => v + 1)}>
                       {t('remote.retry')}
                     </Button>
                   </div>
@@ -339,7 +339,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                 {filesError && (
                   <div role="alert" className="text-xs text-destructive flex items-center gap-2 flex-wrap">
                     <span>{filesError}</span>
-                    <Button type="button" variant="outline" size="xs" className="h-6 text-[11px]" onClick={() => setReloadTick(v => v + 1)}>
+                    <Button type="button" variant="outline" size="xs" className="text-[11px]" onClick={() => setReloadTick(v => v + 1)}>
                       {t('remote.retry')}
                     </Button>
                   </div>
@@ -471,8 +471,8 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                 {submitError && <div role="alert" className="text-xs text-destructive">{submitError}</div>}
 
                 <div className="flex justify-end">
-                  <Button type="button" size="xs" onClick={handleSubmitReview} disabled={submitting}
-                    className="h-7 text-xs gap-1.5 btn-neon dark:btn-neon" data-pr-review-submit-button="true">
+                  <Button type="button" size="toolbar" onClick={handleSubmitReview} disabled={submitting}
+                    className="gap-1.5 btn-neon dark:btn-neon" data-pr-review-submit-button="true">
                     {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                     <span>{submitting ? t('prReview.submitting') : t('prReview.submit')}</span>
                   </Button>

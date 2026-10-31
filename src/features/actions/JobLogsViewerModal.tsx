@@ -169,9 +169,9 @@ export const JobLogsViewerModal: React.FC = () => {
             {/* Auto-scroll toggle */}
             <Button
               variant={autoScroll ? 'secondary' : 'ghost'}
-              size="xs"
+              size="toolbar"
               onClick={() => setAutoScroll(!autoScroll)}
-              className="h-7 px-2 text-[11px] gap-1 font-mono"
+              className="text-[11px] gap-1 font-mono"
               title={t('logs.scrollToBottom')}
             >
               <ArrowDownToLine className="h-3 w-3" />
@@ -181,10 +181,10 @@ export const JobLogsViewerModal: React.FC = () => {
             {/* Copy button */}
             <Button
               variant="outline"
-              size="xs"
+              size="toolbar"
               disabled={rawLines.length === 0}
               onClick={handleCopyLogs}
-              className="h-7 px-2 text-[11px] gap-1 font-mono"
+              className="text-[11px] gap-1 font-mono"
               title={t('logs.copyAll')}
             >
               {isCopied ? <Check className="h-3 w-3 text-git-added" /> : <Copy className="h-3 w-3" />}
@@ -194,11 +194,11 @@ export const JobLogsViewerModal: React.FC = () => {
             {/* Fullscreen toggle */}
             <Button
               variant="ghost"
-              size="xs"
+              size="icon-sm"
               onClick={() => setIsFullScreen(!isFullScreen)}
               aria-label={t('logs.toggleFullscreen')}
               title={t('logs.toggleFullscreen')}
-              className="h-7 w-7 p-0"
+              className=""
             >
               {isFullScreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </Button>
@@ -206,10 +206,10 @@ export const JobLogsViewerModal: React.FC = () => {
             {/* Close */}
             <Button
               variant="ghost"
-              size="xs"
+              size="icon-sm"
               onClick={closeJobLogs}
               aria-label={t('common.close')}
-              className="h-7 w-7 p-0 hover:text-git-deleted"
+              className="hover:text-git-deleted"
             >
               <X className="h-4 w-4" />
             </Button>

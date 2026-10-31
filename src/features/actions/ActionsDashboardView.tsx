@@ -88,9 +88,9 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Banner: Auth Info */}
-      <div className="h-10 px-4 border-b border-border bg-accent/20 flex items-center justify-between text-xs shrink-0">
+      <div className="min-h-[34px] py-1 px-3 border-b border-border bg-card flex flex-wrap items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
-          <Workflow className="h-4 w-4 text-primary" />
+          <Workflow className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-foreground">{t('actions.title')}</span>
           {currentOwner && currentRepoName && (
             <Badge variant="outline" className="h-4 text-[10px] font-mono border-primary/40 text-primary">
@@ -109,20 +109,20 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           {!isAuthenticated && (
             <Button
               variant="outline"
-              size="xs"
+              size="toolbar"
               onClick={onOpenAuthDialog}
-              className="h-6 text-[11px] gap-1"
+              className="gap-1"
             >
               <span>{t('actions.connectReal')}</span>
             </Button>
           )}
           <Button
             variant="ghost"
-            size="xs"
+            size="toolbar"
             onClick={() => refreshActions()}
             disabled={isRefreshingActions || !currentOwner || !currentRepoName}
             aria-busy={isRefreshingActions}
-            className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+            className="gap-1 text-muted-foreground hover:text-foreground"
           >
             <RotateCw className={cn('h-3 w-3', isRefreshingActions && 'animate-spin')} />
             <span>{t(isRefreshingActions ? 'actions.refreshing' : 'actions.refresh')}</span>
@@ -412,7 +412,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                           variant="ghost"
                           size="xs"
                           onClick={() => openJobLogs(job.id, job.name)}
-                          className="h-6 px-2 text-[11px] gap-1 font-mono hover:text-git-added"
+                          className="px-2 text-[11px] gap-1 font-mono hover:text-git-added"
                         >
                           <Terminal className="h-3 w-3" />
                           <span>{t('actions.viewLogs')}</span>

@@ -614,8 +614,8 @@ export const Header: React.FC<HeaderProps> = ({
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  size="icon-xs"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={cycleTheme}
                   aria-label={t('header.toggleThemeTooltip')}
                 >
@@ -696,8 +696,8 @@ export const Header: React.FC<HeaderProps> = ({
             <DialogActionTip tip={t('header.openSettingsTooltip')}>
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={onOpenSettings}
                 aria-label={t('header.openSettingsTooltip')}
               >
@@ -716,8 +716,8 @@ export const Header: React.FC<HeaderProps> = ({
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={onToggleNavigation}
                   aria-label={t(isLeftSidebarCollapsed || navigationOverlay ? 'header.expandLeftSidebar' : 'header.collapseLeftSidebar')}
                 >

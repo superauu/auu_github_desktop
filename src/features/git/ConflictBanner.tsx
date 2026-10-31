@@ -130,7 +130,7 @@ export const ConflictBanner: React.FC = () => {
               size="xs"
               onClick={handleAbort}
               disabled={isSubmitting}
-              className="h-6 text-[11px] px-2"
+              className="text-[11px] px-2"
             >
               {t('banner.confirm')}
             </Button>
@@ -138,18 +138,18 @@ export const ConflictBanner: React.FC = () => {
               variant="ghost"
               size="xs"
               onClick={() => setShowAbortConfirm(false)}
-              className="h-6 text-[11px] px-1.5 text-muted-foreground"
+              className="text-[11px] px-1.5 text-muted-foreground"
             >
               {t('banner.cancel')}
             </Button>
           </div>
         ) : (
           <Button
-            variant="outline"
-            size="xs"
+            variant="outline-danger"
+            size="toolbar"
             onClick={() => setShowAbortConfirm(true)}
             disabled={isSubmitting}
-            className="h-7 text-xs gap-1.5 border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+            className="gap-1.5"
             title={isRebase ? t('banner.abortRebaseRestore') : t('banner.abortMergeRestore')}
           >
             <Ban className="h-3.5 w-3.5" />

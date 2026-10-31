@@ -266,7 +266,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             size="xs"
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
-            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+            className="p-0 text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
           </Button>
@@ -395,18 +395,18 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
             <Button
               type="button"
               variant="ghost"
-              size="xs"
+              size="toolbar"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
-              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground"
             >
               {t('common.cancel')}
             </Button>
             <Button
               type="submit"
-              size="xs"
+              size="toolbar"
               disabled={isSubmitting || !ready || sameBranch}
-              className="h-7 text-xs gap-1.5 btn-neon dark:btn-neon"
+              className="gap-1.5 btn-neon dark:btn-neon"
             >
               {isSubmitting ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

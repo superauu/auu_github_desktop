@@ -74,7 +74,7 @@ export const StashPreviewModal: React.FC<StashPreviewModalProps> = ({ stash, onC
             size="xs"
             onClick={onClose}
             aria-label={t('common.close')}
-            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0"
+            className="p-0 text-muted-foreground hover:text-foreground shrink-0"
           >
             <X className="h-3.5 w-3.5" />
           </Button>

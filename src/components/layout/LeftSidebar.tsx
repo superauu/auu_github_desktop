@@ -667,7 +667,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             }}>
             {navigationPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
           </Button>
-          {inDrawer && <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t('common.close')} onClick={onNavigate}><X className="h-3.5 w-3.5" /></Button>}
+          {inDrawer && <Button variant="ghost" size="icon-sm" className="" aria-label={t('common.close')} onClick={onNavigate}><X className="h-3.5 w-3.5" /></Button>}
         </div>
       </div>
       {/* Top Primary Navigation (Changes, History, PRs, Actions) */}
@@ -917,7 +917,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-6 w-6 p-0 hover:text-git-branch hover:bg-git-branch/10 text-muted-foreground"
+                      className="p-0 hover:text-git-branch hover:bg-git-branch/10 text-muted-foreground"
                       title={t('sidebar.mergeBranchTitle')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -930,7 +930,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-6 w-6 p-0 hover:text-git-tag hover:bg-amber-500/10 text-muted-foreground"
+                      className="p-0 hover:text-git-tag hover:bg-amber-500/10 text-muted-foreground"
                       title={t('sidebar.rebaseBranchTitle')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -943,7 +943,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     <Button
                       variant="ghost"
                       size="xs"
-                      className="h-6 w-6 p-0 hover:text-primary hover:bg-primary/10 text-muted-foreground"
+                      className="p-0 hover:text-primary hover:bg-primary/10 text-muted-foreground"
                       title={t('sidebar.newBranchTitle')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1198,8 +1198,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           </div>
                           <Button
                             variant="ghost"
-                            size="xs"
-                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                            size="icon-sm"
+                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                             title={t('sidebar.ctx.checkoutToLocal')}
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -1260,8 +1260,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                               </div>
                               <Button
                                 variant="ghost"
-                                size="xs"
-                                className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                                size="icon-sm"
+                                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                                 title={t('sidebar.ctx.checkoutToLocal')}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -1305,8 +1305,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                   </button>
                   <Button
                     variant="ghost"
-                    size="xs"
-                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                    size="icon-sm"
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                     title={t('sidebar.viewAllPrs')}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1360,8 +1360,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     {tags.length > 0 && (
                       <Button
                         variant="ghost"
-                        size="xs"
-                        className="h-7 w-7 p-0 hover:text-git-added"
+                        size="icon-sm"
+                        className="hover:text-git-added"
                         title={t('sidebar.pushAllTags')}
                         onClick={async (e) => {
                           e.stopPropagation();
@@ -1378,8 +1378,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                     )}
                     <Button
                       variant="ghost"
-                      size="xs"
-                      className="h-7 w-7 p-0 hover:text-primary"
+                      size="icon-sm"
+                      className="hover:text-primary"
                       title={t('sidebar.newTag')}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1439,8 +1439,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           </span>
                           <Button
                             variant="ghost"
-                            size="xs"
-                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted"
+                            size="icon-sm"
+                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted"
                             title={t('sidebar.deleteTagTitle')}
                             onClick={(e) => handleDeleteTag(tag.name, e)}
                           >
@@ -1473,8 +1473,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                   </button>
                   <Button
                     variant="ghost"
-                    size="xs"
-                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
+                    size="icon-sm"
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-primary"
                     onClick={(e) => {
                       e.stopPropagation();
                       setNewStashOpen(!newStashOpen);
@@ -1553,8 +1553,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
                           </Button>
                           <Button
                             variant="ghost"
-                            size="xs"
-                            className="h-7 w-7 p-0 hover:text-git-deleted"
+                            size="icon-sm"
+                            className="hover:text-git-deleted"
                             title={t('sidebar.dropTitle')}
                             onClick={async () => {
                               // 与右键菜单的 drop-stash 同一确认防线（丢弃不可恢复）。

@@ -119,7 +119,7 @@ export const RemotesManager: React.FC = () => {
             size="xs"
             onClick={load}
             disabled={isLoading}
-            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+            className="p-0 text-muted-foreground hover:text-foreground"
             title={t('ui.remotes.refresh')}
           >
             <RefreshCw className={isLoading ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
@@ -128,7 +128,7 @@ export const RemotesManager: React.FC = () => {
             variant="ghost"
             size="xs"
             onClick={() => setAdding(!adding)}
-            className="h-6 px-1.5 text-[11px] gap-0.5 text-muted-foreground hover:text-foreground"
+            className="px-1.5 text-[11px] gap-0.5 text-muted-foreground hover:text-foreground"
           >
             <Plus className="h-3 w-3" />
             <span>{t('settings.remotes.add')}</span>
@@ -179,11 +179,11 @@ export const RemotesManager: React.FC = () => {
               variant="ghost"
               size="xs"
               onClick={() => setAdding(false)}
-              className="h-6 text-[12px] text-muted-foreground hover:text-foreground"
+              className="text-[12px] text-muted-foreground hover:text-foreground"
             >
               {t('common.cancel')}
             </Button>
-            <Button variant="outline" size="xs" onClick={handleAdd} className="h-6 text-[12px] gap-1">
+            <Button variant="outline" size="xs" onClick={handleAdd} className="text-[12px] gap-1">
               <Check className="h-3 w-3" />
               <span>{t('settings.remotes.add')}</span>
             </Button>
@@ -215,7 +215,7 @@ export const RemotesManager: React.FC = () => {
                     variant="ghost"
                     size="xs"
                     onClick={() => handleSaveUrl(r.name)}
-                    className="h-6 w-6 p-0 hover:text-git-added shrink-0"
+                    className="p-0 hover:text-git-added shrink-0"
                     title={t('settings.remotes.save')}
                   >
                     <Check className="h-3 w-3" />
@@ -224,7 +224,7 @@ export const RemotesManager: React.FC = () => {
                     variant="ghost"
                     size="xs"
                     onClick={() => setEditingName(null)}
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0"
+                    className="p-0 text-muted-foreground hover:text-foreground shrink-0"
                     title={t('common.cancel')}
                   >
                     <X className="h-3 w-3" />
@@ -253,7 +253,7 @@ export const RemotesManager: React.FC = () => {
                         setEditingName(r.name);
                         setEditingUrl(r.fetchUrl || r.pushUrl);
                       }}
-                      className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                      className="px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
                       title={t('settings.remotes.edit')}
                     >
                       {t('settings.remotes.edit')}
@@ -262,7 +262,7 @@ export const RemotesManager: React.FC = () => {
                       variant="ghost"
                       size="xs"
                       onClick={() => handleRemove(r.name)}
-                      className="h-6 w-6 p-0 hover:text-git-deleted"
+                      className="p-0 hover:text-git-deleted"
                       title={t('settings.remotes.remove')}
                     >
                       <Trash2 className="h-3 w-3" />

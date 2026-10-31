@@ -562,28 +562,28 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
             <>
               <Button
                 variant="ghost"
-                size="xs"
+                size="toolbar"
                 onClick={() => handleResolveAll('current')}
-                className="h-7 text-[11px] px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                 title={t('resolver.takeAllOursTitle')}
               >
                 {t('resolver.takeAllOurs')}
               </Button>
               <Button
                 variant="ghost"
-                size="xs"
+                size="toolbar"
                 onClick={() => handleResolveAll('incoming')}
-                className="h-7 text-[11px] px-2 text-cyan-700 dark:text-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10"
+                className="text-[11px] text-cyan-700 dark:text-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10"
                 title={t('resolver.takeAllTheirsTitle')}
               >
                 {t('resolver.takeAllTheirs')}
               </Button>
               <Button
                 variant="ghost"
-                size="xs"
+                size="toolbar"
                 onClick={handleQuickOurs}
                 disabled={isSaving}
-                className="h-7 text-[11px] px-2 text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1"
+                className="text-[11px] text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1"
                 title={t('resolver.oursFileTitle')}
               >
                 <Shield className="h-3 w-3" />
@@ -591,10 +591,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
               </Button>
               <Button
                 variant="ghost"
-                size="xs"
+                size="toolbar"
                 onClick={handleQuickTheirs}
                 disabled={isSaving}
-                className="h-7 text-[11px] px-2 text-cyan-700/80 dark:text-cyan-400/80 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10 gap-1"
+                className="text-[11px] text-cyan-700/80 dark:text-cyan-400/80 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10 gap-1"
                 title={t('resolver.theirsFileTitle')}
               >
                 <Download className="h-3 w-3" />
@@ -605,10 +605,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
           <Button
             variant="ghost"
-            size="xs"
+            size="toolbar"
             onClick={handleResetMarkers}
             disabled={isSaving}
-            className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground gap-1"
+            className="text-[11px] text-muted-foreground hover:text-foreground gap-1"
             title={t('resolver.resetTitle')}
           >
             <RotateCcw className="h-3 w-3" />
@@ -644,8 +644,8 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
           {onClose && (
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
               onClick={onClose}
               title={t('resolver.closeTitle')}
             >
@@ -670,9 +670,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
               </div>
             </div>
             <Button
-              size="xs"
+              size="toolbar"
               onClick={handleSaveAndStage}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-3 h-7 gap-1"
+              className="bg-git-added hover:bg-git-added/90 text-background font-medium px-3 gap-1"
             >
               <Check className="h-3 w-3" />
               <span>{t('resolver.stageNow')}</span>
@@ -759,7 +759,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       variant="ghost"
                       size="xs"
                       onClick={() => toggleBlockCompare(block.index)}
-                      className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                      className="px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
                       title={expandedCompare.has(block.index) ? t('conflictBase.blockCollapse') : t('conflictBase.blockCompareTitle')}
                     >
                       <Columns3 className="h-3 w-3" />
@@ -770,7 +770,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       variant="outline"
                       size="xs"
                       onClick={() => handleResolveBlock(block.index, 'current')}
-                      className="h-6 px-2 text-[11px] border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-300 font-medium"
+                      className="px-2 text-[11px] border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-300 font-medium"
                       title={t('resolver.keepOursTitle')}
                     >
                       {t('resolver.takeOurs')}
@@ -780,7 +780,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       variant="outline"
                       size="xs"
                       onClick={() => handleResolveBlock(block.index, 'incoming')}
-                      className="h-6 px-2 text-[11px] border-cyan-500/40 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/15 hover:text-cyan-600 dark:hover:text-cyan-300 font-medium"
+                      className="px-2 text-[11px] border-cyan-500/40 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/15 hover:text-cyan-600 dark:hover:text-cyan-300 font-medium"
                       title={t('resolver.keepTheirsTitle')}
                     >
                       {t('resolver.takeTheirs')}
@@ -790,7 +790,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       variant="ghost"
                       size="xs"
                       onClick={() => handleResolveBlock(block.index, 'both')}
-                      className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                      className="px-2 text-[11px] text-muted-foreground hover:text-foreground"
                       title={t('resolver.keepBothTitle')}
                     >
                       {t('resolver.keepBoth')}

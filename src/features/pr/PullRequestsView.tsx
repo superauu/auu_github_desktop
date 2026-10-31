@@ -179,23 +179,23 @@ export const PullRequestsView: React.FC = () => {
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Header Filter Bar */}
-      <div className="min-h-10 py-2 px-4 border-b border-border bg-card/40 flex flex-wrap gap-2 items-center justify-between text-xs shrink-0">
+      <div className="min-h-[34px] py-1 px-3 border-b border-border bg-card flex flex-wrap gap-2 items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
-          <GitPullRequest className="h-4 w-4 text-primary" />
+          <GitPullRequest className="h-3.5 w-3.5 text-primary" />
           <span className="font-semibold text-foreground">{t('pr.title')}</span>
           <Badge variant="outline" className="h-4 text-[11px] font-mono">
             {filteredPRs.length} {t('pr.count')}
           </Badge>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* New Pull Request */}
           <Button
-            variant="outline"
-            size="xs"
+            variant="outline-success"
+            size="toolbar"
             onClick={() => setCreatePROpen(true)}
             disabled={!currentOwner || !currentRepoName}
-            className="h-7 text-[12px] gap-1 border-emerald-500/40 text-emerald-600 dark:text-git-added hover:bg-emerald-500/10"
+            className="gap-1"
             title={currentOwner ? t('pr.createTitle') : t('pr.needLogin')}
           >
             <Plus className="h-3 w-3" />
@@ -203,13 +203,13 @@ export const PullRequestsView: React.FC = () => {
           </Button>
 
           {/* State Filter Buttons */}
-          <div className="flex items-center bg-secondary/50 rounded-md p-0.5 border border-border/60">
+          <div className="glass-segmented">
             <button
               aria-pressed={prFilterState === 'open'} onClick={() => setPRFilterState('open')}
               className={cn(
-                "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
+                "px-2.5 text-[12px] font-medium transition-colors",
                 prFilterState === 'open'
-                  ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
+                  ? "font-semibold text-accent-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -218,9 +218,9 @@ export const PullRequestsView: React.FC = () => {
             <button
               aria-pressed={prFilterState === 'closed'} onClick={() => setPRFilterState('closed')}
               className={cn(
-                "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
+                "px-2.5 text-[12px] font-medium transition-colors",
                 prFilterState === 'closed'
-                  ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
+                  ? "font-semibold text-accent-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -229,9 +229,9 @@ export const PullRequestsView: React.FC = () => {
             <button
               aria-pressed={prFilterState === 'all'} onClick={() => setPRFilterState('all')}
               className={cn(
-                "px-2.5 py-0.5 rounded text-[12px] font-medium transition-colors",
+                "px-2.5 text-[12px] font-medium transition-colors",
                 prFilterState === 'all'
-                  ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
+                  ? "font-semibold text-accent-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -254,11 +254,11 @@ export const PullRequestsView: React.FC = () => {
           {/* Refresh */}
           <Button
             variant="ghost"
-            size="xs"
+            size="icon-sm"
             onClick={() => loadPullRequests()}
             disabled={isLoadingPullRequests || !currentOwner || !currentRepoName}
             aria-busy={isLoadingPullRequests}
-            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
             title={t('pr.refreshTitle')}
           >
             <RotateCw className={cn('h-3.5 w-3.5', isLoadingPullRequests && 'animate-spin')} />
@@ -426,10 +426,10 @@ export const PullRequestsView: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <Button
                     variant="outline"
-                    size="xs"
+                    size="toolbar"
                     onClick={handleCheckoutPR}
                     disabled={isCheckingOut}
-                    className="h-7 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                    className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
                     title={t('pr.checkoutTitle').replace('{n}', String(activePR.number))}
                   >
                     <DownloadCloud className="h-3.5 w-3.5" />
@@ -438,9 +438,9 @@ export const PullRequestsView: React.FC = () => {
 
                   <Button
                     variant="ghost"
-                    size="xs"
+                    size="toolbar"
                     onClick={() => window.open(activePR.html_url, '_blank')}
-                    className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                    className="gap-1 text-muted-foreground hover:text-foreground"
                     title={t('pr.openInBrowser')}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -464,10 +464,10 @@ export const PullRequestsView: React.FC = () => {
 
                       <Button
                         variant="default"
-                        size="xs"
+                        size="toolbar"
                         onClick={handleMergePR}
                         disabled={isMerging}
-                        className="h-7 text-xs gap-1.5 btn-neon dark:btn-neon"
+                        className="gap-1.5 btn-neon dark:btn-neon"
                         title={t('pr.mergeTitle').replace('{n}', String(activePR.number))}
                       >
                         <GitMerge className="h-3.5 w-3.5" />
@@ -476,10 +476,10 @@ export const PullRequestsView: React.FC = () => {
 
                       <Button
                         variant="ghost"
-                        size="xs"
+                        size="toolbar"
                         onClick={handleClosePR}
                         disabled={isClosing}
-                        className="h-7 text-xs gap-1 text-git-deleted hover:text-git-deleted hover:bg-rose-500/10"
+                        className="gap-1 text-git-deleted hover:text-git-deleted hover:bg-destructive/10"
                         title={t('pr.closeConfirmTitle')}
                       >
                         <XCircle className="h-3.5 w-3.5" />
