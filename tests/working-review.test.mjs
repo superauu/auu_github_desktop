@@ -324,7 +324,7 @@ test('composer reminders preserve the draft on return and do not block continue-
   const draftState = { title: 'review workflow', body: '', busy: false, setBusy: noop, operation: { current: false }, scopeSignature: { current: '' }, setTitle: () => { cleared++; }, setBody: noop, amend: false, setAmend: noop, amendCommit: null, setAmendCommit: noop, origin: null, setOrigin: noop };
   try {
     await act(async () => { renderer = create(React.createElement(app.CommitComposer, { draftState, onOpenAiSettings: noop })); });
-    const submit = () => renderer.root.findAllByType('button').find(button => button.props.className?.includes('w-full h-10')).props.onClick();
+    const submit = () => renderer.root.findAllByType('button').find(button => button.props.className?.includes('w-full h-10') && button.props.className?.includes('font-semibold')).props.onClick();
     await act(async () => { submit(); await pending(); app.useConfirmStore.getState().settle(false); });
     for (let i = 0; i < 30 && draftState.operation.current; i++) await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal(cleared, 0); assert.equal(git(repo, 'diff', '--cached'), '');
