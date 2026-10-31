@@ -1,23 +1,27 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { AlertCircle, ArrowUp, FolderGit2, GitMerge, Info, LoaderCircle, RefreshCw, Search, Square } from 'lucide-react';
+import { OverviewRepositoryRow, type OverviewRowState } from './OverviewRepositoryRow';
+import './RepositoryOverview.css';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { useRepoStore, type MainNavTab } from '@/stores/repoStore';
 import { useGitHubStore } from '@/stores/githubStore';
 import { authorizeRepository, isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 import type { RepositoryInfo } from '@/services/git/types';
-import { overviewService, OverviewPermissionError, type OverviewLocal, type OverviewCI } from './OverviewService';
+import { overviewService, OverviewPermissionError } from './OverviewService';
 import { mapOverview, overviewCounts, overviewRepositories } from './overviewLogic';
 
-interface Row { phase: 'pending' | 'reading' | 'ready' | 'error' | 'permission'; local?: OverviewLocal; ci?: OverviewCI; error?: string; account?: object }
-export function RepositoryOverview() {
+export function RepositoryOverview({ onOpenGitHubAuth }: { onOpenGitHubAuth?: () => void }) {
   const { t, lang } = useI18n();
-  const { open, recent } = useRepoStore(useShallow(state => ({ open: state.openTabs, recent: state.recentRepos })));
+  const { open, recent, currentPath } = useRepoStore(useShallow(state => ({ open: state.openTabs, recent: state.recentRepos, currentPath: state.currentRepo?.path })));
   const { token, profile, authenticated } = useGitHubStore(useShallow(state => ({ token: state.token, profile: state.activeProfileId, authenticated: state.isAuthenticated })));
   const account = useMemo(() => ({ token, profile, authenticated }), [token, profile, authenticated]);
   const repos = useMemo(() => overviewRepositories(open, recent), [open, recent]);
-  const [rows, setRows] = useState<Record<string, Row>>({}), [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
+  const [rows, setRows] = useState<Record<string, OverviewRowState>>({}), [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [limit, setLimit] = useState(24), [opening, setOpening] = useState('');
+  const [expanded, setExpanded] = useState<string | null | undefined>(undefined);
+  const expandedPath = expanded === undefined ? repos.length === 1 ? repos[0].path : null : expanded;
   const generation = useRef(0), controller = useRef<AbortController | null>(null), openingRef = useRef(false);
   const invalidate = useCallback(() => { generation.current++; controller.current?.abort(); }, []);
   const key = JSON.stringify(repos.map(repo => repo.path));
@@ -27,7 +31,7 @@ export function RepositoryOverview() {
     const id = ++generation.current; setBusy(true); setNotice('');
     setRows(previous => ({ ...previous, ...Object.fromEntries(targets.map(repo => [repo.path, { phase: 'reading' }])) }));
     const active = () => { const github = useGitHubStore.getState(); return !abort.signal.aborted && generation.current === id && github.token === token && github.activeProfileId === profile && github.isAuthenticated === authenticated; };
-    const update = (path: string, row: Row) => { if (active()) setRows(previous => ({ ...previous, [path]: row })); };
+    const update = (path: string, row: OverviewRowState) => { if (active()) setRows(previous => ({ ...previous, [path]: row })); };
     try {
       await mapOverview(targets, async repo => {
         try {
@@ -53,38 +57,66 @@ export function RepositoryOverview() {
     } catch (error) { if (!isRepositoryAccessCancelled(error)) setNotice(error instanceof Error ? error.message : String(error)); }
     finally { openingRef.current = false; setOpening(''); }
   };
-  const visible = matching.slice(0, limit).filter(repo => {
-    const row = rows[repo.path];
-    if (filter === 'all' || !row?.local) return true;
+  const needsAttention = (row?: OverviewRowState) => {
+    if (!row?.local) return true;
     const { changed, conflicts } = overviewCounts(row.local.status);
     return changed > 0 || conflicts > 0 || row.local.status.ahead > 0 || row.local.status.behind > 0 || row.local.operation.type !== 'none' || (row.account === account && ['failed', 'unknown'].includes(row.ci?.state || ''));
+  };
+  const visible = matching.slice(0, limit).filter(repo => {
+    const row = rows[repo.path];
+    if (filter === 'all') return true;
+    if (filter === 'attention') return needsAttention(row);
+    if (!row?.local) return false;
+    return filter === 'unpushed' ? row.local.status.ahead > 0 : overviewCounts(row.local.status).conflicts > 0;
   });
-  return <section aria-label={t('overview.title')} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
-    <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-lg font-semibold">{t('overview.title')}</h1><div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void refresh()}>{t('overview.refresh')}</Button>{busy && <Button variant="outline" onClick={() => { controller.current?.abort(); generation.current++; setBusy(false); setNotice(t('overview.stopped')); setRows(previous => Object.fromEntries(Object.entries(previous).map(([path, row]) => [path, row.phase === 'reading' ? { phase: 'pending' } : row]))); }}>{t('overview.stop')}</Button>}</div></header>
-    <p className="text-xs text-muted-foreground">{t('overview.scope')}</p>
-    {busy && <p role="status" className="text-xs">{t('overview.reading')}</p>}
-    {notice && <p role="status" className="text-sm wrap-break-word">{notice}</p>}
-    <div className="flex flex-wrap gap-2"><input type="search" aria-label={t('overview.search')} placeholder={t('overview.search')} value={query} onChange={event => setQuery(event.target.value)} className="h-9 flex-1 min-w-0 border border-input rounded-md bg-background px-3 text-sm" /><select aria-label={t('overview.filter')} value={filter} onChange={event => setFilter(event.target.value)} className="h-9 border border-input rounded-md bg-background px-2 text-sm"><option value="all">{t('overview.all')}</option><option value="attention">{t('overview.attention')}</option></select></div>
-    {!visible.length && <p className="text-sm text-muted-foreground">{t('overview.empty')}</p>}
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">{visible.map(repo => {
-      const row = rows[repo.path] || { phase: 'pending' }, local = row.local, counts = local && overviewCounts(local.status), ci = row.account === account ? row.ci : undefined;
-      return <article key={repo.path} aria-label={repo.name} className="min-w-0 rounded-xl border border-border bg-card p-4 space-y-3">
-        <h2 className="font-semibold break-all">{repo.name}</h2><p className="text-xs text-muted-foreground break-all select-text">{repo.path}</p>
-        {row.phase === 'reading' && <p role="status" className="text-sm">{t('overview.reading')}</p>}
-        {row.phase === 'pending' && <p className="text-sm">{t('overview.pending')}</p>}
-        {row.phase === 'permission' && <p className="text-sm">{t('overview.permission')}</p>}
-        {row.phase === 'error' && <p role="alert" className="text-xs text-destructive wrap-break-word">{row.error}</p>}
-        {local && counts && <>
-          <p className="font-mono text-sm break-all">{local.status.currentBranch}</p>
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm"><span>{t(counts.changed ? 'overview.changed' : 'overview.clean').replace('{n}', String(counts.changed))}</span>{counts.conflicts > 0 && <strong className="text-destructive">{t('overview.conflicts').replace('{n}', String(counts.conflicts))}</strong>}</div>
-          <p className="text-xs">{local.status.trackingBranch ? `${t('overview.ahead').replace('{n}', String(local.status.ahead))} · ${t('overview.behind').replace('{n}', String(local.status.behind))}` : t('overview.noTracking')}</p>
-          <p className="text-xs">{local.operation.type === 'none' ? t('overview.operation.none') : `${t('overview.operation')}${t(`activity.command.${local.operation.type}`)}`}</p>
-          <section aria-label="CI" className="bg-muted/40 rounded-md p-2 space-y-1 text-xs"><p>CI · {t(`overview.ci.${ci?.state || (busy ? 'loading' : 'unknown')}`)}</p>{ci?.sha && <><p className="font-mono break-all">{ci.ref} · {ci.sha.slice(0, 12)}</p><p className="text-muted-foreground">{t('overview.ciHint')}</p></>}{ci?.error && <details><summary>{t('operationLog.details')}</summary><pre className="max-h-32 overflow-auto whitespace-pre-wrap wrap-break-word select-text">{ci.error}</pre></details>}</section>
-          <p className="text-[11px] text-muted-foreground">{t('overview.localTime')} {new Date(local.checkedAt).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en')}</p>
-        </>}
-        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => { if (row.phase !== 'permission') void refresh([repo]); else { const id = generation.current; void (async () => { try { await authorizeRepository(repo.path); if (id === generation.current) await refresh([repo], true); } catch (error) { if (id === generation.current && !isRepositoryAccessCancelled(error)) setNotice(String(error)); } })(); } }}>{t(row.phase === 'permission' ? 'overview.authorize' : 'overview.retry')}</Button><Button size="sm" variant="outline" disabled={!!opening} onClick={() => void navigate(repo, 'changes')}>{t('overview.openChanges')}</Button><Button size="sm" variant="ghost" disabled={!!opening} onClick={() => void navigate(repo, 'history')}>{t('overview.openHistory')}</Button>{ci?.url && <a href={ci.url} target="_blank" rel="noreferrer" className="inline-flex items-center px-2 text-xs text-primary underline">{t('overview.openCI')} ↗</a>}</div>
-      </article>;
-    })}</div>
-    {matching.length > limit && <Button variant="outline" disabled={busy} onClick={() => setLimit(value => value + 24)}>{t('overview.more')}</Button>}
+  const known = repos.map(repo => rows[repo.path]).filter(row => row?.local);
+  const evaluated = repos.map(repo => rows[repo.path]).filter(row => row && ['ready', 'error', 'permission'].includes(row.phase));
+  const attentionCount = evaluated.filter(needsAttention).length;
+  const pushCount = known.reduce((total, row) => total + (row.local?.status.trackingBranch ? row.local.status.ahead : 0), 0);
+  const conflictCount = known.reduce((total, row) => total + (row.local ? overviewCounts(row.local.status).conflicts : 0), 0);
+  const number = new Intl.NumberFormat(lang === 'zh' ? 'zh-CN' : 'en');
+  const metrics = [
+    { label: 'overview.attention', value: attentionCount, icon: AlertCircle, filter: 'attention', ready: evaluated.length > 0 || !repos.length },
+    { label: 'overview.pushCount', value: pushCount, icon: ArrowUp, filter: 'unpushed', ready: known.length > 0 || !repos.length },
+    { label: 'overview.conflictCount', value: conflictCount, icon: GitMerge, filter: 'conflicts', ready: known.length > 0 || !repos.length },
+  ];
+  const retry = (repo: RepositoryInfo, row: OverviewRowState) => {
+    if (row.phase !== 'permission') { void refresh([repo]); return; }
+    const id = generation.current;
+    void (async () => {
+      try { await authorizeRepository(repo.path); if (id === generation.current) await refresh([repo], true); }
+      catch (error) { if (id === generation.current && !isRepositoryAccessCancelled(error)) setNotice(String(error)); }
+    })();
+  };
+  const stopRead = () => {
+    controller.current?.abort(); generation.current++; setBusy(false); setNotice(t('overview.stopped'));
+    setRows(previous => Object.fromEntries(Object.entries(previous).map(([path, row]) => [path, row.phase === 'reading' ? { phase: 'pending' } : row])));
+  };
+  return <section aria-label={t('overview.title')} className="repository-overview">
+    <header className="overview-toolbar">
+      <div className="overview-toolbar-group">
+        {busy ? <Button size="xs" variant="ghost" onClick={stopRead}><Square aria-hidden="true" size={11} />{t('overview.stop')}</Button> : <Button size="xs" variant="ghost" onClick={() => void refresh()}><RefreshCw aria-hidden="true" size={12} />{t('overview.refresh')}</Button>}
+        <span className="overview-read-count">{busy && <LoaderCircle aria-hidden="true" size={11} className="overview-spinner" />}{t('overview.readCount').replace('{read}', number.format(known.length)).replace('{total}', number.format(repos.length))}</span>
+      </div>
+      <section aria-label={t('overview.summary')} className="overview-chips">{metrics.map(metric => <button type="button" key={metric.filter} className="overview-chip" aria-pressed={filter === metric.filter} data-tone={metric.value > 0 && metric.filter === 'conflicts' ? 'danger' : metric.value > 0 && metric.filter === 'unpushed' ? 'active' : undefined} onClick={() => setFilter(filter === metric.filter ? 'all' : metric.filter)}>
+        <span className="overview-chip-label"><metric.icon aria-hidden="true" size={12} />{t(metric.label)}</span><span className="overview-chip-count">{metric.ready ? number.format(metric.value) : '—'}</span>
+      </button>)}</section>
+      <div className="overview-tools">
+        <div className="overview-search"><Search aria-hidden="true" size={13} /><input type="search" name="repository-search" autoComplete="off" spellCheck={false} aria-label={t('overview.search')} placeholder={t('overview.search') + '…'} value={query} onChange={event => setQuery(event.target.value)} /></div>
+        <select aria-label={t('overview.filter')} value={filter} onChange={event => setFilter(event.target.value)}><option value="all">{t('overview.all')}</option><option value="attention">{t('overview.attention')}</option><option value="unpushed">{t('overview.pushFilter')}</option><option value="conflicts">{t('overview.conflictFilter')}</option></select>
+      </div>
+    </header>
+    {notice && <p role="status" className="overview-notice wrap-break-word">{notice}</p>}
+    <div className="overview-body">
+      {visible.length > 0 ? <>
+        <div className="overview-column-head" aria-hidden="true"><span>{t('overview.repositories')}</span><span>{t('overview.workspace')}</span><span>{t('overview.sync')}</span><span>{t('overview.checks')}</span><span /></div>
+        <div className="overview-repository-list">{visible.map(repo => {
+          const row = rows[repo.path] || { phase: 'pending' };
+          return <OverviewRepositoryRow key={repo.path} repo={repo} row={row} ci={row.account === account ? row.ci : undefined} current={repo.path === currentPath} expanded={expandedPath === repo.path} busy={busy} opening={!!opening} onToggle={() => setExpanded(expandedPath === repo.path ? null : repo.path)} onRetry={() => retry(repo, row)} onChanges={() => void navigate(repo, 'changes')} onHistory={() => void navigate(repo, 'history')} onConnect={onOpenGitHubAuth} />;
+        })}</div>
+      </> : <div className="overview-empty"><FolderGit2 aria-hidden="true" size={24} /><h3>{t(query ? 'overview.noResults' : 'overview.noAttention')}</h3><Button variant="outline" size="sm" onClick={() => { setQuery(''); setFilter('all'); }}>{t('overview.reset')}</Button></div>}
+      {matching.length > limit && <Button className="overview-more" variant="outline" size="sm" disabled={busy} onClick={() => setLimit(value => value + 24)}>{t('overview.more')}</Button>}
+      <details className="overview-data-info"><summary><Info aria-hidden="true" size={12} />{t('overview.dataInfo')}</summary><p>{t('overview.scope')}</p><p>{t('overview.knownCounts')}</p></details>
+    </div>
   </section>;
 }

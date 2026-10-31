@@ -1,4 +1,12 @@
 export const overviewZh = {
+  'overview.repositories': '仓库', 'overview.summary': '工作空间状态', 'overview.pushCount': '待推送提交', 'overview.conflictCount': '冲突文件',
+  'overview.readCount': '已读取 {read} / {total} 个仓库', 'overview.knownCounts': '汇总仅包含已读取的状态',
+  'overview.workspace': '工作区', 'overview.sync': '同步', 'overview.checks': '持续集成', 'overview.synced': '已同步',
+  'overview.current': '当前', 'overview.details': '仓库详情', 'overview.detailsFor': '仓库详情：{name}', 'overview.dataInfo': '数据说明',
+  'overview.stagedCount': '已暂存', 'overview.unstagedCount': '未暂存', 'overview.untrackedCount': '新文件', 'overview.branch': '当前分支', 'overview.tracking': '跟踪分支',
+  'overview.unavailable': '无法读取', 'overview.needsPermission': '等待授权', 'overview.conflictFilter': '存在冲突', 'overview.pushFilter': '待推送',
+  'overview.noResults': '没有找到匹配的仓库', 'overview.noAttention': '没有需要处理的仓库', 'overview.reset': '显示全部仓库',
+  'overview.connect': '连接 GitHub', 'overview.ci.disconnected': '未连接账号', 'overview.ci.scope': '检查对应远端跟踪提交',
   'overview.title': '多仓库总览', 'overview.scope': '汇集已打开与最近使用的仓库。同步计数基于本机已获取的远端引用；CI 使用当前 GitHub 账号，检查跟踪分支的远端提交。',
   'overview.refresh': '刷新总览', 'overview.stop': '停止刷新', 'overview.stopped': '已停止安排新的读取，已开始的读取会继续完成。',
   'overview.search': '搜索仓库名称或路径', 'overview.filter': '筛选仓库', 'overview.all': '全部仓库', 'overview.attention': '需要处理', 'overview.empty': '没有匹配的仓库。',
@@ -12,6 +20,14 @@ export const overviewZh = {
   'operationLog.storageFailed': '本机操作记录无法读取或保存，当前会话仍可使用。', 'operationLog.repoFilter': '筛选操作所属仓库', 'operationLog.search': '搜索操作记录', 'operationLog.allRepos': '全部仓库',
 } as const;
 export const overviewEn: Record<keyof typeof overviewZh, string> = {
+  'overview.repositories': 'Repositories', 'overview.summary': 'Workspace status', 'overview.pushCount': 'Unpushed commits', 'overview.conflictCount': 'Conflicted files',
+  'overview.readCount': '{read} / {total} repositories read', 'overview.knownCounts': 'Totals include read snapshots only',
+  'overview.workspace': 'Working tree', 'overview.sync': 'Sync', 'overview.checks': 'Continuous integration', 'overview.synced': 'Up to date',
+  'overview.current': 'Current', 'overview.details': 'Repository details', 'overview.detailsFor': 'Repository details: {name}', 'overview.dataInfo': 'About these statuses',
+  'overview.stagedCount': 'Staged', 'overview.unstagedCount': 'Unstaged', 'overview.untrackedCount': 'New files', 'overview.branch': 'Current branch', 'overview.tracking': 'Tracking branch',
+  'overview.unavailable': 'Unavailable', 'overview.needsPermission': 'Needs permission', 'overview.conflictFilter': 'Conflicts', 'overview.pushFilter': 'Unpushed',
+  'overview.noResults': 'No matching repositories', 'overview.noAttention': 'No repositories need attention', 'overview.reset': 'Show all repositories',
+  'overview.connect': 'Connect GitHub', 'overview.ci.disconnected': 'Account not connected', 'overview.ci.scope': 'Checks belong to the remote tracking commit',
   'overview.title': 'Repository overview', 'overview.scope': 'Open and recent repositories. Sync counts use locally fetched remote refs. CI uses the current GitHub account and the remote tracking commit.',
   'overview.refresh': 'Refresh overview', 'overview.stop': 'Stop refresh', 'overview.stopped': 'No more reads will start. In-flight reads may finish.',
   'overview.search': 'Search repository name or path', 'overview.filter': 'Filter repositories', 'overview.all': 'All repositories', 'overview.attention': 'Needs attention', 'overview.empty': 'No matching repositories.',

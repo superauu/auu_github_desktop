@@ -44,7 +44,7 @@ export const CenterStage: React.FC<CenterStageProps> = ({
 
   const renderActiveView = () => {
     switch (activeTab) {
-      case 'overview': return <RepositoryOverview />;
+      case 'overview': return <RepositoryOverview onOpenGitHubAuth={onOpenGitHubAuth} />;
       case 'actions':
         return <ActionsDashboardView onOpenAuthDialog={onOpenGitHubAuth} />;
       case 'pullRequests':
