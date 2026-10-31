@@ -180,28 +180,22 @@ export const PullRequestsView: React.FC = () => {
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Header Filter Bar */}
       <div className="min-h-[34px] py-1 px-3 border-b border-border bg-card flex flex-wrap gap-2 items-center justify-between text-xs shrink-0">
-        <div className="flex items-center gap-2">
-          <GitPullRequest className="h-3.5 w-3.5 text-primary" />
-          <span className="font-semibold text-foreground">{t('pr.title')}</span>
-          <Badge variant="outline" className="h-4 text-[11px] font-mono">
+        <div className="flex items-center gap-2 min-w-0">
+          <Button variant="ghost" size="icon-sm" onClick={() => loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" title={t('pr.refreshTitle')}>
+            <RotateCw className={cn('h-3.5 w-3.5', isLoadingPullRequests && 'animate-spin')} />
+          </Button>
+          <Button size="toolbar" onClick={() => setCreatePROpen(true)} disabled={!currentOwner || !currentRepoName} title={currentOwner ? t('pr.createTitle') : t('pr.needLogin')}>
+            <Plus className="h-3.5 w-3.5" />
+            <span>{t('pr.newPR')}</span>
+          </Button>
+          <GitPullRequest className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="font-semibold text-foreground truncate">{t('pr.title')}</span>
+          <Badge variant="outline" className="h-4 text-[11px] font-mono shrink-0">
             {filteredPRs.length} {t('pr.count')}
           </Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* New Pull Request */}
-          <Button
-            variant="outline-success"
-            size="toolbar"
-            onClick={() => setCreatePROpen(true)}
-            disabled={!currentOwner || !currentRepoName}
-            className="gap-1"
-            title={currentOwner ? t('pr.createTitle') : t('pr.needLogin')}
-          >
-            <Plus className="h-3 w-3" />
-            <span>{t('pr.newPR')}</span>
-          </Button>
-
           {/* State Filter Buttons */}
           <div className="glass-segmented">
             <button
@@ -251,18 +245,7 @@ export const PullRequestsView: React.FC = () => {
             />
           </div>
 
-          {/* Refresh */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => loadPullRequests()}
-            disabled={isLoadingPullRequests || !currentOwner || !currentRepoName}
-            aria-busy={isLoadingPullRequests}
-            className="text-muted-foreground hover:text-foreground"
-            title={t('pr.refreshTitle')}
-          >
-            <RotateCw className={cn('h-3.5 w-3.5', isLoadingPullRequests && 'animate-spin')} />
-          </Button>
+
         </div>
       </div>
 
