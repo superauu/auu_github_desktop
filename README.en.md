@@ -187,3 +187,9 @@ This project is released under the [GPL-3.0-or-later](LICENSE) license. Copyrigh
 
 You are free to use, study, modify, and redistribute this project; distributing a modified form requires licensing the derivative work under the same license. Third-party dependencies keep their original licenses; refer to each upstream project.
 
+## Code signing policy
+
+- Authenticode signatures on the Windows installers and MSI: **Free code signing provided by SignPath.io, certificate by SignPath Foundation**.
+- Roles: the Author, Reviewer, and Approver for this project are all [@superauu](https://github.com/superauu) (single-maintainer project).
+- Privacy statement: the app does not transfer any information to networked systems unless you explicitly enable or trigger a feature — crash reporting is off by default and uploads only after you enable it in Settings; AI requests go only to the provider you configure; auto-update only fetches the manifest from GitHub Releases. See [Privacy and AI](#privacy-and-ai).
+

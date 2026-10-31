@@ -190,3 +190,9 @@ scripts/         发布版本校验
 
 你可以自由地使用、学习、修改和再分发本项目；以修改后的形式分发时，衍生作品需要以相同许可证开源。第三方依赖各自遵循其原始许可证，以各上游声明为准。
 
+## 代码签名政策
+
+- Windows 安装包与 MSI 的 Authenticode 签名：**Free code signing provided by SignPath.io, certificate by SignPath Foundation**。
+- 角色说明：本项目的 Author、Reviewer 与 Approver 均为 [@superauu](https://github.com/superauu)（个人维护者项目，单一角色持有人）。
+- 隐私声明：除你主动开启或触发的功能外，程序不会向网络传输任何信息——崩溃报告默认关闭，仅在设置中开启后上传错误堆栈；AI 请求仅发往你自行配置的服务商；自动更新仅从 GitHub Releases 获取更新清单。详见[隐私与 AI](#隐私与-ai)。
+
