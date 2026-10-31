@@ -3,7 +3,7 @@ import { watchPushedCommit } from '@/services/git/PushChecks';
 import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceSessionStore, draftKey, EMPTY_DRAFT } from '@/stores/workspaceSessionStore';
-import { Check, FileText, Loader2, Send, Settings, Sparkles } from 'lucide-react';
+import { Check, FileText, ListTree, Loader2, Send, Settings, Sparkles } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { confirmAction } from '@/stores/confirmStore';
@@ -203,10 +203,10 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     </div>}
     </div>
     <div className="commit-actions sticky bottom-0 z-10 mt-auto space-y-2 border-t border-border bg-card/95 backdrop-blur-sm p-4">
-      <Button variant="outline" className="w-full min-h-9" disabled={busy || generating || amend || !currentRepo || !status} title={t('hunkPlan.scope')} onClick={() => currentRepo && status && useHunkPlanDialogStore.getState().open(currentRepo.path, status.currentBranch)}>{t('hunkPlan.button')}</Button>
-      <Button variant="outline" className="w-full min-h-9" disabled={busy || generating || amend || !currentRepo || !status || !(status.staged.length + status.unstaged.length + status.untracked.length)} title={t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => currentRepo && status && setBatchContext({ path: currentRepo.path, branch: status.currentBranch })}><Sparkles className="h-4 w-4 text-muted-foreground" />{t('batch.button')}</Button>
+      <Button variant="outline" className="w-full h-10" disabled={busy || generating || amend || !currentRepo || !status} title={t('hunkPlan.scope')} onClick={() => currentRepo && status && useHunkPlanDialogStore.getState().open(currentRepo.path, status.currentBranch)}><ListTree className="h-4 w-4 text-muted-foreground" />{t('hunkPlan.button')}</Button>
+      <Button variant="outline" className="w-full h-10" disabled={busy || generating || amend || !currentRepo || !status || !(status.staged.length + status.unstaged.length + status.untracked.length)} title={t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => currentRepo && status && setBatchContext({ path: currentRepo.path, branch: status.currentBranch })}><Sparkles className="h-4 w-4 text-muted-foreground" />{t('batch.button')}</Button>
       <Button disabled={disabled} className="w-full h-10 font-semibold" onClick={() => void submit()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="truncate">{actionLabel}{scope.files.length ? ` (${scope.files.length})` : ''}</span></Button>
-      <Button disabled={disabled} variant="outline" className="w-full" onClick={() => void submit(true)}><Send className="h-4 w-4" />{t(amend ? 'composer.amendPush' : scope.stageAll ? 'rightPane.stageAllCommitPush' : 'rightPane.commitPush')}</Button>
+      <Button disabled={disabled} variant="outline" className="w-full h-10" onClick={() => void submit(true)}><Send className="h-4 w-4" />{t(amend ? 'composer.amendPush' : scope.stageAll ? 'rightPane.stageAllCommitPush' : 'rightPane.commitPush')}</Button>
       <p className="text-[12px] text-muted-foreground text-center">Ctrl / ⌘ + Enter</p>
     </div>
     {preview && <ModalSurface label={t('composer.preview')} onDismiss={() => setPreview(null)} className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-6">

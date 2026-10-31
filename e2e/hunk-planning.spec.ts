@@ -9,7 +9,7 @@ async function open(page: Page, extra = '') {
   await page.goto(`/tests/visual/index.html?automation=1&hunks=1${extra}`);
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true', { timeout: 45_000 });
   await page.locator('#commit-title').fill('Existing ordinary draft');
-  await page.getByRole('button', { name: '按暂存代码块规划提交', exact: true }).click();
+  await page.getByRole('button', { name: '规划暂存提交', exact: true }).click();
   return page.getByRole('dialog', { name: '规划代码块提交' });
 }
 async function split(page: Page, extra = '') {
@@ -136,7 +136,7 @@ test('reloading a snapshot discards an in-flight AI result and starts with fresh
 
 async function reopen(page: Page) {
   await page.getByRole('dialog', { name: '规划代码块提交' }).getByRole('button', { name: '关闭', exact: true }).last().click();
-  await page.getByRole('button', { name: '按暂存代码块规划提交', exact: true }).click();
+  await page.getByRole('button', { name: '规划暂存提交', exact: true }).click();
   return page.getByRole('dialog', { name: '规划代码块提交' });
 }
 
@@ -165,7 +165,7 @@ test('a fresh page can recover a saved plan, then submission clears the draft be
   await split(page, '&draftReload=1');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true');
-  await page.getByRole('button', { name: '按暂存代码块规划提交', exact: true }).click();
+  await page.getByRole('button', { name: '规划暂存提交', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: '规划代码块提交' });
   await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
   await expect(dialog.getByLabel('提交标题', { exact: true }).first()).toHaveValue('feat: first');
@@ -316,7 +316,7 @@ test('opening the linked issue preserves the plan draft for returning to changes
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('[data-issue-detail="12"]')).toBeVisible();
   await page.getByRole('button', { name: /^工作区变更/ }).click();
-  await page.getByRole('button', { name: '按暂存代码块规划提交', exact: true }).click();
+  await page.getByRole('button', { name: '规划暂存提交', exact: true }).click();
   dialog = page.getByRole('dialog', { name: '规划代码块提交' });
   await dialog.getByRole('button', { name: '恢复草稿', exact: true }).click();
   await expect(dialog.getByRole('textbox', { name: '提交标题', exact: true }).first()).toHaveValue('feat: first');
