@@ -1,0 +1,82 @@
+/* Issues 页：与总览/提交历史一致的桌面工具条 + 密集行范式。
+   移除网页式大标题、带标签表单与圆角卡片列表。 */
+.issues-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 34px;
+  padding: 3px 10px 3px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-card);
+  flex-shrink: 0;
+}
+.issues-toolbar-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.issues-scope { color: var(--color-muted-foreground); font-size: 12px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.issues-tools { display: flex; align-items: center; gap: 6px; min-width: 0; margin-left: auto; }
+.issues-search { position: relative; width: 200px; min-width: 0; }
+.issues-search > svg { position: absolute; inset-inline-start: 8px; top: 7px; color: var(--color-muted-foreground); pointer-events: none; }
+.issues-search input {
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--color-input);
+  border-radius: 4px;
+  background: var(--color-background);
+  padding: 0 8px 0 28px;
+  font-size: 12px;
+  line-height: 26px;
+}
+.issues-search input::placeholder { color: var(--color-muted-foreground); }
+.issues-select {
+  height: 28px;
+  max-width: 96px;
+  border: 1px solid var(--color-input);
+  border-radius: 4px;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  padding: 0 24px 0 8px;
+  font-size: 12px;
+}
+.issues-input {
+  width: 96px;
+  height: 28px;
+  border: 1px solid var(--color-input);
+  border-radius: 4px;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  padding: 0 8px;
+  font-size: 12px;
+}
+.issues-search input:focus-visible, .issues-select:focus-visible, .issues-input:focus-visible { outline: 2px solid var(--color-ring); outline-offset: -1px; }
+.issues-icon-btn { width: 28px; height: 28px; padding: 0; color: var(--color-muted-foreground); }
+.issues-icon-btn:hover:not(:disabled) { color: var(--color-foreground); background: var(--color-accent); }
+
+/* 密集列表行：inset 分隔线 + 选中品牌色左条，对齐历史/总览行语言 */
+.issues-row {
+  position: relative;
+  padding: 7px 12px;
+  cursor: pointer;
+  min-width: 0;
+  box-shadow: inset 0 -1px hsl(var(--border) / 0.35);
+  transition: background-color .15s;
+}
+.issues-row:hover { background: color-mix(in srgb, var(--color-accent) 32%, transparent); }
+.issues-row[aria-current='true'] { background: color-mix(in srgb, var(--color-accent) 55%, transparent); box-shadow: inset 2px 0 var(--color-primary), inset 0 -1px hsl(var(--border) / 0.35); }
+.issues-row:focus-visible { outline: 2px solid var(--color-ring); outline-offset: -2px; }
+.issues-row-title { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; overflow-wrap: anywhere; }
+.issues-state-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--color-git-added); }
+.issues-state-dot[data-state='closed'] { background: var(--color-muted-foreground); opacity: .7; }
+.issues-row-meta { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; color: var(--color-muted-foreground); font-size: 11px; line-height: 15px; }
+.issues-row-labels { margin-top: 2px; color: var(--color-muted-foreground); font-size: 11px; line-height: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.issues-note { padding: 10px 12px; font-size: 12px; line-height: 18px; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+.issues-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; color: var(--color-muted-foreground); font-size: 12px; text-align: center; }
+.issues-empty svg { opacity: .6; }
+.issues-list-footer { display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; border-top: 1px solid var(--color-border); color: var(--color-muted-foreground); font-size: 11px; line-height: 16px; }
+.issues-list-footer > div { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+
+@container (max-width: 640px) {
+  .issues-tools { width: 100%; margin-left: 0; }
+  .issues-search { flex: 1; width: auto; }
+}
