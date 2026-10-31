@@ -8,6 +8,10 @@
 - `npm install` 后：`npm run dev`（纯浏览器预览）、`npm run tauri dev`（桌面窗口）。
 - 提交前请跑齐：`npm run lint`、`npm test`、`npx tsc --noEmit`；涉及 Rust 时加 `cargo test`；涉及 UI 交互或视觉时建议补 `npm run test:visual` 用例。
 
+## 验证崩溃上报链路
+
+以 `AUUGIT_CRASH_TEST=1` 启动发布版应用，会发送一条测试事件（走完整管道：门控 → 主目录清洗 → 传输，release 标记为 `auugit@<版本>`）；一两分钟后可在 Sentry 项目控制台的 Issues 页看到 *AuuGit crash reporting test event*。该钩子只在显式设置环境变量时触发，无任何用户可见入口。
+
 ## 提交与 PR
 
 1. Commit message 使用中文 conventional commit（`feat:` / `fix:` / `test:` / `style:` / `docs:` / `chore:`），每处独立改动一个提交。

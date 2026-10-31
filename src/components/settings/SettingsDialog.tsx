@@ -26,7 +26,6 @@ import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore, type Language } from '@/stores/settingsStore';
-import { sendCrashReportTestEvent } from '@/services/crash/CrashReportingService';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { useGitHubStore } from '@/stores/githubStore';
@@ -601,7 +600,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <div>
                       <label htmlFor="crash-reports" className="font-medium text-foreground cursor-pointer">{t('crashReports.setting')}</label>
                       <div className="text-[12px] text-muted-foreground">{t('crashReports.settingDesc')}</div>
-                      {crashReports && <button type="button" className="mt-1 text-[12px] text-primary hover:underline" onClick={() => { void sendCrashReportTestEvent().then(sent => { if (sent) toast.success(t('crashReports.testSent')); else toast.info(t('crashReports.testUnavailable')); }); }}>{t('crashReports.sendTest')}</button>}
                     </div>
                     <input
                       type="checkbox"
