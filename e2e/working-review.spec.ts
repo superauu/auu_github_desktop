@@ -94,7 +94,8 @@ test('提交提醒：继续提交放行未审核内容', async ({ page }) => {
   await expect(dialog.getByRole('checkbox', { name: /不再提醒/ })).toBeVisible();
   await dialog.getByRole('button', { name: '继续提交', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  expect(await commits(page)).toEqual(['feat: reminder flow']);
+  // 「继续提交」后还有二次核对与采集的异步链才落 commit，用轮询等它出现而非掐瞬间断言
+  await expect.poll(async () => commits(page), { timeout: 15_000 }).toEqual(['feat: reminder flow']);
   await expect(page.getByText('新提交创建成功')).toBeVisible();
   await expect(page.locator('#commit-title')).toHaveValue('');
   await expect(panel.getByRole('status')).toHaveText(/待审核 · 0\/2/);
