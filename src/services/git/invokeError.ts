@@ -15,6 +15,8 @@ export function normalizeInvokeError(error: unknown, fallback: string): Error {
 
 function describeInvokeError(error: unknown): string {
   if (typeof error === 'string') return error.trim();
+  // An Error with an empty message must fall back instead of serializing to '{}'.
+  if (error instanceof Error) return error.message;
   if (error && typeof error === 'object') {
     const candidate = error as { message?: unknown; error?: unknown; code?: unknown };
     if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message;
