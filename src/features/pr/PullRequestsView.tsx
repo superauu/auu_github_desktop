@@ -450,7 +450,7 @@ export const PullRequestsView: React.FC = () => {
                         size="toolbar"
                         onClick={handleMergePR}
                         disabled={isMerging}
-                        className="gap-1.5 btn-neon dark:btn-neon"
+                        className="gap-1.5"
                         title={t('pr.mergeTitle').replace('{n}', String(activePR.number))}
                       >
                         <GitMerge className="h-3.5 w-3.5" />

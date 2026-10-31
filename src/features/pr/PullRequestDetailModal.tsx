@@ -472,7 +472,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
 
                 <div className="flex justify-end">
                   <Button type="button" size="toolbar" onClick={handleSubmitReview} disabled={submitting}
-                    className="gap-1.5 btn-neon dark:btn-neon" data-pr-review-submit-button="true">
+                    className="gap-1.5" data-pr-review-submit-button="true">
                     {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                     <span>{submitting ? t('prReview.submitting') : t('prReview.submit')}</span>
                   </Button>

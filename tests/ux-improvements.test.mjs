@@ -146,7 +146,7 @@ test('Commit and Push reports a preference warning alongside push success withou
   try {
     await act(async () => { renderer = create(React.createElement(app.CommitComposer, { draftState, onOpenAiSettings: noop })); });
     await act(async () => {
-      renderer.root.findAllByType('button').find(button => button.props.className.includes('w-full h-9')).props.onClick();
+      renderer.root.findAllByType('button').find(button => button.props.className.includes('glass-button-outline') && button.props.className.includes('w-full') && !button.props.className.includes('min-h-9')).props.onClick();
       await Promise.resolve();
       app.useRemoteDialogStore.getState().settle({ remote: 'origin', branch: 'main', targetBranch: 'main', setUpstream: false, rememberRemote: true });
     });

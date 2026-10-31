@@ -406,7 +406,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
               type="submit"
               size="toolbar"
               disabled={isSubmitting || !ready || sameBranch}
-              className="gap-1.5 btn-neon dark:btn-neon"
+              className="gap-1.5"
             >
               {isSubmitting ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

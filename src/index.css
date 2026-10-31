@@ -622,19 +622,7 @@ html.compact-mode .diff-line-del {
   -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 75%);
 }
 
-/* 霓虹主按钮辉光（仅暗色） */
-.dark .btn-neon {
-  box-shadow: 0 0 14px -2px rgba(0, 229, 255, 0.5), inset 0 0 8px rgba(0, 229, 255, 0.12);
-}
 
-.dark .btn-neon:hover:not(:disabled) {
-  box-shadow: 0 0 22px 0 rgba(0, 229, 255, 0.65), inset 0 0 12px rgba(0, 229, 255, 0.2);
-}
-
-/* 品红辅助按钮 */
-.dark .btn-neon-pink {
-  box-shadow: 0 0 12px -2px rgba(255, 46, 166, 0.45);
-}
 
 @keyframes neon-breathe {
   0%, 100% { opacity: 0.55; }
@@ -773,7 +761,6 @@ body { font-size: var(--text-xs); line-height: 20px; }
 .menu-item[data-highlighted] { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
 .menu-item[data-disabled] { opacity: .45; pointer-events: none; }
 button:disabled { box-shadow: none !important; cursor: not-allowed; }
-.dark .btn-neon:not(:disabled) { box-shadow: 0 0 8px -4px hsl(var(--primary) / .3); }
 .text-glow-cyan, .text-glow-pink { text-shadow: none; }
 [data-file-path] > div > button:first-child { min-width: 28px; min-height: 28px; display: flex; align-items: center; justify-content: center; }
 [data-file-path][data-picked='true'] { box-shadow: inset 0 0 0 1px hsl(var(--primary) / .5); background: hsl(var(--accent)); }
