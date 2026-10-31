@@ -115,7 +115,7 @@ export function RepositoryOverview({ onOpenGitHubAuth }: { onOpenGitHubAuth?: ()
           return <OverviewRepositoryRow key={repo.path} repo={repo} row={row} ci={row.account === account ? row.ci : undefined} current={repo.path === currentPath} expanded={expandedPath === repo.path} busy={busy} opening={!!opening} onToggle={() => setExpanded(expandedPath === repo.path ? null : repo.path)} onRetry={() => retry(repo, row)} onChanges={() => void navigate(repo, 'changes')} onHistory={() => void navigate(repo, 'history')} onConnect={onOpenGitHubAuth} />;
         })}</div>
       </> : <div className="overview-empty"><FolderGit2 aria-hidden="true" size={24} /><h3>{t(query ? 'overview.noResults' : 'overview.noAttention')}</h3><Button variant="outline" size="sm" onClick={() => { setQuery(''); setFilter('all'); }}>{t('overview.reset')}</Button></div>}
-      {matching.length > limit && <Button className="overview-more" variant="outline" disabled={busy} onClick={() => setLimit(value => value + 24)}>{t('overview.more')}</Button>}
+      {matching.length > limit && <Button className="overview-more" variant="outline" size="sm" disabled={busy} onClick={() => setLimit(value => value + 24)}>{t('overview.more')}</Button>}
       <details className="overview-data-info"><summary><Info aria-hidden="true" size={12} />{t('overview.dataInfo')}</summary><p>{t('overview.scope')}</p><p>{t('overview.knownCounts')}</p></details>
     </div>
   </section>;
