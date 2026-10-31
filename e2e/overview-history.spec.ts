@@ -8,7 +8,7 @@ test('overview isolates repository errors, deduplicates changed files, filters a
   await page.goto('/tests/visual/index.html?automation=1&overview=1');
   const overview = page.getByRole('region', { name: '多仓库总览', exact: true });
   const app = overview.getByRole('article', { name: 'Application', exact: true });
-  await expect(app).toContainText('1 个改动文件'); await expect(app).toContainText('2 个待推送'); await expect(app).toContainText('origin/main · bbbbbbbbbbbb');
+  await expect(app).toContainText('1 个改动文件'); await expect(app).toContainText('2 个待推送'); await expect(app).toContainText('origin/main'); await expect(app.locator('code')).toHaveText('bbbbbbbbbbbb');
   await expect(overview.getByRole('article', { name: 'Unavailable folder' })).toContainText('Fixture directory unavailable');
   await expect(overview.getByRole('article', { name: 'Conflict project' })).toContainText('1 个冲突文件');
   await expect(overview.getByRole('article', { name: 'Clean library' })).toContainText('检查通过');
@@ -70,4 +70,32 @@ test('search finds repositories outside the first batch and refresh reads the ma
   await expect(card).toContainText('尚未读取');
   await overview.getByRole('button', { name: '刷新总览', exact: true }).click();
   await expect(card).toContainText('工作区干净');
+});
+
+test('single-repository overview fills the content width and exposes keyboard-accessible details and account connection', async ({ page }) => {
+  await page.setViewportSize({ width: 1575, height: 831 });
+  await page.goto('/tests/visual/index.html?automation=1&overview=1&overviewSingle=1');
+  const overview = page.getByRole('region', { name: '多仓库总览', exact: true });
+  const summary = overview.getByRole('region', { name: '工作空间状态', exact: true });
+  await expect(summary.getByRole('button', { name: /需要处理/ })).toContainText('0');
+  const row = overview.getByRole('article', { name: 'Application', exact: true });
+  await expect(row).toContainText('工作区干净'); await expect(row).toContainText('已同步');
+  await expect(row.getByRole('button', { name: '连接 GitHub', exact: true })).toBeVisible();
+  const toggle = row.getByRole('button', { name: '仓库详情：Application', exact: true });
+  await toggle.focus(); await page.keyboard.press('Space'); await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await page.keyboard.press('Enter'); await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  const sizes = await row.evaluate(element => ({ row: element.clientWidth, list: element.parentElement!.clientWidth })); expect(sizes.row).toBeGreaterThan(sizes.list * .95);
+  await summary.getByRole('button', { name: /需要处理/ }).click(); await expect(overview.getByText('没有需要处理的仓库', { exact: true })).toBeVisible();
+  await overview.getByRole('button', { name: '显示全部仓库', exact: true }).click(); await expect(row).toBeVisible();
+});
+
+test('summary shortcuts filter confirmed conflicts and retain readable statuses in the light theme', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 600 });
+  await page.goto('/tests/visual/index.html?automation=1&overview=1&theme=light');
+  const overview = page.getByRole('region', { name: '多仓库总览', exact: true });
+  await expect(overview.getByRole('article', { name: 'Conflict project', exact: true })).toContainText('1 个冲突文件');
+  await overview.getByRole('region', { name: '工作空间状态', exact: true }).getByRole('button', { name: /冲突文件/ }).click();
+  await expect(overview.getByRole('article')).toHaveCount(1);
+  await expect(overview.getByRole('article', { name: 'Conflict project', exact: true })).toBeVisible();
+  expect(await overview.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
 });
