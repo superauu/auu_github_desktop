@@ -6,7 +6,7 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import '@fontsource-variable/orbitron';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
-import { crashReportingDsn, isDesktopShell } from './services/crash/CrashReportingService';
+import { crashReportingDsn, isDesktopShell, syncCrashReporting } from './services/crash/CrashReportingService';
 import { useSettingsStore } from './stores/settingsStore';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
@@ -18,6 +18,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
 // 崩溃上报（严格 opt-in）：客户端常驻、beforeSend 读实时开关——关闭时事件在本地被
 // 丢弃，不产生网络请求。DSN 由编译期注入；浏览器预览不启用。异步初始化，不阻塞渲染。
 if (crashReportingDsn && isDesktopShell()) {
+  // syncCrashReporting 只在用户切换开关时被调用；重启后必须显式把持久化的
+  // 开关同步给 Rust 门控，否则 Rust 侧 panic 上报会一直保持关闭。
+  syncCrashReporting(useSettingsStore.getState().crashReports);
   void import('@sentry/browser').then(({ init, getCurrentScope, setUser }) => {
     init({
       dsn: crashReportingDsn,

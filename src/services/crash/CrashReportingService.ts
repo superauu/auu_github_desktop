@@ -10,3 +10,16 @@ export function syncCrashReporting(enabled: boolean): void {
   if (!isDesktopShell()) return;
   void import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_crash_reporting', { enabled })).catch(() => { /* 桌面同步失败时由下次启动兜底 */ });
 }
+
+/**
+ * 发送一条测试事件验证端到端链路（Sentry Issues 页可见）。
+ * 只在「DSN 存在 + 桌面壳」时可用；开关由设置行的渲染条件保证，此处不重复读 store
+ * （settingsStore 反向依赖本服务，避免循环引用）。
+ */
+export async function sendCrashReportTestEvent(): Promise<boolean> {
+  if (!crashReportingDsn || !isDesktopShell()) return false;
+  const Sentry = await import('@sentry/browser');
+  Sentry.getCurrentScope().setTag('source', 'settings-test');
+  Sentry.captureMessage('AuuGit crash reporting test event', 'info');
+  return true;
+}
