@@ -8,9 +8,17 @@
 - `npm install` 后：`npm run dev`（纯浏览器预览）、`npm run tauri dev`（桌面窗口）。
 - 提交前请跑齐：`npm run lint`、`npm test`、`npx tsc --noEmit`；涉及 Rust 时加 `cargo test`；涉及 UI 交互或视觉时建议补 `npm run test:visual` 用例。
 
-## 验证崩溃上报链路
+## 验证崩溃上报链路（仅本地，不进代码）
 
-以 `AUUGIT_CRASH_TEST=1` 启动发布版应用，会发送一条测试事件（走完整管道：门控 → 主目录清洗 → 传输，release 标记为 `auugit@<版本>`）；一两分钟后可在 Sentry 项目控制台的 Issues 页看到 *AuuGit crash reporting test event*。该钩子只在显式设置环境变量时触发，无任何用户可见入口。
+DSN 经编译期注入，本地给 dev 构建设置环境变量即可启用，无需改任何代码：
+
+```powershell
+$env:AUUGIT_SENTRY_DSN = "<你的 DSN>"
+$env:VITE_AUUGIT_SENTRY_DSN = $env:AUUGIT_SENTRY_DSN
+npm run tauri dev
+```
+
+在应用设置里开启崩溃报告后，devtools（dev 构建可用，Ctrl+Shift+I）Console 执行 `setTimeout(() => { throw new Error('local test') })`，一两分钟后 Sentry 项目 Issues 页应出现该错误——验证 DSN、beforeSend 门控与传输的完整前端链路。注意 `option_env!` 是编译期取值：修改环境变量后如未生效，touch `src-tauri/src/lib.rs`（或 `cargo clean -p auugit`）强制重编。
 
 ## 提交与 PR
 

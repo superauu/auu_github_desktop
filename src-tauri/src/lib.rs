@@ -697,12 +697,6 @@ fn init_crash_reporting() {
     let guard = sentry::init((dsn, options));
     // 进程级常驻客户端：guard 释放会阻断退出并终止上报，这里有意让其存活到进程结束。
     std::mem::forget(guard);
-    // 维护者验证链路用：AUUGIT_CRASH_TEST=1 启动发布版即发送一条测试事件
-    // （走完整管道：门控 → 主目录清洗 → 传输），验证结果在 Sentry 项目的 Issues 页。
-    if std::env::var("AUUGIT_CRASH_TEST").as_deref() == Ok("1") {
-        CRASH_REPORTS_ENABLED.store(true, std::sync::atomic::Ordering::Relaxed);
-        sentry::capture_message("AuuGit crash reporting test event", sentry::Level::Info);
-    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
