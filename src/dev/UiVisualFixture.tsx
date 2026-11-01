@@ -80,6 +80,11 @@ function prepare() {
     return path === repo.path ? files.slice(0, 2) : [{ path: 'other-only.ts', status: 'modified', staged: false }];
   };
   gitService.getGitVersion = async () => 'git version 2.50.0 (fixture)';
+  // AppLayout 随仓库上下文读取 origin（errors loadRepoContext + forge detect）——
+  // 中性域名：不触发 GitHub 身份识别，也不是 gitlab.com/已连 forge，detect 结果为空。
+  gitService.getOriginUrl = async () => 'https://visual.fixture/auugit/demo.git';
+  // Errors M4 提交后记录修复提交 SHA 会读 HEAD hash（commit 桩返回 d×40，保持一致）
+  gitService.getBranchCommitHash = async () => 'd'.repeat(40);
   gitService.getRepoOperationState = async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false });
   gitService.getPushContext = async () => ({ branch: longBranch, remote: 'origin', targetBranch: longBranch, upstream: `origin/${longBranch}`, remotes: [], ahead: 0, behind: 0 });
   gitService.findCommits = async (_path, query) => commits.filter(commit => commit.subject.toLowerCase().includes(query.toLowerCase()));
