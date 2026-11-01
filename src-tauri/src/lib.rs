@@ -1052,9 +1052,13 @@ mod tests {
 
     #[test]
     fn local_paths_must_be_absolute_without_controls() {
-        // 含空格的目录合法（与 URL 不同）；Windows 盘符与 POSIX 根都算绝对路径。
-        assert!(validate_local_path("E:\\code\\auu github\\src\\lib.rs").is_ok());
-        assert!(validate_local_path("/home/user/my file.rs").is_ok());
+        // 平台相关：Windows 盘符路径只在 Windows 上算绝对（POSIX 的 is_absolute 不认），
+        // `/` 根路径两边都放行；含空格的目录合法（与 URL 不同）。
+        if cfg!(windows) {
+            assert!(validate_local_path("E:\\code\\auu github\\src\\lib.rs").is_ok());
+        } else {
+            assert!(validate_local_path("/home/user/my file.rs").is_ok());
+        }
         for bad in ["", "src/lib.rs", "./src/lib.rs", "E:\\code\\a\u{1}b", "/tmp/\n"] {
             assert!(validate_local_path(bad).is_err(), "{bad}");
         }
