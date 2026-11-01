@@ -6,7 +6,7 @@
  * 平台返回的异常内容保持原文（§7.5），本视图文案全部走 t()。
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Settings, Sparkles, SquareArrowOutUpRight } from 'lucide-react';
+import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Settings, Sparkles, SquareArrowOutUpRight, Trash2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore } from '@/stores/errorsStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -62,7 +62,7 @@ export const ErrorsView: React.FC = () => {
   const {
     connections, issues, scope, setScope, activeRepoKey, mappingsByRepo,
     syncing, lastSyncedAt, syncErrors, nextCursors,
-    sync, loadMore, loadRepoContext, addMapping, removeMapping,
+    sync, loadMore, loadRepoContext, addMapping, removeMapping, updateMappingPrefixRules,
   } = useErrorsStore(
     useShallow((state) => ({
       connections: state.connections,
@@ -80,6 +80,7 @@ export const ErrorsView: React.FC = () => {
       loadRepoContext: state.loadRepoContext,
       addMapping: state.addMapping,
       removeMapping: state.removeMapping,
+      updateMappingPrefixRules: state.updateMappingPrefixRules,
     })),
   );
 
@@ -421,6 +422,7 @@ export const ErrorsView: React.FC = () => {
           mappings={activeRepoKey ? mappingsByRepo[activeRepoKey] ?? [] : []}
           onMap={(connectionId, project) => addMapping(connectionId, project)}
           onUnmap={(connectionId, externalProjectId) => removeMapping(connectionId, externalProjectId)}
+          onRulesChange={(connectionId, externalProjectId, rules) => updateMappingPrefixRules(connectionId, externalProjectId, rules)}
           onDismiss={() => setMapDialogOpen(false)}
         />
       )}
@@ -547,9 +549,9 @@ const ErrorDetail: React.FC<{
                 </Button>
               )
             )}
-            {/* AI 修复（§8.5）：无 apiKey / builtin 供给时不渲染（验收项） */}
+            {/* AI 修复（§8.5）：无 apiKey / builtin 供给时不渲染（验收项）；堆栈未加载完前禁用 */}
             {aiConfigured && repoPath && (
-              <Button variant="outline" size="xs" className="gap-1" onClick={() => setAiFixOpen(true)}>
+              <Button variant="outline" size="xs" className="gap-1" disabled={load.loading} onClick={() => setAiFixOpen(true)}>
                 <Sparkles className="h-3 w-3" />
                 <span>{t('errors.ai.button')}</span>
               </Button>
@@ -562,6 +564,7 @@ const ErrorDetail: React.FC<{
         <AiFixDialog
           open
           issue={issue}
+          frames={(load.frames ?? []).map((frame) => ({ file: frame.file, line: frame.line }))}
           repoPath={repoPath}
           trackedFiles={trackedFiles}
           prefixMap={prefixMap}
@@ -655,15 +658,30 @@ const ErrorDetail: React.FC<{
 
 const MapProjectDialog: React.FC<{
   connections: PersistedConnectionView[];
-  mappings: { connectionId: string; externalProjectId: string; externalProjectName: string }[];
+  mappings: { connectionId: string; externalProjectId: string; externalProjectName: string; sourcePathPrefixMap?: { from: string; to: string }[] }[];
   onMap: (connectionId: string, project: Pick<ExternalProject, 'id' | 'name'>) => void;
   onUnmap: (connectionId: string, externalProjectId: string) => void;
+  onRulesChange: (connectionId: string, externalProjectId: string, rules: { from: string; to: string }[]) => void;
   onDismiss: () => void;
-}> = ({ connections, mappings, onMap, onUnmap, onDismiss }) => {
+}> = ({ connections, mappings, onMap, onUnmap, onRulesChange, onDismiss }) => {
   const { t } = useI18n();
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
   const [projects, setProjects] = useState<ExternalProject[] | null>(null);
   const [error, setError] = useState('');
+  // 堆栈路径前缀规则草稿（§8.4 一档）：每次编辑即持久化（空 from/to 的行不入库）
+  const [rules, setRules] = useState<Record<string, { from: string; to: string }[]>>(() => {
+    const initial: Record<string, { from: string; to: string }[]> = {};
+    for (const mapping of mappings) {
+      initial[`${mapping.connectionId}:${mapping.externalProjectId}`] = (mapping.sourcePathPrefixMap ?? []).map((rule) => ({ ...rule }));
+    }
+    return initial;
+  });
+
+  const rulesKeyOf = (id: string, projectId: string): string => `${id}:${projectId}`;
+  const commitRules = (id: string, projectId: string, next: { from: string; to: string }[]) => {
+    setRules((previous) => ({ ...previous, [rulesKeyOf(id, projectId)]: next }));
+    onRulesChange(id, projectId, next.filter((rule) => rule.from.trim() && rule.to.trim()).map((rule) => ({ from: rule.from.trim(), to: rule.to.trim() })));
+  };
 
   useEffect(() => {
     if (!connectionId) return;
@@ -721,17 +739,64 @@ const MapProjectDialog: React.FC<{
           <div className="space-y-1">
             {(projects ?? []).map((project) => {
               const mapped = mappedForConnection(project.id);
+              const key = rulesKeyOf(connectionId, project.id);
+              const projectRules = rules[key] ?? [];
               return (
-                <label key={project.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 cursor-pointer hover:bg-accent/40">
-                  <input
-                    type="checkbox"
-                    checked={mapped}
-                    onChange={() => (mapped ? onUnmap(connectionId, project.id) : onMap(connectionId, project))}
-                    aria-label={project.name}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-xs">{project.name}</span>
-                  <span className="text-[11px] text-muted-foreground font-mono">{project.slug}</span>
-                </label>
+                <div key={project.id} className="rounded-md border border-border px-2 py-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer hover:bg-accent/40">
+                    <input
+                      type="checkbox"
+                      checked={mapped}
+                      onChange={() => (mapped ? onUnmap(connectionId, project.id) : onMap(connectionId, project))}
+                      aria-label={project.name}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-xs">{project.name}</span>
+                    <span className="text-[11px] text-muted-foreground font-mono">{project.slug}</span>
+                  </label>
+                  {mapped && (
+                    <div className="ml-5 mt-1 space-y-1 border-l border-border pl-2">
+                      <div className="text-[11px] text-muted-foreground">{t('errors.mapping.pathRules')}</div>
+                      {projectRules.map((rule, index) => (
+                        <div key={index} className="flex items-center gap-1">
+                          <input
+                            value={rule.from}
+                            placeholder={t('errors.mapping.ruleFrom')}
+                            aria-label={`${t('errors.mapping.ruleFrom')} ${index + 1}`}
+                            className="h-6 min-w-0 flex-1 rounded border border-input bg-transparent px-1.5 font-mono text-[11px]"
+                            onChange={(event) => {
+                              const next = projectRules.map((item, i) => (i === index ? { ...item, from: event.target.value } : item));
+                              commitRules(connectionId, project.id, next);
+                            }}
+                          />
+                          <span className="shrink-0 text-muted-foreground">→</span>
+                          <input
+                            value={rule.to}
+                            placeholder={t('errors.mapping.ruleTo')}
+                            aria-label={`${t('errors.mapping.ruleTo')} ${index + 1}`}
+                            className="h-6 min-w-0 flex-1 rounded border border-input bg-transparent px-1.5 font-mono text-[11px]"
+                            onChange={(event) => {
+                              const next = projectRules.map((item, i) => (i === index ? { ...item, to: event.target.value } : item));
+                              commitRules(connectionId, project.id, next);
+                            }}
+                          />
+                          <button
+                            aria-label={t('errors.mapping.removeRule')}
+                            className="h-6 w-6 shrink-0 rounded text-muted-foreground hover:text-destructive hover:bg-accent"
+                            onClick={() => commitRules(connectionId, project.id, projectRules.filter((_, i) => i !== index))}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        className="text-[11px] text-primary hover:underline"
+                        onClick={() => commitRules(connectionId, project.id, [...projectRules, { from: '', to: '' }])}
+                      >
+                        + {t('errors.mapping.addRule')}
+                      </button>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

@@ -4,7 +4,7 @@
  * 读取器由调用方注入（纯函数可单测）。
  */
 import { resolveStackFrame } from './stackNavigation';
-import type { StackFrame, UnifiedErrorIssue } from './types';
+import type { UnifiedErrorIssue } from './types';
 
 export const AI_FIX_MAX_FILES = 5;
 export const AI_FIX_FILE_CHAR_CAP = 8000;
@@ -35,9 +35,10 @@ export interface AiFixTarget {
 /**
  * 堆栈 → 本地文件目标：仅采纳 exact/unique 两档（§8.4）；ambiguous/unresolved 不猜测。
  * 按堆栈顺序去重，限 maxTargets（抛出点优先——帧已逆序）。
+ * 帧仅需 file/line（详情页局部堆栈与完整 StackFrame 均可传入）。
  */
 export function collectFixTargets(
-  frames: readonly StackFrame[],
+  frames: readonly { file: string; line: number | null }[],
   options: { prefixMap?: readonly { from: string; to: string }[]; trackedFiles: readonly string[]; maxTargets?: number },
 ): AiFixTarget[] {
   const maxTargets = options.maxTargets ?? AI_FIX_MAX_FILES;

@@ -115,6 +115,11 @@ export const errorsZh = {
   'errors.mapping.empty': '该组织没有可选项目。',
   'errors.mapping.manage': '管理映射',
   'errors.mapping.mappedCount': '已映射 {count} 个',
+  'errors.mapping.pathRules': '路径映射（堆栈前缀 → 仓库相对前缀）',
+  'errors.mapping.ruleFrom': '平台路径前缀',
+  'errors.mapping.ruleTo': '仓库相对前缀',
+  'errors.mapping.addRule': '添加映射规则',
+  'errors.mapping.removeRule': '删除规则',
 
   // 多候选文件选择器（§8.4 第 2 档）
   'errors.filePicker.title': '选择对应的本地文件',
@@ -164,6 +169,7 @@ export const errorsZh = {
   'errors.ai.applied': '补丁已应用到工作区，请审查后自行提交。',
   'errors.ai.applyFailed': '补丁应用失败',
   'errors.ai.noContext': '堆栈未能定位到本地文件，无法收集修复上下文。',
+  'errors.ai.noContextHint': '堆栈未能定位到本地文件。堆栈路径样例：{sample}。可在「管理映射」中为项目配置路径映射后重试。',
   'errors.ai.noPatch': 'AI 认为上下文不足，未给出补丁',
   'errors.ai.skippedFiles': '已跳过 {n} 个敏感或不可读文件。',
   'errors.ai.truncated': '部分文件内容已按预算截断。',
@@ -284,6 +290,11 @@ export const errorsEn = {
   'errors.mapping.empty': 'No projects available in this organization.',
   'errors.mapping.manage': 'Manage mappings',
   'errors.mapping.mappedCount': '{count} mapped',
+  'errors.mapping.pathRules': 'Path mapping (stack prefix → repo-relative prefix)',
+  'errors.mapping.ruleFrom': 'Platform path prefix',
+  'errors.mapping.ruleTo': 'Repo-relative prefix',
+  'errors.mapping.addRule': 'Add mapping rule',
+  'errors.mapping.removeRule': 'Remove rule',
 
   // Ambiguous file picker (§8.4 tier 2)
   'errors.filePicker.title': 'Choose the matching local file',
@@ -333,6 +344,7 @@ export const errorsEn = {
   'errors.ai.applied': 'Patch applied to the working tree; review and commit yourself.',
   'errors.ai.applyFailed': 'Failed to apply patch',
   'errors.ai.noContext': 'No local files resolved from the stack; cannot collect fix context.',
+  'errors.ai.noContextHint': 'No local files resolved. Stack path sample: {sample}. Configure path mapping for the project under "Manage mappings" and retry.',
   'errors.ai.noPatch': 'The AI did not provide a patch (insufficient context)',
   'errors.ai.skippedFiles': 'Skipped {n} sensitive or unreadable files.',
   'errors.ai.truncated': 'Some file contents were truncated to fit the budget.',

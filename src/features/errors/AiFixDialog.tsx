@@ -19,16 +19,18 @@ import type { UnifiedErrorIssue } from '@/services/errors/types';
 import { Button } from '@/components/ui/button';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 
-type Phase = 'working' | 'ready' | 'applying';
+type Phase = 'idle' | 'working' | 'ready' | 'applying';
 
 export const AiFixDialog: React.FC<{
   open: boolean;
   issue: UnifiedErrorIssue;
   repoPath: string;
   trackedFiles: string[];
+  /** 详情页已加载的最新事件堆栈（列表接口不含堆栈，必须显式传入）。 */
+  frames: { file: string; line: number | null }[];
   prefixMap?: readonly { from: string; to: string }[];
   onDismiss: () => void;
-}> = ({ open, issue, repoPath, trackedFiles, prefixMap, onDismiss }) => {
+}> = ({ open, issue, frames, repoPath, trackedFiles, prefixMap, onDismiss }) => {
   const { t, lang } = useI18n();
   const config = useSettingsStore((state) => state.aiConfig);
   const [phase, setPhase] = useState<Phase>('working');
@@ -49,6 +51,11 @@ export const AiFixDialog: React.FC<{
     setError('');
     setContextNote('');
     setProposal(null);
+    // 错误即终态：停掉 spinner（否则看起来像永远在收集）
+    const fail = (message: string) => {
+      setPhase('idle');
+      setError(message);
+    };
     void (async () => {
       try {
         // 工作区保护（§8.5）：脏树先拒绝
@@ -56,13 +63,13 @@ export const AiFixDialog: React.FC<{
         const status = await gitService.getStatus(repoPath);
         if (session !== sessionRef.current) return;
         if (!status.isClean) {
-          setError(t('errors.ai.dirtyWorktree'));
+          fail(t('errors.ai.dirtyWorktree'));
           return;
         }
 
         // 收集受限上下文：干净工作区下 HEAD 内容即工作区内容
         setStatusText(t('errors.ai.collecting'));
-        const targets = collectFixTargets(issue.stacktrace ?? [], { prefixMap, trackedFiles });
+        const targets = collectFixTargets(frames, { prefixMap, trackedFiles });
         const contents = new Map<string, string | null>();
         for (const target of targets) {
           try {
@@ -75,7 +82,9 @@ export const AiFixDialog: React.FC<{
         const { files, skipped, truncated } = selectContextFiles(targets, (path) => contents.get(path) ?? null);
         if (session !== sessionRef.current) return;
         if (!files.length) {
-          setError(t('errors.ai.noContext'));
+          // 给出可行动的线索：展示堆栈原始路径样例，引导配置路径前缀映射
+          const sample = frames.map((frame) => frame.file).filter(Boolean).slice(0, 2).join(' , ');
+          fail(sample ? t('errors.ai.noContextHint').replace('{sample}', sample) : t('errors.ai.noContext'));
           return;
         }
         setContextNote(
@@ -99,7 +108,7 @@ export const AiFixDialog: React.FC<{
               environment: issue.environment,
               release: issue.release,
             },
-            stack: (issue.stacktrace ?? []).map((frame) => ({ file: frame.file, line: frame.line, func: frame.func })),
+            stack: frames.map((frame) => ({ file: frame.file, line: frame.line })),
             files,
           },
           config,
@@ -109,14 +118,14 @@ export const AiFixDialog: React.FC<{
         if (session !== sessionRef.current) return;
         if (!result.patch.trim()) {
           // 平台明确说上下文不足：把分析当错误说明展示
-          setError(`${t('errors.ai.noPatch')}\n${result.analysis}`);
+          fail(`${t('errors.ai.noPatch')}\n${result.analysis}`);
           return;
         }
         setProposal(result);
         setPhase('ready');
       } catch (cause) {
         if (session !== sessionRef.current) return;
-        setError(cause instanceof DOMException && cause.name === 'AbortError' ? t('explain.cancelled') : String(cause instanceof Error ? cause.message : cause));
+        fail(cause instanceof DOMException && cause.name === 'AbortError' ? t('explain.cancelled') : String(cause instanceof Error ? cause.message : cause));
       }
     })();
     return () => abortRef.current?.abort();

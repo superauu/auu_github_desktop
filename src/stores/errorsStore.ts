@@ -81,6 +81,8 @@ interface ErrorsStoreState {
   setScope(scope: ErrorsScope): void;
   addMapping(connectionId: string, project: Pick<ExternalProject, 'id' | 'name'>): void;
   removeMapping(connectionId: string, externalProjectId: string): void;
+  /** 更新映射的堆栈路径前缀规则（§8.4 高置信档的数据源）；空规则清除。 */
+  updateMappingPrefixRules(connectionId: string, externalProjectId: string, rules: { from: string; to: string }[]): void;
   /** 同步：逐连接拉取未解决 issue 首页并合并；单连接失败不影响其他来源（§7.3.2）。 */
   sync(): Promise<void>;
   /** 加载更多：对各连接的下一页游标增量拉取（§7.2 分页）。 */
@@ -316,6 +318,20 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
       (mapping) => !(mapping.connectionId === connectionId && mapping.externalProjectId === externalProjectId),
     );
     const mappingsByRepo = { ...get().mappingsByRepo, [repoKey]: bucket };
+    set({ mappingsByRepo });
+    persistMappings(mappingsByRepo);
+  },
+
+  updateMappingPrefixRules(connectionId, externalProjectId, rules) {
+    const repoKey = get().activeRepoKey;
+    if (!repoKey) return;
+    const bucket = get().mappingsByRepo[repoKey] ?? [];
+    const nextBucket = bucket.map((mapping) =>
+      mapping.connectionId === connectionId && mapping.externalProjectId === externalProjectId
+        ? { ...mapping, sourcePathPrefixMap: rules.length ? rules : undefined }
+        : mapping,
+    );
+    const mappingsByRepo = { ...get().mappingsByRepo, [repoKey]: nextBucket };
     set({ mappingsByRepo });
     persistMappings(mappingsByRepo);
   },
