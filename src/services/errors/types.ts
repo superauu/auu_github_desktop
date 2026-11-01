@@ -1,5 +1,5 @@
 /**
- * Errors（错误追踪集成）统一类型与域注册表 —— PRD docs/errors-integration-prd.md §4/§5。
+ * 集成域注册表与 Provider manifest —— PRD docs/errors-integration-prd.md §4/§5。
  *
  * 治理规则（§3 原则 4/5、§4.3）：
  * - Domain 由核心注册表定义，Provider 只声明贡献（manifest），不得发明域或能力词汇。
@@ -12,7 +12,7 @@
 // 域注册表
 // ---------------------------------------------------------------------------
 
-export type DomainId = 'error-tracking' | 'task-tracking' | 'ci-cd' | 'observability';
+export type DomainId = 'error-tracking' | 'code-hosting' | 'task-tracking' | 'ci-cd' | 'observability';
 
 export type ErrorTrackingCapability =
   | 'error-tracking:list-issues'
@@ -24,8 +24,14 @@ export type ErrorTrackingCapability =
   | 'error-tracking:resolve-in-release'
   | 'error-tracking:ignore';
 
+/** 代码托管（仓库宿主平台）能力词汇：GitHub 为核心原生深度实现，GitLab/Gitea 经归一化模型接入。 */
+export type CodeHostingCapability =
+  | 'code-hosting:list-pull-requests'
+  | 'code-hosting:pull-request-detail'
+  | 'code-hosting:pipelines';
+
 /** Provider 可声明的能力词汇（新域落地时扩展此联合）。 */
-export type DeclarableCapability = ErrorTrackingCapability;
+export type DeclarableCapability = ErrorTrackingCapability | CodeHostingCapability;
 
 export interface DomainDefinition {
   id: DomainId;
@@ -52,6 +58,15 @@ export const DOMAIN_REGISTRY: Readonly<Record<DomainId, DomainDefinition>> = {
   'task-tracking': { id: 'task-tracking', declarable: false, capabilities: [] },
   'ci-cd': { id: 'ci-cd', declarable: false, capabilities: [] },
   observability: { id: 'observability', declarable: false, capabilities: [] },
+  'code-hosting': {
+    id: 'code-hosting',
+    declarable: true,
+    capabilities: [
+      'code-hosting:list-pull-requests',
+      'code-hosting:pull-request-detail',
+      'code-hosting:pipelines',
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -80,8 +95,40 @@ export const SENTRY_PROVIDER: ProviderManifest = {
   ],
 };
 
-/** v1 仅内置 Sentry；Rollbar/Bugsnag/声明式按 PRD §10 后续加入，不改域视图。 */
-export const PROVIDER_REGISTRY: readonly ProviderManifest[] = [SENTRY_PROVIDER];
+/** 代码托管 provider（仓库宿主平台）：连接数据与运行时在 forgeStore，声明同走本注册表。 */
+export const GITLAB_PROVIDER: ProviderManifest = {
+  id: 'gitlab',
+  name: 'GitLab',
+  domains: [
+    {
+      domain: 'code-hosting',
+      capabilities: DOMAIN_REGISTRY['code-hosting'].capabilities,
+    },
+  ],
+};
+
+export const GITEA_PROVIDER: ProviderManifest = {
+  id: 'gitea',
+  name: 'Gitea / Forgejo',
+  domains: [
+    {
+      domain: 'code-hosting',
+      capabilities: DOMAIN_REGISTRY['code-hosting'].capabilities,
+    },
+  ],
+};
+
+/** 内置 provider；新平台 = 一个适配文件 + 一个 manifest + 注册到这里（PRD §10）。 */
+export const PROVIDER_REGISTRY: readonly ProviderManifest[] = [
+  SENTRY_PROVIDER,
+  GITLAB_PROVIDER,
+  GITEA_PROVIDER,
+];
+
+/** Provider 声明贡献的域集合——集成页据此分组、连接流程据此选择表单形态。 */
+export function providerDomains(manifest: ProviderManifest): DomainId[] {
+  return manifest.domains.map((contribution) => contribution.domain);
+}
 
 export function getProviderManifest(providerId: string): ProviderManifest | null {
   return PROVIDER_REGISTRY.find((provider) => provider.id === providerId) ?? null;
