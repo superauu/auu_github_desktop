@@ -165,8 +165,8 @@ const RepoMenuRow: React.FC<RepoMenuRowProps> = ({
         showGroupControl ? 'min-w-0 flex-1' : 'w-full'
       )}
     >
-      <span className="truncate max-w-[170px]">{repo.name}</span>
-      <span className="text-[12px] text-muted-foreground font-mono">{repo.currentBranch}</span>
+      <span className="truncate max-w-[170px]" title={repo.name}>{repo.name}</span>
+      <span className="text-[12px] text-muted-foreground font-mono" title={repo.currentBranch}>{repo.currentBranch}</span>
     </button>
   );
   if (!showGroupControl) return rowButton;
@@ -737,6 +737,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showRepoMenu} onOpenChange={open => { setShowRepoMenu(open); if (open) setShowBranchMenu(false); else closeRepoMenuExtras(); }}>
                 <Popover.Trigger asChild>
                 <button
+                  title={currentRepo?.name}
                   className="h-9 min-w-0 flex flex-col items-start justify-center gap-[3px] px-2.5 py-1 rounded-md hover:bg-accent/60 transition-colors text-left group"
                 >
                   <span className="text-[10px] leading-none tracking-[0.08em] text-muted-foreground">{t('header.repository')}</span>
@@ -1013,6 +1014,7 @@ export const Header: React.FC<HeaderProps> = ({
               <Popover.Root open={showBranchMenu} onOpenChange={open => { setShowBranchMenu(open); if (open) setShowRepoMenu(false); }}>
                 <Popover.Trigger asChild>
                 <button
+                  title={currentBranchName}
                   className="h-9 min-w-0 flex flex-col items-start justify-center gap-[3px] px-2.5 py-1 rounded-md hover:bg-accent/60 transition-colors text-left group"
                 >
                   <span className="text-[10px] leading-none tracking-[0.08em] text-muted-foreground">{t('header.branch')}</span>
