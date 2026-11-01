@@ -673,7 +673,8 @@ const ErrorDetail: React.FC<{
             {showRaw ? '▾' : '▸'} {t('errors.detail.rawData')}
           </button>
           {showRaw && (
-            <pre className="mt-1 max-h-[70vh] overflow-auto rounded-md border border-border p-2 text-[11px] font-mono whitespace-pre-wrap select-text">
+            /* 不自限高度/滚动：随详情窗格唯一一条滚动流式展开，避免嵌套双滚动条 */
+            <pre className="mt-1 rounded-md border border-border p-2 text-[11px] font-mono whitespace-pre-wrap break-words select-text">
               {JSON.stringify(issue.rawData, null, 2)}
             </pre>
           )}
