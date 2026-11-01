@@ -1,4 +1,5 @@
 import { ForgeApiError, type ForgePipeline, type ForgePipelineStatus, type ForgePullRequestDetail, type ForgePullRequest, type ForgePullState, type ForgeUser } from '@/services/forge/types';
+import { providerHttpRequest } from '@/services/http/providerHttp';
 
 /**
  * GitLab REST v4 服务（gitlab.com 与自建 CE/极狐同构）。
@@ -8,7 +9,6 @@ import { ForgeApiError, type ForgePipeline, type ForgePipelineStatus, type Forge
  */
 const DEFAULT_SERVER = 'https://gitlab.com';
 const PER_PAGE = 30;
-const REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_PAGES = 10;
 
 /** GitLab API 的流水线状态 → 归一化状态。 */
@@ -48,11 +48,12 @@ export class GitLabService {
   private async request<T>(path: string, params?: Record<string, string>): Promise<T> {
     const headers: Record<string, string> = {};
     if (this.token) headers['PRIVATE-TOKEN'] = this.token;
-    const res = await fetch(this.api(path, params), { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-    if (!res.ok) {
-      throw new ForgeApiError(res.status, `GitLab API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    // 桌面端走 Rust 代理（WebView CSP connect-src 无法枚举自建 GitLab 域名）；web 预览回落 fetch。
+    const res = await providerHttpRequest('GET', this.api(path, params), headers);
+    if (res.status < 200 || res.status >= 300) {
+      throw new ForgeApiError(res.status, `GitLab API ${res.status}: ${res.body.slice(0, 300)}`);
     }
-    return res.json() as Promise<T>;
+    return JSON.parse(res.body) as T;
   }
 
   /** 列表分页聚合：不足一页即止，DEFAULT_MAX_PAGES 封顶（与 GitHubService 同约定）。 */

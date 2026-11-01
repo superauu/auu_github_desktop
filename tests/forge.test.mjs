@@ -55,7 +55,7 @@ test('gitlab service maps merge requests and filters system notes', async () => 
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
     calls.push({ url: url.pathname, headers: init?.headers || {} });
-    const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+    const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
     if (url.pathname === '/api/v4/user') return json({ username: 'alice', name: 'Alice', avatar_url: undefined });
     if (url.pathname === '/api/v4/projects/42/merge_requests' && !url.pathname.includes('7')) {
       assert.equal(url.searchParams.get('state'), 'opened');
@@ -113,7 +113,7 @@ test('gitea service maps pulls and combined commit statuses', async () => {
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
     assert.equal(init?.headers?.Authorization, 'token gitea-token');
-    const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+    const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
     if (url.pathname === '/api/v1/user') return json({ login: 'gina', full_name: 'Gina', avatar_url: 'a' });
     if (url.pathname === '/api/v1/repos/org/repo/pulls') {
       assert.equal(url.searchParams.get('state'), 'open');
@@ -152,7 +152,7 @@ test('gitlab service paginates beyond the first page and stops on a partial page
       seenPages.push(page);
       assert.equal(url.searchParams.get('per_page'), '30');
       const item = (iid) => ({ iid, title: `MR ${iid}`, state: 'opened', draft: false, source_branch: 'b', target_branch: 'main', created_at: 't', updated_at: 't', web_url: `u${iid}`, author: { username: 'bob' } });
-      const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+      const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
       // 第一页满 30 条（无法判断是否还有下一页），第二页只有 3 条 → 第三页不再请求。
       return json(page === 1 ? Array.from({ length: 30 }, (_, i) => item(i + 1)) : Array.from({ length: 3 }, (_, i) => item(31 + i)));
     }
@@ -191,7 +191,7 @@ test('stale forge loads cannot overwrite the newer repository state', async () =
     const delayed = (value, milliseconds) => new Promise((resolve) => setTimeout(() => resolve(value), milliseconds));
     globalThis.fetch = async (input) => {
       const url = new URL(String(input));
-      const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+      const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
       // 仓库 A（gitlab）：projectId 慢返回——A 的 loadPulls 在切换到 B 之后才落地。
       if (url.pathname === '/api/v4/projects/team%2Fproj') return delayed({ id: 42 }, 40);
       if (url.pathname === '/api/v4/projects/42/merge_requests') {

@@ -1,4 +1,5 @@
 import { ForgeApiError, type ForgePipeline, type ForgePipelineStatus, type ForgePullRequestDetail, type ForgePullRequest, type ForgePullState, type ForgeUser } from '@/services/forge/types';
+import { providerHttpRequest } from '@/services/http/providerHttp';
 
 /**
  * Gitea / Forgejo API v1 服务（API 形态接近 GitHub）。
@@ -8,7 +9,6 @@ import { ForgeApiError, type ForgePipeline, type ForgePipelineStatus, type Forge
  * combined status 在各版本稳定可用）。
  */
 const PER_PAGE = 30;
-const REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_PAGES = 10;
 
 export function mapPipelineStatus(raw: string): ForgePipelineStatus {
@@ -42,11 +42,12 @@ export class GiteaService {
     for (const [key, value] of Object.entries(params || {})) url.searchParams.set(key, value);
     const headers: Record<string, string> = {};
     if (this.token) headers.Authorization = `token ${this.token}`;
-    const res = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-    if (!res.ok) {
-      throw new ForgeApiError(res.status, `Gitea API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    // 桌面端走 Rust 代理（WebView CSP connect-src 无法枚举自建 Gitea 域名）；web 预览回落 fetch。
+    const res = await providerHttpRequest('GET', url.toString(), headers);
+    if (res.status < 200 || res.status >= 300) {
+      throw new ForgeApiError(res.status, `Gitea API ${res.status}: ${res.body.slice(0, 300)}`);
     }
-    return res.json() as Promise<T>;
+    return JSON.parse(res.body) as T;
   }
 
   /** 列表分页聚合：不足一页即止，DEFAULT_MAX_PAGES 封顶（与 GitHubService 同约定）。 */
