@@ -85,12 +85,30 @@ export const AppLayout: React.FC = () => {
     return () => window.removeEventListener('auugit:open-settings', openSettings);
   }, []);
 
-  // Errors 集成常驻轮询（PRD §9）：徽标在任何页面都能随同步刷新；页面隐藏时 tick 自行跳过
+  // Errors 集成常驻轮询（PRD §9）：徽标在任何页面都能随同步刷新；页面隐藏时 tick 自行跳过。
+  // 连接必须在启动时恢复（§4.4 存在性规则）——否则导航要等打开设置才出现。
   const errorsPollingIntervalSec = useSettingsStore((state) => state.errorsPollingIntervalSec);
   useEffect(() => {
+    useErrorsStore.getState().restoreConnections();
     useErrorsStore.getState().startPolling(errorsPollingIntervalSec);
     return () => useErrorsStore.getState().stopPolling();
   }, [errorsPollingIntervalSec]);
+
+  // 仓库上下文（repoKey/映射）随当前仓库切换重算——徽标口径与同步范围在启动后即生效
+  const currentRepoPath = currentRepo?.path;
+  useEffect(() => {
+    if (!currentRepoPath) return;
+    let cancelled = false;
+    void gitService
+      .getOriginUrl(currentRepoPath)
+      .catch(() => undefined)
+      .then((origin) => {
+        if (!cancelled) useErrorsStore.getState().loadRepoContext(origin ?? null, currentRepoPath);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRepoPath]);
 
   const isTypingTarget = (target: EventTarget | null): boolean => {
     const el = target as HTMLElement | null;
