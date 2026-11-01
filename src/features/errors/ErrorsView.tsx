@@ -20,7 +20,7 @@ import { createProviderClient, type ExternalProject } from '@/services/errors/pr
 import { getIntegrationToken } from '@/services/errors/credentials';
 import { filterIssues, scopeProjectIds, type ErrorsScope } from '@/services/errors/issueQuery';
 import { listTrackedFiles, resolveStackFrame, revealLocalFile, type StackJumpFrame } from '@/services/errors/stackNavigation';
-import type { CommitRef, NormalizedSeverity, UnifiedErrorIssue } from '@/services/errors/types';
+import type { CommitRef, NormalizedSeverity, NormalizedStatus, UnifiedErrorIssue } from '@/services/errors/types';
 import { getProviderManifest, providerSupports } from '@/services/errors/types';
 import { FixWorkflowSection } from './FixWorkflow';
 import { AiFixDialog } from './AiFixDialog';
@@ -36,6 +36,20 @@ const severityColor: Record<NormalizedSeverity, string> = {
   error: 'text-git-deleted',
   warning: 'text-git-modified',
   info: 'text-muted-foreground',
+};
+
+/** 详情头部 tinted 徽标（主题 token，无蓝紫）：严重级别与状态的视觉锚点 */
+const severityPill: Record<NormalizedSeverity, string> = {
+  critical: 'bg-destructive/15 text-destructive border-destructive/30',
+  error: 'bg-git-deleted/15 text-git-deleted border-git-deleted/30',
+  warning: 'bg-git-modified/15 text-git-modified border-git-modified/30',
+  info: 'bg-muted text-muted-foreground border-border',
+};
+
+const statusPill: Record<NormalizedStatus, string> = {
+  unresolved: 'bg-git-modified/15 text-git-modified border-git-modified/30',
+  resolved: 'bg-git-added/15 text-git-added border-git-added/30',
+  ignored: 'bg-muted text-muted-foreground border-border',
 };
 
 const issueKeyOf = (issue: UnifiedErrorIssue): string => `${issue.connectionId}:${issue.issueId}`;
@@ -528,17 +542,22 @@ const ErrorDetail: React.FC<{
   ].filter((item) => item.value);
 
   return (
-    <div className="p-4 space-y-4 text-xs" data-testid="errors-detail">
-      <div>
-        <div className="flex items-center gap-2">
-          <span className={cn('text-[10px] leading-none', severityColor[issue.severity])}>●</span>
-          <Badge variant="outline" className="h-4 px-1 text-[10px]">{t(`errors.severity.${issue.severity}`)}</Badge>
-          {issue.rawStatus && <Badge variant="outline" className="h-4 px-1 text-[10px] text-muted-foreground">{issue.rawStatus}</Badge>}
+    <div className="p-4 space-y-5 text-xs" data-testid="errors-detail">
+      {/* 头部区：tinted 徽标 + 标题 + 主 CTA——详情页的视觉锚点 */}
+      <div className="pb-4 border-b border-border">
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className={cn('h-5 px-1.5 text-[11px] font-medium', severityPill[issue.severity])}>
+            {t(`errors.severity.${issue.severity}`)}
+          </Badge>
+          <Badge variant="outline" className={cn('h-5 px-1.5 text-[11px] font-medium', statusPill[issue.status])}>
+            {t(`errors.status.${issue.status}`)}
+          </Badge>
+          {issue.rawStatus && <span className="text-[11px] text-muted-foreground font-mono">{issue.rawStatus}</span>}
         </div>
-        <h2 className="mt-1.5 text-sm font-semibold text-foreground break-words select-text">{issue.title}</h2>
+        <h2 className="mt-2 text-base font-semibold text-foreground break-words select-text">{issue.title}</h2>
         {issue.message && <p className="mt-1 text-[12px] text-muted-foreground font-mono break-words select-text">{issue.message}</p>}
-        <div className="mt-1.5 flex items-center gap-2 text-[12px] text-muted-foreground">
-          <span>{issue.shortId}</span>
+        <div className="mt-2 flex items-center gap-3 text-[12px] text-muted-foreground">
+          <span className="font-mono">{issue.shortId}</span>
           {issue.externalUrl && (
             <button
               className="inline-flex items-center gap-1 text-primary hover:underline"
@@ -549,12 +568,12 @@ const ErrorDetail: React.FC<{
             </button>
           )}
         </div>
-        {(canResolve || canIgnore) && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {(canResolve || canIgnore || (aiConfigured && repoPath)) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
             {issue.status === 'unresolved' ? (
               <>
                 {canResolve && (
-                  <Button variant="outline" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('resolve', 'resolve')}>
+                  <Button variant="default" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('resolve', 'resolve')}>
                     {t('errors.fix.resolve')}
                   </Button>
                 )}
@@ -571,7 +590,7 @@ const ErrorDetail: React.FC<{
               </>
             ) : (
               canResolve && (
-                <Button variant="outline" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('unresolve', 'reopen')}>
+                <Button variant="default" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('unresolve', 'reopen')}>
                   {t('errors.fix.reopen')}
                 </Button>
               )
@@ -599,31 +618,37 @@ const ErrorDetail: React.FC<{
         />
       )}
 
-      {metaItems.length > 0 && (
-        <div className="grid grid-cols-4 gap-2">
+      {/* 元信息条：单容器分格（含次数/用户），消灭漂浮卡片与死空间 */}
+      {(metaItems.length > 0 || issue.eventCount != null || issue.affectedUsers != null) && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 rounded-lg border border-border divide-x divide-border overflow-hidden">
+          {issue.eventCount != null && (
+            <div className="px-3 py-2">
+              <div className="text-[11px] text-muted-foreground">{t('errors.detail.events')}</div>
+              <div className="text-[12px] text-foreground tabular-nums">{issue.eventCount.toLocaleString(t('time.locale'))}</div>
+            </div>
+          )}
+          {issue.affectedUsers != null && (
+            <div className="px-3 py-2">
+              <div className="text-[11px] text-muted-foreground">{t('errors.detail.users')}</div>
+              <div className="text-[12px] text-foreground tabular-nums">{issue.affectedUsers.toLocaleString(t('time.locale'))}</div>
+            </div>
+          )}
           {metaItems.map((item) => (
-            <div key={item.label} className="rounded-md border border-border px-2 py-1.5">
+            <div key={item.label} className="px-3 py-2 min-w-0">
               <div className="text-[11px] text-muted-foreground">{item.label}</div>
-              <div className="truncate text-[12px] text-foreground" title={item.value}>{item.value}</div>
+              <div className="truncate text-[12px] text-foreground tabular-nums" title={item.value}>{item.value}</div>
             </div>
           ))}
-        </div>
-      )}
-
-      {issue.eventCount != null && (
-        <div className="text-[12px] text-muted-foreground tabular-nums">
-          {t('errors.row.events').replace('{count}', String(issue.eventCount))}
-          {issue.affectedUsers != null ? ` · ${t('errors.row.users').replace('{count}', String(issue.affectedUsers))}` : ''}
         </div>
       )}
 
       <FixWorkflowSection issue={issue} />
 
       {load.suspects.length > 0 && (
-        <section className="space-y-1">
-          <h3 className="text-[12px] font-medium">{t('errors.detail.suspectCommit')}</h3>
+        <section className="space-y-1.5">
+          <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t('errors.detail.suspectCommit')}</h3>
           {load.suspects.map((commit) => (
-            <div key={commit.sha} className="rounded-md border border-border px-2 py-1.5 font-mono text-[12px]">
+            <div key={commit.sha} className="rounded-md border border-border px-2 py-1.5 font-mono text-[12px] hover:bg-accent/30 transition-colors">
               <div className="truncate text-foreground select-text">{commit.sha.slice(0, 10)} {firstLine(commit.message)}</div>
               <div className="truncate text-[11px] text-muted-foreground">
                 {[commit.author, commit.repository].filter(Boolean).join(' · ')}
@@ -633,8 +658,8 @@ const ErrorDetail: React.FC<{
         </section>
       )}
 
-      <section className="space-y-1">
-        <h3 className="text-[12px] font-medium">{t('errors.detail.stacktrace')}</h3>
+      <section className="space-y-1.5">
+        <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t('errors.detail.stacktrace')}</h3>
         {load.loading && (
           <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -646,7 +671,7 @@ const ErrorDetail: React.FC<{
           <p className="text-[12px] text-muted-foreground">{t('errors.detail.stackEmpty')}</p>
         )}
         {(load.frames ?? []).map((frame, index) => (
-          <div key={`${index}-${frame.file}-${frame.line ?? ''}`} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+          <div key={`${index}-${frame.file}-${frame.line ?? ''}`} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 hover:bg-accent/30 transition-colors">
             <div className="min-w-0 flex-1 font-mono text-[12px]">
               <div className="truncate text-foreground select-text">{frame.func ?? ''}</div>
               <div className="truncate text-[11px] text-muted-foreground select-text">
@@ -669,7 +694,10 @@ const ErrorDetail: React.FC<{
 
       {issue.rawData != null && (
         <section>
-          <button className="text-[12px] font-medium text-muted-foreground hover:text-foreground" onClick={() => setShowRaw((value) => !value)}>
+          <button
+            className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowRaw((value) => !value)}
+          >
             {showRaw ? '▾' : '▸'} {t('errors.detail.rawData')}
           </button>
           {showRaw && (

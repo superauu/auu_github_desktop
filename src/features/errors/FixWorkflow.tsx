@@ -148,7 +148,7 @@ export const FixWorkflowSection: React.FC<{ issue: UnifiedErrorIssue }> = ({ iss
   return (
     <section className="space-y-2 rounded-lg border border-border p-2.5" data-testid="errors-fix-workflow">
       <div className="flex items-center justify-between">
-        <h3 className="text-[12px] font-medium">{t('errors.fix.section')}</h3>
+        <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t('errors.fix.section')}</h3>
         {sameRepo && (
           <Button variant="outline" size="xs" className="gap-1" onClick={() => setDialogOpen(true)}>
             <Plus className="h-3 w-3" />

@@ -112,6 +112,8 @@ export function prepareErrorsFixture(repository: RepositoryInfo) {
     syncErrors: { [CONN_B]: 'Internal Server Error' },
     sync: async () => {},
     loadMore: async () => {},
+    // AppLayout 启动时也会调 restoreConnections——打桩避免覆盖注入的连接
+    restoreConnections: () => {},
     loadRepoContext: () => useErrorsStore.setState({ activeRepoKey: REPO_KEY, activeRepoPath: repository.path }),
   });
   // dev 凭证（内存 Map）：详情窗格的堆栈/嫌疑提交请求需要它走 fetch 桩

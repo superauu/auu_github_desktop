@@ -92,6 +92,11 @@ export const errorsZh = {
 
   // 详情
   'errors.detail.select': '选择一个错误查看详情与堆栈。',
+  'errors.detail.events': '次数',
+  'errors.detail.users': '影响用户',
+  'errors.status.unresolved': '未解决',
+  'errors.status.resolved': '已解决',
+  'errors.status.ignored': '已忽略',
   'errors.detail.firstSeen': '首次',
   'errors.detail.lastSeen': '最近',
   'errors.detail.environment': '环境',
@@ -268,6 +273,11 @@ export const errorsEn = {
 
   // Detail
   'errors.detail.select': 'Select an issue to inspect details and stack traces.',
+  'errors.detail.events': 'Events',
+  'errors.detail.users': 'Affected users',
+  'errors.status.unresolved': 'Unresolved',
+  'errors.status.resolved': 'Resolved',
+  'errors.status.ignored': 'Ignored',
   'errors.detail.firstSeen': 'First seen',
   'errors.detail.lastSeen': 'Last seen',
   'errors.detail.environment': 'Environment',
