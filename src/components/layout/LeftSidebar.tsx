@@ -7,7 +7,6 @@ import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { lazy, Suspense, useState, useRef, useEffect, useMemo } from 'react';
-import { Gitlab } from '@/components/ui/brandIcons';
 import {
   GitBranch as GitBranchIcon,
   Tag as TagIcon,
@@ -86,6 +85,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
   const { pullRequests, selectPR } = useGitHubStore(useShallow(state => ({ pullRequests: state.pullRequests, selectPR: state.selectPR })));
   const forgePulls = useForgeStore((state) => state.pulls);
+  const forgeDetection = useForgeStore((state) => state.detection);
   // Errors 域导航（PRD §7.1）：连接建立才出现；徽标 = 当前作用域未解决数（99+ 截断）。
   // 注意：selector 只取 store 原始切片（引用稳定），派生值放 useMemo——
   // 在 useShallow 里 map 出新数组会破坏浅比较导致无限重渲染。
@@ -776,31 +776,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             <span>{t('sidebar.pullRequests')}</span>
           </div>
           <Badge variant="outline" className="h-3.5 px-1 text-[12px] tabular-nums">
-            {pullRequests.length}
-          </Badge>
-        </button>
-
-        <button
-          aria-current={activeTab === 'forge' ? 'page' : undefined}
-          onClick={() => { setActiveTab('forge'); onNavigate?.(); }}
-          className={cn(
-            "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group",
-            activeTab === 'forge'
-              ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <Gitlab
-              className={cn(
-                "h-3.5 w-3.5",
-                activeTab === 'forge' ? "text-primary" : "text-muted-foreground"
-              )}
-            />
-            <span>{t('forge.nav')}</span>
-          </div>
-          <Badge variant="outline" className="h-3.5 px-1 text-[12px] tabular-nums">
-            {forgePulls.length}
+            {/* 代码托管仓库显示 Forge 合并请求计数，GitHub 仓库显示 PR 计数 */}
+            {forgeDetection ? forgePulls.length : pullRequests.length}
           </Badge>
         </button>
 

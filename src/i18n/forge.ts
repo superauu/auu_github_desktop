@@ -1,9 +1,8 @@
 /**
- * 多平台托管（GitLab / Gitea，第三梯队）。
+ * 多平台托管（GitLab / Gitea，第三梯队）。代码托管域表面：非 GitHub 仓库由合并请求页内嵌承载。
  * 键名采用扁平命名空间风格，与 en 侧一一对应。
  */
 export const forgeZh = {
-  'forge.nav': 'GitLab / Gitea',
   'forge.title': 'GitLab / Gitea',
   'forge.empty.noRepo': '打开仓库后自动识别 GitLab / Gitea 远程',
   'forge.empty.noDetect': '未识别到 GitLab / Gitea 远程：当前仓库的 origin 不指向已连接的平台，或尚未连接账号。',
@@ -39,7 +38,6 @@ export const forgeZh = {
 } as const;
 
 export const forgeEn = {
-  'forge.nav': 'GitLab / Gitea',
   'forge.title': 'GitLab / Gitea',
   'forge.empty.noRepo': 'Open a repository to detect GitLab / Gitea remotes',
   'forge.empty.noDetect': 'No GitLab / Gitea remote detected: the origin of this repository does not point to a connected platform, or no account is connected yet.',

@@ -23,6 +23,7 @@ import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useErrorsStore } from '@/stores/errorsStore';
+import { useForgeStore } from '@/stores/forgeStore';
 import { checkForUpdates } from '@/services/updater/UpdateService';
 import { createExternalChangePoller } from '@/services/git/ExternalChangePoller';
 import { getPendingGitWrites } from '@/services/git/GitQueue';
@@ -105,6 +106,11 @@ export const AppLayout: React.FC = () => {
       .then((origin) => {
         if (!cancelled) useErrorsStore.getState().loadRepoContext(origin ?? null, currentRepoPath);
       });
+    // forge 识别（GitLab/Gitea origin）与合并请求徽标同样随仓库切换重算
+    void (async () => {
+      await useForgeStore.getState().detect(currentRepoPath);
+      if (!cancelled && useForgeStore.getState().detection) void useForgeStore.getState().loadPulls();
+    })();
     return () => {
       cancelled = true;
     };
@@ -170,10 +176,10 @@ export const AppLayout: React.FC = () => {
         return;
       }
 
-      // Preserve existing shortcuts; Issues is Alt+6.
-      if (e.altKey && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+      // Preserve existing shortcuts; Issues is Alt+5.
+      if (e.altKey && ['1', '2', '3', '4', '5'].includes(e.key)) {
         e.preventDefault();
-        const views = ['changes', 'history', 'pullRequests', 'actions', 'forge', 'issues'] as const;
+        const views = ['changes', 'history', 'pullRequests', 'actions', 'issues'] as const;
         setActiveTab(views[Number(e.key) - 1]);
       }
     };

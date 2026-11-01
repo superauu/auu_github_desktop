@@ -22,6 +22,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useGitHubStore } from '@/stores/githubStore';
+import { ForgeView } from '@/features/forge/ForgeView';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { githubService } from '@/services/github/GitHubService';
@@ -175,6 +176,12 @@ export const PullRequestsView: React.FC = () => {
   };
 
   const canManagePR = Boolean(currentOwner && currentRepoName && activePR && activePR.state === 'open');
+
+  // 非 GitHub 仓库：本页即代码托管域表面——GitLab/Gitea 的合并请求由 ForgeView 承载
+  //（含未连接引导），GitHub 仓库维持既有深度界面不动。
+  if (!(currentOwner && currentRepoName)) {
+    return <ForgeView />;
+  }
 
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
