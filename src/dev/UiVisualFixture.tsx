@@ -18,6 +18,7 @@ import { useGitHubStore } from '@/stores/githubStore';
 import { gitService } from '@/services/git/GitService';
 import type { GitCommit, GitBranch, GitFileChange, RepositoryInfo } from '@/services/git/types';
 import { prepareIssueFixture } from './IssueFixture';
+import { prepareErrorsFixture } from './ErrorFixture';
 import { prepareHunkPlanFixture } from './HunkPlanFixture';
 import { prepareWorkingReviewFixture } from './WorkingReviewFixture';
 
@@ -61,6 +62,9 @@ function prepare() {
   useLayoutStore.setState(DEFAULT_LAYOUT);
   useWorkspaceSessionStore.setState({ drafts: {}, historyViews: { [repo.path]: { query: '', scrollTop: 0, columns: { author: false, date: true, hash: false } } } });
   useSettingsStore.setState({ language: 'zh', compactMode: false, autoFetchInterval: 'never', cursorTheme: 'system' });
+  // ?lang=en 覆盖默认语言（双语截图验收用；内存隔离存储不跨 reload，故用参数而非 localStorage）
+  const fixtureLang = new URLSearchParams(location.search).get('lang');
+  if (fixtureLang === 'en' || fixtureLang === 'zh') useSettingsStore.setState({ language: fixtureLang });
   const applyTheme = (theme: 'dark' | 'light' | 'system') => {
     const resolvedTheme = theme === 'light' ? 'light' : 'dark';
     document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
@@ -90,6 +94,7 @@ function prepare() {
     },
   });
   if (new URLSearchParams(location.search).get('issues') === '1') prepareIssueFixture(repo);
+  if (new URLSearchParams(location.search).get('errors') === '1') prepareErrorsFixture(repo);
   if (new URLSearchParams(location.search).get('hunks') === '1') prepareHunkPlanFixture(repo);
   if (new URLSearchParams(location.search).get('review') === '1') prepareWorkingReviewFixture();
   if (new URLSearchParams(location.search).get('overview') === '1') prepareOverviewFixture(repo);

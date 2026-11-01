@@ -48,6 +48,74 @@ export const errorsZh = {
   'errors.connect.errorAuth': 'Token 无效或已过期。',
   'errors.connect.errorForbidden': 'Token 权限不足（需要组织读取权限）。',
   'errors.connect.errorNetwork': '无法访问服务地址，请检查网络与自托管地址。',
+
+  // Errors 页
+  'errors.nav': '错误',
+  'errors.view.title': '错误',
+  'errors.scope.repo': '本仓库',
+  'errors.scope.all': '全部',
+  'errors.filter.source.all': '全部来源',
+  'errors.filter.severity.all': '全部级别',
+  'errors.search.placeholder': '搜索标题或短 ID',
+  'errors.refresh': '刷新',
+  'errors.syncing': '同步中…',
+  'errors.loadMore': '加载更多',
+  'errors.list.loadedNote': '仅显示已加载的 {count} 条，继续加载可获取更早的错误。',
+  'errors.list.emptyFiltered': '没有符合条件的错误。',
+  'errors.list.lastSynced': '最近同步：{time}',
+  'errors.severity.critical': '严重',
+  'errors.severity.error': '错误',
+  'errors.severity.warning': '警告',
+  'errors.severity.info': '提示',
+
+  // 空态（双空态，§7.3.3）
+  'errors.empty.noConnection.title': '连接错误追踪平台',
+  'errors.empty.noConnection.desc': '在设置中连接 Sentry 后，这里会集中显示你仓库的错误。',
+  'errors.empty.noConnection.action': '打开设置',
+  'errors.empty.noMapping.title': '映射外部项目到本仓库',
+  'errors.empty.noMapping.desc': '当前仓库还没有关联错误追踪项目，映射后即可查看对应错误。',
+  'errors.empty.noMapping.action': '映射项目',
+
+  // 降级横幅（§7.3.2）
+  'errors.banner.sourceFailed': '{name} 同步失败，列表可能不是最新。',
+  'errors.banner.retry': '重试',
+  'errors.banner.settings': '去设置',
+
+  // 列表行
+  'errors.row.events': '{count} 次',
+  'errors.row.users': '{count} 用户',
+  'errors.row.openExternal': '在 Sentry 中打开',
+
+  // 详情
+  'errors.detail.select': '选择一个错误查看详情与堆栈。',
+  'errors.detail.firstSeen': '首次',
+  'errors.detail.lastSeen': '最近',
+  'errors.detail.environment': '环境',
+  'errors.detail.release': '版本',
+  'errors.detail.stacktrace': '堆栈',
+  'errors.detail.stackEmpty': '最新事件未提供堆栈。',
+  'errors.detail.jump': '打开本地文件',
+  'errors.detail.jumpOpened': '已用系统默认程序打开。',
+  'errors.detail.lineInfo': '定位到第 {line} 行',
+  'errors.detail.jumpCopied': '路径已复制到剪贴板：{path}',
+  'errors.detail.jumpMissing': '未找到对应的本地文件',
+  'errors.detail.jumpAmbiguous': '多个候选文件',
+  'errors.detail.suspectCommit': '嫌疑提交',
+  'errors.detail.rawData': '原始数据',
+  'errors.detail.loading': '加载详情中…',
+  'errors.detail.loadFailed': '详情加载失败',
+
+  // 映射对话框
+  'errors.mapping.title': '映射外部项目',
+  'errors.mapping.desc': '勾选要关联到当前仓库的项目，映射随仓库保存。',
+  'errors.mapping.loadFailed': '项目列表加载失败',
+  'errors.mapping.empty': '该组织没有可选项目。',
+  'errors.mapping.manage': '管理映射',
+  'errors.mapping.mappedCount': '已映射 {count} 个',
+
+  // 多候选文件选择器（§8.4 第 2 档）
+  'errors.filePicker.title': '选择对应的本地文件',
+  'errors.filePicker.framePath': '堆栈帧路径',
 };
 
 export const errorsEn = {
@@ -96,4 +164,72 @@ export const errorsEn = {
   'errors.connect.errorAuth': 'The token is invalid or expired.',
   'errors.connect.errorForbidden': 'The token lacks permission (org read required).',
   'errors.connect.errorNetwork': 'Cannot reach the server URL; check network and self-hosted address.',
+
+  // Errors view
+  'errors.nav': 'Errors',
+  'errors.view.title': 'Errors',
+  'errors.scope.repo': 'This repository',
+  'errors.scope.all': 'All',
+  'errors.filter.source.all': 'All sources',
+  'errors.filter.severity.all': 'All levels',
+  'errors.search.placeholder': 'Search title or short ID',
+  'errors.refresh': 'Refresh',
+  'errors.syncing': 'Syncing…',
+  'errors.loadMore': 'Load more',
+  'errors.list.loadedNote': 'Showing {count} loaded issues; load more for older errors.',
+  'errors.list.emptyFiltered': 'No issues match the current filters.',
+  'errors.list.lastSynced': 'Last synced: {time}',
+  'errors.severity.critical': 'Critical',
+  'errors.severity.error': 'Error',
+  'errors.severity.warning': 'Warning',
+  'errors.severity.info': 'Info',
+
+  // Empty states (§7.3.3)
+  'errors.empty.noConnection.title': 'Connect an error tracking platform',
+  'errors.empty.noConnection.desc': 'Connect Sentry in Settings and errors from your repositories will appear here.',
+  'errors.empty.noConnection.action': 'Open settings',
+  'errors.empty.noMapping.title': 'Map external projects to this repository',
+  'errors.empty.noMapping.desc': 'This repository has no error tracking project mapped yet; map one to see its issues.',
+  'errors.empty.noMapping.action': 'Map projects',
+
+  // Degradation banner (§7.3.2)
+  'errors.banner.sourceFailed': '{name} failed to sync; the list may be stale.',
+  'errors.banner.retry': 'Retry',
+  'errors.banner.settings': 'Settings',
+
+  // Issue row
+  'errors.row.events': '{count} events',
+  'errors.row.users': '{count} users',
+  'errors.row.openExternal': 'Open in Sentry',
+
+  // Detail
+  'errors.detail.select': 'Select an issue to inspect details and stack traces.',
+  'errors.detail.firstSeen': 'First seen',
+  'errors.detail.lastSeen': 'Last seen',
+  'errors.detail.environment': 'Environment',
+  'errors.detail.release': 'Release',
+  'errors.detail.stacktrace': 'Stack trace',
+  'errors.detail.stackEmpty': 'The latest event has no stack trace.',
+  'errors.detail.jump': 'Open local file',
+  'errors.detail.jumpOpened': 'Opened with the system default app.',
+  'errors.detail.lineInfo': 'at line {line}',
+  'errors.detail.jumpCopied': 'Path copied to clipboard: {path}',
+  'errors.detail.jumpMissing': 'No matching local file',
+  'errors.detail.jumpAmbiguous': 'Multiple candidate files',
+  'errors.detail.suspectCommit': 'Suspect commit',
+  'errors.detail.rawData': 'Raw data',
+  'errors.detail.loading': 'Loading detail…',
+  'errors.detail.loadFailed': 'Failed to load detail',
+
+  // Mapping dialog
+  'errors.mapping.title': 'Map external projects',
+  'errors.mapping.desc': 'Choose projects to associate with this repository; mappings are stored per repository.',
+  'errors.mapping.loadFailed': 'Failed to load projects',
+  'errors.mapping.empty': 'No projects available in this organization.',
+  'errors.mapping.manage': 'Manage mappings',
+  'errors.mapping.mappedCount': '{count} mapped',
+
+  // Ambiguous file picker (§8.4 tier 2)
+  'errors.filePicker.title': 'Choose the matching local file',
+  'errors.filePicker.framePath': 'Stack frame path',
 };

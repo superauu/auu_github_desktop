@@ -22,6 +22,7 @@ import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useErrorsStore } from '@/stores/errorsStore';
 import { checkForUpdates } from '@/services/updater/UpdateService';
 import { createExternalChangePoller } from '@/services/git/ExternalChangePoller';
 import { getPendingGitWrites } from '@/services/git/GitQueue';
@@ -44,7 +45,7 @@ export const AppLayout: React.FC = () => {
   const windowChrome = useWindowChrome();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git' | 'github'>('appearance');
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git' | 'github' | 'integrations'>('appearance');
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { navigationOverlay, inspectorOverlay, panels } = useWorkspaceLayout();
@@ -74,14 +75,22 @@ export const AppLayout: React.FC = () => {
 
   useEffect(() => {
     const openSettings = (event: Event) => {
-      if ((event as CustomEvent).detail !== 'git') return;
+      const detail = (event as CustomEvent).detail as string | undefined;
+      if (detail && detail !== 'git' && detail !== 'integrations') return;
       useRemoteDialogStore.getState().settle(null);
       setCommandPaletteOpen(false); setInspectorOpen(false);
-      setSettingsTab('git'); setSettingsOpen(true);
+      setSettingsTab(detail === 'git' ? 'git' : detail === 'integrations' ? 'integrations' : 'appearance'); setSettingsOpen(true);
     };
     window.addEventListener('auugit:open-settings', openSettings);
     return () => window.removeEventListener('auugit:open-settings', openSettings);
   }, []);
+
+  // Errors 集成常驻轮询（PRD §9）：徽标在任何页面都能随同步刷新；页面隐藏时 tick 自行跳过
+  const errorsPollingIntervalSec = useSettingsStore((state) => state.errorsPollingIntervalSec);
+  useEffect(() => {
+    useErrorsStore.getState().startPolling(errorsPollingIntervalSec);
+    return () => useErrorsStore.getState().stopPolling();
+  }, [errorsPollingIntervalSec]);
 
   const isTypingTarget = (target: EventTarget | null): boolean => {
     const el = target as HTMLElement | null;

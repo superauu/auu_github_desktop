@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { confirmAction } from '@/stores/confirmStore';
-import React, { lazy, Suspense, useState, useRef, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useRef, useEffect, useMemo } from 'react';
 import { Gitlab } from '@/components/ui/brandIcons';
 import {
   GitBranch as GitBranchIcon,
@@ -37,10 +37,13 @@ import {
   MoreVertical,
   Pin,
   PinOff,
+  Bug,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useForgeStore } from '@/stores/forgeStore';
+import { useErrorsStore } from '@/stores/errorsStore';
+import { countUnresolved, scopeProjectIds } from '@/services/errors/issueQuery';
 import { useGitHubStore } from '@/stores/githubStore';
 import { GitBranch, GitStash, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
@@ -83,6 +86,29 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
   const { pullRequests, selectPR } = useGitHubStore(useShallow(state => ({ pullRequests: state.pullRequests, selectPR: state.selectPR })));
   const forgePulls = useForgeStore((state) => state.pulls);
+  // Errors 域导航（PRD §7.1）：连接建立才出现；徽标 = 当前作用域未解决数（99+ 截断）。
+  // 注意：selector 只取 store 原始切片（引用稳定），派生值放 useMemo——
+  // 在 useShallow 里 map 出新数组会破坏浅比较导致无限重渲染。
+  const errorsConnections = useErrorsStore((state) => state.connections);
+  const errorsIssues = useErrorsStore((state) => state.issues);
+  const errorsScope = useErrorsStore((state) => state.scope);
+  const errorsActiveRepoKey = useErrorsStore((state) => state.activeRepoKey);
+  const errorsMappingsByRepo = useErrorsStore((state) => state.mappingsByRepo);
+  const errorsDomainEnabled = useMemo(
+    () => errorsConnections.some((connection) => connection.enabled && connection.domains.includes('error-tracking')),
+    [errorsConnections],
+  );
+  const errorsBadgeCount = useMemo(() => {
+    if (!errorsDomainEnabled) return 0;
+    return countUnresolved(errorsIssues, {
+      scope: errorsScope,
+      repoKey: errorsActiveRepoKey,
+      mappedProjectIds: scopeProjectIds(errorsScope, errorsActiveRepoKey, errorsMappingsByRepo, null),
+      connectionId: null,
+      severity: 'all',
+      search: '',
+    });
+  }, [errorsDomainEnabled, errorsIssues, errorsScope, errorsActiveRepoKey, errorsMappingsByRepo]);
   const { panels } = useWorkspaceLayout();
   const { navigationPinned, setNavigationPinned } = useLayoutStore(useShallow(state => ({ navigationPinned: state.navigationPinned, setNavigationPinned: state.setNavigationPinned })));
 
@@ -777,6 +803,34 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             {forgePulls.length}
           </Badge>
         </button>
+
+        {errorsDomainEnabled && (
+          <button
+            aria-current={activeTab === 'errors' ? 'page' : undefined}
+            onClick={() => { setActiveTab('errors'); onNavigate?.(); }}
+            className={cn(
+              'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-medium transition-colors group',
+              activeTab === 'errors'
+                ? 'bg-accent text-accent-foreground shadow-2xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Bug
+                className={cn(
+                  'h-3.5 w-3.5',
+                  activeTab === 'errors' ? 'text-primary' : 'text-muted-foreground',
+                )}
+              />
+              <span>{t('errors.nav')}</span>
+            </div>
+            {errorsBadgeCount > 0 && (
+              <Badge variant="outline" className="h-3.5 px-1 text-[12px] tabular-nums">
+                {errorsBadgeCount > 99 ? '99+' : errorsBadgeCount}
+              </Badge>
+            )}
+          </button>
+        )}
 
         <button
           aria-current={activeTab === 'actions' ? 'page' : undefined}

@@ -13,7 +13,7 @@ import {
   type ListIssuesParams,
   type ProviderErrorKind,
 } from '../providerService';
-import type { StackFrame, UnifiedErrorIssue } from '../types';
+import type { CommitRef, StackFrame, UnifiedErrorIssue } from '../types';
 
 const DEFAULT_BASE_URL = 'https://sentry.io';
 
@@ -164,11 +164,11 @@ export class SentryClient implements ErrorProviderClient {
     return { data: (await response.json()) as T, response };
   }
 
-  private orgIssuesPath(params: ListIssuesParams, cursor?: string | null): string {
+  private orgIssuesPath(params: ListIssuesParams): string {
     const query = new URLSearchParams();
     if (params.projectIds?.length) query.set('project', params.projectIds.join(','));
     query.set('query', params.query ?? 'is:unresolved');
-    if (cursor) query.set('cursor', cursor);
+    if (params.cursor) query.set('cursor', params.cursor);
     return `/api/0/organizations/${encodeURIComponent(params.orgId)}/issues/?${query.toString()}`;
   }
 
@@ -209,6 +209,18 @@ export class SentryClient implements ErrorProviderClient {
   async getLatestEventStacktrace(issueId: string): Promise<StackFrame[]> {
     const { data } = await this.request<any>(`/api/0/issues/${encodeURIComponent(issueId)}/events/latest/`);
     return mapSentryEventFrames(data);
+  }
+
+  async listSuspectCommits(issueId: string): Promise<CommitRef[]> {
+    const { data } = await this.request<any[]>(`/api/0/issues/${encodeURIComponent(issueId)}/suspect-commits/`);
+    return (Array.isArray(data) ? data : [])
+      .map((row) => ({
+        sha: String(row?.commit?.id ?? row?.commitId ?? ''),
+        message: typeof row?.commit?.message === 'string' ? row.commit.message : undefined,
+        author: typeof row?.commit?.author?.name === 'string' ? row.commit.author.name : undefined,
+        repository: typeof row?.repository?.name === 'string' ? row.repository.name : undefined,
+      }))
+      .filter((commit) => commit.sha);
   }
 
   async updateStatus(issueId: string, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve'): Promise<void> {

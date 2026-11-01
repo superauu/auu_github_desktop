@@ -3,7 +3,7 @@
  * 平台语义在各 provider 文件内封装。新增 provider = 一个文件 + 注册到工厂。
  */
 import { SentryClient } from './providers/sentry';
-import type { StackFrame, UnifiedErrorIssue } from './types';
+import type { CommitRef, StackFrame, UnifiedErrorIssue } from './types';
 
 export interface ExternalOrg {
   id: string;
@@ -63,6 +63,8 @@ export interface ErrorProviderClient {
   getIssue(issueId: string): Promise<UnifiedErrorIssue>;
   /** 获取单个代表性事件（latest event）的堆栈帧——与"不做事件级管理"非目标不冲突（§1）。 */
   getLatestEventStacktrace(issueId: string): Promise<StackFrame[]>;
+  /** 嫌疑 commit（平台支持才有意义，capability `error-tracking:suspect-commits`）。 */
+  listSuspectCommits(issueId: string): Promise<CommitRef[]>;
   updateStatus(issueId: string, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve'): Promise<void>;
 }
 

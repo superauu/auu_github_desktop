@@ -10,6 +10,7 @@ const ActionsDashboardView = lazy(() => import('@/features/actions/ActionsDashbo
 const PullRequestsView = lazy(() => import('@/features/pr/PullRequestsView').then((module) => ({ default: module.PullRequestsView })));
 const IssuesView = lazy(() => import('@/features/issues/IssuesView').then(module => ({ default: module.IssuesView })));
 const ForgeView = lazy(() => import('@/features/forge/ForgeView').then((module) => ({ default: module.ForgeView })));
+const ErrorsView = lazy(() => import('@/features/errors/ErrorsView').then((module) => ({ default: module.ErrorsView })));
 
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useI18n } from '@/i18n';
@@ -53,6 +54,8 @@ export const CenterStage: React.FC<CenterStageProps> = ({
         return <IssuesView onOpenAuthDialog={onOpenGitHubAuth} />;
       case 'forge':
         return <ForgeView />;
+      case 'errors':
+        return <ErrorsView />;
       case 'changes':
         return <WorkingChangesView />;
       // Legacy review routes fall back to ordinary commit history.
