@@ -92,13 +92,15 @@ function applyPrefixMap(
 }
 
 /**
- * 打开本地文件（系统默认程序）。桌面端走 shell open；web 预览回落剪贴板复制路径。
+ * 打开本地文件（系统默认程序）。桌面端走 open_local_path 命令（opener 插件；
+ * shell 插件 open 的 IPC 校验器是 github.com 专用白名单，会拒绝本地路径）；
+ * web 预览回落剪贴板复制路径。
  * 传入绝对路径（调用方用仓库根 + 相对路径拼接）；行号无法跨编辑器通用传递，由 toast 提示。
  */
 export async function revealLocalFile(absolutePath: string): Promise<'opened' | 'copied'> {
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-    const { open } = await import('@tauri-apps/plugin-shell');
-    await open(absolutePath);
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('open_local_path', { path: absolutePath });
     return 'opened';
   }
   try {

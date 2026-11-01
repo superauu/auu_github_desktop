@@ -731,7 +731,8 @@ async fn provider_http_request(request: ProviderHttpRequest) -> Result<ProviderH
 }
 
 /// 用系统默认程序打开外部链接（浏览器）：http(s) 白名单 + 拒绝空白/控制字符，
-/// fail closed。不走 shell 插件 open 的权限校验器——那是 github.com 专用白名单，
+/// fail closed。走 opener 插件（shell 插件的 Rust open API 已弃用）；
+/// 不经过 shell 插件 open 的 IPC 校验器——那是 github.com 专用白名单，
 /// 会拒绝其他集成平台的链接。
 fn validate_external_url(url: &str) -> Result<(), String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
@@ -746,8 +747,32 @@ fn validate_external_url(url: &str) -> Result<(), String> {
 #[tauri::command(async)]
 fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
     validate_external_url(&url)?;
-    use tauri_plugin_shell::ShellExt;
-    app.shell().open(url, None).map_err(|e| e.to_string())
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// 本地路径白名单：仅绝对路径（Windows 原生盘符/UNC 或 POSIX `/` 根）、拒绝控制字符
+/// （空白合法——目录名可含空格）。前端 shell 插件 open 会撞 github.com 专用 IPC
+/// 校验器，本地文件打开必须走本命令。
+fn validate_local_path(path: &str) -> Result<(), String> {
+    if path.is_empty() {
+        return Err("Path must not be empty".into());
+    }
+    // Windows 的 is_absolute 不认 `/` 根路径；测试与跨平台路径形态都按 POSIX 根放行。
+    if !std::path::Path::new(path).is_absolute() && !path.starts_with('/') {
+        return Err("Only absolute paths are allowed".into());
+    }
+    if path.chars().any(|c| c.is_control()) {
+        return Err("Path must not contain control characters".into());
+    }
+    Ok(())
+}
+
+#[tauri::command(async)]
+fn open_local_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    validate_local_path(&path)?;
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_path(path, None::<&str>).map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -832,6 +857,7 @@ pub fn run() {
     init_crash_reporting();
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
@@ -860,6 +886,7 @@ pub fn run() {
             delete_integration_token,
             provider_http_request,
             open_external_url,
+            open_local_path,
             execute_git,
             open_terminal,
             repository_access::authorize_repository,
@@ -1020,6 +1047,16 @@ mod tests {
         assert!(validate_external_url("http://localhost:5173/").is_ok());
         for bad in ["ftp://x", "file:///C:/x", "javascript:alert(1)", "sentry.io", "", "https://x.io/a b", "https://x.io/\n"] {
             assert!(validate_external_url(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn local_paths_must_be_absolute_without_controls() {
+        // 含空格的目录合法（与 URL 不同）；Windows 盘符与 POSIX 根都算绝对路径。
+        assert!(validate_local_path("E:\\code\\auu github\\src\\lib.rs").is_ok());
+        assert!(validate_local_path("/home/user/my file.rs").is_ok());
+        for bad in ["", "src/lib.rs", "./src/lib.rs", "E:\\code\\a\u{1}b", "/tmp/\n"] {
+            assert!(validate_local_path(bad).is_err(), "{bad}");
         }
     }
 }

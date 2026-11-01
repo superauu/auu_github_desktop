@@ -16,6 +16,7 @@ tauri-build = { version = "2.0.0", features = [] }
 # Keep the main crate on the same minor line as the locked desktop runtime.
 tauri = { version = "~2.12.0", features = [] }
 tauri-plugin-shell = "2.0.0"
+tauri-plugin-opener = "2.0.0"
 tauri-plugin-dialog = "2.0.0"
 # Updates use signed raw NSIS/MSI installers; ZIP support would pull withdrawn zip 4.x releases.
 tauri-plugin-updater = { version = "~2.14.0", default-features = false, features = ["rustls-tls", "system-proxy"] }
