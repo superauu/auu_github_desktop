@@ -5,6 +5,7 @@
  */
 import { normalizeSeverity, normalizeStatus } from '../normalize';
 import {
+  providerHttpRequest,
   ProviderRequestError,
   type ErrorProviderClient,
   type ExternalOrg,
@@ -12,6 +13,7 @@ import {
   type IssuePage,
   type ListIssuesParams,
   type ProviderErrorKind,
+  type ProviderHttpResponse,
 } from '../providerService';
 import type { CommitRef, StackFrame, UnifiedErrorIssue } from '../types';
 
@@ -141,27 +143,33 @@ export class SentryClient implements ErrorProviderClient {
     this.baseUrl = normalizeBaseUrl(credentials.baseUrl);
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<{ data: T; response: Response }> {
-    let response: Response;
+  private async request<T>(path: string, init?: RequestInit): Promise<{ data: T; headers: { get(key: string): string | null } }> {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const headers: Record<string, string> = { Authorization: `Bearer ${this.token}` };
+    if (init?.headers) Object.assign(headers, init.headers as Record<string, string>);
+    let result: ProviderHttpResponse;
     try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        ...init,
-        headers: { Authorization: `Bearer ${this.token}`, ...(init?.headers ?? {}) },
-      });
+      result = await providerHttpRequest(method, `${this.baseUrl}${path}`, headers, typeof init?.body === 'string' ? init.body : undefined);
     } catch (cause) {
       throw new ProviderRequestError('network', String(cause instanceof Error ? cause.message : cause));
     }
-    if (!response.ok) {
+    if (result.status < 200 || result.status >= 300) {
       let detail = '';
       try {
-        const body = await response.json();
-        detail = typeof body?.detail === 'string' ? body.detail : '';
+        const parsed = JSON.parse(result.body) as { detail?: unknown };
+        detail = typeof parsed?.detail === 'string' ? parsed.detail : '';
       } catch {
         /* 非 JSON 错误体：保留状态码 */
       }
-      throw httpError(response.status, detail);
+      throw httpError(result.status, detail);
     }
-    return { data: (await response.json()) as T, response };
+    let data: T;
+    try {
+      data = JSON.parse(result.body) as T;
+    } catch {
+      throw new ProviderRequestError('unknown', 'Provider returned invalid JSON');
+    }
+    return { data, headers: { get: (key) => result.headers[key.toLowerCase()] ?? null } };
   }
 
   private orgIssuesPath(params: ListIssuesParams): string {
@@ -196,9 +204,9 @@ export class SentryClient implements ErrorProviderClient {
   }
 
   async listIssues(params: ListIssuesParams): Promise<IssuePage> {
-    const { data, response } = await this.request<any[]>(this.orgIssuesPath(params));
+    const { data, headers } = await this.request<any[]>(this.orgIssuesPath(params));
     const issues = (Array.isArray(data) ? data : []).map(mapSentryIssue);
-    return { issues, nextCursor: parseLinkCursor(response.headers.get('Link')) };
+    return { issues, nextCursor: parseLinkCursor(headers.get('Link')) };
   }
 
   async getIssue(issueId: string): Promise<UnifiedErrorIssue> {

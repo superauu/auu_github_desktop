@@ -59,11 +59,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       adjustedTop = Math.max(10, window.innerHeight - menuHeight - 12);
     }
 
-    const rect = portalTarget === document.body ? null : portalTarget.getBoundingClientRect();
-    setPosition({
-      top: adjustedTop - (rect ? rect.top + portalTarget.clientTop - portalTarget.scrollTop : 0),
-      left: adjustedLeft - (rect ? rect.left + portalTarget.clientLeft - portalTarget.scrollLeft : 0),
-    });
+    // 菜单渲染为 fixed、恒用视口坐标：portalTarget 仅作挂载点（stacking 上下文），
+    // 不做局部坐标换算——dialog 内层的 getBoundingClientRect 与真实 containing
+    // block（外层 backdrop-filter 的 overlay）并不一致，换算会把菜单推到屏幕角落。
+    setPosition({ top: adjustedTop, left: adjustedLeft });
 
     const handlePointerDown = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {

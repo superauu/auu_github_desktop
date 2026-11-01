@@ -16,17 +16,20 @@ import { build } from 'esbuild';
 const root = process.cwd();
 let tmp, app, originalFetch, calls;
 
-const jsonResponse = (body, { status = 200, headers = {} } = {}) => ({
-  ok: status >= 200 && status < 300,
-  status,
-  json: async () => body,
-  headers: {
-    get: (key) => {
-      const normalized = Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]));
-      return normalized[String(key).toLowerCase()] ?? null;
+const jsonResponse = (body, { status = 200, headers = {} } = {}) => {
+  const normalized = Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]));
+  const text = async () => JSON.stringify(body);
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    text,
+    headers: {
+      get: (key) => normalized[String(key).toLowerCase()] ?? null,
+      forEach: (callback) => Object.entries(normalized).forEach(([name, value]) => callback(value, name)),
     },
-  },
-});
+  };
+};
 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-errors-view-'));

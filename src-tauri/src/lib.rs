@@ -661,6 +661,75 @@ fn delete_integration_token(connection_id: String) -> Result<(), String> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 集成 Provider 的 HTTP 代理（PRD §6.4 硬化）：WebView 的 connect-src CSP 白名单
+// 不可能枚举所有平台与自托管地址，统一走 Rust reqwest——无 CORS/CSP 约束，
+// 请求目标强制 http(s)，头字段非法（CRLF/控制字符）fail closed。
+// ---------------------------------------------------------------------------
+static PROVIDER_HTTP_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("reqwest client with rustls")
+});
+
+#[derive(Deserialize)]
+struct ProviderHttpRequest {
+    method: String,
+    url: String,
+    #[serde(default)]
+    headers: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    body: Option<String>,
+}
+
+#[derive(Serialize)]
+struct ProviderHttpResponse {
+    status: u16,
+    /// 全量响应头（小写键）——分页依赖 Link 头。
+    headers: std::collections::HashMap<String, String>,
+    body: String,
+}
+
+fn validate_provider_request(
+    method: &str,
+    url: &str,
+    headers: &std::collections::HashMap<String, String>,
+) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Only http(s) URLs are allowed".into());
+    }
+    reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
+    for (name, value) in headers {
+        reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|e| e.to_string())?;
+        reqwest::header::HeaderValue::from_str(value).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command(async)]
+async fn provider_http_request(request: ProviderHttpRequest) -> Result<ProviderHttpResponse, String> {
+    validate_provider_request(&request.method, &request.url, &request.headers)?;
+    let method = reqwest::Method::from_bytes(request.method.as_bytes()).map_err(|e| e.to_string())?;
+    let mut req = PROVIDER_HTTP_CLIENT.request(method, &request.url);
+    for (name, value) in &request.headers {
+        req = req.header(name, value);
+    }
+    if let Some(body) = &request.body {
+        req = req.body(body.clone());
+    }
+    let response = req.send().await.map_err(|e| e.to_string())?;
+    let status = response.status().as_u16();
+    let mut headers = std::collections::HashMap::new();
+    for (name, value) in response.headers() {
+        if let Ok(text) = value.to_str() {
+            headers.insert(name.as_str().to_string(), text.to_string());
+        }
+    }
+    let body = response.text().await.map_err(|e| e.to_string())?;
+    Ok(ProviderHttpResponse { status, headers, body })
+}
+
 #[tauri::command(async)]
 fn store_ai_key(key: String) -> Result<(), String> {
     let entry = keyring::Entry::new("auugit", "ai_api_key").map_err(|e| e.to_string())?;
@@ -769,6 +838,7 @@ pub fn run() {
             store_integration_token,
             get_integration_token,
             delete_integration_token,
+            provider_http_request,
             execute_git,
             open_terminal,
             repository_access::authorize_repository,
@@ -902,5 +972,24 @@ mod tests {
         for bad in ["", "   ", "a:b", "../escape", "a/b", "a\\b", "连接id", "a b", "x".repeat(65).as_str()] {
             assert!(integration_entry(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn provider_http_requests_are_restricted_to_http_s_with_safe_headers() {
+        use std::collections::HashMap;
+        assert!(validate_provider_request("GET", "https://sentry.io/api/0/organizations/", &HashMap::new()).is_ok());
+        assert!(validate_provider_request("PUT", "http://self-hosted.local/api/0/issues/1/", &HashMap::new()).is_ok());
+        // 请求目标白名单外（非 http(s)）拒绝。
+        for bad_url in ["ftp://x", "file:///etc/passwd", "javascript:alert(1)", "sentry.io", ""] {
+            assert!(validate_provider_request("GET", bad_url, &HashMap::new()).is_err(), "{bad_url}");
+        }
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token".to_string());
+        assert!(validate_provider_request("GET", "https://x.io/", &headers).is_ok());
+        // 头值 CRLF 注入与控制字符 fail closed。
+        headers.insert("X-Evil".to_string(), "value\r\nInjected: 1".to_string());
+        assert!(validate_provider_request("GET", "https://x.io/", &headers).is_err());
+        headers.insert("X-Evil".to_string(), "bad\u{1}value".to_string());
+        assert!(validate_provider_request("GET", "https://x.io/", &headers).is_err());
     }
 }

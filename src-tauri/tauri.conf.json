@@ -27,7 +27,7 @@
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://avatars.githubusercontent.com; connect-src 'self' https://api.github.com https://github.com ipc: http://ipc.localhost",
-      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://avatars.githubusercontent.com; connect-src 'self' https://api.github.com https://github.com ipc: http://ipc.localhost ws://localhost:5173"
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://avatars.githubusercontent.com; connect-src 'self' https://api.github.com https://github.com https://sentry.io ipc: http://ipc.localhost ws://localhost:5173"
     }
   },
   "plugins": {

@@ -16,7 +16,13 @@ import { build } from 'esbuild';
 const root = process.cwd();
 let tmp, app, originalFetch;
 
-const jsonResponse = (body, { status = 200 } = {}) => ({ ok: status >= 200 && status < 300, status, json: async () => body, headers: { get: () => null } });
+const jsonResponse = (body, { status = 200 } = {}) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  json: async () => body,
+  text: async () => JSON.stringify(body),
+  headers: { get: () => null, forEach: () => {} },
+});
 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-errors-fix-'));
