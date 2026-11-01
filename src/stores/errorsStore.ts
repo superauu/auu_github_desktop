@@ -204,7 +204,17 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
   syncErrors: {},
 
   restoreConnections() {
-    set({ connections: readPersisted(), restored: true });
+    const connections = readPersisted();
+    // 历史版本删除连接未联动清理映射：恢复时从存储读出并按现存连接清一次（幂等）。
+    // 必须读存储而非内存——此时 loadRepoContext 尚未把映射挂进内存，内存态是空/陈旧的。
+    const known = new Set(connections.map((connection) => connection.id));
+    const mappingsByRepo = Object.fromEntries(
+      Object.entries(readMappings())
+        .map(([repoKey, mappings]) => [repoKey, mappings.filter((mapping) => known.has(mapping.connectionId))])
+        .filter(([, mappings]) => mappings.length > 0),
+    );
+    persistMappings(mappingsByRepo);
+    set({ connections, restored: true, mappingsByRepo });
   },
 
   addConnection(input) {
@@ -231,9 +241,22 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
 
   async removeConnection(id) {
     await deleteIntegrationToken(id).catch(() => {});
+    // 联动清理该连接的全部数据（列表 / 游标 / 同步错误 / 项目映射）——
+    // 残留 issue 会对已删除的凭证与组织发起请求（credential missing / missing organization），
+    // 且引用旧连接的映射会静默过滤掉新连接的同步结果。
+    const mappingsByRepo = Object.fromEntries(
+      Object.entries(get().mappingsByRepo)
+        .map(([repoKey, mappings]) => [repoKey, mappings.filter((mapping) => mapping.connectionId !== id)])
+        .filter(([, mappings]) => mappings.length > 0),
+    );
+    persistMappings(mappingsByRepo);
     set({
       connections: get().connections.filter((connection) => connection.id !== id),
       runtime: Object.fromEntries(Object.entries(get().runtime).filter(([key]) => key !== id)),
+      issues: get().issues.filter((issue) => issue.connectionId !== id),
+      nextCursors: Object.fromEntries(Object.entries(get().nextCursors).filter(([key]) => key !== id)),
+      syncErrors: Object.fromEntries(Object.entries(get().syncErrors).filter(([key]) => key !== id)),
+      mappingsByRepo,
     });
     persist(get().connections);
   },

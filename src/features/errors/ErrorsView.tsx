@@ -366,7 +366,7 @@ export const ErrorsView: React.FC = () => {
                             {issue.title}
                           </div>
                           <div className="truncate text-[12px] text-muted-foreground">
-                            Sentry · {connection?.displayName ?? issue.connectionId} · {projectLabelOf(issue)}
+                            Sentry · {connection?.displayName ?? getProviderManifest(issue.providerId)?.name ?? issue.providerId} · {projectLabelOf(issue)}
                           </div>
                           <div className="text-[12px] text-muted-foreground tabular-nums">
                             {issue.eventCount != null ? t('errors.row.events').replace('{count}', String(issue.eventCount)) : ''}

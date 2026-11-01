@@ -167,3 +167,76 @@ test('errorsStore：非敏感配置持久化、健康态不落盘、删除连接
   assert.deepEqual(store.getState().connections, []);
   assert.equal(await app.getIntegrationToken(created.id), null);
 });
+
+test('errorsStore：删除连接联动清理其 issues、游标、同步错误与项目映射', async () => {
+  // 用户场景（token 轮换）：旧连接删除后，残留 issue 会对已删除的凭证/组织发请求
+  // （credential missing / missing organization），引用旧连接的映射会静默过滤新连接的同步。
+  const storage = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+    removeItem: (key) => storage.delete(key),
+  };
+  const store = app.useErrorsStore;
+  store.setState({ connections: [], runtime: {}, restored: false });
+  const keep = store.getState().addConnection({ providerId: 'sentry', displayName: '保留' });
+  const gone = store.getState().addConnection({ providerId: 'sentry', displayName: '将删除' });
+  const issueOf = (connectionId, issueId) => ({
+    connectionId, providerId: 'sentry', externalProjectId: 'p1', issueId,
+    title: `t-${issueId}`, severity: 'error', status: 'unresolved', externalUrl: 'https://sentry.io/x',
+  });
+  store.setState({
+    restored: true,
+    issues: [issueOf(keep.id, '1'), issueOf(gone.id, '2')],
+    nextCursors: { [keep.id]: 'cur-1', [gone.id]: 'cur-2' },
+    syncErrors: { [gone.id]: 'boom' },
+    mappingsByRepo: {
+      'repo-a': [
+        { connectionId: gone.id, externalProjectId: 'p1', externalProjectName: 'p1' },
+        { connectionId: keep.id, externalProjectId: 'p2', externalProjectName: 'p2' },
+      ],
+      'repo-b': [{ connectionId: gone.id, externalProjectId: 'p3', externalProjectName: 'p3' }],
+    },
+  });
+
+  await store.getState().removeConnection(gone.id);
+  const state = store.getState();
+  assert.deepEqual(state.connections.map((c) => c.id), [keep.id]);
+  assert.deepEqual(state.issues.map((issue) => issue.issueId), ['1']);
+  assert.deepEqual(state.nextCursors, { [keep.id]: 'cur-1' });
+  assert.deepEqual(state.syncErrors, {});
+  // 引用被删连接的映射清除；清空的 repo 条目不残留；持久化同步更新
+  assert.deepEqual(Object.keys(state.mappingsByRepo), ['repo-a']);
+  assert.deepEqual(state.mappingsByRepo['repo-a'], [{ connectionId: keep.id, externalProjectId: 'p2', externalProjectName: 'p2' }]);
+  assert.equal(JSON.parse(storage.get('auu_git_error_mappings')).repo_b, undefined);
+});
+
+test('errorsStore：恢复连接时清掉引用已删连接的残留映射（存量污染兜底）', () => {
+  const storage = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+    removeItem: (key) => storage.delete(key),
+  };
+  const store = app.useErrorsStore;
+  store.setState({ connections: [], runtime: {}, restored: false });
+  // 存量数据：连接只剩 keep-conn，映射里还留着指向已删连接的条目
+  storage.set('auu_git_error_connections', JSON.stringify([
+    { id: 'keep-conn', providerId: 'sentry', displayName: 'K', enabled: true, domains: ['error-tracking'] },
+  ]));
+  storage.set('auu_git_error_mappings', JSON.stringify({
+    'repo-a': [
+      { connectionId: 'gone-conn', externalProjectId: 'p1', externalProjectName: 'p1' },
+      { connectionId: 'keep-conn', externalProjectId: 'p2', externalProjectName: 'p2' },
+    ],
+    'repo-b': [{ connectionId: 'gone-conn', externalProjectId: 'p3', externalProjectName: 'p3' }],
+  }));
+
+  store.getState().restoreConnections();
+  const state = store.getState();
+  assert.equal(state.restored, true);
+  assert.deepEqual(state.connections.map((c) => c.id), ['keep-conn']);
+  assert.deepEqual(Object.keys(state.mappingsByRepo), ['repo-a']);
+  assert.deepEqual(state.mappingsByRepo['repo-a'], [{ connectionId: 'keep-conn', externalProjectId: 'p2', externalProjectName: 'p2' }]);
+  assert.equal(JSON.parse(storage.get('auu_git_error_mappings')).repo_b, undefined);
+});
