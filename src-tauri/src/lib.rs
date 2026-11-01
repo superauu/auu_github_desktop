@@ -730,6 +730,26 @@ async fn provider_http_request(request: ProviderHttpRequest) -> Result<ProviderH
     Ok(ProviderHttpResponse { status, headers, body })
 }
 
+/// 用系统默认程序打开外部链接（浏览器）：http(s) 白名单 + 拒绝空白/控制字符，
+/// fail closed。不走 shell 插件 open 的权限校验器——那是 github.com 专用白名单，
+/// 会拒绝其他集成平台的链接。
+fn validate_external_url(url: &str) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Only http(s) URLs are allowed".into());
+    }
+    if url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err("URL must not contain whitespace or control characters".into());
+    }
+    Ok(())
+}
+
+#[tauri::command(async)]
+fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    validate_external_url(&url)?;
+    use tauri_plugin_shell::ShellExt;
+    app.shell().open(url, None).map_err(|e| e.to_string())
+}
+
 #[tauri::command(async)]
 fn store_ai_key(key: String) -> Result<(), String> {
     let entry = keyring::Entry::new("auugit", "ai_api_key").map_err(|e| e.to_string())?;
@@ -839,6 +859,7 @@ pub fn run() {
             get_integration_token,
             delete_integration_token,
             provider_http_request,
+            open_external_url,
             execute_git,
             open_terminal,
             repository_access::authorize_repository,
@@ -991,5 +1012,14 @@ mod tests {
         assert!(validate_provider_request("GET", "https://x.io/", &headers).is_err());
         headers.insert("X-Evil".to_string(), "bad\u{1}value".to_string());
         assert!(validate_provider_request("GET", "https://x.io/", &headers).is_err());
+    }
+
+    #[test]
+    fn external_urls_are_restricted_to_http_s_without_whitespace_or_controls() {
+        assert!(validate_external_url("https://auu-tz.sentry.io/issues/782178159/").is_ok());
+        assert!(validate_external_url("http://localhost:5173/").is_ok());
+        for bad in ["ftp://x", "file:///C:/x", "javascript:alert(1)", "sentry.io", "", "https://x.io/a b", "https://x.io/\n"] {
+            assert!(validate_external_url(bad).is_err(), "{bad}");
+        }
     }
 }
