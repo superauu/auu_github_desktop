@@ -24,6 +24,7 @@ Recent operations persist locally across sessions, keeping up to 100 entries for
 | History search | Search commit metadata or added and removed code. |
 | GitHub Pull Requests | Browse, create, review, and merge PRs, and draft PR descriptions. |
 | GitHub Issues | Search and filter issues, create and edit, assign labels and people, comment, close and reopen; create local branches and linked PRs, then navigate between issues and PRs. |
+| Error tracking integration | Connect Sentry (token kept in the OS keychain) to browse issues with filters, jump stack frames to local files, create fix branches with reference trailers, generate AI patches, and write status back; merge requests from GitLab / Gitea repositories are surfaced in the same unified page. |
 | GitHub Actions | Inspect workflows, runs, jobs, and steps; retrieve completed job logs; dispatch, rerun, or cancel runs. |
 | AI assistance | Draft commit messages, explain commits and branch differences, diagnose Git errors, and suggest file groups or conflict resolutions. |
 | Code review | Review files or hunks and resolve notes in Working Changes, then preview and copy an AI fix report with original code context across files. Pre-commit reminders are on by default and allow you to continue; disable them in Git settings or in the reminder. [Guide](docs/review-guide.md). |
