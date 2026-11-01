@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Plus, Power, RefreshCw, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Power, RefreshCw, Trash2, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore } from '@/stores/errorsStore';
 import { useI18n } from '@/i18n';
@@ -9,12 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ProviderRequestError, type ExternalOrg } from '@/services/errors/providerService';
+import { getProviderManifest, PROVIDER_REGISTRY } from '@/services/errors/types';
 import type { PersistedConnection } from '@/stores/errorsStore';
+import { cn } from '@/utils/cn';
 
 /**
  * 设置「集成」分区（PRD §7.4）：按域分组展示错误追踪平台的连接。
+ * 入口是**已支持插件的卡片**（来自核心 Provider 注册表）——用户选择平台后只需输入
+ * token（显示名选填、自托管地址收进高级选项），验证后选组织保存。
  * 连接管理：启用/停用、测试（健康态就地更新，不触碰导航）、删除（联动清 keyring 凭证）。
- * 连接流程两步：验证并选组织 → 保存（token 只进 keyring）。
  */
 
 interface ConnectFormState {
@@ -60,6 +63,8 @@ export const IntegrationsSection: React.FC = () => {
         getRuntime: state.getRuntime,
       })),
     );
+  // 插件选择：null = 卡片列表；否则展开该平台的连接表单
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [form, setForm] = useState<ConnectFormState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -68,17 +73,21 @@ export const IntegrationsSection: React.FC = () => {
 
   useEffect(() => { restoreConnections(); }, [restoreConnections]);
 
-  const startAdd = () => {
+  const selectedManifest = selectedProviderId ? getProviderManifest(selectedProviderId) : null;
+
+  const startAdd = (providerId: string) => {
+    setSelectedProviderId(providerId);
     setForm({ displayName: '', baseUrl: '', token: '', orgs: null, orgId: '' });
     setFormError(null);
   };
   const dismissForm = () => {
+    setSelectedProviderId(null);
     setForm(null);
     setFormError(null);
   };
 
   const startVerify = async () => {
-    if (!form || verifying) return;
+    if (!form || !selectedManifest || verifying) return;
     const baseUrl = form.baseUrl.trim();
     if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
       setFormError(t('errors.connect.invalidBaseUrl'));
@@ -91,7 +100,7 @@ export const IntegrationsSection: React.FC = () => {
     setVerifying(true);
     setFormError(null);
     try {
-      const orgs = await verifyConnection({ providerId: 'sentry', baseUrl: baseUrl || undefined, token: form.token });
+      const orgs = await verifyConnection({ providerId: selectedManifest.id, baseUrl: baseUrl || undefined, token: form.token });
       setForm({ ...form, orgs, orgId: orgs.length === 1 ? orgs[0].id : '' });
     } catch (error) {
       setFormError(providerErrorMessage(error, t));
@@ -101,7 +110,7 @@ export const IntegrationsSection: React.FC = () => {
   };
 
   const submitSave = async () => {
-    if (!form || saving) return;
+    if (!form || !selectedManifest || saving) return;
     if (!form.orgId) {
       setFormError(t('errors.connect.noOrg'));
       return;
@@ -110,8 +119,8 @@ export const IntegrationsSection: React.FC = () => {
     setFormError(null);
     try {
       await completeConnection({
-        providerId: 'sentry',
-        displayName: form.displayName.trim(),
+        providerId: selectedManifest.id,
+        displayName: form.displayName.trim() || selectedManifest.name,
         baseUrl: form.baseUrl.trim() || undefined,
         token: form.token,
         orgId: form.orgId,
@@ -180,34 +189,14 @@ export const IntegrationsSection: React.FC = () => {
 
       <h4 className="pt-1 text-[12px] font-medium text-muted-foreground">{t('errors.settings.group.errorTracking')}</h4>
 
-      {form ? (
-        <div className="space-y-2 rounded-lg border border-border p-2.5 bg-accent/20">
+      {form && selectedManifest ? (
+        /* —— 连接表单：选定的插件 + 只需 token —— */
+        <div className="space-y-2 rounded-lg border border-border p-2.5 bg-accent/20" data-testid="errors-connect-form">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium">{t('errors.connect.formTitle')}</span>
+            <span className="text-xs font-medium">{t('errors.connect.formTitle').replace('{name}', selectedManifest.name)}</span>
             <Button variant="ghost" size="icon-xs" aria-label={t('common.close')} onClick={dismissForm}>
               <X className="h-3 w-3" />
             </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-[12px] font-medium">{t('errors.connect.displayName')}</span>
-              <Input
-                value={form.displayName}
-                onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                placeholder={t('errors.connect.displayNamePlaceholder')}
-                aria-label={t('errors.connect.displayName')}
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-[12px] font-medium">{t('errors.connect.baseUrl')}</span>
-              <Input
-                value={form.baseUrl}
-                onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
-                placeholder={t('errors.connect.baseUrlPlaceholder')}
-                className="font-mono text-xs"
-                aria-label={t('errors.connect.baseUrl')}
-              />
-            </label>
           </div>
           <label className="block space-y-1">
             <span className="text-[12px] font-medium">{t('errors.connect.token')}</span>
@@ -218,9 +207,32 @@ export const IntegrationsSection: React.FC = () => {
               placeholder={t('errors.connect.tokenPlaceholder')}
               className="font-mono text-xs"
               aria-label={t('errors.connect.token')}
+              autoFocus
             />
           </label>
-          <p className="text-[12px] text-muted-foreground leading-relaxed">{t('errors.connect.tokenHint')}</p>
+          <p className="text-[12px] text-muted-foreground leading-relaxed">{t(`errors.provider.${selectedManifest.id}.tokenHint`)}</p>
+          <label className="block space-y-1">
+            <span className="text-[12px] font-medium">{t('errors.connect.displayName')}</span>
+            <Input
+              value={form.displayName}
+              onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+              placeholder={t('errors.connect.displayNamePlaceholder')}
+              aria-label={t('errors.connect.displayName')}
+            />
+          </label>
+          <details className="rounded-md border border-border px-2 py-1.5">
+            <summary className="cursor-pointer select-none text-[12px] text-muted-foreground">{t('errors.connect.advanced')}</summary>
+            <label className="mt-2 block space-y-1">
+              <span className="text-[12px] font-medium">{t('errors.connect.baseUrl')}</span>
+              <Input
+                value={form.baseUrl}
+                onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
+                placeholder={t('errors.connect.baseUrlPlaceholder')}
+                className="font-mono text-xs"
+                aria-label={t('errors.connect.baseUrl')}
+              />
+            </label>
+          </details>
           <label className="block space-y-1">
             <span className="text-[12px] font-medium">{t('errors.connect.org')}</span>
             <select
@@ -251,62 +263,86 @@ export const IntegrationsSection: React.FC = () => {
           </div>
         </div>
       ) : (
-        <>
-          {connections.length === 0 && <p className="text-muted-foreground">{t('errors.settings.empty')}</p>}
-          <div className="space-y-1">
-            {connections.map((connection) => (
-              <div key={connection.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
-                <Badge variant="outline" className="h-4 px-1 gap-0.5 text-[10px] shrink-0">Sentry</Badge>
-                <span className="font-medium shrink-0">{connection.displayName}</span>
-                <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
-                  {connection.orgId ? `${connection.orgId}` : ''}
-                  {connection.baseUrl ? ` · ${hostOf(connection.baseUrl)}` : ''}
-                </span>
-                {!connection.enabled && (
-                  <Badge variant="outline" className="h-4 px-1 gap-0.5 text-[10px] shrink-0 text-muted-foreground">
-                    {t('errors.settings.health.unverified')}
+        /* —— 插件卡片：来自核心注册表，选一个进入表单 —— */
+        <div className="space-y-1" data-testid="errors-provider-cards">
+          {PROVIDER_REGISTRY.map((manifest) => {
+            const count = connections.filter((connection) => connection.providerId === manifest.id).length;
+            return (
+              <button
+                key={manifest.id}
+                aria-label={`${t('errors.settings.pickProvider')}: ${manifest.name}`}
+                onClick={() => startAdd(manifest.id)}
+                className="w-full flex items-center justify-between rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:bg-accent/40"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium">{manifest.name}</span>
+                  <Badge
+                    variant="outline"
+                    className={cn('h-4 px-1 text-[10px]', count > 0 ? 'text-emerald-500 border-emerald-500/40' : 'text-muted-foreground')}
+                  >
+                    {count > 0 ? t('errors.settings.connectedCount').replace('{n}', String(count)) : t('errors.settings.notConnected')}
                   </Badge>
-                )}
-                {connection.enabled && healthBadge(connection)}
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="p-0 shrink-0"
-                  aria-label={t('errors.settings.toggleConnection')}
-                  aria-pressed={connection.enabled}
-                  onClick={() => updateConnection(connection.id, { enabled: !connection.enabled })}
-                >
-                  <Power className={connection.enabled ? 'h-3 w-3 text-primary' : 'h-3 w-3 text-muted-foreground'} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="p-0 shrink-0"
-                  aria-label={t('errors.settings.test')}
-                  disabled={testingId === connection.id}
-                  onClick={() => void runTest(connection.id)}
-                >
-                  <RefreshCw className={testingId === connection.id ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="p-0 shrink-0 hover:text-destructive"
-                  aria-label={t('errors.settings.deleteTitle').replace('{name}', connection.displayName)}
-                  onClick={() => void deleteConnection(connection)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-          <div>
-            <Button variant="outline" size="xs" className="gap-1" onClick={startAdd}>
-              <Plus className="h-3 w-3" />
-              <span>{t('errors.settings.addConnection')}</span>
-            </Button>
-          </div>
-        </>
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 已有连接的管理列表（多平台共存：按平台分组展示） */}
+      {connections.length > 0 && (
+        <div className="space-y-1">
+          {PROVIDER_REGISTRY.filter((manifest) => connections.some((connection) => connection.providerId === manifest.id)).map((manifest) => (
+            <div key={manifest.id} className="space-y-1">
+              <div className="pt-1 text-[11px] font-medium text-muted-foreground">{manifest.name}</div>
+              {connections.filter((connection) => connection.providerId === manifest.id).map((connection) => (
+                <div key={connection.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                  <span className="font-medium shrink-0">{connection.displayName}</span>
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
+                    {connection.orgId ?? ''}
+                    {connection.baseUrl ? ` · ${hostOf(connection.baseUrl)}` : ''}
+                  </span>
+                  {!connection.enabled && (
+                    <Badge variant="outline" className="h-4 px-1 gap-0.5 text-[10px] shrink-0 text-muted-foreground">
+                      {t('errors.settings.health.unverified')}
+                    </Badge>
+                  )}
+                  {connection.enabled && healthBadge(connection)}
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="p-0 shrink-0"
+                    aria-label={t('errors.settings.toggleConnection')}
+                    aria-pressed={connection.enabled}
+                    onClick={() => updateConnection(connection.id, { enabled: !connection.enabled })}
+                  >
+                    <Power className={connection.enabled ? 'h-3 w-3 text-primary' : 'h-3 w-3 text-muted-foreground'} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="p-0 shrink-0"
+                    aria-label={t('errors.settings.test')}
+                    disabled={testingId === connection.id}
+                    onClick={() => void runTest(connection.id)}
+                  >
+                    <RefreshCw className={testingId === connection.id ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="p-0 shrink-0 hover:text-destructive"
+                    aria-label={t('errors.settings.deleteTitle').replace('{name}', connection.displayName)}
+                    onClick={() => void deleteConnection(connection)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       )}
     </section>
   );
