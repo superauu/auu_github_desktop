@@ -6,7 +6,7 @@
  * 平台返回的异常内容保持原文（§7.5），本视图文案全部走 t()。
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Settings, SquareArrowOutUpRight } from 'lucide-react';
+import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Settings, Sparkles, SquareArrowOutUpRight } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore } from '@/stores/errorsStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -20,6 +20,8 @@ import { listTrackedFiles, resolveStackFrame, revealLocalFile, type StackJumpFra
 import type { CommitRef, NormalizedSeverity, UnifiedErrorIssue } from '@/services/errors/types';
 import { getProviderManifest, providerSupports } from '@/services/errors/types';
 import { FixWorkflowSection } from './FixWorkflow';
+import { AiFixDialog } from './AiFixDialog';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -393,7 +395,13 @@ export const ErrorsView: React.FC = () => {
       {/* 右：详情窗格 */}
       <div className="flex-1 min-w-0 overflow-y-auto">
         {selectedIssue ? (
-          <ErrorDetail issue={selectedIssue} onJump={(frame) => void jumpToFrame(selectedIssue, frame)} />
+          <ErrorDetail
+            issue={selectedIssue}
+            onJump={(frame) => void jumpToFrame(selectedIssue, frame)}
+            repoPath={repoPath}
+            trackedFiles={trackedFiles}
+            prefixMap={prefixMapOf(selectedIssue)}
+          />
         ) : (
           <div className="h-full flex items-center justify-center">
             <p className="text-[12px] text-muted-foreground">{t('errors.detail.select')}</p>
@@ -431,8 +439,14 @@ interface DetailLoad {
 const ErrorDetail: React.FC<{
   issue: UnifiedErrorIssue;
   onJump: (frame: StackJumpFrame) => void;
-}> = ({ issue, onJump }) => {
+  repoPath: string | null;
+  trackedFiles: string[];
+  prefixMap?: readonly { from: string; to: string }[];
+}> = ({ issue, onJump, repoPath, trackedFiles, prefixMap }) => {
   const { t } = useI18n();
+  const aiConfig = useSettingsStore((state) => state.aiConfig);
+  const aiConfigured = aiConfig.provider === 'openai-compatible' && !!aiConfig.apiKey.trim();
+  const [aiFixOpen, setAiFixOpen] = useState(false);
   const [load, setLoad] = useState<DetailLoad>({ loading: false, error: '', suspects: [], frames: undefined });
   const [showRaw, setShowRaw] = useState(false);
   const [statusBusy, setStatusBusy] = useState<string | null>(null);
@@ -533,9 +547,27 @@ const ErrorDetail: React.FC<{
                 </Button>
               )
             )}
+            {/* AI 修复（§8.5）：无 apiKey / builtin 供给时不渲染（验收项） */}
+            {aiConfigured && repoPath && (
+              <Button variant="outline" size="xs" className="gap-1" onClick={() => setAiFixOpen(true)}>
+                <Sparkles className="h-3 w-3" />
+                <span>{t('errors.ai.button')}</span>
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {aiFixOpen && repoPath && (
+        <AiFixDialog
+          open
+          issue={issue}
+          repoPath={repoPath}
+          trackedFiles={trackedFiles}
+          prefixMap={prefixMap}
+          onDismiss={() => setAiFixOpen(false)}
+        />
+      )}
 
       {metaItems.length > 0 && (
         <div className="grid grid-cols-4 gap-2">

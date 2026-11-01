@@ -145,6 +145,27 @@ export const errorsZh = {
   'errors.fix.reopen': '重新打开',
   'errors.fix.statusUpdated': '状态已更新',
   'errors.fix.statusFailed': '状态回写失败',
+
+  // AI 修复（§8.5，M5）
+  'errors.ai.button': 'AI 修复',
+  'errors.ai.dialogTitle': 'AI 修复提案',
+  'errors.ai.consent': '将把错误详情、堆栈与相关源码发送给所配置的 AI 服务。',
+  'errors.ai.dirtyCheck': '检查工作区状态…',
+  'errors.ai.dirtyWorktree': '工作区存在未提交修改；请先提交或暂存后再使用 AI 修复。',
+  'errors.ai.collecting': '收集修复上下文…',
+  'errors.ai.requesting': '生成修复提案…',
+  'errors.ai.analysis': '分析',
+  'errors.ai.patch': '补丁',
+  'errors.ai.apply': '应用到工作区',
+  'errors.ai.applying': '应用中…',
+  'errors.ai.applied': '补丁已应用到工作区，请审查后自行提交。',
+  'errors.ai.applyFailed': '补丁应用失败',
+  'errors.ai.noContext': '堆栈未能定位到本地文件，无法收集修复上下文。',
+  'errors.ai.noPatch': 'AI 认为上下文不足，未给出补丁',
+  'errors.ai.skippedFiles': '已跳过 {n} 个敏感或不可读文件。',
+  'errors.ai.truncated': '部分文件内容已按预算截断。',
+  'errors.ai.invalid': 'AI 返回的提案无法解析',
+  'errors.ai.timeout': 'AI 请求超时',
 };
 
 export const errorsEn = {
@@ -290,4 +311,25 @@ export const errorsEn = {
   'errors.fix.reopen': 'Reopen',
   'errors.fix.statusUpdated': 'Status updated',
   'errors.fix.statusFailed': 'Failed to update status',
+
+  // AI fix (§8.5, M5)
+  'errors.ai.button': 'AI fix',
+  'errors.ai.dialogTitle': 'AI fix proposal',
+  'errors.ai.consent': 'Issue details, stack traces and related source will be sent to the configured AI service.',
+  'errors.ai.dirtyCheck': 'Checking working tree…',
+  'errors.ai.dirtyWorktree': 'The working tree has uncommitted changes; commit or stash before using AI fix.',
+  'errors.ai.collecting': 'Collecting fix context…',
+  'errors.ai.requesting': 'Generating fix proposal…',
+  'errors.ai.analysis': 'Analysis',
+  'errors.ai.patch': 'Patch',
+  'errors.ai.apply': 'Apply to working tree',
+  'errors.ai.applying': 'Applying…',
+  'errors.ai.applied': 'Patch applied to the working tree; review and commit yourself.',
+  'errors.ai.applyFailed': 'Failed to apply patch',
+  'errors.ai.noContext': 'No local files resolved from the stack; cannot collect fix context.',
+  'errors.ai.noPatch': 'The AI did not provide a patch (insufficient context)',
+  'errors.ai.skippedFiles': 'Skipped {n} sensitive or unreadable files.',
+  'errors.ai.truncated': 'Some file contents were truncated to fit the budget.',
+  'errors.ai.invalid': 'AI proposal could not be parsed',
+  'errors.ai.timeout': 'AI request timed out',
 };
