@@ -10,6 +10,8 @@ export interface LayoutState {
   actionsWorkflowsWidth: number;
   prListWidth: number;
   reviewFilesWidth: number;
+  /** Errors 页左列表宽度（PRD §7.2） */
+  errorsListWidth: number;
   isEmbeddedTerminalOpen: boolean;
   navigationPinned: boolean;
   inspectorPresentation: 'auto' | 'inline' | 'drawer';
@@ -22,6 +24,7 @@ export interface LayoutState {
   setActionsWorkflowsWidth: (width: number) => void;
   setPrListWidth: (width: number) => void;
   setReviewFilesWidth: (width: number) => void;
+  setErrorsListWidth: (width: number) => void;
   toggleEmbeddedTerminal: () => void;
   setEmbeddedTerminalOpen: (open: boolean) => void;
   setNavigationPinned: (pinned: boolean) => void;
@@ -39,6 +42,7 @@ export const DEFAULT_LAYOUT = {
   actionsWorkflowsWidth: 260,
   prListWidth: 320,
   reviewFilesWidth: 230,
+  errorsListWidth: 400,
   isEmbeddedTerminalOpen: false,
   navigationPinned: true,
   inspectorPresentation: 'auto' as const,
@@ -69,6 +73,9 @@ export const useLayoutStore = create<LayoutState>()(
 
       setReviewFilesWidth: (width: number) =>
         set({ reviewFilesWidth: Math.max(170, Math.min(420, width)) }),
+
+      setErrorsListWidth: (width: number) =>
+        set({ errorsListWidth: Math.max(280, Math.min(640, width)) }),
 
       toggleEmbeddedTerminal: () =>
         set((state) => ({ isEmbeddedTerminalOpen: !state.isEmbeddedTerminalOpen })),

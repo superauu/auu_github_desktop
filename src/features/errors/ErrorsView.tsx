@@ -10,6 +10,9 @@ import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Settings, Sparkle
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore } from '@/stores/errorsStore';
 import { useRepoStore } from '@/stores/repoStore';
+import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { openExternalUrl } from '@/utils/openExternal';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { gitService } from '@/services/git/GitService';
@@ -59,6 +62,7 @@ const firstLine = (message: string | undefined): string => (message ?? '').split
 export const ErrorsView: React.FC = () => {
   const { t } = useI18n();
   const currentRepo = useRepoStore((state) => state.currentRepo);
+  const { errorsListWidth, setErrorsListWidth } = useLayoutStore(useShallow((state) => ({ errorsListWidth: state.errorsListWidth, setErrorsListWidth: state.setErrorsListWidth })));
   const {
     connections, issues, scope, setScope, activeRepoKey, mappingsByRepo,
     syncing, lastSyncedAt, syncErrors, nextCursors,
@@ -220,9 +224,9 @@ export const ErrorsView: React.FC = () => {
 
   return (
     <div className="flex h-full min-h-0">
-      {/* 左：列表窗格 */}
-      <div className="w-[400px] shrink-0 border-r border-border flex flex-col min-h-0">
-        <div className="app-toolbar">
+      {/* 左：列表窗格（宽度可拖拽，layoutStore 持久化） */}
+      <div style={{ width: errorsListWidth }} className="shrink-0 border-r border-border flex flex-col min-h-0">
+        <div className="app-toolbar justify-between">
           <div className="app-toolbar-group">
             <select
               value={scope}
@@ -259,17 +263,22 @@ export const ErrorsView: React.FC = () => {
             </select>
           </div>
           <div className="app-toolbar-group">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('errors.search.placeholder')}
-              aria-label={t('errors.search.placeholder')}
-              className="h-7 w-32 rounded-md border border-input bg-transparent px-2 text-xs placeholder:text-muted-foreground"
-            />
             <Button variant="ghost" size="icon-sm" aria-label={t('errors.refresh')} disabled={syncing} onClick={() => void sync()}>
               <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} />
             </Button>
           </div>
+        </div>
+        {/* 搜索行：占满全宽（§7.2 工具栏） */}
+        <div className="app-toolbar">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`${t('errors.search.placeholder')}…`}
+            aria-label={t('errors.search.placeholder')}
+            autoComplete="off"
+            className="h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs placeholder:text-muted-foreground"
+          />
         </div>
 
         {/* 降级横幅：按连接粒度，不拖死整页（§7.3.2） */}
@@ -322,44 +331,50 @@ export const ErrorsView: React.FC = () => {
                 const connection = connections.find((item) => item.id === issue.connectionId);
                 const selected = key === selectedKey;
                 return (
-                  <button
+                  <div
                     key={key}
-                    onClick={() => setSelectedKey(key)}
                     className={cn(
-                      'w-full text-left px-3 py-2 border-l-2 transition-colors',
+                      'group flex items-stretch border-l-2 transition-colors',
                       selected ? 'bg-primary/10 border-l-primary' : 'border-l-transparent hover:bg-accent/40',
                     )}
                   >
-                    <div className="flex items-start gap-2">
-                      <span className={cn('mt-1 shrink-0 text-[10px] leading-none', severityColor[issue.severity])}>●</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-medium text-foreground">
-                          {issue.shortId ? <span className="text-muted-foreground">{issue.shortId} </span> : null}
-                          {issue.title}
-                        </div>
-                        <div className="truncate text-[12px] text-muted-foreground">
-                          Sentry · {connection?.displayName ?? issue.connectionId} · {projectLabelOf(issue)}
-                        </div>
-                        <div className="text-[12px] text-muted-foreground tabular-nums">
-                          {issue.eventCount != null ? t('errors.row.events').replace('{count}', String(issue.eventCount)) : ''}
-                          {issue.affectedUsers != null ? ` · ${t('errors.row.users').replace('{count}', String(issue.affectedUsers))}` : ''}
-                          {issue.lastSeen ? ` · ${formatRelative(issue.lastSeen, t)}` : ''}
+                    {/* 行主体：独立 button（外链是兄弟节点，避免 button 嵌套 button） */}
+                    <button
+                      onClick={() => setSelectedKey(key)}
+                      title={issue.title}
+                      className="min-w-0 flex-1 text-left px-3 py-2"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span aria-hidden="true" className={cn('mt-1 shrink-0 text-[10px] leading-none', severityColor[issue.severity])}>●</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-xs font-medium text-foreground">
+                            {issue.shortId ? <span className="text-muted-foreground">{issue.shortId} </span> : null}
+                            {issue.title}
+                          </div>
+                          <div className="truncate text-[12px] text-muted-foreground">
+                            Sentry · {connection?.displayName ?? issue.connectionId} · {projectLabelOf(issue)}
+                          </div>
+                          <div className="text-[12px] text-muted-foreground tabular-nums">
+                            {issue.eventCount != null ? t('errors.row.events').replace('{count}', String(issue.eventCount)) : ''}
+                            {issue.affectedUsers != null ? ` · ${t('errors.row.users').replace('{count}', String(issue.affectedUsers))}` : ''}
+                            {issue.lastSeen ? ` · ${formatRelative(issue.lastSeen, t)}` : ''}
+                          </div>
                         </div>
                       </div>
+                    </button>
+                    <div className="flex items-start pr-2 pt-2">
                       <Button
                         variant="ghost"
                         size="icon-xs"
                         className="shrink-0"
                         aria-label={t('errors.row.openExternal')}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (issue.externalUrl) window.open(issue.externalUrl, '_blank', 'noopener');
-                        }}
+                        disabled={!issue.externalUrl}
+                        onClick={() => void openExternalUrl(issue.externalUrl)}
                       >
                         <SquareArrowOutUpRight className="h-3 w-3" />
                       </Button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
               <div className="px-3 py-2 space-y-1">
@@ -392,6 +407,15 @@ export const ErrorsView: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      <ResizeHandle
+        currentSize={errorsListWidth}
+        onSizeChange={setErrorsListWidth}
+        minSize={280}
+        maxSize={640}
+        defaultSize={DEFAULT_LAYOUT.errorsListWidth}
+        title={t('errors.resizeHint')}
+      />
 
       {/* 右：详情窗格 */}
       <div className="flex-1 min-w-0 overflow-y-auto">
@@ -516,10 +540,13 @@ const ErrorDetail: React.FC<{
         <div className="mt-1.5 flex items-center gap-2 text-[12px] text-muted-foreground">
           <span>{issue.shortId}</span>
           {issue.externalUrl && (
-            <a href={issue.externalUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+            <button
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+              onClick={() => void openExternalUrl(issue.externalUrl)}
+            >
               {t('errors.row.openExternal')}
               <ExternalLink className="h-3 w-3" />
-            </a>
+            </button>
           )}
         </div>
         {(canResolve || canIgnore) && (
@@ -646,7 +673,7 @@ const ErrorDetail: React.FC<{
             {showRaw ? '▾' : '▸'} {t('errors.detail.rawData')}
           </button>
           {showRaw && (
-            <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-border p-2 text-[11px] font-mono whitespace-pre-wrap select-text">
+            <pre className="mt-1 max-h-[70vh] overflow-auto rounded-md border border-border p-2 text-[11px] font-mono whitespace-pre-wrap select-text">
               {JSON.stringify(issue.rawData, null, 2)}
             </pre>
           )}

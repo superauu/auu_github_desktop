@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { buildBranchName, BRANCH_NAME_TEMPLATE, buildCommitTrailer, buildPrReferenceBlock, splitBranchFreshness } from '@/services/errors/fixFlow';
 import { getProviderManifest } from '@/services/errors/types';
+import { openExternalUrl } from '@/utils/openExternal';
 import type { UnifiedErrorIssue } from '@/services/errors/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -195,9 +196,14 @@ export const FixWorkflowSection: React.FC<{ issue: UnifiedErrorIssue }> = ({ iss
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-muted-foreground">{t('errors.fix.pullRequests')}</span>
               {link.pullRequests.map((pr) => (
-                <a key={pr.url} href={pr.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                <button
+                  key={pr.url}
+                  className="text-primary hover:underline"
+                  aria-label={`${t('errors.fix.pullRequests')} #${pr.number}`}
+                  onClick={() => void openExternalUrl(pr.url)}
+                >
                   #{pr.number}
-                </a>
+                </button>
               ))}
             </div>
           )}
