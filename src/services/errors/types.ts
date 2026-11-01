@@ -185,8 +185,13 @@ export interface IssuePullRequestRef {
 export interface IssueGitLink {
   id: string;
   connectionId: string;
+  providerId: string;
   externalProjectId: string;
   issueId: string;
+  /** 平台短 ID（trailer/分支名引用它；缺失时消费方回落 issueId）。 */
+  shortId?: string;
+  /** 平台原始详情页（PR 引用块使用；记录链接时随 issue 快照）。 */
+  externalUrl?: string;
   /** 仓库稳定标识：规范化 remote URL 优先，路径回退（repoIdentity.ts）。 */
   repoKey: string;
   branchNames: string[];

@@ -28,8 +28,7 @@ function issue(partial: Partial<UnifiedErrorIssue> & { issueId: string; title: s
   return base;
 }
 
-export function prepareErrorsFixture(_repository: RepositoryInfo) {
-  void _repository;
+export function prepareErrorsFixture(repository: RepositoryInfo) {
   const minute = 60 * 1000;
   const iso = (offsetMs: number) => new Date(Date.now() - offsetMs).toISOString();
   const issues: UnifiedErrorIssue[] = [
@@ -46,7 +45,7 @@ export function prepareErrorsFixture(_repository: RepositoryInfo) {
     // git ls-files 桩：给堆栈跳转提供工作区文件清单（唯一/择优档可走通）
     if (input === '/api/git' && init?.method === 'POST' && typeof init.body === 'string') {
       const data = JSON.parse(init.body) as { cwd?: string; args?: string[] };
-      if (data.cwd === _repository.path && Array.isArray(data.args) && data.args.includes('ls-files')) {
+      if (data.cwd === repository.path && Array.isArray(data.args) && data.args.includes('ls-files')) {
         const files = ['package.json', 'src/lib/utils.ts', 'src/services/errors/types.ts', 'src/services/git/types.ts', 'other/utils.ts'];
         return new Response(JSON.stringify({ stdout: files.join('\n'), stderr: '', exitCode: 0 }), { headers: { 'Content-Type': 'application/json' } });
       }
@@ -91,6 +90,19 @@ export function prepareErrorsFixture(_repository: RepositoryInfo) {
         { connectionId: CONN_B, externalProjectId: '201', externalProjectName: 'backend' },
       ],
     },
+    // 预置一条链接：分支在 fixture 分支列表中不存在 → 演示 stale 展示（§5.3）
+    linksByRepo: {
+      [REPO_KEY]: [
+        {
+          id: 'fixture-link-1', connectionId: CONN_A, providerId: 'sentry', externalProjectId: '101',
+          issueId: '42', shortId: 'FRONTEND-ABC', externalUrl: 'https://sentry.fixture.com/acme/demo/issues/42/',
+          repoKey: REPO_KEY, branchNames: ['fix/sentry-FRONTEND-ABC-typeerror'],
+          commitShas: ['a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'],
+          pullRequests: [{ provider: 'github', number: 12, url: 'https://github.com/acme/demo/pull/12' }],
+          createdAt: iso(24 * 60 * minute), updatedAt: iso(30 * minute),
+        },
+      ],
+    },
     activeRepoKey: REPO_KEY,
     scope: 'repo',
     issues,
@@ -100,10 +112,12 @@ export function prepareErrorsFixture(_repository: RepositoryInfo) {
     syncErrors: { [CONN_B]: 'Internal Server Error' },
     sync: async () => {},
     loadMore: async () => {},
-    loadRepoContext: () => useErrorsStore.setState({ activeRepoKey: REPO_KEY }),
+    loadRepoContext: () => useErrorsStore.setState({ activeRepoKey: REPO_KEY, activeRepoPath: repository.path }),
   });
   // dev 凭证（内存 Map）：详情窗格的堆栈/嫌疑提交请求需要它走 fetch 桩
   void storeIntegrationToken(CONN_A, 'fixture-token-a');
   void storeIntegrationToken(CONN_B, 'fixture-token-b');
+  // 仅供 devtools/冒烟脚本检查状态（fixture 入口独有，不影响生产构建）
+  (window as unknown as { __errorsStore?: typeof useErrorsStore }).__errorsStore = useErrorsStore;
   useRepoStore.setState({ activeTab: 'errors' });
 }

@@ -18,6 +18,8 @@ import { getIntegrationToken } from '@/services/errors/credentials';
 import { filterIssues, scopeProjectIds, type ErrorsScope } from '@/services/errors/issueQuery';
 import { listTrackedFiles, resolveStackFrame, revealLocalFile, type StackJumpFrame } from '@/services/errors/stackNavigation';
 import type { CommitRef, NormalizedSeverity, UnifiedErrorIssue } from '@/services/errors/types';
+import { getProviderManifest, providerSupports } from '@/services/errors/types';
+import { FixWorkflowSection } from './FixWorkflow';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -433,6 +435,27 @@ const ErrorDetail: React.FC<{
   const { t } = useI18n();
   const [load, setLoad] = useState<DetailLoad>({ loading: false, error: '', suspects: [], frames: undefined });
   const [showRaw, setShowRaw] = useState(false);
+  const [statusBusy, setStatusBusy] = useState<string | null>(null);
+
+  // 状态回写（§8.3）：按 capability 渲染操作项
+  const manifest = getProviderManifest(issue.providerId);
+  const canResolve = Boolean(manifest && providerSupports(manifest, 'error-tracking:resolve'));
+  const canResolveInRelease = Boolean(manifest && providerSupports(manifest, 'error-tracking:resolve-in-release'));
+  const canIgnore = Boolean(manifest && providerSupports(manifest, 'error-tracking:ignore'));
+
+  const runStatusAction = async (action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve', key: string) => {
+    if (statusBusy) return;
+    setStatusBusy(key);
+    try {
+      await useErrorsStore.getState().updateIssueStatus(issue.connectionId, issue.issueId, action);
+      toast.success(t('errors.fix.statusUpdated'));
+    } catch (error) {
+      // 操作级错误：toast 提示，不改连接健康态、不触发降级横幅（§8.3）
+      toast.error(t('errors.fix.statusFailed'), String(error instanceof Error ? error.message : error));
+    } finally {
+      setStatusBusy(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -483,6 +506,35 @@ const ErrorDetail: React.FC<{
             </a>
           )}
         </div>
+        {(canResolve || canIgnore) && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {issue.status === 'unresolved' ? (
+              <>
+                {canResolve && (
+                  <Button variant="outline" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('resolve', 'resolve')}>
+                    {t('errors.fix.resolve')}
+                  </Button>
+                )}
+                {canResolveInRelease && (
+                  <Button variant="ghost" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('resolveInNextRelease', 'release')}>
+                    {t('errors.fix.resolveInRelease')}
+                  </Button>
+                )}
+                {canIgnore && (
+                  <Button variant="ghost" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('ignore', 'ignore')}>
+                    {t('errors.fix.ignore')}
+                  </Button>
+                )}
+              </>
+            ) : (
+              canResolve && (
+                <Button variant="outline" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('unresolve', 'reopen')}>
+                  {t('errors.fix.reopen')}
+                </Button>
+              )
+            )}
+          </div>
+        )}
       </div>
 
       {metaItems.length > 0 && (
@@ -502,6 +554,8 @@ const ErrorDetail: React.FC<{
           {issue.affectedUsers != null ? ` · ${t('errors.row.users').replace('{count}', String(issue.affectedUsers))}` : ''}
         </div>
       )}
+
+      <FixWorkflowSection issue={issue} />
 
       {load.suspects.length > 0 && (
         <section className="space-y-1">

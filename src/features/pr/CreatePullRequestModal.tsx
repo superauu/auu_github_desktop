@@ -22,6 +22,9 @@ import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 import { useGitHubScope } from '@/features/issues/useGitHubScope';
 import { issueKey } from '@/features/issues/issueLogic';
 import { issuePRDraft, toIssueContext } from '@/services/ai/issueContext';
+import { appendPrReferenceBlock } from '@/services/errors/fixFlow';
+import { useErrorsStore } from '@/stores/errorsStore';
+import { getProviderManifest } from '@/services/errors/types';
 
 const sourceRepositories = (context: PushContext | null) => (context?.remotes || []).flatMap(remote => {
   const seen = new Set<string>();
@@ -94,7 +97,15 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const initializeDraft = useEffectEvent(() => {
     setHeadBranch(currentBranch);
     setTitle(commits[0]?.subject || '');
-    setBody(commits[0]?.body || '');
+    // Errors 修复分支（PRD §8.2）：描述自动附加中性引用块（幂等，不含自动关闭语义）
+    const errorLink = currentRepo ? useErrorsStore.getState().linkForBranch(currentRepo.path, currentBranch) : null;
+    const providerName = errorLink ? getProviderManifest(errorLink.providerId)?.name ?? errorLink.providerId : '';
+    setBody(() => {
+      const base = commits[0]?.body || '';
+      return errorLink?.shortId && errorLink.externalUrl
+        ? appendPrReferenceBlock(base, { providerName, shortId: errorLink.shortId, externalUrl: errorLink.externalUrl })
+        : base;
+    });
     const linked = initialIssue || (currentRepo && useIssueWorkflowStore.getState().issueForBranch(currentRepo.path, currentBranch));
     setLinkedIssues(linked ? [linked] : []);
     setIncludeIssueContext(false);
@@ -222,6 +233,12 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
         body: withClosingIssues(body, linkedIssues),
       });
       if (currentSession !== session.current || !isCurrentTarget()) return;
+      // 记录 PR 到 Errors 链接（§5.3；分支未被链接时为空操作）
+      if (currentRepo && created.html_url) {
+        useErrorsStore.getState().recordFixPullRequest(currentRepo.path, currentBranch, {
+          provider: 'github', number: created.number, url: created.html_url,
+        });
+      }
       toast.success(t('pr.created').replace('{n}', String(created.number)), created.html_url);
       await loadPullRequests();
       if (currentSession !== session.current || !isCurrentTarget()) return;

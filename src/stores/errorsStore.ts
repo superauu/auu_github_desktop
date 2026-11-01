@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { deleteIntegrationToken, getIntegrationToken, storeIntegrationToken } from '@/services/errors/credentials';
 import { createProviderClient, ProviderRequestError, type ExternalOrg, type ExternalProject } from '@/services/errors/providerService';
 import { computeRepoKey } from '@/services/errors/repoIdentity';
+import { buildCommitTrailer } from '@/services/errors/fixFlow';
 import { getProviderManifest } from '@/services/errors/types';
-import type { ConnectionHealth, DomainId, ProjectMapping, ProviderConnection, UnifiedErrorIssue } from '@/services/errors/types';
+import type { ConnectionHealth, DomainId, IssueGitLink, IssuePullRequestRef, ProjectMapping, ProviderConnection, UnifiedErrorIssue } from '@/services/errors/types';
 import type { ErrorsScope } from '@/services/errors/issueQuery';
 
 /**
@@ -16,6 +17,7 @@ import type { ErrorsScope } from '@/services/errors/issueQuery';
  */
 const STORAGE_KEY = 'auu_git_error_connections';
 const MAPPINGS_KEY = 'auu_git_error_mappings';
+const LINKS_KEY = 'auu_git_error_links';
 
 // 轮询句柄（PRD §9）：仅内存，页面隐藏时 tick 直接跳过
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -40,8 +42,12 @@ interface ErrorsStoreState {
   restored: boolean;
   /** 仓库级项目映射（PRD §6.1/§6.2）：repoKey → 映射；持久化 MAPPINGS_KEY，惰性加载。 */
   mappingsByRepo: Record<string, ProjectMapping[]>;
+  /** Issue ↔ Git 关联（§5.3）：repoKey → 链接；持久化 LINKS_KEY，惰性加载。 */
+  linksByRepo: Record<string, IssueGitLink[]>;
   /** 当前仓库键（loadRepoContext 时计算）；null = 无仓库上下文。 */
   activeRepoKey: string | null;
+  /** 当前仓库路径（与 activeRepoKey 同步），供按路径的命令式查询校验（提交注入 trailer 用）。 */
+  activeRepoPath: string | null;
   /** 列表作用域（§7.2）：本仓库 / 全部；同时决定徽标口径。 */
   scope: ErrorsScope;
   /** 合并 issue 缓存——仅内存，不持久化（§6.2 隐私最小化）。 */
@@ -82,6 +88,19 @@ interface ErrorsStoreState {
   /** 轮询（§9）：interval 来自 settingsStore.errorsPollingIntervalSec；重复调用先清理旧定时器。 */
   startPolling(intervalSec: number): void;
   stopPolling(): void;
+  /** 记录修复分支（§8.1）：find-or-create 链接并追加分支名（§5.3 持久化，重启可恢复）。 */
+  recordFixBranch(issue: { connectionId: string; providerId: string; externalProjectId: string; issueId: string; shortId?: string; externalUrl?: string }, branchName: string): IssueGitLink;
+  /** 成功提交后记录 sha：仅当该分支已被链接（幂等）。 */
+  recordFixCommit(path: string, branch: string, sha: string): void;
+  /** PR 创建成功后记录（幂等）。 */
+  recordFixPullRequest(path: string, branch: string, pr: IssuePullRequestRef): void;
+  linkForIssue(connectionId: string, issueId: string): IssueGitLink | null;
+  /** 按分支反查链接（提交/PR 注入点用）；path 与当前仓库不符时返回 null。 */
+  linkForBranch(path: string, branch: string): IssueGitLink | null;
+  /** 提交注入点（§8.2）：当前仓库 + 分支已被链接时返回中性 trailer，否则 null。 */
+  trailerForBranch(path: string, branch: string): string | null;
+  /** 状态回写（§8.3）：成功即时更新列表；失败向上抛（操作级错误，不改健康态）。 */
+  updateIssueStatus(connectionId: string, issueId: string, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve'): Promise<void>;
   setConnectionHealth(id: string, health: ConnectionHealth, statusMessage?: string): void;
   /** 仅在权限检查成功后调用——网络失败不得调用本方法（§4.4）。 */
   setConnectionDomains(id: string, domains: DomainId[]): void;
@@ -142,12 +161,39 @@ function persistMappings(mappingsByRepo: Record<string, ProjectMapping[]>): void
   }
 }
 
+function readLinks(): Record<string, IssueGitLink[]> {
+  try {
+    const raw = localStorage.getItem(LINKS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as Record<string, IssueGitLink[]>;
+  } catch {
+    return {};
+  }
+}
+
+function persistLinks(linksByRepo: Record<string, IssueGitLink[]>): void {
+  try {
+    localStorage.setItem(LINKS_KEY, JSON.stringify(linksByRepo));
+  } catch {
+    /* 存储不可用时静默：关联可在详情页重建 */
+  }
+}
+
+const newLinkId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
   connections: [],
   runtime: {},
   restored: false,
   mappingsByRepo: {},
+  linksByRepo: {},
   activeRepoKey: null,
+  activeRepoPath: null,
   scope: 'repo',
   issues: [],
   nextCursors: {},
@@ -244,7 +290,8 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
 
   loadRepoContext(originUrl, workspacePath) {
     const mappingsByRepo = readMappings();
-    set({ mappingsByRepo, activeRepoKey: computeRepoKey(originUrl, workspacePath) });
+    const linksByRepo = readLinks();
+    set({ mappingsByRepo, linksByRepo, activeRepoKey: computeRepoKey(originUrl, workspacePath), activeRepoPath: workspacePath });
   },
 
   setScope(scope) {
@@ -376,6 +423,120 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
       clearInterval(pollTimer);
       pollTimer = null;
     }
+  },
+
+  recordFixBranch(issue, branchName) {
+    const repoKey = get().activeRepoKey;
+    if (!repoKey) throw new Error('No repository context');
+    const bucket = get().linksByRepo[repoKey] ?? [];
+    const existingIndex = bucket.findIndex(
+      (item) => item.connectionId === issue.connectionId && item.issueId === issue.issueId,
+    );
+    const now = new Date().toISOString();
+    let link: IssueGitLink;
+    let nextBucket: IssueGitLink[];
+    if (existingIndex >= 0) {
+      const existing = bucket[existingIndex];
+      link = {
+        ...existing,
+        shortId: issue.shortId ?? existing.shortId,
+        externalUrl: issue.externalUrl ?? existing.externalUrl,
+        branchNames: existing.branchNames.includes(branchName) ? existing.branchNames : [...existing.branchNames, branchName],
+        updatedAt: now,
+      };
+      nextBucket = [...bucket];
+      nextBucket[existingIndex] = link;
+    } else {
+      link = {
+        id: newLinkId(),
+        connectionId: issue.connectionId,
+        providerId: issue.providerId,
+        externalProjectId: issue.externalProjectId,
+        issueId: issue.issueId,
+        shortId: issue.shortId,
+        externalUrl: issue.externalUrl,
+        repoKey,
+        branchNames: [branchName],
+        commitShas: [],
+        pullRequests: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      nextBucket = [...bucket, link];
+    }
+    const linksByRepo = { ...get().linksByRepo, [repoKey]: nextBucket };
+    set({ linksByRepo });
+    persistLinks(linksByRepo);
+    return link;
+  },
+
+  recordFixCommit(path, branch, sha) {
+    const { activeRepoPath, activeRepoKey, linksByRepo } = get();
+    if (!activeRepoKey || activeRepoPath !== path) return;
+    const bucket = linksByRepo[activeRepoKey] ?? [];
+    let changed = false;
+    const nextBucket = bucket.map((link) => {
+      if (!link.branchNames.includes(branch) || link.commitShas.includes(sha)) return link;
+      changed = true;
+      return { ...link, commitShas: [...link.commitShas, sha], updatedAt: new Date().toISOString() };
+    });
+    if (!changed) return;
+    const next = { ...linksByRepo, [activeRepoKey]: nextBucket };
+    set({ linksByRepo: next });
+    persistLinks(next);
+  },
+
+  recordFixPullRequest(path, branch, pr) {
+    const { activeRepoPath, activeRepoKey, linksByRepo } = get();
+    if (!activeRepoKey || activeRepoPath !== path) return;
+    const bucket = linksByRepo[activeRepoKey] ?? [];
+    let changed = false;
+    const nextBucket = bucket.map((link) => {
+      if (!link.branchNames.includes(branch) || link.pullRequests.some((item) => item.url === pr.url)) return link;
+      changed = true;
+      return { ...link, pullRequests: [...link.pullRequests, pr], updatedAt: new Date().toISOString() };
+    });
+    if (!changed) return;
+    const next = { ...linksByRepo, [activeRepoKey]: nextBucket };
+    set({ linksByRepo: next });
+    persistLinks(next);
+  },
+
+  linkForIssue(connectionId, issueId) {
+    const { activeRepoKey, linksByRepo } = get();
+    if (!activeRepoKey) return null;
+    return (linksByRepo[activeRepoKey] ?? []).find((item) => item.connectionId === connectionId && item.issueId === issueId) ?? null;
+  },
+
+  linkForBranch(path, branch) {
+    const { activeRepoPath, activeRepoKey, linksByRepo } = get();
+    if (!activeRepoKey || activeRepoPath !== path) return null;
+    return (linksByRepo[activeRepoKey] ?? []).find((item) => item.branchNames.includes(branch)) ?? null;
+  },
+
+  trailerForBranch(path, branch) {
+    const { activeRepoPath, activeRepoKey, linksByRepo } = get();
+    if (!activeRepoKey || activeRepoPath !== path) return null;
+    const link = (linksByRepo[activeRepoKey] ?? []).find((item) => item.branchNames.includes(branch));
+    if (!link) return null;
+    return buildCommitTrailer(link.providerId, link.shortId || link.issueId);
+  },
+
+  async updateIssueStatus(connectionId, issueId, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve') {
+    const connection = get().connections.find((item) => item.id === connectionId);
+    if (!connection?.orgId) throw new Error('missing organization');
+    const token = await getIntegrationToken(connectionId);
+    if (!token) throw new ProviderRequestError('auth', 'credential missing');
+    const client = createProviderClient(connection.providerId, { token, baseUrl: connection.baseUrl });
+    // 失败向上抛给 UI（操作级错误：toast 提示，不改健康态、不触发降级横幅，§8.3）
+    const updated = await client.updateStatus(issueId, action);
+    set((state) => ({
+      issues: state.issues.map((issue) =>
+        issue.connectionId === connectionId && issue.issueId === issueId
+          ? { ...issue, severity: updated.severity, status: updated.status, rawStatus: updated.rawStatus, rawData: updated.rawData ?? issue.rawData }
+          : issue,
+      ),
+    }));
   },
 
   setConnectionHealth(id, health, statusMessage = '') {

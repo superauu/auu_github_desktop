@@ -223,11 +223,12 @@ export class SentryClient implements ErrorProviderClient {
       .filter((commit) => commit.sha);
   }
 
-  async updateStatus(issueId: string, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve'): Promise<void> {
-    await this.request(`/api/0/issues/${encodeURIComponent(issueId)}/`, {
+  async updateStatus(issueId: string, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve'): Promise<UnifiedErrorIssue> {
+    const { data } = await this.request<any>(`/api/0/issues/${encodeURIComponent(issueId)}/`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildStatusUpdate(action)),
     });
+    return mapSentryIssue(data);
   }
 }

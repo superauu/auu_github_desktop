@@ -21,6 +21,8 @@ import { confirmWorkingReview } from '@/features/review/confirmWorkingReview';
 import { useCurrentBranchIssue } from '@/features/issues/useCurrentBranchIssue';
 import { issueKey } from '@/features/issues/issueLogic';
 import { issueCommitDraft, toIssueContext } from '@/services/ai/issueContext';
+import { appendCommitTrailer } from '@/services/errors/fixFlow';
+import { useErrorsStore } from '@/stores/errorsStore';
 import { useHunkPlanDialogStore } from '@/stores/hunkPlanDialogStore';
 
 export function useComposerDraft(repoPath?: string, branch?: string) {
@@ -132,8 +134,18 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
         toast.warning(t('composer.scopeChanged'), t('composer.scopeChangedDesc')); return;
       }
       if (latestScope.stageAll) await gitService.stageAll(path);
-      await gitService.commit(path, message, amend);
+      // Errors 修复分支（PRD §8.2）：当前分支已被链接时自动追加中性 trailer（幂等）
+      const errorTrailer = useErrorsStore.getState().trailerForBranch(path, latestStatus.currentBranch);
+      const finalMessage = errorTrailer ? appendCommitTrailer(message, errorTrailer) : message;
+      await gitService.commit(path, finalMessage, amend);
       useRepoStore.setState({ redoStack: [] });
+      // 记录修复提交到 IssueGitLink（amend 改写历史，不记录）
+      if (!amend) {
+        try {
+          const sha = await gitService.getBranchCommitHash(path, 'HEAD');
+          if (sha) useErrorsStore.getState().recordFixCommit(path, latestStatus.currentBranch, sha);
+        } catch { /* 关联记录失败不影响提交流程 */ }
+      }
       setTitle(''); setBody(''); setAmend(false); setAmendCommit(null); setOrigin(null);
       toast.success(t(amend ? 'rightPane.amendSuccess' : 'rightPane.commitSuccess'), message.split('\n')[0]);
       if (andPush) {

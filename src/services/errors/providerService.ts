@@ -65,7 +65,8 @@ export interface ErrorProviderClient {
   getLatestEventStacktrace(issueId: string): Promise<StackFrame[]>;
   /** 嫌疑 commit（平台支持才有意义，capability `error-tracking:suspect-commits`）。 */
   listSuspectCommits(issueId: string): Promise<CommitRef[]>;
-  updateStatus(issueId: string, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve'): Promise<void>;
+  /** 状态回写（§8.3）：返回归一后的最新 issue（列表即时更新用）；权限不足等操作级错误向上抛。 */
+  updateStatus(issueId: string, action: 'resolve' | 'resolveInNextRelease' | 'ignore' | 'unresolve'): Promise<UnifiedErrorIssue>;
 }
 
 export function createProviderClient(
