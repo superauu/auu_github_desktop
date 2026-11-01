@@ -47,9 +47,15 @@ export const useToastStore = create<ToastState>((set, get) => ({
   addToast: (toast) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const duration = toast.duration ?? 4000;
+    // 常驻 toast 去重：同型同文已存在则不重复弹（反复失败的同一操作不堆积）
+    if (duration === 0) {
+      const existing = get().toasts.find((t) => t.type === toast.type && t.title === toast.title && t.description === toast.description);
+      if (existing) return existing.id;
+    }
 
     set((state) => ({
-      toasts: [...state.toasts, { ...toast, id }],
+      // 条目携带解析后的 duration（调用方未传时回落默认），便于容器/测试读取
+      toasts: [...state.toasts, { ...toast, duration, id }],
       ...historyState([{ ...toast, id, createdAt: Date.now(), description: toast.description && toast.description.length > 64000 ? `${toast.description.slice(0, 64000)}…` : toast.description }, ...state.history].slice(0, 100)),
     }));
 
@@ -73,7 +79,8 @@ export const useToastStore = create<ToastState>((set, get) => ({
   },
 
   error: (title, description) => {
-    return get().addToast({ type: 'error', title, description, duration: 6000 });
+    // 错误常驻（duration 0 = 不自动消失）：技术细节需要时间阅读/复制，由用户手动关闭
+    return get().addToast({ type: 'error', title, description, duration: 0 });
   },
 
   info: (title, description) => {
@@ -81,7 +88,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
   },
 
   warning: (title, description) => {
-    return get().addToast({ type: 'warning', title, description });
+    return get().addToast({ type: 'warning', title, description, duration: 8000 });
   },
 }));
 
