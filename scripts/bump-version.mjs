@@ -30,9 +30,19 @@ export function buildBumpEdits(root, from, to) {
     },
     {
       file: 'package-lock.json',
-      // 恰好两处：顶层 version 与 packages[""].version。
-      apply: (text) => replaceN(text, `"version": "${from}"`, `"version": "${to}"`, 2, 2),
-      patternHint: `"version": "${escapedFrom}" ×2`,
+      // 恰好两处：顶层 version 与 packages[""].version。用「name 紧邻 version」锚定
+      // auugit 条目，防止第三方依赖恰好撞同版本号（如 @eslint/config-helpers 0.7.0）。
+      apply: (text) => {
+        const pattern = new RegExp(`"name": "auugit",(\\r?\\n)(\\s*)"version": "${escapedFrom}"`, 'g');
+        let count = 0;
+        const updated = text.replace(pattern, (_match, eol, indent) => {
+          count += 1;
+          return `"name": "auugit",${eol}${indent}"version": "${to}"`;
+        });
+        if (count !== 2) throw new Error(`package-lock.json: auugit 版本条目命中 ${count} 处（期望 2..2）`);
+        return updated;
+      },
+      patternHint: 'auugit name+version 条目 ×2',
     },
     {
       file: 'src-tauri/tauri.conf.json',
