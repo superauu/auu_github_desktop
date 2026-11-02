@@ -1,0 +1,6 @@
+chore(release): v0.8.0——外部系统完全插件化
+
+五处版本号 0.7.0 → 0.8.0（bump-version.mjs），发版说明 releases/v0.8.0.md。
+内容：GitHub/GitLab/Gitea/Sentry 可插拔装配、GitLab/Gitea 完整工作流、
+能力驱动 UI、Provider HTTP 传输硬化、测试基线 653 node + 55/54 Rust +
+64 e2e + 16 原生链路验收。
