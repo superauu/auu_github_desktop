@@ -273,13 +273,13 @@ test('selected issue references preview, cancel, persist and reach commits and P
   expect(JSON.parse(await page.locator('html').getAttribute('data-hunk-fixture-messages') || '[]')).toEqual([{ title: 'feat: first', body: '' }, { title: 'feat: second', body: 'Keep the second explanation\n\nRefs fixture/project#12' }]);
   await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
   await page.getByRole('button', { name: /^合并请求 \d+$/ }).click();
-  await page.getByRole('button', { name: '新建拉取请求', exact: true }).click();
+  await page.getByRole('button', { name: '新建合并请求', exact: true }).click();
   const pr = page.getByRole('dialog');
   await expect(pr.getByRole('button', { name: '移除关联 fixture/project#12', exact: true })).toBeVisible();
   await pr.locator('button[type="submit"]').click();
   await expect(pr).toHaveCount(0);
   await page.getByRole('button', { name: '合并', exact: true }).click();
-  await page.getByRole('dialog', { name: '合并拉取请求' }).getByRole('button', { name: '确认操作', exact: true }).click();
+  await page.getByRole('dialog', { name: '合并此合并请求' }).getByRole('button', { name: '确认操作', exact: true }).click();
   await expect(page.getByRole('region', { name: '当前任务', exact: true })).toContainText('已关闭');
   const calls = JSON.parse(await page.locator('html').getAttribute('data-issue-fixture-writes') || '[]') as { kind: string; data: { body?: string } }[];
   expect(calls.find(call => call.kind === 'create-pr')?.data.body).toContain('Closes fixture/project#12');

@@ -233,15 +233,21 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
   );
 
   return (
-    <section className="space-y-2 border-t border-border pt-3" data-testid="errors-integrations-section">
-      <div className="space-y-1" data-testid="plugin-controls">
-        {installedExternalPlugins().map(plugin => <label key={plugin.manifest.id} className="flex items-center justify-between text-xs py-1">
-          <span>{plugin.manifest.name}</span><input type="checkbox" aria-label={`${t('connections.enablePlugin')} ${plugin.manifest.name}`}
-            checked={isPluginEnabled(plugin.manifest.id)} onChange={event => void togglePlugin(plugin.manifest.id, event.target.checked)} />
-        </label>)}
+    <section className="space-y-3 border-t border-border pt-3" data-testid="errors-integrations-section">
+      <div className="space-y-1.5" data-testid="plugin-controls">
+        <h3 className="text-xs font-medium">{t('connections.pluginsTitle')}</h3>
+        <p className="text-[12px] text-muted-foreground leading-relaxed">{t('connections.pluginsDescription')}</p>
+        <div className="space-y-1">
+          {installedExternalPlugins().map(plugin => <label key={plugin.manifest.id} className="flex items-center justify-between text-xs py-1.5">
+            <span>{plugin.manifest.name}</span><input type="checkbox" className="accent-primary" aria-label={`${t('connections.enablePlugin')} ${plugin.manifest.name}`}
+              checked={isPluginEnabled(plugin.manifest.id)} onChange={event => void togglePlugin(plugin.manifest.id, event.target.checked)} />
+          </label>)}
+        </div>
       </div>
-      <h3 className="text-xs font-medium">{t('errors.settings.title')}</h3>
-      <p className="text-[12px] text-muted-foreground">{t('errors.settings.description')}</p>
+      <div className="space-y-1">
+        <h3 className="text-xs font-medium">{t('errors.settings.title')}</h3>
+        <p className="text-[12px] text-muted-foreground leading-relaxed">{t('errors.settings.description')}</p>
+      </div>
 
       {form && selectedManifest ? (
         /* —— 连接表单：选定的插件 + 只需 token —— */

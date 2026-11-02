@@ -30,6 +30,8 @@ export const forgeZh = {
   'connections.errors.noPluginBound': '当前仓库未绑定托管平台插件。',
   'connections.errors.capabilityUnavailable': '当前插件不支持此操作：{op}',
   'connections.errors.invalidServerUrl': '服务器地址无效。',
+  'connections.pluginsTitle': '插件',
+  'connections.pluginsDescription': '启用或停用外部系统插件。停用后隐藏对应平台入口，已保存的账号与凭证保留，重新启用后自动恢复。',
   'connections.errors.checkoutRefRequired': '缺少插件提供的 PR 检出引用。',
 } as const;
 
@@ -61,5 +63,7 @@ export const forgeEn = {
   'connections.errors.noPluginBound': 'No hosting plugin is bound to this repository.',
   'connections.errors.capabilityUnavailable': 'The current plugin does not support this operation: {op}',
   'connections.errors.invalidServerUrl': 'Invalid server URL.',
+  'connections.pluginsTitle': 'Plugins',
+  'connections.pluginsDescription': 'Enable or disable external system plugins. Disabling hides the matching entries; saved accounts and credentials are kept and restored when re-enabled.',
   'connections.errors.checkoutRefRequired': 'The plugin-provided PR checkout ref is missing.',
 } as const;

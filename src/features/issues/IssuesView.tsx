@@ -60,7 +60,7 @@ function IssueWorkspace() {
       </div>
       <div className="issues-tools">
         <div className="issues-search"><Search aria-hidden="true" size={13} /><input type="text" name="issue-search" autoComplete="off" spellCheck={false} aria-label={t('issues.search')} placeholder={t('issues.searchHint')} value={query} onChange={event => filter(() => setQuery(event.target.value))} /></div>
-        <select aria-label={t('issues.state')} className="issues-select" value={state} onChange={event => filter(() => setState(event.target.value as IssueListOptions['state']))}>{(['open', 'closed', 'all'] as const).map(value => <option key={value} value={value}>{t(`issues.${value}`)}</option>)}</select>
+        <select name="issue-state" aria-label={t('issues.state')} className="issues-select" value={state} onChange={event => filter(() => setState(event.target.value as IssueListOptions['state']))}>{(['open', 'closed', 'all'] as const).map(value => <option key={value} value={value}>{t(`issues.${value}`)}</option>)}</select>
         <input type="text" name="issue-labels" autoComplete="off" spellCheck={false} aria-label={t('issues.labels')} placeholder={t('issues.labels')} className="issues-input" value={label} onChange={event => filter(() => setLabel(event.target.value))} />
         <input type="text" name="issue-assignees" autoComplete="off" spellCheck={false} aria-label={t('issues.assignees')} placeholder={t('issues.assignees')} className="issues-input" value={assignee} onChange={event => filter(() => setAssignee(event.target.value))} />
       </div>

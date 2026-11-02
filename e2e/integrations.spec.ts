@@ -46,14 +46,14 @@ for (const prefix of ['', '&instancePrefix=1']) test(`GitLab primary repository 
   await page.getByRole('button', { name: '从 Issue 创建分支', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: '创建分支', exact: true }).click();
   await page.getByRole('button', { name: '合并请求 0', exact: true }).click();
-  await page.getByRole('button', { name: '新建拉取请求', exact: true }).click();
+  await page.getByRole('button', { name: '新建合并请求', exact: true }).click();
   const create = page.getByRole('dialog');
   await expect(create.getByRole('button', { name: '移除关联 group/sub/project#12' })).toBeVisible();
   await create.locator('button[type="submit"]').click();
   await expect(create).toHaveCount(0);
   await expect(page.getByRole('region', { name: '描述中引用的 Issues' })).toContainText('GitLab primary workflow');
   await page.getByRole('button', { name: '合并', exact: true }).click();
-  await page.getByRole('dialog', { name: '合并拉取请求' }).getByRole('button', { name: '确认操作', exact: true }).click();
+  await page.getByRole('dialog', { name: '合并此合并请求' }).getByRole('button', { name: '确认操作', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: /CI\/CD/ }).first().click();
   await expect(page.getByText('GitLab pipeline', { exact: true }).first()).toBeVisible();

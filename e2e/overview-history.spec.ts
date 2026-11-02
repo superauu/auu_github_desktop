@@ -80,7 +80,7 @@ test('single-repository overview fills the content width and exposes keyboard-ac
   await expect(summary.getByRole('button', { name: /需要处理/ })).toContainText('0');
   const row = overview.getByRole('article', { name: 'Application', exact: true });
   await expect(row).toContainText('工作区干净'); await expect(row).toContainText('已同步');
-  await expect(row.getByRole('button', { name: '连接 GitHub', exact: true })).toBeVisible();
+  await expect(row.getByRole('button', { name: '连接托管平台', exact: true })).toBeVisible();
   const toggle = row.getByRole('button', { name: '仓库详情：Application', exact: true });
   await toggle.focus(); await page.keyboard.press('Space'); await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await page.keyboard.press('Enter'); await expect(toggle).toHaveAttribute('aria-expanded', 'true');

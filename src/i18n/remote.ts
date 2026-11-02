@@ -37,7 +37,6 @@ export const remoteZh = {
   'remote.pullFrom': '拉取来源',
   'remote.pushTo': '推送目标',
   'remote.outgoingHint': '领先/落后数量相对于跟踪分支，不一定是推送目标。',
-  'remote.github': 'PR / Actions 对应的 GitHub 远程仓库',
   'remote.collaboration': 'PR / MR 和 CI 对应的协作远程仓库',
   'remote.collaborationSaved': '协作远程仓库已更新',
   'remote.automatic': '自动选择（优先 origin）',
@@ -48,7 +47,7 @@ export const remoteZh = {
   'remote.preferenceNotSaved': '推送已成功，但部分推送或跟踪设置未能保存。',
   'remote.prSourceRepo': 'PR 来源仓库',
   'remote.prSourceBranch': '来源仓库中的分支',
-  'remote.prSourceMissing': '请选择已推送分支所在的 GitHub 仓库，并填写远程分支名。',
+  'remote.prSourceMissing': '请选择已推送分支所在的托管平台仓库，并填写远程分支名。',
   'remote.prSourceLoading': '正在读取来源仓库…',
   'remote.prSourceHint': '请选择分支实际发布到的仓库；跨 fork 时会自动带上所属账号。',
 };
@@ -92,7 +91,6 @@ export const remoteEn: Record<keyof typeof remoteZh, string> = {
   'remote.pullFrom': 'Pull from',
   'remote.pushTo': 'Push to',
   'remote.outgoingHint': 'Ahead/behind counts compare with the tracking branch, which may differ from the push destination.',
-  'remote.github': 'GitHub remote for PRs / Actions',
   'remote.collaboration': 'Collaboration remote for PRs / MRs and CI',
   'remote.collaborationSaved': 'Collaboration remote updated',
   'remote.automatic': 'Automatic (prefer origin)',
@@ -103,7 +101,7 @@ export const remoteEn: Record<keyof typeof remoteZh, string> = {
   'remote.preferenceNotSaved': 'Push succeeded, but some push or tracking settings could not be saved.',
   'remote.prSourceRepo': 'PR source repository',
   'remote.prSourceBranch': 'Branch in the source repository',
-  'remote.prSourceMissing': 'Choose the GitHub repository where the branch was pushed and enter its remote branch name.',
+  'remote.prSourceMissing': 'Choose the hosting platform repository where the branch was pushed and enter its remote branch name.',
   'remote.prSourceLoading': 'Reading source repository…',
   'remote.prSourceHint': 'Choose the repository where the branch is published. Cross-fork requests include its owner automatically.',
 };

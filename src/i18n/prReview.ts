@@ -6,8 +6,8 @@ export const prReviewZh = {
   // 行入口与弹窗壳
   'prReview.open': '评审',
   'prReview.openTitle': '打开 PR #{n} 的评审详情（对话、文件与行内评论）',
-  'prReview.openAria': '评审拉取请求 #{n}',
-  'prReview.dialogLabel': 'Pull Request 评审详情',
+  'prReview.openAria': '评审合并请求 #{n}',
+  'prReview.dialogLabel': '合并请求 评审详情',
   'prReview.tabConversation': '对话',
   'prReview.tabFiles': '文件',
   // Conversation 时间线
@@ -20,7 +20,7 @@ export const prReviewZh = {
   // 文件 Tab
   'prReview.filesTitle': '变更文件',
   'prReview.filesLoading': '正在加载变更文件...',
-  'prReview.filesEmpty': '此 Pull Request 没有文件变更',
+  'prReview.filesEmpty': '此 合并请求 没有文件变更',
   'prReview.truncatedNotice': '变更文件较多，仅展示前 {n} 个',
   'prReview.binaryFile': '二进制文件或差异过大，无法显示内容',
   'prReview.hunksCollapsed': '差异较大，代码块默认折叠，点击展开',
@@ -54,8 +54,8 @@ export const prReviewZh = {
   'prReview.changesNeedBody': '请求修改必须填写总评说明',
   'prReview.commentEmpty': '行内评论内容不能为空',
   'prReview.invalidEvent': '未知的评审类型',
-  'prReview.readonlyMerged': '该 Pull Request 已合并，评审区只读',
-  'prReview.readonlyClosed': '该 Pull Request 已关闭，评审区只读',
+  'prReview.readonlyMerged': '该 合并请求 已合并，评审区只读',
+  'prReview.readonlyClosed': '该 合并请求 已关闭，评审区只读',
   'prReview.noPermission': '当前账号或 Token 无权限提交评审（401/403），仅可浏览',
   'prReview.loadFailed': '评审数据加载失败',
   'prReview.filesLoadFailed': '变更文件加载失败',
@@ -66,7 +66,7 @@ export const prReviewEn = {
   'prReview.open': 'Review',
   'prReview.openTitle': 'Open review details for PR #{n} (conversation, files and inline comments)',
   'prReview.openAria': 'Review pull request #{n}',
-  'prReview.dialogLabel': 'Pull Request review details',
+  'prReview.dialogLabel': '合并请求 review details',
   'prReview.tabConversation': 'Conversation',
   'prReview.tabFiles': 'Files',
   // Conversation timeline

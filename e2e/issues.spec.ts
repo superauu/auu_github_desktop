@@ -57,7 +57,7 @@ test('an issue branch is carried into PR creation and both views can navigate th
   await branchDialog.getByRole('button', { name: '创建分支', exact: true }).click();
   await expect(branchDialog).toHaveCount(0);
   await page.getByRole('button', { name: '合并请求 0', exact: true }).click();
-  await page.getByRole('button', { name: '新建拉取请求', exact: true }).click();
+  await page.getByRole('button', { name: '新建合并请求', exact: true }).click();
   const prDialog = page.getByRole('dialog');
   await expect(prDialog.getByRole('button', { name: '移除关联 fixture/project#12' })).toBeVisible();
   const submit = prDialog.locator('button[type="submit"]');
@@ -71,7 +71,7 @@ test('an issue branch is carried into PR creation and both views can navigate th
   await detail.getByRole('button', { name: /fixture\/project#100/ }).click();
   await expect(page.getByRole('region', { name: '描述中引用的 Issues' })).toBeVisible();
   await page.getByRole('button', { name: '合并', exact: true }).click();
-  await page.getByRole('dialog', { name: '合并拉取请求' }).getByRole('button', { name: '确认操作', exact: true }).click();
+  await page.getByRole('dialog', { name: '合并此合并请求' }).getByRole('button', { name: '确认操作', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('region', { name: '当前任务', exact: true })).toContainText('已关闭');
   await page.getByRole('button', { name: 'Issues', exact: true }).click();
@@ -150,7 +150,7 @@ test('the current task follows branch switches and issue drafts only replace tex
   expect((await writes(page)).find(call => call.kind === 'generate-commit')?.data.issueContext).toMatchObject([{ owner: 'fixture', repo: 'project', number: 12 }]);
   await banner.getByRole('button', { name: /fixture\/project#12/ }).click();
   await page.getByRole('button', { name: '创建关联 PR', exact: true }).click();
-  const pr = page.getByRole('dialog', { name: '创建拉取请求' });
+  const pr = page.getByRole('dialog', { name: '创建合并请求' });
   await pr.getByPlaceholder('标题，例如：修复登录超时问题').fill('Keep PR title');
   await pr.getByRole('button', { name: '根据 Issue 拟 PR 草稿', exact: true }).click();
   const proposal = page.getByRole('dialog', { name: '根据 Issue 拟 PR 草稿' });

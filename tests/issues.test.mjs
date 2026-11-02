@@ -54,7 +54,7 @@ test('issue mutations use explicit PATCH state reasons, preserve empty metadata 
 
 test('issue detail refuses a PR masquerading as an issue', async () => {
   globalThis.fetch = async () => json({ ...issue(), pull_request: {} });
-  await assert.rejects(new app.GitHubService().getIssue('owner', 'repo', 12), /Pull Request/);
+  await assert.rejects(new app.GitHubService().getIssue('owner', 'repo', 12), /合并请求/);
 });
 
 test('description links support local, cross-repository and URL references but ignore code and deduplicate', () => {

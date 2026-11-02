@@ -96,8 +96,8 @@ test('PR loading does not render an empty result and refresh cannot be submitted
   let renderer;
   try {
     await act(async () => { renderer = create(React.createElement(app.PullRequestsView)); });
-    assert.match(JSON.stringify(renderer.toJSON()), /正在加载拉取请求/);
-    assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /当前没有拉取请求|未找到符合条件/);
+    assert.match(JSON.stringify(renderer.toJSON()), /正在加载合并请求/);
+    assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /当前没有合并请求|未找到符合条件/);
     assert.equal(renderer.root.findAllByType('button').find(b => b.props['aria-busy']).props.disabled, true);
   } finally { await act(async () => renderer?.unmount()); store.getState().clearRepo(); }
 });

@@ -248,6 +248,8 @@ export const PullRequestsView: React.FC = () => {
           <div className="relative w-48">
             <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" />
             <Input
+              name="pull-request-search"
+              autoComplete="off"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('pr.searchPlaceholder')}

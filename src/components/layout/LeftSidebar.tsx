@@ -918,6 +918,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
               <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2" />
               <Input
                 ref={searchInputRef}
+                name="sidebar-filter"
+                autoComplete="off"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 aria-label={t('sidebar.filterPlaceholder')} placeholder={t('sidebar.filterPlaceholder')}
