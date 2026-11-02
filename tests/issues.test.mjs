@@ -29,7 +29,7 @@ after(async () => {
   globalThis.fetch = originalFetch;
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-issues-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 });
 });
-const authenticate = (owner = 'owner', profile = 'one') => { const client = new app.GitHubService(); client.setToken(`test-${profile}`); app.bindCollaborationClient(client); app.useCollaborationStore.setState({ providerId: 'github', server: 'https://github.com', currentOwner: owner, currentRepoName: 'repo', activeProfileId: profile, isAuthenticated: true, token: `test-${profile}` }); };
+const authenticate = (owner = 'owner', profile = 'one') => { const client = new app.GitHubService(); client.setToken(`test-${profile}`); app.bindCollaborationClient(client); app.useCollaborationStore.setState({ providerId: 'github', server: 'https://github.com', currentOwner: owner, currentRepoName: 'repo', activeProfileId: profile, isAuthenticated: true, token: `test-${profile}`, profiles: [{ id: profile, label: profile, providerId: 'github', server: 'https://github.com' }] }); };
 
 test('issue search is repository-scoped, paginated, excludes PRs and preserves incomplete-result metadata', async () => {
   const service = new app.GitHubService(); service.setToken('test-only'); let called;

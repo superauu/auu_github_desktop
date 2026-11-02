@@ -66,7 +66,7 @@ before(async () => {
     }],
   });
   app = createRequire(import.meta.url)(bundle);
-  app.useCollaborationStore.setState({providerId:'github',server:'https://github.com'});
+  app.useCollaborationStore.setState({providerId:'github',server:'https://github.com',profiles:[{id:'default',label:'default',providerId:'github',server:'https://github.com'}]});
 });
 
 after(async () => {

@@ -2,7 +2,6 @@
 // Only HTTP responses and local Git writes are replaced; no real credentials or repositories.
 import type { RepositoryInfo } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
-import { setPluginEnabled } from '@/services/integrations/plugins';
 import { startIntegrationRuntime } from '@/services/integrations/runtime';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -71,13 +70,7 @@ export async function prepareGitLabFixture(repository: RepositoryInfo) {
     throw new Error(`Unexpected GitLab fixture route: ${method} ${route}`);
   };
   document.documentElement.dataset.gitlabFixtureWrites = '[]';
-  // 夹具副作用只属于本次页面会话：离开时恢复原有插件启停，避免 ?gitlab=1 污染后续普通 dev 会话。
-  const previousDisabledPlugins = localStorage.getItem('auu_git_disabled_plugins');
-  window.addEventListener('pagehide', () => {
-    if (previousDisabledPlugins === null) localStorage.removeItem('auu_git_disabled_plugins');
-    else localStorage.setItem('auu_git_disabled_plugins', previousDisabledPlugins);
-  }, { once: true });
-  setPluginEnabled('github', false);
+  // 「连接账号即启用」：GitHub 没有任何账号，工作域入口自然只由 GitLab 提供。
   const state = useCollaborationStore.getState();
   state.selectProvider('gitlab', server); await state.login('fixture-gitlab-pat');
   const remote = { name: 'origin', fetchUrl: 'git@gitlab.fixture:group/sub/project.git', pushUrl: 'git@gitlab.fixture:group/sub/project.git' };

@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ProviderRequestError, type ExternalOrg } from '@/services/errors/providerService';
 import { getProviderManifest, PROVIDER_REGISTRY, type DomainId, type ProviderManifest } from '@/services/integrations/registry';
 import { useCollaborationStore } from '@/stores/collaborationStore';
-import { installedExternalPlugins, isPluginEnabled, getHostingPlugin, setPluginEnabled, subscribePlugins } from '@/services/integrations/plugins';
+import { getHostingPlugin, subscribePlugins } from '@/services/integrations/plugins';
 import type { PersistedConnection } from '@/stores/errorsStore';
 import { cn } from '@/utils/cn';
 
@@ -199,13 +199,6 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
     );
   };
 
-  /** 禁用当前绑定插件会清空会话与域数据，需用户确认；启用直接生效。 */
-  const togglePlugin = async (id: string, enabled: boolean) => {
-    if (!enabled && useCollaborationStore.getState().providerId === id
-      && !await confirmAction({ title: t('connections.disableActivePluginTitle'), description: t('connections.disableActivePluginDesc'), danger: true })) return;
-    setPluginEnabled(id, enabled);
-  };
-
   /** 卡片：provider + 连接计数徽标，账号统一来自协作状态。 */
   const connectedCount = (manifest: ProviderManifest): number => {
     if (manifest.connectionKind === 'hosting-account') return hostingProfiles.filter(profile => profile.providerId === manifest.id).length;
@@ -234,16 +227,6 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
 
   return (
     <section className="space-y-3 border-t border-border pt-3" data-testid="errors-integrations-section">
-      <div className="space-y-1.5" data-testid="plugin-controls">
-        <h3 className="text-xs font-medium">{t('connections.pluginsTitle')}</h3>
-        <p className="text-[12px] text-muted-foreground leading-relaxed">{t('connections.pluginsDescription')}</p>
-        <div className="space-y-1">
-          {installedExternalPlugins().map(plugin => <label key={plugin.manifest.id} className="flex items-center justify-between text-xs py-1.5">
-            <span>{plugin.manifest.name}</span><input type="checkbox" className="accent-primary" aria-label={`${t('connections.enablePlugin')} ${plugin.manifest.name}`}
-              checked={isPluginEnabled(plugin.manifest.id)} onChange={event => void togglePlugin(plugin.manifest.id, event.target.checked)} />
-          </label>)}
-        </div>
-      </div>
       <div className="space-y-1">
         <h3 className="text-xs font-medium">{t('errors.settings.title')}</h3>
         <p className="text-[12px] text-muted-foreground leading-relaxed">{t('errors.settings.description')}</p>

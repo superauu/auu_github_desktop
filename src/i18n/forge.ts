@@ -20,9 +20,6 @@ export const forgeZh = {
   'connections.token': '个人访问令牌',
   'connections.connect': '连接',
   'connections.platformAuth': '使用平台授权',
-  'connections.enablePlugin': '启用插件',
-  'connections.disableActivePluginTitle': '禁用当前集成插件？',
-  'connections.disableActivePluginDesc': '禁用后会清空当前账号会话与 Issues / PR / CI 数据（凭证保留在系统凭据管理器），重新启用后可恢复。',
   'connections.permissionsHint': '凭证保存在系统凭据管理器中，权限由所选平台管理。',
   'connections.errors.selectPlugin': '请先选择一个已启用的托管平台插件。',
   'connections.errors.pluginDisabled': '该集成插件已被禁用。',
@@ -30,8 +27,6 @@ export const forgeZh = {
   'connections.errors.noPluginBound': '当前仓库未绑定托管平台插件。',
   'connections.errors.capabilityUnavailable': '当前插件不支持此操作：{op}',
   'connections.errors.invalidServerUrl': '服务器地址无效。',
-  'connections.pluginsTitle': '插件',
-  'connections.pluginsDescription': '启用或停用外部系统插件。停用后隐藏对应平台入口，已保存的账号与凭证保留，重新启用后自动恢复。',
   'connections.errors.checkoutRefRequired': '缺少插件提供的 PR 检出引用。',
 } as const;
 
@@ -53,9 +48,6 @@ export const forgeEn = {
   'connections.token': 'Personal access token',
   'connections.connect': 'Connect',
   'connections.platformAuth': 'Use platform authorization',
-  'connections.enablePlugin': 'Enable plugin',
-  'connections.disableActivePluginTitle': 'Disable the active integration plugin?',
-  'connections.disableActivePluginDesc': 'Disabling clears the current session and Issues / PR / CI data (credentials are kept in the system credential manager). Re-enable to restore.',
   'connections.permissionsHint': 'Credentials are stored in the system credential manager. Permissions are managed by the selected platform.',
   'connections.errors.selectPlugin': 'Select an enabled hosting plugin first.',
   'connections.errors.pluginDisabled': 'This integration plugin is disabled.',
@@ -63,7 +55,5 @@ export const forgeEn = {
   'connections.errors.noPluginBound': 'No hosting plugin is bound to this repository.',
   'connections.errors.capabilityUnavailable': 'The current plugin does not support this operation: {op}',
   'connections.errors.invalidServerUrl': 'Invalid server URL.',
-  'connections.pluginsTitle': 'Plugins',
-  'connections.pluginsDescription': 'Enable or disable external system plugins. Disabling hides the matching entries; saved accounts and credentials are kept and restored when re-enabled.',
   'connections.errors.checkoutRefRequired': 'The plugin-provided PR checkout ref is missing.',
 } as const;

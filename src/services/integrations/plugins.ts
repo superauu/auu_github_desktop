@@ -4,7 +4,10 @@ const listeners = new Set<() => void>();
 const disabled = new Set<string>();
 let revision = 0;
 export const getPluginRevision = () => revision;
-try { for (const id of JSON.parse(localStorage.getItem('auu_git_disabled_plugins') || '[]')) disabled.add(id); } catch { /* empty */ }
+// 「连接账号即启用」：插件启停不再是用户可配置项（设置页无入口），历史版本写入的
+// 禁用标记一律作废——有账号的平台必须可用，无账号的平台由连接门控自然淡出。
+// 保留 setPluginEnabled 作为内部机制（隔离测试与故障注入），但不再持久化读取。
+try { localStorage.removeItem('auu_git_disabled_plugins'); } catch { /* storage unavailable */ }
 export const installedHostingPlugins = () => HOSTING_PLUGINS;
 export const enabledHostingPlugins = () => HOSTING_PLUGINS.filter(plugin => !disabled.has(plugin.manifest.id));
 export const getHostingPlugin = (id: string): HostingPlugin | null => enabledHostingPlugins().find(plugin => plugin.manifest.id === id) ?? null;

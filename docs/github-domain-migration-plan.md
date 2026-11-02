@@ -58,7 +58,7 @@ GitHub / GitLab / Gitea / Sentry 适配器
 1. 账号统一记录 `providerId + server + profileId`，元数据写入 `auu_git_connections` v2，令牌留在系统凭据管理器。
 2. 旧 GitHub Profiles 与 Forge 账号由插件提供迁移规则，保留原 Keyring 槽位，不复制令牌。
 3. 仓库使用中立 `collaborationRemote`。通用远程设置优先读取 `auugit.collaborationRemote`，缺失才读取旧 `auugit.githubRemote`。
-4. 公有域名由启用插件声明；自建实例必须与连接的主机及 HTTP API 端口匹配。SSH 端口仅属于 Git 传输身份。
+4. 公有域名由已装配插件声明；自建实例必须与连接的主机及 HTTP API 端口匹配。SSH 端口仅属于 Git 传输身份。
 5. 仓库、远程、账号、实例、令牌和插件启停发生变化时，清空域数据并作废旧请求；添加账号期间不自动切回仓库原账号。
 6. 禁用当前插件时清空令牌和会话，不自动切换至其他平台。
 
@@ -114,7 +114,7 @@ GitLab 行内讨论使用 before/after 路径与 `base_sha/head_sha/start_sha`�
 
 新增插件时，实现实际需要的域接口和明确能力，提供服务器/凭证策略、URL/refspec 及必要迁移，然后加入装配。不能在公共 Store、视图、GitService 或 OverviewService 中增加 `if provider === ...` 分支。
 
-前端构建通过 `AUUGIT_PLUGINS=gitlab` 仅装配 GitLab，`AUUGIT_PLUGINS=none` 不装配任何外部插件，未设置时装配目录中全部插件。原生端同时使用 `--no-default-features` 排除 GitHub。运行时用户可在设置→集成取消“启用插件 GitHub”，不会删除已保存的账号或凭证；重新启用后可恢复。
+前端构建通过 `AUUGIT_PLUGINS=gitlab` 仅装配 GitLab，`AUUGIT_PLUGINS=none` 不装配任何外部插件，未设置时装配目录中全部插件。原生端同时使用 `--no-default-features` 排除 GitHub。运行时不再提供插件启停开关（“连接账号即启用”）：平台拥有至少一个已连接账号时，其工作域入口与能力才出现；断开全部账号后入口随之消失，凭证仍保留在系统凭据管理器中，重新连接即可恢复。设置→集成的连接卡片始终列出全部已装配平台，否则无法建立第一个连接。宿主内部的插件启停机制（`setPluginEnabled`）仅用于隔离测试与故障注入，不暴露为设置项。
 
 当前 GitHub 插件仅支持 github.com；GitHub Enterprise 需要单独扩展该插件。每个仓库固定某一个账号的持久选择、在线安装市场和第三方代码沙箱不属于本次实现。
 

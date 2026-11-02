@@ -114,6 +114,8 @@ export function prepareIssueFixture(repository: RepositoryInfo) {
   }
   useIntegrationStore.getState().setContext(repository.path, { providerId: 'github', server: 'https://github.com', host: 'github.com', ownerPath: 'fixture', repo: 'project', remoteName: 'origin', connectionId: 'github:issue-fixture' });
   useCollaborationStore.setState({ providerId: 'github', server: 'https://github.com', currentOwner: 'fixture', currentRepoName: 'project', activeProfileId: 'issue-fixture', token: null, isAuthenticated: true, user: null,
+    // 「连接账号即启用」：工作域门控按已连接账号计算，真实登录用户必有 Profile 记录。
+    profiles: [{ id: 'issue-fixture', label: 'fixture-user', providerId: 'github', server: 'https://github.com', user: { login: 'fixture-user', name: null, avatarUrl: '' } }],
     pullRequests: [], selectedPR: null, repoDetails: { id: 1, name: 'project', full_name: 'fixture/project', default_branch: 'main', private: false, html_url: 'https://github.com/fixture/project', description: null, stargazers_count: 0, forks_count: 0, open_issues_count: 1 },
   });
   useRepoStore.setState({ currentRepo: { ...repository, collaborationRemote: { name: 'origin', fetchUrl: 'https://github.com/fixture/project', pushUrl: 'https://github.com/fixture/project' } }, activeTab: 'issues',

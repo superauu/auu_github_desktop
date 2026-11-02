@@ -8,10 +8,14 @@ test.beforeEach(async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
-test('hosting plugins share connection management and GitHub can be disabled', async ({ page }) => {
+test('hosting plugins share connection management and workspace entries follow connected accounts', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/tests/visual/index.html?automation=1');
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true', { timeout: 45_000 });
+  // 「连接账号即启用」：未连接任何账号时，工作域入口（Issues / 合并请求 / CI）不出现。
+  await expect(page.getByRole('button', { name: 'Issues', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^合并请求 \d+$/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^CI\/CD/ })).toHaveCount(0);
   for (const provider of ['GitHub', 'GitLab']) {
     await page.getByRole('button', { name: /打开设置/ }).click();
     await page.getByRole('dialog').getByRole('button', { name: '集成', exact: true }).click();
@@ -26,15 +30,15 @@ test('hosting plugins share connection management and GitHub can be disabled', a
   await page.getByRole('button', { name: /打开设置/ }).click();
   const settings = page.getByRole('dialog');
   await settings.getByRole('button', { name: '集成', exact: true }).click();
-  await settings.getByRole('checkbox', { name: '启用插件 GitHub', exact: true }).uncheck();
-  await expect(settings.getByRole('button', { name: '选择要连接的平台: GitHub', exact: true })).toHaveCount(0);
+  // 插件启停不再暴露为设置项；连接卡片始终列出全部已装配平台（否则无法建立第一个连接）。
+  await expect(settings.getByRole('checkbox', { name: /启用插件/ })).toHaveCount(0);
   await settings.getByRole('button', { name: '选择要连接的平台: GitLab', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('combobox').locator('option')).toHaveText(['GitLab', 'Gitea / Forgejo']);
+  await expect(page.getByRole('dialog').getByRole('combobox').locator('option')).toHaveText(['GitHub', 'GitLab', 'Gitea / Forgejo']);
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-network-attempts', '[]');
   expect(errors).toEqual([]);
 });
 
-for (const prefix of ['', '&instancePrefix=1']) test(`GitLab primary repository supports issues, branches, merge requests and CI with GitHub disabled${prefix ? ' under a relative URL root' : ''}`, async ({ page }) => {
+for (const prefix of ['', '&instancePrefix=1']) test(`GitLab primary repository supports issues, branches, merge requests and CI without any GitHub account${prefix ? ' under a relative URL root' : ''}`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(`/tests/visual/index.html?automation=1&gitlab=1${prefix}`);
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true', { timeout: 45_000 });
@@ -73,7 +77,8 @@ for (const prefix of ['', '&instancePrefix=1']) test(`GitLab primary repository 
   expect(writes.some((call: { path: string }) => call.path === '/issues/12/notes')).toBe(true);
   expect(writes.some((call: { path: string }) => call.path === '/merge_requests')).toBe(true);
   expect(writes.some((call: { path: string }) => call.path === '/merge_requests/7/merge')).toBe(true);
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('auu_git_disabled_plugins') || '[]'))).toContain('github');
+  // GitHub 没有任何账号：入口由 GitLab 独占，且未留下任何插件禁用标记。
+  expect(await page.evaluate(() => localStorage.getItem('auu_git_disabled_plugins'))).toBeNull();
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-network-attempts', '[]');
   expect(errors).toEqual([]);
 });

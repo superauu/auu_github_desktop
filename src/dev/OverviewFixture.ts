@@ -39,7 +39,11 @@ export function prepareOverviewFixture(repo: RepositoryInfo) {
   };
   document.documentElement.dataset.overviewFixtureOldCi = '0';
   if (params.has('overviewAccount')) {
-    useCollaborationStore.setState({ activeProfileId: 'overview-old', token: 'fixture-old', isAuthenticated: true });
+    const profiles = [
+      { id: 'overview-old', label: 'old', providerId: 'github', server: 'https://github.com', user: { login: 'old', name: null, avatarUrl: '' } },
+      { id: 'overview-new', label: 'new', providerId: 'github', server: 'https://github.com', user: { login: 'new', name: null, avatarUrl: '' } },
+    ];
+    useCollaborationStore.setState({ activeProfileId: 'overview-old', token: 'fixture-old', isAuthenticated: true, profiles });
     window.addEventListener('overview-fixture-account', () => useCollaborationStore.setState({ activeProfileId: 'overview-new', token: 'fixture-new', isAuthenticated: true }));
   }
   overviewService.ci = async (item, _status, token) => {
