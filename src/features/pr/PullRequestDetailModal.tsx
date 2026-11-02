@@ -1,4 +1,3 @@
-import { useCollaborationStore } from '@/stores/collaborationStore';
 import { getHostingPlugin } from '@/services/integrations/plugins';
 import { openExternalUrl } from '@/utils/openExternal';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -45,6 +44,7 @@ import { cn } from '@/utils/cn';
 import { htmlToPlainText } from '@/utils/htmlText';
 import { RelatedIssues } from '@/features/issues/RelatedIssues';
 import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { useActiveProviderId } from '@/features/integrations/useActiveProviderId';
 
 interface PullRequestDetailModalProps {
   pr: CollaborationPullRequest;
@@ -70,7 +70,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
   const { t } = useI18n();
   const { can } = useCollaborationCapabilities();
   const canReview = can('code-hosting:review-pull-request');
-  const providerId = useCollaborationStore(state => state.providerId);
+  const providerId = useActiveProviderId();
   const supportedEvents = getHostingPlugin(providerId ?? '')?.reviewEvents ?? [];
 
   const [tab, setTab] = useState('conversation');

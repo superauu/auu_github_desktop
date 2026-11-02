@@ -13,7 +13,7 @@ const root = process.cwd(); let temporary, api;
 before(async () => {
   temporary = await fs.mkdtemp(path.join(root, '.test-tmp-plugin-caps-'));
   const file = path.join(temporary, 'app.cjs');
-  await build({ stdin: { contents: `export { IssueDetail } from './src/features/issues/IssueDetail'; export { CurrentBranchIssue } from './src/features/issues/CurrentBranchIssue'; export { RelatedIssues } from './src/features/issues/RelatedIssues'; export { useIssueWorkflowStore } from './src/stores/issueWorkflowStore'; export { IntegrationsSection } from './src/components/settings/IntegrationsSection'; export { useCollaborationStore } from './src/stores/collaborationStore'; export { useRepoStore } from './src/stores/repoStore'; export { bindCollaborationClient, collaborationService } from './src/services/collaboration/CollaborationService'; export { useCollaborationCapabilities } from './src/features/integrations/useCollaborationCapabilities';`, resolveDir: root }, outfile: file, bundle: true,
+  await build({ stdin: { contents: `export { IssueDetail } from './src/features/issues/IssueDetail'; export { CurrentBranchIssue } from './src/features/issues/CurrentBranchIssue'; export { RelatedIssues } from './src/features/issues/RelatedIssues'; export { useIssueWorkflowStore } from './src/stores/issueWorkflowStore'; export { IntegrationsSection } from './src/components/settings/IntegrationsSection'; export { useCollaborationStore } from './src/stores/collaborationStore'; export { useRepoStore } from './src/stores/repoStore'; export { bindCollaborationClient, collaborationService } from './src/services/collaboration/CollaborationService'; export { useCollaborationCapabilities } from './src/features/integrations/useCollaborationCapabilities'; export { activeProviderId } from './src/stores/collaboration/activeProvider';`, resolveDir: root }, outfile: file, bundle: true,
     platform: 'node', format: 'cjs', external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, loader: { '.css': 'empty' }, logLevel: 'silent', plugins: [{ name: 'read-only-tasks', setup(builder) {
       builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ loader: 'ts', contents: `
         export const HOSTING_PLUGINS = [{ manifest: { id: 'tasks', name: 'Tasks', connectionKind: 'hosting-account', primaryDomain: 'task-tracking', domains: [{ domain: 'task-tracking', capabilities: ['task-tracking:list-issues', 'task-tracking:issue-detail'] }] } }, { manifest: { id: 'builds', name: 'Builds', connectionKind: 'hosting-account', primaryDomain: 'ci-cd', domains: [{ domain: 'ci-cd', capabilities: ['ci-cd:list-pipelines'] }] } }]; export const ERROR_PLUGINS = [];
@@ -40,23 +40,31 @@ test('read-only task plugins keep local branch work and disable issue writes and
   } finally { await act(async () => renderer?.unmount()); }
 });
 test('workspace capabilities follow connected accounts and disappear when the last account is removed', async () => {
-  const Probe = () => { const { can, taskTracking, codeHosting, ciCd } = api.useCollaborationCapabilities();
-    return React.createElement('div', { 'data-task': String(taskTracking || can('task-tracking:list-issues')), 'data-hosting': String(codeHosting), 'data-ci': String(ciCd) }); };
+  const Probe = () => { const { can, connected, taskTracking, codeHosting, ciCd } = api.useCollaborationCapabilities();
+    return React.createElement('div', { 'data-connected': String(connected), 'data-task': String(taskTracking || can('task-tracking:list-issues')), 'data-hosting': String(codeHosting), 'data-ci': String(ciCd) }); };
   let renderer;
   api.useCollaborationStore.setState({ providerId: null, server: '', profiles: [] });
   try {
     await act(async () => { renderer = create(React.createElement(Probe)); });
+    assert.equal(renderer.toJSON().props['data-connected'], 'false');
     assert.equal(renderer.toJSON().props['data-task'], 'false');
     assert.equal(renderer.toJSON().props['data-hosting'], 'false');
     api.useCollaborationStore.setState({ profiles: [{ id: 'probe', label: 'probe', providerId: 'tasks', server: 'https://tasks.example' }] });
     await act(async () => {});
+    assert.equal(renderer.toJSON().props['data-connected'], 'true');
     assert.equal(renderer.toJSON().props['data-task'], 'true');
     assert.equal(renderer.toJSON().props['data-hosting'], 'false');
     assert.equal(renderer.toJSON().props['data-ci'], 'false');
     api.useCollaborationStore.setState({ profiles: [] });
     await act(async () => {});
+    assert.equal(renderer.toJSON().props['data-connected'], 'false');
     assert.equal(renderer.toJSON().props['data-task'], 'false');
   } finally { api.useCollaborationStore.setState({ profiles: [] }); await act(async () => { renderer?.unmount(); }); }
+});
+test('provider semantics follow the active account, falling back to the session platform', () => {
+  assert.equal(api.activeProviderId({ providerId: 'github', activeProfileId: 'gitlab-account', profiles: [{ id: 'gitlab-account', providerId: 'gitlab' }] }), 'gitlab');
+  assert.equal(api.activeProviderId({ providerId: 'github', activeProfileId: 'missing', profiles: [{ id: 'gitlab-account', providerId: 'gitlab' }] }), 'github');
+  assert.equal(api.activeProviderId({ providerId: null, activeProfileId: null, profiles: [] }), null);
 });
 test('all build profiles come from the checked composition catalog', () => {
   checkPluginComposition();

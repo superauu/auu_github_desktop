@@ -1,5 +1,6 @@
 import { collaborationService, hasCollaborationOperation } from '@/services/collaboration/CollaborationService';
 import { getHostingPlugin } from '@/services/integrations/plugins';
+import { activeProviderId } from './activeProvider';
 import { toast } from '@/stores/toastStore';
 import { tNow } from '@/i18n';
 import type { CollaborationState } from '../collaborationStore';
@@ -97,7 +98,7 @@ export function createCiSlice({ get, set, ticket, generation }: CollaborationSli
         const job = await collaborationService.getJob(owner, repo, jobId);
         if (!valid()) return;
         htmlUrl = job.html_url;
-        if (job.status !== 'completed' && !getHostingPlugin(get().providerId ?? '')?.supportsLiveJobLogs) {
+        if (job.status !== 'completed' && !getHostingPlugin(activeProviderId(get()) ?? '')?.supportsLiveJobLogs) {
           set({ activeJobLogs: { jobId, jobName: name, rawLogs: '', state: 'waiting', htmlUrl } });
           return;
         }

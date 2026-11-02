@@ -1,4 +1,5 @@
 import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { useActiveProviderId } from '@/features/integrations/useActiveProviderId';
 import { getHostingPlugin } from '@/services/integrations/plugins';
 import { openExternalUrl } from '@/utils/openExternal';
 import { useShallow } from 'zustand/react/shallow';
@@ -45,7 +46,7 @@ import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { htmlToPlainText } from '@/utils/htmlText';
 
 export const PullRequestsView: React.FC = () => {
-  const providerId = useCollaborationStore(state => state.providerId);
+  const providerId = useActiveProviderId();
   const { can } = useCollaborationCapabilities();
   const mergeMethods = getHostingPlugin(providerId ?? '')?.mergeMethods ?? [];
   const { prListWidth, setPrListWidth } = useLayoutStore(useShallow(state => ({ prListWidth: state.prListWidth, setPrListWidth: state.setPrListWidth })));

@@ -14,6 +14,7 @@ const ErrorsView = lazy(() => import('@/features/errors/ErrorsView').then((modul
 
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useI18n } from '@/i18n';
+import { Button } from '@/components/ui/button';
 import { EmbeddedTerminalPanel } from './EmbeddedTerminalPanel';
 
 interface CenterStageProps {
@@ -48,6 +49,16 @@ export const CenterStage: React.FC<CenterStageProps> = ({
     if ((activeTab === 'issues' && !capabilities.can('task-tracking:list-issues'))
       || (activeTab === 'pullRequests' && !capabilities.can('code-hosting:list-pull-requests'))
       || (activeTab === 'actions' && !capabilities.can('ci-cd:list-pipelines'))) {
+      // 断开最后一个账号后入口消失，但当前标签可能仍停在原工作域：此时缺的是连接，
+      // 不是平台能力，直接给出连接入口而不是「所选平台未提供此功能」。
+      if (!capabilities.connected) {
+        return (
+          <div className="p-6 space-y-3 text-sm text-muted-foreground">
+            <p>{t('connections.connectAccountToUse')}</p>
+            {onOpenConnection && <Button variant="outline" size="toolbar" onClick={onOpenConnection}>{t('connections.connect')}</Button>}
+          </div>
+        );
+      }
       return <div className="p-6 text-sm text-muted-foreground">{t('connections.unavailableCapability')}</div>;
     }
     switch (activeTab) {

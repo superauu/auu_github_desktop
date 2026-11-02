@@ -1,4 +1,5 @@
 import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { useActiveProviderId } from '@/features/integrations/useActiveProviderId';
 import React from 'react';
 import { getHostingPlugin } from '@/services/integrations/plugins';
 import { providerSupports } from '@/services/integrations/registry';
@@ -70,7 +71,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
   } = useCollaborationStore(useShallow(state => ({ workflows: state.workflows, selectedWorkflow: state.selectedWorkflow, workflowRuns: state.workflowRuns, selectedRun: state.selectedRun, selectedRunJobs: state.selectedRunJobs, selectWorkflow: state.selectWorkflow, selectRun: state.selectRun, refreshActions: state.refreshActions, isRefreshingActions: state.isRefreshingActions, isLoadingRuns: state.isLoadingRuns, isLoadingJobs: state.isLoadingJobs, openJobLogs: state.openJobLogs, openWorkflowYaml: state.openWorkflowYaml, openDispatchModal: state.openDispatchModal, rerunWorkflowRun: state.rerunWorkflowRun, cancelWorkflowRun: state.cancelWorkflowRun, isAuthenticated: state.isAuthenticated, user: state.user, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, error: state.error })));
   const { t } = useI18n();
   const { can } = useCollaborationCapabilities();
-  const providerId = useCollaborationStore(state => state.providerId);
+  const providerId = useActiveProviderId();
   const plugin = getHostingPlugin(providerId ?? '');
   const canCancel = !!plugin && providerSupports(plugin.manifest, 'ci-cd:cancel');
   const selectedRunStatus = selectedRun ? workflowStatus(selectedRun.status, selectedRun.conclusion) : null;

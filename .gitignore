@@ -34,6 +34,9 @@ __pycache__/
 # 本地回归测试的临时仓库、日志与脚本产物（各测试文件的 mkdtemp 前缀都以 .test- 开头）
 .test-*
 
+# 本地提交信息草稿（曾误入仓库，勿再跟踪）
+.git-commit-msg.tmp
+
 # Local AI development skills
 /.agent/skills/
 

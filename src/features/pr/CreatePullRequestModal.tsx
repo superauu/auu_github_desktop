@@ -7,6 +7,7 @@ import { GitPullRequest, X, Loader2, Check, Sparkles } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useCollaborationStore } from '@/stores/collaborationStore';
+import { activeProviderId } from '@/stores/collaboration/activeProvider';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { collaborationService, hasCollaborationOperation } from '@/services/collaboration/CollaborationService';
 import { gitService } from '@/services/git/GitService';
@@ -238,7 +239,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       });
       if (currentSession !== session.current || !isCurrentTarget()) return;
       // 记录 PR 到 Errors 链接（§5.3；分支未被链接时为空操作）
-      const providerId = useCollaborationStore.getState().providerId;
+      const providerId = activeProviderId(useCollaborationStore.getState());
       if (currentRepo && created.html_url && providerId) {
         useErrorsStore.getState().recordFixPullRequest(currentRepo.path, currentBranch, {
           provider: providerId, number: created.number, url: created.html_url,

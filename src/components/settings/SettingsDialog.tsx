@@ -854,7 +854,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {/* Accounts Tab */}
             {activeTab === 'accounts' && (
               <div className="space-y-4">
-                {isAuthenticated && user ? (
+                {profiles.length > 0 ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs font-medium text-foreground">
@@ -877,8 +877,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <div className="rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
                       {profiles.map((profile) => {
                         const isActive = profile.id === activeProfileId;
-                        const login = isActive ? user.login : (profile.user?.login ?? profile.label);
-                        const avatarSrc = isActive ? user.avatar_url : (profile.user?.avatarUrl ?? null);
+                        // 未登录（令牌失效/插件被构建裁剪）时仍要能删除残留账号——
+                        // 「连接即启用」下账号是唯一开关，藏起列表会让状态无从收拾。
+                        const connected = isActive && isAuthenticated && !!user;
+                        const login = connected ? user.login : (profile.user?.login ?? profile.label);
+                        const avatarSrc = connected ? user.avatar_url : (profile.user?.avatarUrl ?? null);
                         return (
                           <div
                             key={profile.id}
@@ -892,7 +895,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                               <div className="min-w-0">
                                 <div className="font-semibold text-xs text-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
                                   <span className="truncate min-w-16">{login}</span>
-                                  {isActive && (
+                                  {connected && (
                                     <Badge variant="success" className="h-3.5 text-[10px] px-1 gap-0.5 shrink-0">
                                       <CheckCircle2 className="h-2.5 w-2.5" />
                                       <span>{t('settings.accounts.currentBadge')}</span>
@@ -917,7 +920,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 size="xs"
                                 variant={isActive ? 'destructive' : 'ghost'}
                                 onClick={() => {
-                                  if (isActive) {
+                                  if (connected) {
                                     logout();
                                     toast.info(t('settings.accounts.disconnectToast'));
                                   } else {

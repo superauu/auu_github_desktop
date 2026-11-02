@@ -1,4 +1,5 @@
 import { getHostingPlugin } from '@/services/integrations/plugins';
+import { useActiveProviderId } from '@/features/integrations/useActiveProviderId';
 import { useShallow } from 'zustand/react/shallow';
 import React, { useEffect, useState } from 'react';
 import { Play, X, Loader2 } from 'lucide-react';
@@ -26,7 +27,7 @@ export const WorkflowDispatchDialog: React.FC = () => {
 
 function DispatchForm({ owner, repo, workflow }: { owner: string; repo: string; workflow: { id: number | string; name: string; path: string } }) {
   const { t } = useI18n();
-  const providerId = useCollaborationStore(state => state.providerId);
+  const providerId = useActiveProviderId();
   const branches = useRepoStore(s => s.branches);
   const defaultBranch = useCollaborationStore(s => s.repoDetails?.default_branch);
   const close = useCollaborationStore(s => s.closeDispatchModal);

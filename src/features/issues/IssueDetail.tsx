@@ -1,4 +1,5 @@
 import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { useActiveProviderId } from '@/features/integrations/useActiveProviderId';
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, GitBranch, GitPullRequest, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,6 @@ import { collaborationService, type CollaborationIssueComment } from '@/services
 import type { CollaborationIssue } from '@/services/collaboration/issueTypes';
 import { getHostingPlugin } from '@/services/integrations/plugins';
 import { useRepoStore } from '@/stores/repoStore';
-import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { CreatePullRequestModal } from '@/features/pr/CreatePullRequestModal';
@@ -21,7 +21,8 @@ import { confirmAction } from '@/stores/confirmStore';
 export function IssueDetail({ number, onChanged }: { number: number; onChanged: () => void }) {
   const { t } = useI18n(), scope = useCollaborationScope();
   const { can } = useCollaborationCapabilities();
-  const providerLabel = useCollaborationStore(state => (state.providerId ? getHostingPlugin(state.providerId)?.manifest.name ?? null : null));
+  const providerId = useActiveProviderId();
+  const providerLabel = providerId ? getHostingPlugin(providerId)?.manifest.name ?? null : null;
   const repoPath = useRepoStore(state => state.currentRepo?.path);
   const branch = useRepoStore(state => state.currentRepo?.currentBranch || state.status?.currentBranch || state.branches.find(item => item.isCurrent)?.name);
   const reference = { owner: scope.owner!, repo: scope.repo!, number };
