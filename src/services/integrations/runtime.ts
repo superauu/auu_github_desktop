@@ -55,11 +55,18 @@ export function startIntegrationRuntime(): () => void {
       // 否则禁用插件后迟到的认证响应会复活已禁用插件的会话。
       authInvalidatedByPlugin = true;
       state.resetAuthState();
-    } else if (authInvalidatedByPlugin && state.providerId && getHostingPlugin(state.providerId)
-      && !state.isAuthenticated && state.activeProfileId) {
-      // 重新启用插件后自动恢复会话（凭证仍保留在系统凭据管理器中，未删除）
-      authInvalidatedByPlugin = false;
-      void state.initAuth();
+      // 同时清掉「当前平台」选择：残留 providerId 会让能力门控卡在
+      // 「选中了一个已禁用插件」的死态（导航全消失，连接入口却还能选其他平台）。
+      // 清空后回落到未选择态，UI 按仍启用插件的能力并集显示。
+      useCollaborationStore.setState({ providerId: null, server: '' });
+    } else if (authInvalidatedByPlugin && !state.isAuthenticated && state.activeProfileId) {
+      // 重新启用插件后自动恢复会话（凭证仍保留在系统凭据管理器中，未删除）。
+      // 以活跃 Profile 为准而不是 providerId——上一分支清空后由 Profile 携带平台信息。
+      const profile = state.profiles.find(item => item.id === state.activeProfileId);
+      if (profile && getHostingPlugin(profile.providerId ?? '')) {
+        authInvalidatedByPlugin = false;
+        void state.initAuth();
+      }
     }
     synchronize();
   }), onPushedCommit(event => {

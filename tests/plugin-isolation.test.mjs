@@ -148,7 +148,14 @@ test('disabling the active plugin invalidates repository data and never falls ba
   assert.equal(app.useIntegrationStore.getState().binding, null);
   assert.equal(app.useCollaborationStore.getState().currentOwner, null);
   assert.deepEqual(app.useCollaborationStore.getState().pullRequests, []);
+  // 「当前平台」选择一并清空：残留会让导航门控与连接入口口径不一致。
+  assert.equal(app.useCollaborationStore.getState().providerId, null);
   assert.throws(() => app.collaborationService.getIssue('group/sub', 'project', 12), error => error.key === 'connections.errors.noPluginConnected');
+  // 重新启用插件：凭证未删，活跃 Profile 自动恢复会话，无需重启或重输令牌。
+  app.setPluginEnabled('gitlab', true);
+  await eventually(() => app.useCollaborationStore.getState().isAuthenticated);
+  await eventually(() => app.useCollaborationStore.getState().pullRequests.length === 1);
+  assert.equal(app.useCollaborationStore.getState().providerId, 'gitlab');
 });
 
 test('platform reference keys distinguish equal issue numbers on different instances', () => {
