@@ -45,7 +45,7 @@ for (const prefix of ['', '&instancePrefix=1']) test(`GitLab primary repository 
   await expect(detail.getByText('Verified without GitHub', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '从 Issue 创建分支', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: '创建分支', exact: true }).click();
-  await page.getByRole('button', { name: '拉取请求 0', exact: true }).click();
+  await page.getByRole('button', { name: '合并请求 0', exact: true }).click();
   await page.getByRole('button', { name: '新建拉取请求', exact: true }).click();
   const create = page.getByRole('dialog');
   await expect(create.getByRole('button', { name: '移除关联 group/sub/project#12' })).toBeVisible();

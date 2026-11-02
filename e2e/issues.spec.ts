@@ -56,7 +56,7 @@ test('an issue branch is carried into PR creation and both views can navigate th
   await expect(branchDialog.getByRole('textbox').first()).toHaveValue('issue/12-connect-issue-and-pr-workflow');
   await branchDialog.getByRole('button', { name: '创建分支', exact: true }).click();
   await expect(branchDialog).toHaveCount(0);
-  await page.getByRole('button', { name: '拉取请求 0', exact: true }).click();
+  await page.getByRole('button', { name: '合并请求 0', exact: true }).click();
   await page.getByRole('button', { name: '新建拉取请求', exact: true }).click();
   const prDialog = page.getByRole('dialog');
   await expect(prDialog.getByRole('button', { name: '移除关联 fixture/project#12' })).toBeVisible();

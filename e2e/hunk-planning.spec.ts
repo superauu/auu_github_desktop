@@ -272,7 +272,7 @@ test('selected issue references preview, cancel, persist and reach commits and P
   await expect(dialog.getByText('已创建 2 个提交', { exact: true })).toBeVisible();
   expect(JSON.parse(await page.locator('html').getAttribute('data-hunk-fixture-messages') || '[]')).toEqual([{ title: 'feat: first', body: '' }, { title: 'feat: second', body: 'Keep the second explanation\n\nRefs fixture/project#12' }]);
   await dialog.getByRole('button', { name: '关闭', exact: true }).last().click();
-  await page.getByRole('button', { name: /^拉取请求 \d+$/ }).click();
+  await page.getByRole('button', { name: /^合并请求 \d+$/ }).click();
   await page.getByRole('button', { name: '新建拉取请求', exact: true }).click();
   const pr = page.getByRole('dialog');
   await expect(pr.getByRole('button', { name: '移除关联 fixture/project#12', exact: true })).toBeVisible();
