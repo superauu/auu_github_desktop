@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
-import { issueKey, issueUrl } from './issueLogic';
+import { issueLabel, issueKey, issueUrl } from './issueLogic';
 import { useCurrentBranchIssue } from './useCurrentBranchIssue';
 
 export function CurrentBranchIssue() {
@@ -11,7 +11,7 @@ export function CurrentBranchIssue() {
   const { path, branch, reference, scope, issue, error, loading } = useCurrentBranchIssue();
   if (!reference || !path || !branch) return null;
   const sameRepo = reference.owner.toLowerCase() === scope.owner?.toLowerCase() && reference.repo.toLowerCase() === scope.repo?.toLowerCase();
-  const label = `${issueKey(reference)}${issue ? ` · ${issue.title}` : ''}`;
+  const label = `${issueLabel(reference)}${issue ? ` · ${issue.title}` : ''}`;
   return <section aria-label={t('issueFlow.currentTask')} className="flex items-center gap-2 shrink-0 min-w-0 px-3 py-1 border-b border-border bg-primary/5 text-xs" data-current-issue={issueKey(reference)}>
     <CircleDot className="h-3.5 w-3.5 shrink-0 text-git-added" /><span className="shrink-0 text-muted-foreground">{t('issueFlow.currentTask')}</span>
     {sameRepo ? <button className="truncate text-primary text-left min-w-0" title={label} onClick={() => { useIssueWorkflowStore.getState().openIssue(reference); useRepoStore.getState().setActiveTab('issues'); }}>{label}</button>

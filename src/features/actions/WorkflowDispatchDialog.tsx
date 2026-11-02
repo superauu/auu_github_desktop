@@ -1,28 +1,36 @@
+import { getHostingPlugin } from '@/services/integrations/plugins';
 import { useShallow } from 'zustand/react/shallow';
 import React, { useEffect, useState } from 'react';
 import { Play, X, Loader2 } from 'lucide-react';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { useI18n } from '@/i18n';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useRepoStore } from '@/stores/repoStore';
-import { githubService } from '@/services/github/GitHubService';
-import { parseWorkflowInputs, workflowInputValues, WorkflowInput } from '@/services/github/WorkflowInputs';
+import { collaborationService } from '@/services/collaboration/CollaborationService';
+import { workflowInputValues, WorkflowInput } from '@/services/collaboration/WorkflowInputs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+// 插件解析器抛出的 dispatch.* 是 i18n 键（测试与插件间保持机器可读），展示前翻译。
+const dispatchErrorText = (err: unknown, translate: (key: string) => string): string => {
+  const message = err instanceof Error ? err.message : String(err);
+  return /^dispatch\.(invalidDefinition|notManual|requiredInput|invalidInput)$/.test(message) ? translate(message) : message;
+};
+
 export const WorkflowDispatchDialog: React.FC = () => {
-  const { open, workflow, owner, repo } = useGitHubStore(useShallow(s => ({ open: s.isDispatchModalOpen,
+  const { open, workflow, owner, repo } = useCollaborationStore(useShallow(s => ({ open: s.isDispatchModalOpen,
     workflow: s.dispatchTargetWorkflow, owner: s.currentOwner, repo: s.currentRepoName })));
   if (!open || !workflow || !owner || !repo) return null;
   return <DispatchForm key={`${owner}/${repo}/${workflow.id}`} owner={owner} repo={repo} workflow={workflow} />;
 };
 
-function DispatchForm({ owner, repo, workflow }: { owner: string; repo: string; workflow: { id: number; name: string; path: string } }) {
+function DispatchForm({ owner, repo, workflow }: { owner: string; repo: string; workflow: { id: number | string; name: string; path: string } }) {
   const { t } = useI18n();
+  const providerId = useCollaborationStore(state => state.providerId);
   const branches = useRepoStore(s => s.branches);
-  const defaultBranch = useGitHubStore(s => s.repoDetails?.default_branch);
-  const close = useGitHubStore(s => s.closeDispatchModal);
-  const dispatch = useGitHubStore(s => s.dispatchWorkflow);
+  const defaultBranch = useCollaborationStore(s => s.repoDetails?.default_branch);
+  const close = useCollaborationStore(s => s.closeDispatchModal);
+  const dispatch = useCollaborationStore(s => s.dispatchWorkflow);
   const [targetRef, setTargetRef] = useState(() => branches.find(b => b.isCurrent && !b.isRemote)?.name || defaultBranch || 'main');
   const [inputs, setInputs] = useState<WorkflowInput[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -36,15 +44,17 @@ function DispatchForm({ owner, repo, workflow }: { owner: string; repo: string; 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(''); setLoadedRef(null); setInputs([]); setValues({});
-    void githubService.getWorkflowYaml(owner, repo, workflow.path, targetRef, controller.signal).then(yaml => {
+    void collaborationService.getWorkflowYaml(owner, repo, workflow.path, targetRef, controller.signal).then(yaml => {
       if (controller.signal.aborted) return;
-      const fields = parseWorkflowInputs(yaml.content);
+      const plugin = getHostingPlugin(providerId ?? '');
+      if (!plugin?.parseDispatchInputs) throw new Error(t('dispatch.inputsUnavailable'));
+      const fields = plugin.parseDispatchInputs(yaml.content);
       setInputs(fields); setValues(Object.fromEntries(fields.map(input => [input.name, input.defaultValue]))); setLoadedRef(targetRef);
     }).catch((err: unknown) => {
-      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
+      if (!controller.signal.aborted) setError(dispatchErrorText(err, t));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [owner, repo, workflow.path, targetRef, attempt]);
+  }, [owner, repo, workflow.path, targetRef, attempt, providerId, t]);
 
   const ready = !loading && loadedRef === targetRef;
   const submit = async (event: React.FormEvent) => {
@@ -54,7 +64,7 @@ function DispatchForm({ owner, repo, workflow }: { owner: string; repo: string; 
       const payload = workflowInputValues(inputs, values);
       setSubmitting(true); setError('');
       await dispatch(targetRef, payload);
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { setError(dispatchErrorText(err, t)); }
     finally { setSubmitting(false); }
   };
   const selectClass = 'w-full h-8 px-2.5 rounded-md text-xs bg-background border border-border';

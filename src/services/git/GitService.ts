@@ -30,8 +30,8 @@ import {
   buildHunkPatch,
   parseBlamePorcelain,
 } from './PorcelainParser';
-import { tNow } from '@/i18n';
-import { parseGitHubRemote } from './remoteIdentity';
+import { tNow, LocalizedError } from '@/i18n';
+import { selectCollaborationRemote } from '@/services/integrations/repositoryBinding';
 import { DiffCache } from './DiffCache';
 import { authorizeRepository } from '@/services/fs/RepositoryAccess';
 
@@ -68,9 +68,8 @@ export class GitService implements IGitService {
     const status = snapshot || await this.getStatus(normalizedPath);
     const name = normalizedPath.split(/[/\\]/).filter(Boolean).pop() || 'repository';
 
-    const binding = await this.getGitHubBinding(normalizedPath);
+    const binding = await this.getCollaborationBinding(normalizedPath);
     const remoteUrl = binding?.fetchUrl;
-    const identity = remoteUrl ? parseGitHubRemote(remoteUrl) : undefined;
 
     return {
       //随机 id 仅用于会话内标识；持久化层比较的是仓库路径，同毫秒打开两个仓库也不会冲突。
@@ -80,10 +79,7 @@ export class GitService implements IGitService {
       currentBranch: status.currentBranch || 'main',
       lastOpenedAt: Date.now(),
       remoteUrl,
-      isGitHubRepo: !!identity,
-      gitHubOwner: identity?.owner,
-      gitHubRepo: identity?.repo,
-      gitHubRemote: identity ? binding?.name : undefined,
+      collaborationRemote: binding ?? null,
     };
   }
 
@@ -119,24 +115,21 @@ export class GitService implements IGitService {
     catch { return undefined; }
   }
 
-  async getGitHubBinding(repoPath: string) {
-    const [remotes, configured] = await Promise.all([this.listRemotes(repoPath), this.getGitHubRemotePreference(repoPath)]);
-    if (configured && configured !== 'auto') return remotes.find(item => item.name === configured);
-    const origin = remotes.find(item => item.name === 'origin');
-    const github = remotes.filter(item => parseGitHubRemote(item.fetchUrl));
-    return origin || (github.length === 1 ? github[0] : undefined);
+  async getCollaborationBinding(repoPath: string) {
+    const [remotes, configured] = await Promise.all([this.listRemotes(repoPath), this.getCollaborationRemotePreference(repoPath)]);
+    return selectCollaborationRemote(remotes, configured);
   }
 
-  async getGitHubRemotePreference(repoPath: string): Promise<string> {
-    return await this.configValue(repoPath, 'auugit.githubRemote') || 'auto';
+  async getCollaborationRemotePreference(repoPath: string): Promise<string> {
+    return await this.configValue(repoPath, 'auugit.collaborationRemote')
+      || await this.configValue(repoPath, 'auugit.githubRemote') || 'auto';
   }
 
-  async setGitHubRemote(repoPath: string, remote: string): Promise<void> {
-    if (remote !== 'auto') {
-      const selected = (await this.listRemotes(repoPath)).find(item => item.name === remote);
-      if (!selected || !parseGitHubRemote(selected.fetchUrl)) throw new Error(tNow('remote.invalid'));
+  async setCollaborationRemote(repoPath: string, remote: string): Promise<void> {
+    if (remote !== 'auto' && !(await this.listRemotes(repoPath)).some(item => item.name === remote)) {
+      throw new Error(tNow('remote.invalid'));
     }
-    await executeGit(['config', '--local', 'auugit.githubRemote', remote], repoPath);
+    await executeGit(['config', '--local', 'auugit.collaborationRemote', remote], repoPath);
   }
 
   async getBranches(repoPath: string): Promise<GitBranch[]> {
@@ -850,17 +843,19 @@ export class GitService implements IGitService {
   async fetchAndCheckoutPR(
     repoPath: string,
     prNumber: number,
-    customBranchName?: string
+    customBranchName?: string,
+    pullRef?: string
   ): Promise<string> {
     const targetBranch = customBranchName || `pr-${prNumber}`;
     if (!Number.isInteger(prNumber) || prNumber <= 0) throw new Error('Invalid pull request number');
     await executeGit(['check-ref-format', '--branch', targetBranch], repoPath);
-    const binding = await this.getGitHubBinding(repoPath);
+    const binding = await this.getCollaborationBinding(repoPath);
     if (!binding) throw new Error(tNow('remote.choose'));
     // The fetch and the switch below must not be interleaved with any other
     // queued write (e.g. a poller's `fetch --all` overwriting FETCH_HEAD).
     await executeGitTransaction(repoPath, async git => {
-      await git(['fetch', binding.name, `refs/pull/${prNumber}/head`]);
+      if (!pullRef || !/^refs\/[a-zA-Z0-9_./-]+$/.test(pullRef)) throw new LocalizedError('connections.errors.checkoutRefRequired');
+      await git(['fetch', binding.name, pullRef]);
       const exists = await git(['show-ref', '--verify', '--quiet', `refs/heads/${targetBranch}`])
         .then(() => true, () => false);
       if (exists) {

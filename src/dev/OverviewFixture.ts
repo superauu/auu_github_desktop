@@ -1,7 +1,7 @@
 import { overviewService, OverviewPermissionError } from '@/features/repository/OverviewService';
 import { useRepoStore } from '@/stores/repoStore';
 import { useToastStore } from '@/stores/toastStore';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import type { RepositoryInfo, GitStatusResult } from '@/services/git/types';
 
 export function prepareOverviewFixture(repo: RepositoryInfo) {
@@ -39,8 +39,8 @@ export function prepareOverviewFixture(repo: RepositoryInfo) {
   };
   document.documentElement.dataset.overviewFixtureOldCi = '0';
   if (params.has('overviewAccount')) {
-    useGitHubStore.setState({ activeProfileId: 'overview-old', token: 'fixture-old', isAuthenticated: true });
-    window.addEventListener('overview-fixture-account', () => useGitHubStore.setState({ activeProfileId: 'overview-new', token: 'fixture-new', isAuthenticated: true }));
+    useCollaborationStore.setState({ activeProfileId: 'overview-old', token: 'fixture-old', isAuthenticated: true });
+    window.addEventListener('overview-fixture-account', () => useCollaborationStore.setState({ activeProfileId: 'overview-new', token: 'fixture-new', isAuthenticated: true }));
   }
   overviewService.ci = async (item, _status, token) => {
     if (params.has('overviewSingle')) return { state: 'auth' };

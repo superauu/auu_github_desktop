@@ -1,5 +1,7 @@
 # Errors（错误追踪集成）需求文档
 
+域基础设施的后续实现见 [外部系统完全插件化实施计划](github-domain-migration-plan.md)：GitHub、GitLab、Gitea 与 Sentry 均通过可选插件装配，公共注册与生命周期位于 `services/integrations`，域视图不依赖具体平台；`services/errors/types.ts` 保留兼容导出。下文的预留域描述是错误追踪初期范围，当前跨域实现以该计划为准。
+
 | 项 | 内容 |
 |---|---|
 | 文档版本 | v2.1 |

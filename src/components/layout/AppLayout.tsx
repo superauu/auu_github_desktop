@@ -23,7 +23,6 @@ import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useErrorsStore } from '@/stores/errorsStore';
-import { useForgeStore } from '@/stores/forgeStore';
 import { checkForUpdates } from '@/services/updater/UpdateService';
 import { createExternalChangePoller } from '@/services/git/ExternalChangePoller';
 import { getPendingGitWrites } from '@/services/git/GitQueue';
@@ -38,7 +37,7 @@ import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 // UpdateDialog 需启动即自动检查更新，不能延迟挂载。
 const SettingsDialog = lazy(() => import('@/components/settings/SettingsDialog').then(m => ({ default: m.SettingsDialog })));
 const RepositoryDialog = lazy(() => import('@/features/repository/RepositoryDialog').then(m => ({ default: m.RepositoryDialog })));
-const GitHubAuthDialog = lazy(() => import('@/components/github/GitHubAuthDialog').then(m => ({ default: m.GitHubAuthDialog })));
+const ConnectionDialog = lazy(() => import('@/components/integrations/ConnectionDialog').then(m => ({ default: m.ConnectionDialog })));
 const OperationHistoryDialog = lazy(() => import('./OperationHistoryDialog').then(m => ({ default: m.OperationHistoryDialog })));
 const RecoveryCenterDialog = lazy(() => import('@/features/git/RecoveryCenterDialog').then(m => ({ default: m.RecoveryCenterDialog })));
 
@@ -46,13 +45,13 @@ export const AppLayout: React.FC = () => {
   const windowChrome = useWindowChrome();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git' | 'github' | 'integrations'>('appearance');
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git' | 'accounts' | 'integrations'>('appearance');
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { navigationOverlay, inspectorOverlay, panels } = useWorkspaceLayout();
   const [repoDialogOpen, setRepoDialogOpen] = useState(false);
   const [repoDialogMode, setRepoDialogMode] = useState<'open' | 'clone' | 'init'>('open');
-  const [githubAuthOpen, setGithubAuthOpen] = useState(false);
+  const [connectionOpen, setConnectionOpen] = useState(false);
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [recoveryPath, setRecoveryPath] = useState<string | null>(null);
@@ -106,11 +105,6 @@ export const AppLayout: React.FC = () => {
       .then((origin) => {
         if (!cancelled) useErrorsStore.getState().loadRepoContext(origin ?? null, currentRepoPath);
       });
-    // forge 识别（GitLab/Gitea origin）与合并请求徽标同样随仓库切换重算
-    void (async () => {
-      await useForgeStore.getState().detect(currentRepoPath);
-      if (!cancelled && useForgeStore.getState().detection) void useForgeStore.getState().loadPulls();
-    })();
     return () => {
       cancelled = true;
     };
@@ -267,9 +261,9 @@ export const AppLayout: React.FC = () => {
           onToggleInspector={() => inspectorOverlay ? setInspectorOpen(!inspectorOpen) : toggleRightPane()}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
-          onOpenAccountSettings={() => { setSettingsTab('github'); setSettingsOpen(true); }}
+          onOpenAccountSettings={() => { setSettingsTab('accounts'); setSettingsOpen(true); }}
           onOpenRepoDialog={() => handleOpenRepoDialog('open')}
-          onOpenGitHubAuth={() => setGithubAuthOpen(true)}
+          onOpenConnection={() => setConnectionOpen(true)}
         />
       </ErrorBoundary>
       <CurrentBranchIssue />
@@ -297,7 +291,7 @@ export const AppLayout: React.FC = () => {
           onOpenRepoDialog={() => handleOpenRepoDialog('open')}
           onCloneRepoDialog={() => handleOpenRepoDialog('clone')}
           onInitRepoDialog={() => handleOpenRepoDialog('init')}
-          onOpenGitHubAuth={() => setGithubAuthOpen(true)}
+          onOpenConnection={() => setConnectionOpen(true)}
         />
         {!inspectorOverlay && !isRightPaneCollapsed && ['changes', 'history'].includes(activeTab) && currentRepo && (
             <ResizeHandle
@@ -335,7 +329,7 @@ export const AppLayout: React.FC = () => {
         onOpenChange={setCommandPaletteOpen}
         onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
         onOpenRepoDialog={() => handleOpenRepoDialog('open')}
-        onOpenGitHubAuth={() => setGithubAuthOpen(true)}
+        onOpenConnection={() => setConnectionOpen(true)}
       />
 
       {settingsOpen && (
@@ -344,7 +338,7 @@ export const AppLayout: React.FC = () => {
             initialTab={settingsTab}
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
-            onOpenGitHubAuth={() => setGithubAuthOpen(true)}
+            onOpenConnection={() => setConnectionOpen(true)}
           />
         </Suspense></ErrorBoundary>
       )}
@@ -359,11 +353,11 @@ export const AppLayout: React.FC = () => {
         </Suspense></ErrorBoundary>
       )}
 
-      {githubAuthOpen && (
+      {connectionOpen && (
         <ErrorBoundary><Suspense fallback={null}>
-          <GitHubAuthDialog
-            open={githubAuthOpen}
-            onOpenChange={setGithubAuthOpen}
+          <ConnectionDialog
+            open={connectionOpen}
+            onOpenChange={setConnectionOpen}
           />
         </Suspense></ErrorBoundary>
       )}

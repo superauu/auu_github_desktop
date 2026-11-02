@@ -21,6 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:release
+      - run: npm run check:plugins
       - run: npm run lint
       - run: npm test
       - run: npm run build
@@ -36,6 +37,33 @@ jobs:
         run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Test desktop backend
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Test desktop backend without GitHub
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --no-default-features
+      - name: Lint desktop backend without GitHub
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --no-default-features --all-targets -- -D warnings
+      - name: Build GitLab-only frontend
+        run: npm run build
+        env:
+          AUUGIT_PLUGINS: gitlab
+      - name: Build local-only frontend
+        run: npm run build
+        env:
+          AUUGIT_PLUGINS: none
+      # 文档验证记录声称的「GitLab-only Windows 桌面构建」进 CI：仅装配 GitLab + 排除 GitHub 原生模块。
+      - name: Build GitLab-only desktop executable
+        run: node node_modules/@tauri-apps/cli/tauri.js build --debug --no-bundle --ci -- --no-default-features
+        env:
+          AUUGIT_PLUGINS: gitlab
+      - name: Exercise native provider IPC and isolated credential storage
+        run: npm run test:integrations:native
+      - name: Upload native smoke evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: integration-smoke-windows
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
   frontend:
     name: Frontend cross-platform checks
     runs-on: ubuntu-latest
@@ -61,7 +89,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install chromium
+      # 固定非默认端口，避开 Windows runner 上 Hyper-V/WinNAT 的保留端口段（本机已在 5173 段翻过车）。
       - run: npm run test:visual
+        env:
+          VISUAL_PORT: '9179'
       - name: Upload visual failure evidence
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

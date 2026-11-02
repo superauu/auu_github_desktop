@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import { getErrorPlugin, subscribePlugins } from '@/services/integrations/plugins';
 import { deleteIntegrationToken, getIntegrationToken, storeIntegrationToken } from '@/services/errors/credentials';
 import { createProviderClient, ProviderRequestError, type ExternalOrg, type ExternalProject } from '@/services/errors/providerService';
 import { computeRepoKey } from '@/services/errors/repoIdentity';
 import { buildCommitTrailer } from '@/services/errors/fixFlow';
-import { getProviderManifest } from '@/services/errors/types';
-import type { ConnectionHealth, DomainId, IssueGitLink, IssuePullRequestRef, ProjectMapping, ProviderConnection, UnifiedErrorIssue } from '@/services/errors/types';
+import { getProviderManifest } from '@/services/integrations/registry';
+import type { ConnectionHealth, DomainId, ProviderConnection } from '@/services/integrations/registry';
+import type { IssueGitLink, IssuePullRequestRef, ProjectMapping, UnifiedErrorIssue } from '@/services/errors/types';
 import type { ErrorsScope } from '@/services/errors/issueQuery';
 
 /**
@@ -367,7 +369,7 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
     const syncErrors: Record<string, string> = {};
     await Promise.all(
       get()
-        .connections.filter((connection) => connection.enabled)
+        .connections.filter((connection) => connection.enabled && getErrorPlugin(connection.providerId))
         .map(async (connection) => {
           try {
             // 该连接在所有仓库的映射项目并集：一次拉取，作用域在查询层过滤（§7.2）
@@ -404,7 +406,7 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
 
   async loadMore() {
     if (get().syncing) return;
-    const pending = get().connections.filter((connection) => connection.enabled && get().nextCursors[connection.id]);
+    const pending = get().connections.filter((connection) => connection.enabled && getErrorPlugin(connection.providerId) && get().nextCursors[connection.id]);
     if (!pending.length) return;
     set({ syncing: true });
     const collected: UnifiedErrorIssue[] = [];
@@ -593,6 +595,10 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
   },
 
   domainConnections(domain) {
-    return get().connections.map(({ enabled, domains }) => ({ enabled, domains })).filter(({ domains }) => domains.includes(domain));
+    return get().connections.map(({ enabled, domains, providerId }) => ({ enabled: enabled && !!getErrorPlugin(providerId), domains })).filter(({ domains }) => domains.includes(domain));
   },
 }));
+
+subscribePlugins(() => {
+  useErrorsStore.setState(state => ({ connections: [...state.connections] }));
+});

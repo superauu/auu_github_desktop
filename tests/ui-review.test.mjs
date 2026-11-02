@@ -1,4 +1,4 @@
-import { before, after, test } from 'node:test';
+import { before, after, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,7 +17,7 @@ const pr = (id, title) => ({ id, number: id, title, state: 'open', head: { ref: 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ui-review-'));
   const bundle = path.join(tmp, 'review.cjs');
-  await build({ stdin: { contents: `export { ErrorNotice } from './src/components/ui/ErrorNotice'; export { useWindowChrome } from './src/hooks/useWindowChrome'; export { WindowControls } from './src/components/layout/WindowControls'; export { StatusBar } from './src/components/layout/StatusBar'; export { useToastStore } from './src/stores/toastStore'; export { RightPane } from './src/components/layout/RightPane'; export { LeftSidebar } from './src/components/layout/LeftSidebar'; export { EmbeddedTerminalPanel } from './src/components/layout/EmbeddedTerminalPanel'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useGitHubStore } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
+  await build({ stdin: { contents: `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; export { ErrorNotice } from './src/components/ui/ErrorNotice'; export { useWindowChrome } from './src/hooks/useWindowChrome'; export { WindowControls } from './src/components/layout/WindowControls'; export { StatusBar } from './src/components/layout/StatusBar'; export { useToastStore } from './src/stores/toastStore'; export { RightPane } from './src/components/layout/RightPane'; export { LeftSidebar } from './src/components/layout/LeftSidebar'; export { EmbeddedTerminalPanel } from './src/components/layout/EmbeddedTerminalPanel'; export * from './src/utils/workflowStatus'; export * from './src/utils/errorGuidance'; export * from './src/utils/keyboardNavigation'; export * from './src/hooks/useWorkspaceLayout'; export * from './src/stores/layoutStore'; export { useIntegrationStore } from './src/stores/integrationStore'; export { PullRequestsView } from './src/features/pr/PullRequestsView'; export { useCollaborationStore } from './src/stores/collaborationStore'; export { collaborationService } from './src/services/collaboration/CollaborationService'; export { useRepoStore } from './src/stores/repoStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-surfaces', setup(build) {
     build.onResolve({ filter: /^@tauri-apps\/api\/window$/ }, () => ({ path: 'window', namespace: 'test-window' }));
     build.onLoad({ filter: /.*/, namespace: 'test-window' }, () => ({ contents: 'export const getCurrentWindow = () => globalThis.__nativeWindow;' }));
     build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' }));
@@ -26,15 +26,15 @@ before(async () => {
   app = createRequire(import.meta.url)(bundle);
 });
 after(async () => {
-  app?.useGitHubStore.getState().clearRepo(); delete globalThis.window;
+  app?.useCollaborationStore.getState().clearRepo(); delete globalThis.window;
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-ui-review-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 });
 });
 
 test('PR requests keep the newest loading state and isolate failures from Actions', async () => {
-  const store = app.useGitHubStore, original = app.githubService.getPullRequests;
+  const store = app.useCollaborationStore, original = app.collaborationService.getPullRequests;
   const first = deferred(), second = deferred(); let calls = 0;
   store.getState().clearRepo(); store.setState({ currentOwner: 'team', currentRepoName: 'repo', error: 'actions error' });
-  app.githubService.getPullRequests = () => ++calls === 1 ? first.promise : second.promise;
+  app.collaborationService.getPullRequests = () => ++calls === 1 ? first.promise : second.promise;
   try {
     const a = store.getState().loadPullRequests();
     assert.equal(store.getState().isLoadingPullRequests, true);
@@ -46,18 +46,18 @@ test('PR requests keep the newest loading state and isolate failures from Action
     assert.equal(store.getState().isLoadingPullRequests, false);
     assert.equal(store.getState().pullRequestsError, 'HTTP 503');
     assert.equal(store.getState().error, 'actions error');
-    app.githubService.getPullRequests = async () => [pr(2, 'Fresh')];
+    app.collaborationService.getPullRequests = async () => [pr(2, 'Fresh')];
     const c = store.getState().loadPullRequests();
     assert.equal(store.getState().pullRequestsError, null); await c;
     assert.equal(store.getState().selectedPR.id, 2);
-  } finally { app.githubService.getPullRequests = original; store.getState().clearRepo(); }
+  } finally { app.collaborationService.getPullRequests = original; store.getState().clearRepo(); }
 });
 
 test('changing PR status while loading rejects stale results and repository switches clear loading', async () => {
-  const store = app.useGitHubStore, original = app.githubService.getPullRequests;
+  const store = app.useCollaborationStore, original = app.collaborationService.getPullRequests;
   const pending = [deferred(), deferred()]; let calls = 0;
   store.setState({ currentOwner: 'team', currentRepoName: 'repo', prFilterState: 'open' });
-  app.githubService.getPullRequests = () => pending[calls++].promise;
+  app.collaborationService.getPullRequests = () => pending[calls++].promise;
   try {
     const first = store.getState().loadPullRequests(); store.getState().setPRFilterState('closed');
     pending[0].resolve([pr(1, 'Open')]); await first;
@@ -67,13 +67,14 @@ test('changing PR status while loading rejects stale results and repository swit
     await new Promise(setImmediate);
     assert.equal(store.getState().isLoadingPullRequests, false);
     assert.deepEqual(store.getState().pullRequests, []);
-  } finally { app.githubService.getPullRequests = original; store.getState().clearRepo(); }
+  } finally { app.collaborationService.getPullRequests = original; store.getState().clearRepo(); }
 });
 
 test('PR search selects details from visible results and removes stale management actions on no match', async () => {
-  const store = app.useGitHubStore, first = pr(1, 'First change'), second = pr(2, 'Second change');
-  const originalReviews = app.githubService.getPullRequestReviews, originalChecks = app.githubService.getCommitChecks;
-  app.githubService.getPullRequestReviews = async () => []; app.githubService.getCommitChecks = async () => [];
+  app.useIntegrationStore.getState().setContext('/repo', { providerId: 'github' });
+  const store = app.useCollaborationStore, first = pr(1, 'First change'), second = pr(2, 'Second change');
+  const originalReviews = app.collaborationService.getPullRequestReviews, originalChecks = app.collaborationService.getCommitChecks;
+  app.collaborationService.getPullRequestReviews = async () => []; app.collaborationService.getCommitChecks = async () => [];
   store.setState({ currentOwner: 'team', currentRepoName: 'repo', pullRequests: [first, second], selectedPR: first, prFilterState: 'open' });
   let renderer;
   try {
@@ -86,11 +87,12 @@ test('PR search selects details from visible results and removes stale managemen
     assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /Second change/);
     assert.equal(renderer.root.findAllByType('select').length, 0, 'merge controls must disappear with stale details');
     assert.equal(store.getState().selectedPR.id, 1, 'search must not mutate stored selection');
-  } finally { await act(async () => renderer?.unmount()); app.githubService.getPullRequestReviews = originalReviews; app.githubService.getCommitChecks = originalChecks; store.getState().clearRepo(); }
+  } finally { await act(async () => renderer?.unmount()); app.collaborationService.getPullRequestReviews = originalReviews; app.collaborationService.getCommitChecks = originalChecks; store.getState().clearRepo(); }
 });
 
 test('PR loading does not render an empty result and refresh cannot be submitted repeatedly', async () => {
-  const store = app.useGitHubStore; store.setState({ currentOwner: 'team', currentRepoName: 'repo', pullRequests: [], selectedPR: null, isLoadingPullRequests: true });
+  app.useIntegrationStore.getState().setContext('/repo', { providerId: 'github' });
+  const store = app.useCollaborationStore; store.setState({ currentOwner: 'team', currentRepoName: 'repo', pullRequests: [], selectedPR: null, isLoadingPullRequests: true });
   let renderer;
   try {
     await act(async () => { renderer = create(React.createElement(app.PullRequestsView)); });
@@ -226,11 +228,11 @@ test('Git diagnostics identify recoverable causes without recommending destructi
 });
 
 test('workflow loading finishes before jobs and an older job response cannot end a newer loading state', async () => {
-  const store = app.useGitHubStore, originalRuns = app.githubService.getWorkflowRuns, originalJobs = app.githubService.getRunJobs;
+  const store = app.useCollaborationStore, originalRuns = app.collaborationService.getWorkflowRuns, originalJobs = app.collaborationService.getRunJobs;
   const oldJobs = deferred(), newJobs = deferred(); let calls = 0;
   store.getState().clearRepo(); store.setState({ currentOwner: 'team', currentRepoName: 'repo' });
-  app.githubService.getWorkflowRuns = async () => [{ id: 1 }];
-  app.githubService.getRunJobs = () => ++calls === 1 ? oldJobs.promise : newJobs.promise;
+  app.collaborationService.getWorkflowRuns = async () => [{ id: 1 }];
+  app.collaborationService.getRunJobs = () => ++calls === 1 ? oldJobs.promise : newJobs.promise;
   try {
     const first = store.getState().selectWorkflow({ id: 1 });
     await new Promise(setImmediate);
@@ -240,7 +242,7 @@ test('workflow loading finishes before jobs and an older job response cannot end
     assert.equal(store.getState().isLoadingJobs, true); assert.deepEqual(store.getState().selectedRunJobs, []);
     newJobs.resolve([{ id: 'new' }]); await second;
     assert.equal(store.getState().isLoadingJobs, false); assert.equal(store.getState().selectedRunJobs[0].id, 'new');
-  } finally { app.githubService.getWorkflowRuns = originalRuns; app.githubService.getRunJobs = originalJobs; store.getState().clearRepo(); }
+  } finally { app.collaborationService.getWorkflowRuns = originalRuns; app.collaborationService.getRunJobs = originalJobs; store.getState().clearRepo(); }
 });
 
 
@@ -368,3 +370,5 @@ test('titlebar drag ignores interactive controls and right clicks, and supports 
     assert.equal(toggled, 1);
   } finally { await act(async () => renderer?.unmount()); delete globalThis.window; delete globalThis.__nativeWindow; }
 });
+
+beforeEach(() => { app.bindFixtureClient(new app.FixtureGitHubClient()); });

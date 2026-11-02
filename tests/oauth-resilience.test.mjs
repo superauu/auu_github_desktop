@@ -1,4 +1,4 @@
-import { test, before, after } from 'node:test';
+import { test, before, after , beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +14,7 @@ before(async () => {
   const bundle = path.join(tmp, 'oauth.cjs');
   await build({
     stdin: {
-      contents: `export { gitHubOAuthService } from './src/services/github/GitHubOAuthService'; export { githubService } from './src/services/github/GitHubService'; export * from './src/services/git/remoteIdentity';`,
+      contents: `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; export { gitHubOAuthService } from './src/plugins/github/oauth'; export { collaborationService } from './src/services/collaboration/CollaborationService'; export * from './src/plugins/github/remoteIdentity';`,
       resolveDir: root,
     },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
@@ -173,16 +173,16 @@ test('every GitHub API request carries a 20s timeout signal', async () => {
     return new Response(JSON.stringify({ id: 1, default_branch: 'main' }));
   };
   try {
-    await app.githubService.verifyToken('tok');
-    await app.githubService.getRepository('o', 'r');
-    await app.githubService.getPullRequests('o', 'r', 'all');
-    await app.githubService.createPullRequest('o', 'r', { title: 't', head: 'h', base: 'b' });
-    await app.githubService.mergePullRequest('o', 'r', 1);
-    await app.githubService.updatePullRequestState('o', 'r', 1, 'closed');
-    await app.githubService.dispatchWorkflow('o', 'r', 1, { ref: 'main' });
-    await app.githubService.rerunWorkflow('o', 'r', 1);
-    await app.githubService.cancelWorkflowRun('o', 'r', 1);
-    await app.githubService.getJobLogs('o', 'r', 1);
+    await app.collaborationService.verifyToken('tok');
+    await app.collaborationService.getRepository('o', 'r');
+    await app.collaborationService.getPullRequests('o', 'r', 'all');
+    await app.collaborationService.createPullRequest('o', 'r', { title: 't', head: 'h', base: 'b' });
+    await app.collaborationService.mergePullRequest('o', 'r', 1);
+    await app.collaborationService.updatePullRequestState('o', 'r', 1, 'closed');
+    await app.collaborationService.dispatchWorkflow('o', 'r', 1, { ref: 'main' });
+    await app.collaborationService.rerunWorkflow('o', 'r', 1);
+    await app.collaborationService.cancelWorkflowRun('o', 'r', 1);
+    await app.collaborationService.getJobLogs('o', 'r', 1);
     assert.equal(captured.length, 10);
     for (const entry of captured) {
       assert.ok(entry.signal instanceof AbortSignal, `timeout signal missing on ${entry.url}`);
@@ -199,11 +199,11 @@ test('pagination stops at the page cap and callers may adjust it', async () => {
     return new Response(JSON.stringify([{ n: page }]), { headers: { link: `<https://api.github.com/repos/o/r/pulls?state=all&per_page=100&page=${page + 1}>; rel="next"` } });
   };
   try {
-    const adjusted = await app.githubService.getPullRequests('o', 'r', 'all', 3);
+    const adjusted = await app.collaborationService.getPullRequests('o', 'r', 'all', 3);
     assert.equal(fetched.length, 3);
     assert.equal(adjusted.length, 3);
     fetched.length = 0;
-    const limited = await app.githubService.getPullRequests('o', 'r', 'all');
+    const limited = await app.collaborationService.getPullRequests('o', 'r', 'all');
     assert.equal(fetched.length, 10);
     assert.equal(limited.length, 10);
   } finally { globalThis.fetch = originalFetch; }
@@ -236,3 +236,5 @@ test('remote identity recognizes https, ssh, git protocol and scp-style GitHub U
     '',
   ]) assert.equal(app.parseGitHubRemote(url), undefined, url);
 });
+
+beforeEach(() => { app.bindFixtureClient(new app.FixtureGitHubClient()); });

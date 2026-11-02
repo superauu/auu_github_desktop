@@ -1,7 +1,10 @@
+import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { getHostingPlugin } from '@/services/integrations/plugins';
+import { openExternalUrl } from '@/utils/openExternal';
 import { useShallow } from 'zustand/react/shallow';
 import { RelatedIssues } from '@/features/issues/RelatedIssues';
 import { refreshLinkedIssues } from '@/features/issues/refreshLinkedIssues';
-import { useGitHubScope } from '@/features/issues/useGitHubScope';
+import { useCollaborationScope } from '@/features/issues/useCollaborationScope';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -21,12 +24,11 @@ import {
   GitMerge,
   XCircle,
 } from 'lucide-react';
-import { useGitHubStore } from '@/stores/githubStore';
-import { ForgeView } from '@/features/forge/ForgeView';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
-import { githubService } from '@/services/github/GitHubService';
-import type { GitHubPullRequest } from '@/services/github/types';
+import { collaborationService } from '@/services/collaboration/CollaborationService';
+import type { CollaborationPullRequest } from '@/services/collaboration/types';
 import { CreatePullRequestModal } from './CreatePullRequestModal';
 import { PullRequestDetailModal } from './PullRequestDetailModal';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
@@ -43,6 +45,9 @@ import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { htmlToPlainText } from '@/utils/htmlText';
 
 export const PullRequestsView: React.FC = () => {
+  const providerId = useCollaborationStore(state => state.providerId);
+  const { can } = useCollaborationCapabilities();
+  const mergeMethods = getHostingPlugin(providerId ?? '')?.mergeMethods ?? [];
   const { prListWidth, setPrListWidth } = useLayoutStore(useShallow(state => ({ prListWidth: state.prListWidth, setPrListWidth: state.setPrListWidth })));
   const {
     pullRequests,
@@ -55,11 +60,11 @@ export const PullRequestsView: React.FC = () => {
     currentRepoName,
     isLoadingPullRequests,
     pullRequestsError,
-  } = useGitHubStore(useShallow(state => ({ pullRequests: state.pullRequests, selectedPR: state.selectedPR, selectPR: state.selectPR, prFilterState: state.prFilterState, setPRFilterState: state.setPRFilterState, loadPullRequests: state.loadPullRequests, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isLoadingPullRequests: state.isLoadingPullRequests, pullRequestsError: state.pullRequestsError })));
+  } = useCollaborationStore(useShallow(state => ({ pullRequests: state.pullRequests, selectedPR: state.selectedPR, selectPR: state.selectPR, prFilterState: state.prFilterState, setPRFilterState: state.setPRFilterState, loadPullRequests: state.loadPullRequests, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isLoadingPullRequests: state.isLoadingPullRequests, pullRequestsError: state.pullRequestsError })));
 
   const { fetchAndCheckoutPR } = useRepoStore(useShallow(state => ({ fetchAndCheckoutPR: state.fetchAndCheckoutPR })));
   const { t } = useI18n();
-  const githubScope = useGitHubScope();
+  const collaborationScope = useCollaborationScope();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -69,7 +74,7 @@ export const PullRequestsView: React.FC = () => {
   const [mergeMethod, setMergeMethod] = useState<'merge' | 'squash' | 'rebase'>('merge');
   const [isMerging, setIsMerging] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [reviewPR, setReviewPR] = useState<GitHubPullRequest | null>(null);
+  const [reviewPR, setReviewPR] = useState<CollaborationPullRequest | null>(null);
 
   const filteredPRs = useMemo(() => {
     return pullRequests.filter((pr) => {
@@ -96,7 +101,7 @@ export const PullRequestsView: React.FC = () => {
     let cancelled = false;
     setRealReviewStatus('PENDING'); setRealChecks(null);
     if (activePRNumber !== undefined && activePRHead && currentOwner && currentRepoName) {
-      void githubService.getPullRequestReviews(currentOwner, currentRepoName, activePRNumber).then((reviews) => {
+      void collaborationService.getPullRequestReviews(currentOwner, currentRepoName, activePRNumber).then((reviews) => {
         if (cancelled) return;
         const latest = new Map<string, string>();
         for (const review of [...reviews].sort((a, b) => a.id - b.id)) {
@@ -105,7 +110,7 @@ export const PullRequestsView: React.FC = () => {
         const states = [...latest.values()];
         setRealReviewStatus(states.includes('CHANGES_REQUESTED') ? 'CHANGES_REQUESTED' : states.includes('APPROVED') ? 'APPROVED' : 'PENDING');
       }).catch(() => { if (!cancelled) setRealReviewStatus('PENDING'); });
-      void githubService.getCommitChecks(currentOwner, currentRepoName, activePRHead).then((checks) => {
+      void collaborationService.getCommitChecks(currentOwner, currentRepoName, activePRHead).then((checks) => {
         if (cancelled) return;
         setRealChecks({ total: checks.length, success: checks.filter((check) => check.conclusion === 'success').length,
           failure: checks.filter((check) => check.status === 'completed' && check.conclusion !== 'success' && check.conclusion !== 'neutral').length });
@@ -134,14 +139,14 @@ export const PullRequestsView: React.FC = () => {
   const handleMergePR = async () => {
     if (!activePR || !currentOwner || !currentRepoName) return;
     const path = useRepoStore.getState().currentRepo?.path;
-    const valid = () => githubScope.isCurrent() && useRepoStore.getState().currentRepo?.path === path;
+    const valid = () => collaborationScope.isCurrent() && useRepoStore.getState().currentRepo?.path === path;
     if (!await confirmAction({ title: t('composer.mergePr'), description: t('pr.mergeConfirm').replace('{n}', String(activePR.number)).replace('{base}', activePR.base.ref), detail: activePR.title })) {
       return;
     }
     if (!valid()) return;
     setIsMerging(true);
     try {
-      const result = await githubService.mergePullRequest(currentOwner, currentRepoName, activePR.number, {
+      const result = await collaborationService.mergePullRequest(currentOwner, currentRepoName, activePR.number, {
         mergeMethod,
         expectedHeadSha: activePR.head.sha,
       });
@@ -162,26 +167,25 @@ export const PullRequestsView: React.FC = () => {
 
   const handleClosePR = async () => {
     if (!activePR || !currentOwner || !currentRepoName) return;
+    // 与 handleMergePR 同等的上下文守卫：确认期间切换仓库/账号时不得落写到新上下文。
+    const path = useRepoStore.getState().currentRepo?.path;
+    const valid = () => collaborationScope.isCurrent() && useRepoStore.getState().currentRepo?.path === path;
     if (!await confirmAction({ title: t('composer.closePr'), description: t('pr.closeConfirm').replace('{n}', String(activePR.number)), detail: activePR.title, danger: false })) return;
+    if (!valid()) return;
     setIsClosing(true);
     try {
-      await githubService.updatePullRequestState(currentOwner, currentRepoName, activePR.number, 'closed');
+      await collaborationService.updatePullRequestState(currentOwner, currentRepoName, activePR.number, 'closed');
+      if (!valid()) return;
       toast.success(t('pr.closed').replace('{n}', String(activePR.number)));
       await loadPullRequests();
     } catch (err: any) {
-      toast.error(t('pr.closeFailed'), err?.message);
+      if (valid()) toast.error(t('pr.closeFailed'), err?.message);
     } finally {
-      setIsClosing(false);
+      if (valid()) setIsClosing(false);
     }
   };
 
   const canManagePR = Boolean(currentOwner && currentRepoName && activePR && activePR.state === 'open');
-
-  // 非 GitHub 仓库：本页即代码托管域表面——GitLab/Gitea 的合并请求由 ForgeView 承载
-  //（含未连接引导），GitHub 仓库维持既有深度界面不动。
-  if (!(currentOwner && currentRepoName)) {
-    return <ForgeView />;
-  }
 
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
@@ -191,7 +195,7 @@ export const PullRequestsView: React.FC = () => {
           <Button variant="ghost" size="icon-sm" onClick={() => loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" title={t('pr.refreshTitle')}>
             <RotateCw className={cn('h-3.5 w-3.5', isLoadingPullRequests && 'animate-spin')} />
           </Button>
-          <Button size="toolbar" onClick={() => setCreatePROpen(true)} disabled={!currentOwner || !currentRepoName} title={currentOwner ? t('pr.createTitle') : t('pr.needLogin')}>
+          <Button size="toolbar" onClick={() => setCreatePROpen(true)} disabled={!currentOwner || !currentRepoName || !can('code-hosting:create-pull-request')} title={!can('code-hosting:create-pull-request') ? t('connections.unavailableCapability') : currentOwner ? t('pr.createTitle') : t('pr.needLogin')}>
             <Plus className="h-3.5 w-3.5" />
             <span>{t('pr.newPR')}</span>
           </Button>
@@ -350,9 +354,9 @@ export const PullRequestsView: React.FC = () => {
                         <Button
                           variant="outline"
                           size="xs"
-                          onClick={(event) => { event.stopPropagation(); setReviewPR(pr); }}
+                          disabled={!can('code-hosting:review-pull-request')} onClick={(event) => { event.stopPropagation(); setReviewPR(pr); }}
                           aria-label={t('prReview.openAria').replace('{n}', String(pr.number))}
-                          title={t('prReview.openTitle').replace('{n}', String(pr.number))}
+                          title={!can('code-hosting:review-pull-request') ? t('connections.unavailableCapability') : t('prReview.openTitle').replace('{n}', String(pr.number))}
                           className="ml-auto h-5 px-1.5 text-[10px] gap-1 shrink-0"
                         >
                           <MessageSquare className="h-2.5 w-2.5" />
@@ -429,7 +433,7 @@ export const PullRequestsView: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="toolbar"
-                    onClick={() => window.open(activePR.html_url, '_blank')}
+                    onClick={() => void openExternalUrl(activePR.html_url)}
                     className="gap-1 text-muted-foreground hover:text-foreground"
                     title={t('pr.openInBrowser')}
                   >
@@ -447,18 +451,16 @@ export const PullRequestsView: React.FC = () => {
                         title={t('pr.mergeMethod')}
                         aria-label={t('pr.mergeMethod')}
                       >
-                        <option value="merge">{t('pr.mergeMethod.merge')}</option>
-                        <option value="squash">{t('pr.mergeMethod.squash')}</option>
-                        <option value="rebase">{t('pr.mergeMethod.rebase')}</option>
+                        {mergeMethods.map(method => <option key={method} value={method}>{t(`pr.mergeMethod.${method}`)}</option>)}
                       </select>
 
                       <Button
                         variant="default"
                         size="toolbar"
                         onClick={handleMergePR}
-                        disabled={isMerging}
+                        disabled={isMerging || !can('code-hosting:merge-pull-request')}
                         className="gap-1.5"
-                        title={t('pr.mergeTitle').replace('{n}', String(activePR.number))}
+                        title={!can('code-hosting:merge-pull-request') ? t('connections.unavailableCapability') : t('pr.mergeTitle').replace('{n}', String(activePR.number))}
                       >
                         <GitMerge className="h-3.5 w-3.5" />
                         <span>{isMerging ? t('pr.merging') : t('pr.merge')}</span>
@@ -468,9 +470,9 @@ export const PullRequestsView: React.FC = () => {
                         variant="ghost"
                         size="toolbar"
                         onClick={handleClosePR}
-                        disabled={isClosing}
+                        disabled={isClosing || !can('code-hosting:close-pull-request')}
                         className="gap-1 text-git-deleted hover:text-git-deleted hover:bg-destructive/10"
-                        title={t('pr.closeConfirmTitle')}
+                        title={!can('code-hosting:close-pull-request') ? t('connections.unavailableCapability') : t('pr.closeConfirmTitle')}
                       >
                         <XCircle className="h-3.5 w-3.5" />
                         <span>{isClosing ? t('pr.closing') : t('pr.closePR')}</span>

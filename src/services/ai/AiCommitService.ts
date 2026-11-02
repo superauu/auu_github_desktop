@@ -3,7 +3,7 @@ import { tNow } from '@/i18n';
 import { gitService } from '@/services/git/GitService';
 import type { GitFileChange } from '@/services/git/types';
 import type { AiApiConfig } from '@/stores/settingsStore';
-import type { IssueDraftContext } from '@/services/github/issueTypes';
+import type { IssueDraftContext } from '@/services/collaboration/issueTypes';
 import { issuePromptContext, withIssueReferences } from './issueContext';
 
 export interface GenerateCommitOptions {

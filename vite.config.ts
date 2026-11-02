@@ -1,4 +1,5 @@
 import { defineConfig, Plugin } from 'vite';
+import { composePlugins, checkPluginComposition } from './scripts/plugin-composition.mjs';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -421,7 +422,16 @@ if ($d.ShowDialog() -eq 'OK') { [Console]::OutputEncoding = [System.Text.Encodin
   };
 }
 export default defineConfig({
-  plugins: [react(), gitApiPlugin()],
+  plugins: [{
+    name: 'integration-plugin-composition', enforce: 'pre',
+    buildStart() { checkPluginComposition(); },
+    load(id) {
+      const file = id.replace(/\\/g, '/');
+      if (!file.endsWith('/src/plugins/index.ts') && !file.endsWith('/src/plugins/ui.ts')) return;
+      const composition = composePlugins(process.env.AUUGIT_PLUGINS);
+      return file.endsWith('/ui.ts') ? composition.ui : composition.data;
+    },
+  }, react(), gitApiPlugin()],
   // 崩溃上报的 release 标记：与应用版本号绑定，crash-free 率按 tag 归组。
   define: { __APP_VERSION__: JSON.stringify(auugitPackage.version) },
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },

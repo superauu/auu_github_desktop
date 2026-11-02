@@ -28,6 +28,16 @@ export function tNow(key: string): string {
   return translate(useSettingsStore.getState().language, key);
 }
 
+/** 服务层抛出的本地化错误：message 按当前语言生成，key 保持稳定供测试与上层判断 */
+export class LocalizedError extends Error {
+  readonly key: string;
+  constructor(key: string, vars?: Record<string, string | number>) {
+    super(translate(useSettingsStore.getState().language, key).replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? `{${name}}`)));
+    this.name = 'LocalizedError';
+    this.key = key;
+  }
+}
+
 /** React 组件用：订阅语言变化 */
 export function useI18n() {
   const lang = useSettingsStore((s) => s.language);

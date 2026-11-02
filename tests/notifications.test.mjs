@@ -6,7 +6,7 @@
  * (d) 权限被拒（含插件 API 抛错）时静默停用、不抛错、不订阅 store。
  *
  * 全部使用注入的假 plugin API + 假 store：esbuild 把真实 NotificationService
- * 打包为 CJS，仅将 '@/stores/githubStore' 与 '@/i18n' 别名到桩模块，
+ * 打包为 CJS，仅将 '@/stores/collaborationStore' 与 '@/i18n' 别名到桩模块，
  * 服务主体的去重/节流/门控逻辑走的是生产同一条代码路径。
  */
 import { test, before, after } from 'node:test';
@@ -36,7 +36,7 @@ export const tNow = (key) => templates[key] ?? key;
 `;
 
 const storeStub = `
-export const useGitHubStore = { subscribe: () => () => {} };
+export const useCollaborationStore = { subscribe: () => () => {} };
 `;
 
 /** 构造 GitHubCheckRun 形状的检查项。 */
@@ -110,7 +110,7 @@ before(async () => {
     format: 'cjs',
     outfile: bundle,
     alias: {
-      '@/stores/githubStore': path.join(tmp, 'storeStub.ts'),
+      '@/stores/collaborationStore': path.join(tmp, 'storeStub.ts'),
       '@/i18n': path.join(tmp, 'i18nStub.ts'),
     },
     external: ['@tauri-apps/plugin-notification', '@tauri-apps/api/*'],

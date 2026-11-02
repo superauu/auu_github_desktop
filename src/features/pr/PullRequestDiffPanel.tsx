@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MessageSquare, X, FileDiff, ChevronDown, ChevronRight } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import type { GitHubPullRequestFile, GitHubReviewComment } from '@/services/github/GitHubService';
+import type { CollaborationPullRequestFile, CollaborationReviewComment } from '@/services/collaboration/CollaborationService';
 import { parsePatch, type PatchLine } from './prReviewLogic';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
@@ -16,9 +16,9 @@ export interface PendingCommentDraft {
 }
 
 interface PullRequestDiffPanelProps {
-  file: GitHubPullRequestFile;
+  file: CollaborationPullRequestFile;
   /** 该文件已提交的行内评论（父组件从全量 comments 里按 path 过滤） */
-  comments: GitHubReviewComment[];
+  comments: CollaborationReviewComment[];
   /** 该文件待提交的草稿 */
   drafts: PendingCommentDraft[];
   /** false = merged/closed/无权限，隐藏评论按钮，只读展示 */
@@ -33,7 +33,7 @@ const HUNK_COLLAPSE_THRESHOLD = 500;
 export const anchorKey = (side: 'LEFT' | 'RIGHT', line: number) => `${side}:${line}`;
 
 /** 已提交评论的锚点：LEFT 侧 line 为 null，旧文件行号在 original_line */
-export const commentAnchor = (comment: GitHubReviewComment): { side: 'LEFT' | 'RIGHT'; line: number | null } => {
+export const commentAnchor = (comment: CollaborationReviewComment): { side: 'LEFT' | 'RIGHT'; line: number | null } => {
   const side = comment.side === 'LEFT' ? 'LEFT' : 'RIGHT';
   const line = side === 'LEFT'
     ? (comment.original_line ?? comment.line ?? null)
@@ -100,7 +100,7 @@ export const PullRequestDiffPanel: React.FC<PullRequestDiffPanelProps> = ({
   }, [drafts]);
 
   const commentsByAnchor = useMemo(() => {
-    const map = new Map<string, GitHubReviewComment[]>();
+    const map = new Map<string, CollaborationReviewComment[]>();
     for (const comment of comments) {
       const anchor = commentAnchor(comment);
       if (anchor.line == null) continue;

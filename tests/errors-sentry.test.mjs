@@ -40,7 +40,7 @@ before(async () => {
     stdin: {
       contents: [
         `export { useErrorsStore } from './src/stores/errorsStore';`,
-        `export { SentryClient, mapSentryIssue, mapSentryEventFrames, parseLinkCursor, buildStatusUpdate, normalizeBaseUrl } from './src/services/errors/providers/sentry';`,
+        `export { SentryClient, mapSentryIssue, mapSentryEventFrames, parseLinkCursor, buildStatusUpdate, normalizeBaseUrl } from './src/plugins/sentry/client';`,
         `export { createProviderClient, ProviderRequestError, isConnectionLevelError } from './src/services/errors/providerService';`,
         `export { storeIntegrationToken, getIntegrationToken } from './src/services/errors/credentials';`,
       ].join(''),

@@ -16,7 +16,7 @@ let temporary, app, originalFetch;
 before(async () => {
   temporary = await fs.mkdtemp(path.join(root, '.test-tmp-forge-'));
   const bundle = path.join(temporary, 'helpers.cjs');
-  await build({ stdin: { contents: `export { parseForgeRemote } from './src/services/forge/remoteIdentity'; export { GitLabService, mapPipelineStatus as mapGitLabPipeline, mapPullState as mapGitLabPullState } from './src/services/gitlab/GitLabService'; export { GiteaService, mapPipelineStatus as mapGiteaPipeline, mapPullState as mapGiteaPullState } from './src/services/gitea/GiteaService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export { parseForgeRemote } from './src/services/integrations/remoteIdentity'; export { GitLabClient } from './src/plugins/gitlab/client'; export { GiteaClient } from './src/plugins/gitea/client';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
 });
 after(async () => {
@@ -48,16 +48,15 @@ test('parseForgeRemote classifies hosts, groups and rejects local forms', () => 
 });
 
 test('gitlab service maps merge requests and filters system notes', async () => {
-  const service = new app.GitLabService();
-  service.configure('pat-token', 'https://gitlab.example.com');
+  const service = new app.GitLabClient('https://gitlab.example.com', 'pat-token');
   const calls = [];
   originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
     calls.push({ url: url.pathname, headers: init?.headers || {} });
-    const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
+    const json = body => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
     if (url.pathname === '/api/v4/user') return json({ username: 'alice', name: 'Alice', avatar_url: undefined });
-    if (url.pathname === '/api/v4/projects/42/merge_requests' && !url.pathname.includes('7')) {
+    if (url.pathname === '/api/v4/projects/team%2Fproj/merge_requests' && !url.pathname.includes('7')) {
       assert.equal(url.searchParams.get('state'), 'opened');
       return json([
         { iid: 7, title: '修复登录', state: 'opened', draft: true, source_branch: 'fix/login', target_branch: 'main', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-02T00:00:00Z', web_url: 'https://gitlab.example.com/team/proj/-/merge_requests/7', author: { username: 'bob' } },
@@ -65,55 +64,54 @@ test('gitlab service maps merge requests and filters system notes', async () => 
         { iid: 5, title: '废弃', state: 'locked', draft: false, source_branch: 'x', target_branch: 'main', created_at: 't', updated_at: 't', web_url: 'u5', author: { username: 'dave' } },
       ]);
     }
-    if (url.pathname === '/api/v4/projects/42/merge_requests/7') {
+    if (url.pathname === '/api/v4/projects/team%2Fproj/merge_requests/7') {
       return json({ iid: 7, title: '修复登录', state: 'opened', draft: true, description: '说明文字', source_branch: 'fix/login', target_branch: 'main', created_at: 't1', updated_at: 't2', web_url: 'u7', author: { username: 'bob' } });
     }
-    if (url.pathname === '/api/v4/projects/42/merge_requests/7/discussions') {
+    if (url.pathname === '/api/v4/projects/team%2Fproj/merge_requests/7/notes') {
       return json([
-        { id: 'a', notes: [{ id: 1, body: '真实评论', system: false, created_at: 't3', author: { username: 'erin' } }] },
-        { id: 'b', notes: [{ id: 2, body: 'changed the description', system: true, created_at: 't4', author: { username: 'bob' } }] },
+        { id: 1, body: '真实评论', system: false, created_at: 't3', author: { username: 'erin' } },
+        { id: 2, body: 'changed the description', system: true, created_at: 't4', author: { username: 'bob' } },
       ]);
     }
-    if (url.pathname === '/api/v4/projects/42/pipelines') {
+    if (url.pathname === '/api/v4/projects/team%2Fproj/pipelines') {
       return json([
         { id: 91, status: 'success', ref: 'fix/login', created_at: 't5', web_url: 'p91' },
-        { id: 90, status: 'failed_with_warnings', ref: 'fix/login', created_at: 't6', web_url: 'p90' },
+        { id: 90, status: 'failed', ref: 'fix/login', created_at: 't6', web_url: 'p90' },
       ]);
     }
     throw new Error(`unexpected fetch ${url.pathname}`);
   };
 
-  const user = await service.verifyToken();
-  assert.deepEqual(user, { login: 'alice', name: 'Alice', avatarUrl: undefined });
+  const user = await service.verifyToken('pat-token');
+  assert.equal(user.login, 'alice'); assert.equal(user.name, 'Alice');
   // PAT 头
   assert.equal(calls[0].headers['PRIVATE-TOKEN'], 'pat-token');
 
-  const pulls = await service.listPullRequests(42, 'opened');
+  const pulls = await service.getPullRequests('team', 'proj', 'open');
   assert.equal(pulls.length, 3);
   assert.equal(pulls[0].number, 7);
   assert.equal(pulls[0].state, 'open');
   assert.equal(pulls[0].draft, true);
-  assert.equal(pulls[1].state, 'merged');
+  assert.ok(pulls[1].merged_at); assert.equal(pulls[1].state, 'closed');
   assert.equal(pulls[2].state, 'closed');
 
-  const detail = await service.getPullRequest(42, 7);
-  assert.equal(detail.description, '说明文字');
+  const detail = await service.getPullRequest('team', 'proj', 7);
+  assert.equal(detail.body, '说明文字');
   // system note（描述变更等）不进时间线。
-  assert.deepEqual(detail.comments.map((comment) => comment.body), ['真实评论']);
+  assert.deepEqual((await service.getPullRequestIssueComments('team', 'proj', 7)).map(comment => comment.body), ['真实评论']);
 
-  const pipelines = await service.listPipelines(42, 'fix/login');
-  assert.equal(pipelines[0].status, 'success');
-  assert.equal(pipelines[1].status, 'failed');
+  const pipelines = await service.getWorkflowRuns('team', 'proj', undefined, 'fix/login');
+  assert.equal(pipelines[0].conclusion, 'success');
+  assert.equal(pipelines[1].conclusion, 'failure');
 });
 
 test('gitea service maps pulls and combined commit statuses', async () => {
-  const service = new app.GiteaService();
-  service.configure('gitea-token', 'https://gitea.example.com');
+  const service = new app.GiteaClient('https://gitea.example.com', 'gitea-token');
   originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input));
-    assert.equal(init?.headers?.Authorization, 'token gitea-token');
-    const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
+    assert.equal(new Headers(init.headers).get('authorization'), 'token gitea-token');
+    const json = body => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
     if (url.pathname === '/api/v1/user') return json({ login: 'gina', full_name: 'Gina', avatar_url: 'a' });
     if (url.pathname === '/api/v1/repos/org/repo/pulls') {
       assert.equal(url.searchParams.get('state'), 'open');
@@ -131,100 +129,51 @@ test('gitea service maps pulls and combined commit statuses', async () => {
     throw new Error(`unexpected fetch ${url.pathname}`);
   };
 
-  const user = await service.verifyToken();
+  const user = await service.verifyToken('gitea-token');
   assert.equal(user.login, 'gina');
-  const pulls = await service.listPullRequests('org', 'repo', 'open');
+  const pulls = await service.getPullRequests('org', 'repo', 'open');
   assert.equal(pulls[0].state, 'open');
-  assert.equal(pulls[1].state, 'merged');
-  const pipelines = await service.listPipelines('org', 'repo', 'feat');
-  assert.deepEqual(pipelines.map((pipeline) => [pipeline.name, pipeline.status]), [['ci/build', 'success'], ['ci/lint', 'failed']]);
+  assert.ok(pulls[1].merged_at); assert.equal(pulls[1].state, 'closed');
+  const pipelines = await service.getCommitChecks('org', 'repo', 'feat');
+  assert.deepEqual(pipelines.map((pipeline) => [pipeline.name, pipeline.conclusion]), [['ci/build', 'success'], ['ci/lint', 'failure']]);
 });
 
 test('gitlab service paginates beyond the first page and stops on a partial page', async () => {
-  const service = new app.GitLabService();
-  service.configure('pat-token', 'https://gitlab.example.com');
+  const service = new app.GitLabClient('https://gitlab.example.com', 'pat-token');
   originalFetch = globalThis.fetch;
   const seenPages = [];
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
-    if (url.pathname === '/api/v4/projects/42/merge_requests') {
+    if (url.pathname === '/api/v4/projects/team%2Fproj/merge_requests') {
       const page = Number(url.searchParams.get('page'));
       seenPages.push(page);
-      assert.equal(url.searchParams.get('per_page'), '30');
+      assert.equal(url.searchParams.get('per_page'), '100');
       const item = (iid) => ({ iid, title: `MR ${iid}`, state: 'opened', draft: false, source_branch: 'b', target_branch: 'main', created_at: 't', updated_at: 't', web_url: `u${iid}`, author: { username: 'bob' } });
-      const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
+      const json = body => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
       // 第一页满 30 条（无法判断是否还有下一页），第二页只有 3 条 → 第三页不再请求。
-      return json(page === 1 ? Array.from({ length: 30 }, (_, i) => item(i + 1)) : Array.from({ length: 3 }, (_, i) => item(31 + i)));
+      return json(page === 1 ? Array.from({ length: 100 }, (_, i) => item(i + 1)) : Array.from({ length: 3 }, (_, i) => item(101 + i)));
     }
     throw new Error(`unexpected fetch ${url.pathname}`);
   };
-  const pulls = await service.listPullRequests(42, 'opened');
+  const pulls = await service.getPullRequests('team', 'proj', 'open');
   assert.deepEqual(seenPages, [1, 2]);
-  assert.equal(pulls.length, 33);
+  assert.equal(pulls.length, 103);
   assert.equal(pulls[0].number, 1);
-  assert.equal(pulls[32].number, 33);
+  assert.equal(pulls[102].number, 103);
 });
 
-test('stale forge loads cannot overwrite the newer repository state', async () => {
-  // forgeStore 依赖 localStorage mock（本文件原有用例只测 service 层，未装 mock）。
-  const saved = new Map();
-  const previousFetch = globalThis.fetch;
-  globalThis.localStorage = {
-    getItem: (key) => saved.get(key) ?? null,
-    setItem: (key, value) => saved.set(key, String(value)),
-    removeItem: (key) => saved.delete(key),
-  };
-  const storeTmp = await fs.mkdtemp(path.join(root, '.test-tmp-forge-store-'));
+test('all hosting plugins share one store and stale PR queries cannot replace the next repository', async () => {
+  const temp = await fs.mkdtemp(path.join(root, '.test-tmp-forge-store-'));
   try {
-    const bundle = path.join(storeTmp, 'forge-store.cjs');
-    await build({
-      stdin: { contents: `export * from './src/stores/forgeStore'; export { gitlabService } from './src/services/gitlab/GitLabService'; export { giteaService } from './src/services/gitea/GiteaService';`, resolveDir: root },
-      bundle: true, platform: 'node', format: 'cjs', outfile: bundle,
-      alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
-    });
-    const storeApp = createRequire(import.meta.url)(bundle);
-    const { useForgeStore, gitlabService, giteaService } = storeApp;
-    // 全新 bundle 的 service 单例未配置：store 用的是同一份实例，必须先配置再驱动。
-    gitlabService.configure('pat-token', 'https://gitlab.example.com');
-    giteaService.configure('gitea-token', 'https://gitea.example.com');
-
-    const delayed = (value, milliseconds) => new Promise((resolve) => setTimeout(() => resolve(value), milliseconds));
-    globalThis.fetch = async (input) => {
-      const url = new URL(String(input));
-      const json = (body) => ({ ok: true, status: 200, headers: { forEach: () => {} }, json: async () => body, text: async () => JSON.stringify(body) });
-      // 仓库 A（gitlab）：projectId 慢返回——A 的 loadPulls 在切换到 B 之后才落地。
-      if (url.pathname === '/api/v4/projects/team%2Fproj') return delayed({ id: 42 }, 40);
-      if (url.pathname === '/api/v4/projects/42/merge_requests') {
-        return json([{ iid: 7, title: 'A 仓库的 PR', state: 'opened', draft: false, source_branch: 'a', target_branch: 'main', created_at: 't', updated_at: 't', web_url: 'wa', author: { username: 'bob' } }]);
-      }
-      // 仓库 B（gitea）：全部快速返回。
-      if (url.pathname === '/api/v1/repos/org/repo/pulls') {
-        return json([{ number: 12, title: 'B 仓库的 PR', state: 'open', merged: false, draft: false, base: { ref: 'main' }, head: { ref: 'feat' }, created_at: 't', updated_at: 't', html_url: 'wb', user: { login: 'hank' } }]);
-      }
-      throw new Error(`unexpected fetch ${url.pathname}`);
-    };
-
-    // 仓库 A 在途；detect() 切仓库作废其代数，B 的加载随后完成。
-    useForgeStore.setState({ gitea: { server: 'https://gitea.example.com', user: { login: 'gina' } }, detection: { kind: 'gitlab', server: 'https://gitlab.example.com', ownerPath: 'team', repo: 'proj' } });
-    const stale = useForgeStore.getState().loadPulls();
-    await useForgeStore.getState().detect('E:/code/repo-b');
-    useForgeStore.setState({ detection: { kind: 'gitea', server: 'https://gitea.example.com', ownerPath: 'org/repo', repo: 'repo' } });
-    await useForgeStore.getState().loadPulls();
-    await stale;
-
-    const state = useForgeStore.getState();
-    assert.equal(state.pulls.length, 1);
-    assert.equal(state.pulls[0].title, 'B 仓库的 PR');
-    assert.equal(state.pullsLoading, false);
-    assert.equal(state.pullsError, '');
-
-    // detect 后 detection 已被清空（node 下 getOriginUrl 不可达即回落 null）——
-    // 手动设置 B 的 detection 只为驱动 loadPulls，与真实 detect 成功后的状态一致。
-  } finally {
-    globalThis.fetch = previousFetch;
-    delete globalThis.localStorage;
-    if (storeTmp && path.dirname(storeTmp) === root && path.basename(storeTmp).startsWith('.test-tmp-forge-store-')) {
-      await fs.rm(storeTmp, { recursive: true, force: true });
-    }
-  }
+    const outfile = path.join(temp, 'store.cjs');
+    await build({stdin:{contents:`export {useCollaborationStore} from './src/stores/collaborationStore'; export {bindCollaborationClient} from './src/services/collaboration/CollaborationService';`,resolveDir:root},bundle:true,platform:'node',format:'cjs',outfile,alias:{'@':path.join(root,'src')},logLevel:'silent'});
+    const {useCollaborationStore:store,bindCollaborationClient}=createRequire(import.meta.url)(outfile);
+    let resolve;const delayed=new Promise(done=>{resolve=done;});
+    store.setState({currentOwner:'group/sub',currentRepoName:'A'});bindCollaborationClient({getPullRequests:()=>delayed});
+    const old=store.getState().loadPullRequests();store.getState().clearRepo();
+    store.setState({currentOwner:'team',currentRepoName:'B'});bindCollaborationClient({getPullRequests:async()=>[{id:2,title:'B'}]});
+    await store.getState().loadPullRequests();resolve([{id:1,title:'A'}]);await old;
+    assert.equal(store.getState().pullRequests[0].title,'B');
+    bindCollaborationClient(null);store.getState().clearRepo();
+  } finally {if(path.dirname(temp)===root&&path.basename(temp).startsWith('.test-tmp-forge-store-'))await fs.rm(temp,{recursive:true,force:true,maxRetries:5});}
 });

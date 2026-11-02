@@ -9,7 +9,7 @@
  * 7. 登录登记账号摘要（name/avatarUrl）：仅 login 与 avatarUrl 均有效时落盘，
  *    与 parseStoredProfiles 的读取门槛一致；持久化的脏 user 形状在加载时剥离。
  */
-import { before, after, test } from 'node:test';
+import { before, after, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,7 +34,8 @@ globalThis.__auuInvoke = async (command, args = {}) => {
 // 必须在 require 打包产物前安装 mock：store 模块初始化时会读 localStorage
 globalThis.window = { __TAURI_INTERNALS__: {} };
 
-const store = () => app.useGitHubStore.getState();
+const store = () => app.useCollaborationStore.getState();
+const profiles = () => store().profiles.map(({providerId: _provider, server: _server, ...profile}) => profile);
 const eventually = async (fn, timeout = 2000) => {
   const start = Date.now();
   while (!fn()) {
@@ -48,7 +49,7 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(root, '.test-tmp-profiles-'));
   const bundle = path.join(tmp, 'profiles.cjs');
   await build({
-    stdin: { contents: `export { useGitHubStore, parseStoredProfiles, DEFAULT_PROFILE_ID } from './src/stores/githubStore'; export { githubService } from './src/services/github/GitHubService';`, resolveDir: root },
+    stdin: { contents: `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; export { useCollaborationStore, parseStoredProfiles, DEFAULT_PROFILE_ID } from './src/stores/collaborationStore'; export { GitHubService } from './src/plugins/github/client'; export { collaborationService } from './src/services/collaboration/CollaborationService';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, logLevel: 'silent',
     alias: { '@': path.join(root, 'src') },
     plugins: [{
@@ -60,13 +61,13 @@ before(async () => {
     }],
   });
   app = createRequire(import.meta.url)(bundle);
-  app.githubService.verifyToken = async token => ({ login: token === 'bob-token' ? 'bob' : 'alice', avatar_url: '' });
+  app.GitHubService.prototype.verifyToken = async token => ({ login: token === 'bob-token' ? 'bob' : 'alice', avatar_url: '' });
 });
 
 after(() => {
   delete globalThis.window;
   delete globalThis.__auuInvoke;
-  app?.useGitHubStore.getState().clearRepo();
+  app?.useCollaborationStore.getState().clearRepo();
   vault.clear(); saved.clear();
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-profiles-')) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
 });
@@ -79,13 +80,13 @@ test('legacy token in the old keyring entry migrates into a default profile with
   assert.equal(store().user.login, 'alice');
   // 读取旧条目时 profileId 必须为 null（Rust 侧 None → 原条目 github_token）
   assert.deepEqual(callsOf('get_github_token').at(-1).args, { profileId: null });
-  assert.deepEqual(store().profiles, [{ id: 'default', label: 'alice' }]);
+  assert.deepEqual(profiles(), [{ id: 'default', label: 'alice' }]);
   assert.equal(store().activeProfileId, 'default');
-  assert.deepEqual(JSON.parse(saved.get('auu_git_profiles')), { version: 1, profiles: [{ id: 'default', label: 'alice' }], activeProfileId: 'default' });
+  assert.deepEqual(JSON.parse(saved.get('auu_git_connections')), { version: 2, profiles: [{ id: 'default', label: 'alice', providerId: 'github', server: 'https://github.com' }], activeProfileId: 'default' });
 });
 
 test('addProfile starts a pending account and login stores its token under a separate keyring entry', async () => {
-  app.useGitHubStore.setState({ currentOwner: 'work', currentRepoName: 'repo' });
+  app.useCollaborationStore.setState({ currentOwner: 'work', currentRepoName: 'repo' });
   store().addProfile();
   const pendingId = store().activeProfileId;
   assert.match(pendingId, /^[0-9a-f]{32}$/);
@@ -96,7 +97,7 @@ test('addProfile starts a pending account and login stores its token under a sep
   // 新 Profile 激活时必须清空既有 owner/repo 绑定
   assert.equal(store().currentOwner, null);
   assert.equal(store().currentRepoName, null);
-  assert.equal(store().profiles.length, 2);
+  assert.equal(profiles().length, 2);
 
   calls = [];
   await store().login('bob-token');
@@ -108,13 +109,13 @@ test('addProfile starts a pending account and login stores its token under a sep
   assert.deepEqual(callsOf('store_github_token').at(-1).args, { token: 'bob-token', profileId: pendingId });
   assert.equal(vault.get(pendingId), 'bob-token');
   assert.equal(vault.get('default'), 'legacy-token');
-  assert.equal(store().profiles.find(profile => profile.id === pendingId).label, 'bob');
+  assert.equal(profiles().find(profile => profile.id === pendingId).label, 'bob');
   assert.equal(store().activeProfileId, pendingId);
 });
 
 test('switchProfile clears bindings, reloads the target profile token and always passes profileId', async () => {
   const pendingId = store().activeProfileId;
-  app.useGitHubStore.setState({ currentOwner: 'x', currentRepoName: 'y' });
+  app.useCollaborationStore.setState({ currentOwner: 'x', currentRepoName: 'y' });
   calls = [];
   await store().switchProfile('default');
   assert.equal(store().activeProfileId, 'default');
@@ -137,7 +138,7 @@ test('switchProfile clears bindings, reloads the target profile token and always
 
   // 清理：移除测试 Profile 恢复单账号基线（顺带覆盖“移除活跃 Profile 自动切回剩余第一个”）
   await store().removeProfile(pendingId);
-  assert.deepEqual(store().profiles.map(profile => profile.id), ['default']);
+  assert.deepEqual(profiles().map(profile => profile.id), ['default']);
   assert.equal(store().activeProfileId, 'default');
   assert.equal(store().user.login, 'alice');
   assert.equal(vault.get(pendingId), undefined);
@@ -154,8 +155,8 @@ test('cancelling an add falls back to the previous profile and restores its sess
   store().cancelAddProfile();
   assert.equal(store().isAddingProfile, false);
   assert.equal(store().addProfileReturnId, null);
-  assert.equal(store().profiles.length, 1);
-  assert.equal(store().profiles.some(profile => profile.id === pendingId), false);
+  assert.equal(profiles().length, 1);
+  assert.equal(profiles().some(profile => profile.id === pendingId), false);
   assert.equal(store().activeProfileId, 'default');
   await eventually(() => store().isAuthenticated && store().user?.login === 'alice');
   assert.equal(store().token, 'legacy-token');
@@ -176,7 +177,7 @@ test('removeProfile deletes the keyring entry of the removed profile and advance
   assert.deepEqual(callsOf('delete_github_token').at(-1).args, { profileId: pendingId });
   assert.equal(vault.get(pendingId), undefined);
   assert.equal(vault.get('default'), 'legacy-token');
-  assert.deepEqual(store().profiles.map(profile => profile.id), ['default']);
+  assert.deepEqual(profiles().map(profile => profile.id), ['default']);
   assert.equal(store().activeProfileId, 'default');
   // 被移除的是活跃 Profile，自动切回剩余第一个并恢复其登录
   assert.equal(store().isAuthenticated, true);
@@ -194,7 +195,7 @@ test('removeProfile deletes the keyring entry of the removed profile and advance
   assert.equal(store().user.login, 'alice');
   // 非活跃分支的凭据删除走 credentialWrites 链异步完成
   await eventually(() => vault.get(thirdId) === undefined);
-  assert.deepEqual(store().profiles.map(profile => profile.id), ['default']);
+  assert.deepEqual(profiles().map(profile => profile.id), ['default']);
 });
 
 test('logout removes the active profile credentials and falls back to the remaining account', async () => {
@@ -206,7 +207,7 @@ test('logout removes the active profile credentials and falls back to the remain
 
   store().logout();
   assert.equal(store().isAuthenticated, false);
-  assert.deepEqual(store().profiles.map(profile => profile.id), ['default']);
+  assert.deepEqual(profiles().map(profile => profile.id), ['default']);
   await eventually(() => store().isAuthenticated && store().user?.login === 'alice');
   assert.equal(vault.get(pendingId), undefined);
   assert.equal(store().token, 'legacy-token');
@@ -215,31 +216,31 @@ test('logout removes the active profile credentials and falls back to the remain
 test('login without any profile writes to the legacy default entry', async () => {
   await store().switchProfile('default');
   await store().removeProfile('default');
-  assert.deepEqual(store().profiles, []);
+  assert.deepEqual(profiles(), []);
   assert.equal(store().activeProfileId, null);
   calls = [];
   await store().login('fresh-token');
   assert.deepEqual(callsOf('store_github_token').at(-1).args, { token: 'fresh-token', profileId: 'default' });
   assert.equal(vault.get('default'), 'fresh-token');
-  assert.deepEqual(store().profiles, [{ id: 'default', label: 'alice' }]);
+  assert.deepEqual(profiles(), [{ id: 'default', label: 'alice' }]);
   assert.equal(store().activeProfileId, 'default');
 });
 
 test('login registers the account summary only when login and avatar are both present', async () => {
-  const original = app.githubService.verifyToken;
+  const original = app.GitHubService.prototype.verifyToken;
   // API 返回完整资料 → 摘要与 label 一起登记并持久化，供账号列表离线渲染头像
-  app.githubService.verifyToken = async () => ({ login: 'carol', name: 'Carol Doe', avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' });
-  app.useGitHubStore.setState({ profiles: [], activeProfileId: null, isAuthenticated: false, token: null, user: null });
+  app.GitHubService.prototype.verifyToken = async () => ({ login: 'carol', name: 'Carol Doe', avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' });
+  app.useCollaborationStore.setState({ profiles: [], activeProfileId: null, isAuthenticated: false, token: null, user: null });
   await store().login('carol-token');
   const expectedSummary = { login: 'carol', name: 'Carol Doe', avatarUrl: 'https://avatars.githubusercontent.com/u/1?v=4' };
-  assert.deepEqual(store().profiles, [{ id: 'default', label: 'carol', user: expectedSummary }]);
-  assert.deepEqual(JSON.parse(saved.get('auu_git_profiles')).profiles[0].user, expectedSummary);
+  assert.deepEqual(profiles(), [{ id: 'default', label: 'carol', user: expectedSummary }]);
+  assert.deepEqual(JSON.parse(saved.get('auu_git_connections')).profiles[0].user, expectedSummary);
   // API 缺 avatar（异常场景）→ 不创建摘要、仅登记 label，与 parseStoredProfiles 读取门槛一致
-  app.githubService.verifyToken = async () => ({ login: 'dave', avatar_url: '' });
-  app.useGitHubStore.setState({ profiles: [], activeProfileId: null, isAuthenticated: false, token: null, user: null });
+  app.GitHubService.prototype.verifyToken = async () => ({ login: 'dave', avatar_url: '' });
+  app.useCollaborationStore.setState({ profiles: [], activeProfileId: null, isAuthenticated: false, token: null, user: null });
   await store().login('dave-token');
-  assert.deepEqual(store().profiles, [{ id: 'default', label: 'dave' }]);
-  app.githubService.verifyToken = original;
+  assert.deepEqual(profiles(), [{ id: 'default', label: 'dave' }]);
+  app.GitHubService.prototype.verifyToken = original;
 });
 
 test('corrupted persisted profiles fall back to a safe empty state on a fresh module load', () => {
@@ -251,20 +252,20 @@ test('corrupted persisted profiles fall back to a safe empty state on a fresh mo
     fs.rmSync(copy, { force: true });
     return fresh;
   };
-  saved.set('auu_git_profiles', '{broken');
+  saved.set('auu_git_connections', '{broken');
   let fresh = requireFresh();
-  assert.deepEqual(fresh.useGitHubStore.getState().profiles, []);
-  assert.equal(fresh.useGitHubStore.getState().activeProfileId, null);
+  assert.deepEqual(fresh.useCollaborationStore.getState().profiles, []);
+  assert.equal(fresh.useCollaborationStore.getState().activeProfileId, null);
 
-  saved.set('auu_git_profiles', JSON.stringify({ profiles: [{ id: 'p1', label: 'Work' }, 'junk', { id: '' }, { label: 'no-id' }, { id: 'p2' }], activeProfileId: 'ghost' }));
+  saved.set('auu_git_connections', JSON.stringify({ profiles: [{ id: 'p1', label: 'Work' }, 'junk', { id: '' }, { label: 'no-id' }, { id: 'p2' }], activeProfileId: 'ghost' }));
   fresh = requireFresh();
-  assert.deepEqual(fresh.useGitHubStore.getState().profiles, [{ id: 'p1', label: 'Work' }, { id: 'p2', label: 'p2' }]);
+  assert.deepEqual(fresh.useCollaborationStore.getState().profiles, [{ id: 'p1', label: 'Work' }, { id: 'p2', label: 'p2' }]);
   // activeProfileId 指向不存在的 Profile 时回退到第一个
-  assert.equal(fresh.useGitHubStore.getState().activeProfileId, 'p1');
+  assert.equal(fresh.useCollaborationStore.getState().activeProfileId, 'p1');
 
-  saved.set('auu_git_profiles', JSON.stringify({ profiles: [{ id: 'p1', label: 'Work' }], activeProfileId: 'p1' }));
+  saved.set('auu_git_connections', JSON.stringify({ profiles: [{ id: 'p1', label: 'Work' }], activeProfileId: 'p1' }));
   fresh = requireFresh();
-  assert.equal(fresh.useGitHubStore.getState().activeProfileId, 'p1');
+  assert.equal(fresh.useCollaborationStore.getState().activeProfileId, 'p1');
 });
 
 test('persisted user summaries survive only with a valid shape (login + avatarUrl required)', () => {
@@ -289,3 +290,5 @@ test('persisted user summaries survive only with a valid shape (login + avatarUr
     activeProfileId: 'p1',
   });
 });
+
+beforeEach(() => { app.bindFixtureClient(new app.FixtureGitHubClient()); });

@@ -26,13 +26,13 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://avatars.githubusercontent.com; connect-src 'self' https://api.github.com https://github.com ipc: http://ipc.localhost",
-      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://avatars.githubusercontent.com; connect-src 'self' https://api.github.com https://github.com https://sentry.io ipc: http://ipc.localhost ws://localhost:5173"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' ipc: http://ipc.localhost",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:5173"
     }
   },
   "plugins": {
     "shell": {
-      "open": "https://github\\.com/\\S+"
+      "open": false
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0RjRCMzFENjM1NzE5NDkKUldSSkdWZGpIYlAwWktBYVVTUDJKditGS3FqUERoU2lXQVcvVk5xK2R5Q203QnR2dUduUEdDZHcK",

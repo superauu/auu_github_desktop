@@ -12,8 +12,11 @@
     "tauri": "tauri",
     "icons": "tauri icon public/logo.svg --ios-color \"#0c182a\"",
     "test": "node --test --test-concurrency=3 tests/",
+    "check:plugins": "node scripts/plugin-composition.mjs --check",
+    "plugins:generate": "node scripts/plugin-composition.mjs --write",
     "test:visual": "playwright test",
     "test:updater": "node scripts/smoke-updater.mjs",
+    "test:integrations:native": "node scripts/smoke-integrations.mjs",
     "check:release": "node scripts/check-release.mjs",
     "notices": "node scripts/generate-notices.mjs"
   },

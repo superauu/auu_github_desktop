@@ -1,5 +1,5 @@
 import type { HunkCommitGroup } from '@/services/git/HunkCommitService';
-import type { IssueReference } from '@/services/github/issueTypes';
+import type { IssueReference } from '@/services/collaboration/issueTypes';
 import { tNow } from '@/i18n';
 
 function proseLines(body: string) {

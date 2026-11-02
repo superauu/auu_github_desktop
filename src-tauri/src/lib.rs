@@ -4,6 +4,10 @@ use std::fs;
 use std::process::Command;
 use std::path::{Path, PathBuf, Component};
 use std::time::Duration;
+mod plugins;
+mod provider_http;
+#[cfg(test)]
+use provider_http::validate_provider_request;
 mod file_io;
 mod git_process;
 mod temp_index;
@@ -367,21 +371,6 @@ async fn response_text(mut response: reqwest::Response) -> Result<String, String
     Ok(text)
 }
 
-#[tauri::command]
-async fn request_github_device_code(client_id: String, scope: String) -> Result<String, String> {
-    let response = http_client()?.post("https://github.com/login/device/code").header("Accept", "application/json")
-        .form(&[("client_id", client_id), ("scope", scope)]).send().await.map_err(|e| e.to_string())?;
-    response_text(response).await
-}
-
-#[tauri::command]
-async fn poll_github_device_token(client_id: String, device_code: String) -> Result<String, String> {
-    let response = http_client()?.post("https://github.com/login/oauth/access_token").header("Accept", "application/json")
-        .form(&[("client_id", client_id), ("device_code", device_code), ("grant_type", "urn:ietf:params:oauth:grant-type:device_code".into())])
-        .send().await.map_err(|e| e.to_string())?;
-    response_text(response).await
-}
-
 fn header_value(value: &str) -> Result<reqwest::header::HeaderValue, String> {
     // 前端提供的头部值可能含非法字符：显式校验而不是让 reqwest 的 header() 直接 panic。
     reqwest::header::HeaderValue::from_bytes(value.as_bytes())
@@ -414,25 +403,6 @@ async fn request_ai_completion(url: String, authorization: String, body: String,
         }
     }
     let response = request.send().await.map_err(|e| e.to_string())?;
-    response_text(response).await
-}
-
-#[tauri::command]
-async fn get_github_job_logs(owner: String, repo: String, job_id: u64, token: Option<String>) -> Result<String, String> {
-    if !owner.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') || !repo.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)) {
-        return Err("Invalid repository name".into());
-    }
-    let client = http_client()?;
-    let mut request = client.get(format!("https://api.github.com/repos/{}/{}/actions/jobs/{}/logs", owner, repo, job_id));
-    if let Some(token) = token { request = request.bearer_auth(token); }
-    let response = request.send().await.map_err(|e| e.to_string())?;
-    if response.status().is_redirection() {
-        let location = response.headers().get(reqwest::header::LOCATION).ok_or("Missing logs location")?.to_str().map_err(|e| e.to_string())?;
-        let url = reqwest::Url::parse(location).map_err(|e| e.to_string())?;
-        if url.scheme() != "https" { return Err("Invalid logs location".into()); }
-        // Signed download URLs do not receive the GitHub bearer credential.
-        return response_text(client.get(url).send().await.map_err(|e| e.to_string())?).await;
-    }
     response_text(response).await
 }
 
@@ -537,91 +507,6 @@ fn list_directories(path: Option<String>) -> Result<ListDirsResult, String> {
     })
 }
 
-// GitHub tokens use the platform's native credential store.
-// 优先走 keyring；无对应条目时返回 Ok(None)，不视为错误。
-// 多账号 Profile：默认账号（profileId 为 None / "default" / 空串）沿用旧条目 "github_token"，
-// 保证老用户无缝迁移不做凭据拷贝；其余 Profile 使用 "github_token:<profileId>" 按账号隔离。
-fn github_token_entry_name(profile_id: Option<&str>) -> String {
-    match profile_id {
-        Some(id) if !id.is_empty() && id != "default" => format!("github_token:{}", id),
-        _ => "github_token".to_string(),
-    }
-}
-
-fn github_token_entry(profile_id: Option<&str>) -> Result<keyring::Entry, String> {
-    keyring::Entry::new("auugit", &github_token_entry_name(profile_id)).map_err(|e| e.to_string())
-}
-
-#[tauri::command(async)]
-fn store_github_token(token: String, profile_id: Option<String>) -> Result<(), String> {
-    let entry = github_token_entry(profile_id.as_deref())?;
-    entry.set_password(&token).map_err(|e| e.to_string())
-}
-
-#[tauri::command(async)]
-fn get_github_token(profile_id: Option<String>) -> Result<Option<String>, String> {
-    let entry = github_token_entry(profile_id.as_deref())?;
-    match entry.get_password() {
-        Ok(token) => Ok(Some(token)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-#[tauri::command(async)]
-fn delete_github_token(profile_id: Option<String>) -> Result<(), String> {
-    let entry = github_token_entry(profile_id.as_deref())?;
-    match entry.delete_credential() {
-        Ok(_) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-/// 多平台托管（GitLab / Gitea）的凭据条目名：与 GitHub 同构的 "<service>_token[:<profileId>]"
-/// 槽位；service 白名单外一律拒绝（fail closed）。GitHub 沿用既有条目（见上），不迁移。
-fn forge_service(service: &str) -> Result<&'static str, String> {
-    match service {
-        "gitlab" | "gitea" => Ok(if service == "gitlab" { "gitlab" } else { "gitea" }),
-        _ => Err("Unsupported forge service".into()),
-    }
-}
-
-fn forge_token_entry(service: &str, profile_id: Option<&str>) -> Result<keyring::Entry, String> {
-    let name = forge_service(service)?;
-    let entry = match profile_id {
-        Some(id) if !id.is_empty() && id != "default" => format!("{}_token:{}", name, id),
-        _ => format!("{}_token", name),
-    };
-    keyring::Entry::new("auugit", &entry).map_err(|e| e.to_string())
-}
-
-#[tauri::command(async)]
-fn store_forge_token(token: String, service: String, profile_id: Option<String>) -> Result<(), String> {
-    let entry = forge_token_entry(&service, profile_id.as_deref())?;
-    entry.set_password(&token).map_err(|e| e.to_string())
-}
-
-#[tauri::command(async)]
-fn get_forge_token(service: String, profile_id: Option<String>) -> Result<Option<String>, String> {
-    let entry = forge_token_entry(&service, profile_id.as_deref())?;
-    match entry.get_password() {
-        Ok(token) => Ok(Some(token)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-#[tauri::command(async)]
-fn delete_forge_token(service: String, profile_id: Option<String>) -> Result<(), String> {
-    let entry = forge_token_entry(&service, profile_id.as_deref())?;
-    match entry.delete_credential() {
-        Ok(_) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
 /// 集成凭证（错误追踪等外部平台，PRD docs/errors-integration-prd.md §6.2）：
 /// 条目 "integration_token:<connectionId>"。connectionId 限定受限字符集
 /// （字母数字/-/_，8–64 位），白名单外一律拒绝（fail closed），防止拼接出任意 keyring 条目。
@@ -659,75 +544,6 @@ fn delete_integration_token(connection_id: String) -> Result<(), String> {
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }
-}
-
-// ---------------------------------------------------------------------------
-// 集成 Provider 的 HTTP 代理（PRD §6.4 硬化）：WebView 的 connect-src CSP 白名单
-// 不可能枚举所有平台与自托管地址，统一走 Rust reqwest——无 CORS/CSP 约束，
-// 请求目标强制 http(s)，头字段非法（CRLF/控制字符）fail closed。
-// ---------------------------------------------------------------------------
-static PROVIDER_HTTP_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
-    reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .expect("reqwest client with rustls")
-});
-
-#[derive(Deserialize)]
-struct ProviderHttpRequest {
-    method: String,
-    url: String,
-    #[serde(default)]
-    headers: std::collections::HashMap<String, String>,
-    #[serde(default)]
-    body: Option<String>,
-}
-
-#[derive(Serialize)]
-struct ProviderHttpResponse {
-    status: u16,
-    /// 全量响应头（小写键）——分页依赖 Link 头。
-    headers: std::collections::HashMap<String, String>,
-    body: String,
-}
-
-fn validate_provider_request(
-    method: &str,
-    url: &str,
-    headers: &std::collections::HashMap<String, String>,
-) -> Result<(), String> {
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
-        return Err("Only http(s) URLs are allowed".into());
-    }
-    reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
-    for (name, value) in headers {
-        reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|e| e.to_string())?;
-        reqwest::header::HeaderValue::from_str(value).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command(async)]
-async fn provider_http_request(request: ProviderHttpRequest) -> Result<ProviderHttpResponse, String> {
-    validate_provider_request(&request.method, &request.url, &request.headers)?;
-    let method = reqwest::Method::from_bytes(request.method.as_bytes()).map_err(|e| e.to_string())?;
-    let mut req = PROVIDER_HTTP_CLIENT.request(method, &request.url);
-    for (name, value) in &request.headers {
-        req = req.header(name, value);
-    }
-    if let Some(body) = &request.body {
-        req = req.body(body.clone());
-    }
-    let response = req.send().await.map_err(|e| e.to_string())?;
-    let status = response.status().as_u16();
-    let mut headers = std::collections::HashMap::new();
-    for (name, value) in response.headers() {
-        if let Ok(text) = value.to_str() {
-            headers.insert(name.as_str().to_string(), text.to_string());
-        }
-    }
-    let body = response.text().await.map_err(|e| e.to_string())?;
-    Ok(ProviderHttpResponse { status, headers, body })
 }
 
 /// 用系统默认程序打开外部链接（浏览器）：http(s) 白名单 + 拒绝空白/控制字符，
@@ -875,16 +691,20 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             set_crash_reporting,
-            store_github_token,
-            get_github_token,
-            delete_github_token,
-            store_forge_token,
-            get_forge_token,
-            delete_forge_token,
+            #[cfg(feature = "plugin-github")]
+            plugins::github::store_github_token,
+            #[cfg(feature = "plugin-github")]
+            plugins::github::get_github_token,
+            #[cfg(feature = "plugin-github")]
+            plugins::github::delete_github_token,
+            plugins::legacy_credentials::store_forge_token,
+            plugins::legacy_credentials::get_forge_token,
+            plugins::legacy_credentials::delete_forge_token,
             store_integration_token,
             get_integration_token,
             delete_integration_token,
-            provider_http_request,
+            provider_http::provider_http_request,
+            provider_http::cancel_provider_http_request,
             open_external_url,
             open_local_path,
             execute_git,
@@ -903,15 +723,18 @@ pub fn run() {
             ssh_signing::generate_ssh_signing_key,
             paths_exist,
             request_ai_completion,
-            get_github_job_logs,
+            #[cfg(feature = "plugin-github")]
+            plugins::github::get_github_job_logs,
             store_ai_key,
             get_ai_key,
             read_file_content,
             read_git_image,
             write_file_content,
             ignore_file,
-            request_github_device_code,
-            poll_github_device_token,
+            #[cfg(feature = "plugin-github")]
+            plugins::github::request_github_device_code,
+            #[cfg(feature = "plugin-github")]
+            plugins::github::poll_github_device_token,
             validate_directory,
             list_directories,
             restart_application,
@@ -980,34 +803,6 @@ mod tests {
         assert!(header_value("\n").is_err());
         assert!(header_value("\u{1}").is_err());
         assert!(header_value("\u{7f}").is_err());
-    }
-
-    #[test]
-    fn github_token_entry_names_isolate_profiles_and_keep_legacy_default() {
-        // 旧用户迁移：无 profileId / "default" / 空串都必须落在原有条目上
-        assert_eq!(github_token_entry_name(None), "github_token");
-        assert_eq!(github_token_entry_name(Some("default")), "github_token");
-        assert_eq!(github_token_entry_name(Some("")), "github_token");
-        // 其余 Profile 按账号隔离
-        assert_eq!(
-            github_token_entry_name(Some("0f2a4c8e6b1d4f3a9c8e7b2d1a0f9e8c")),
-            "github_token:0f2a4c8e6b1d4f3a9c8e7b2d1a0f9e8c"
-        );
-    }
-
-    #[test]
-    fn forge_token_entries_isolate_services_and_profiles_fail_closed() {
-        // GitLab / Gitea 与 GitHub 同构的槽位命名；profileId 规则一致。
-        assert_eq!(forge_service("gitlab").unwrap(), "gitlab");
-        assert_eq!(forge_service("gitea").unwrap(), "gitea");
-        for service in ["gitlab", "gitea"] {
-            assert!(forge_token_entry(service, None).is_ok());
-            assert!(forge_token_entry(service, Some("default")).is_ok());
-        }
-        // service 白名单外（含大小写变体与 GitHub 本身——GitHub 走既有命令）拒绝。
-        for bad in ["github", "GitHub", "", "gitlab.com", "bitbucket"] {
-            assert!(forge_service(bad).is_err(), "{bad}");
-        }
     }
 
     #[test]

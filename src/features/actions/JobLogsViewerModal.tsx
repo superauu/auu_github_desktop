@@ -1,3 +1,5 @@
+import { isCurrentPlatformUrl } from '@/services/integrations/links';
+import { openExternalUrl } from '@/utils/openExternal';
 import { VirtualRows } from '@/components/ui/VirtualRows';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -15,7 +17,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +70,7 @@ function parseAnsi(text: string): React.ReactNode[] {
 }
 
 export const JobLogsViewerModal: React.FC = () => {
-  const { isLogsModalOpen, activeJobLogs, closeJobLogs, openJobLogs } = useGitHubStore(useShallow(state => ({ isLogsModalOpen: state.isLogsModalOpen, activeJobLogs: state.activeJobLogs, closeJobLogs: state.closeJobLogs, openJobLogs: state.openJobLogs })));
+  const { isLogsModalOpen, activeJobLogs, closeJobLogs, openJobLogs } = useCollaborationStore(useShallow(state => ({ isLogsModalOpen: state.isLogsModalOpen, activeJobLogs: state.activeJobLogs, closeJobLogs: state.closeJobLogs, openJobLogs: state.openJobLogs })));
   const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCopied, setIsCopied] = useState(false);
@@ -77,7 +79,7 @@ export const JobLogsViewerModal: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { setSearchQuery(''); setIsCopied(false); }, [activeJobLogs?.jobId, isLogsModalOpen]);
   useEffect(() => {
-    if (!isLogsModalOpen || activeJobLogs?.state !== 'waiting') return;
+    if (!isLogsModalOpen || (activeJobLogs?.state !== 'waiting' && !activeJobLogs?.live)) return;
     const timer = setTimeout(() => { void openJobLogs(activeJobLogs.jobId, activeJobLogs.jobName); }, 15000);
     return () => clearTimeout(timer);
   }, [isLogsModalOpen, activeJobLogs, openJobLogs]);
@@ -111,14 +113,11 @@ export const JobLogsViewerModal: React.FC = () => {
   const loading = activeJobLogs.state === 'loading';
   const waiting = activeJobLogs.state === 'waiting';
   const failed = activeJobLogs.state === 'error';
-  const githubUrl = activeJobLogs.htmlUrl?.startsWith('https://github.com/') ? activeJobLogs.htmlUrl : null;
-  const openGitHub = async () => {
-    if (!githubUrl) return;
+  const platformUrl = activeJobLogs.htmlUrl && isCurrentPlatformUrl(activeJobLogs.htmlUrl) ? activeJobLogs.htmlUrl : null;
+  const openPlatform = async () => {
+    if (!platformUrl) return;
     try {
-      if ('__TAURI_INTERNALS__' in window) {
-        const { open } = await import('@tauri-apps/plugin-shell');
-        await open(githubUrl);
-      } else window.open(githubUrl, '_blank', 'noopener,noreferrer');
+      await openExternalUrl(platformUrl);
     } catch (error: any) { toast.error(t('logs.openFailed'), String(error?.message || error)); }
   };
 
@@ -217,7 +216,7 @@ export const JobLogsViewerModal: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2 border-b border-border shrink-0">
-          {githubUrl && <Button variant="outline" size="xs" onClick={() => void openGitHub()}><ExternalLink className="h-3 w-3" />{t('logs.openGitHub')}</Button>}
+          {platformUrl && <Button variant="outline" size="xs" onClick={() => void openPlatform()}><ExternalLink className="h-3 w-3" />{t('logs.openGitHub')}</Button>}
           <Button variant="outline" size="xs" disabled={loading} onClick={() => void openJobLogs(activeJobLogs.jobId, activeJobLogs.jobName)}><RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />{t('logs.retry')}</Button>
         </div>
 

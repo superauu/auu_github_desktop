@@ -1,4 +1,7 @@
+import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
 import React from 'react';
+import { getHostingPlugin } from '@/services/integrations/plugins';
+import { providerSupports } from '@/services/integrations/registry';
 import {
   PlayCircle,
   CheckCircle2,
@@ -19,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '@/i18n';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { confirmAction } from '@/stores/confirmStore';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
@@ -64,8 +67,12 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     currentOwner,
     currentRepoName,
     error,
-  } = useGitHubStore(useShallow(state => ({ workflows: state.workflows, selectedWorkflow: state.selectedWorkflow, workflowRuns: state.workflowRuns, selectedRun: state.selectedRun, selectedRunJobs: state.selectedRunJobs, selectWorkflow: state.selectWorkflow, selectRun: state.selectRun, refreshActions: state.refreshActions, isRefreshingActions: state.isRefreshingActions, isLoadingRuns: state.isLoadingRuns, isLoadingJobs: state.isLoadingJobs, openJobLogs: state.openJobLogs, openWorkflowYaml: state.openWorkflowYaml, openDispatchModal: state.openDispatchModal, rerunWorkflowRun: state.rerunWorkflowRun, cancelWorkflowRun: state.cancelWorkflowRun, isAuthenticated: state.isAuthenticated, user: state.user, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, error: state.error })));
+  } = useCollaborationStore(useShallow(state => ({ workflows: state.workflows, selectedWorkflow: state.selectedWorkflow, workflowRuns: state.workflowRuns, selectedRun: state.selectedRun, selectedRunJobs: state.selectedRunJobs, selectWorkflow: state.selectWorkflow, selectRun: state.selectRun, refreshActions: state.refreshActions, isRefreshingActions: state.isRefreshingActions, isLoadingRuns: state.isLoadingRuns, isLoadingJobs: state.isLoadingJobs, openJobLogs: state.openJobLogs, openWorkflowYaml: state.openWorkflowYaml, openDispatchModal: state.openDispatchModal, rerunWorkflowRun: state.rerunWorkflowRun, cancelWorkflowRun: state.cancelWorkflowRun, isAuthenticated: state.isAuthenticated, user: state.user, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, error: state.error })));
   const { t } = useI18n();
+  const { can } = useCollaborationCapabilities();
+  const providerId = useCollaborationStore(state => state.providerId);
+  const plugin = getHostingPlugin(providerId ?? '');
+  const canCancel = !!plugin && providerSupports(plugin.manifest, 'ci-cd:cancel');
   const selectedRunStatus = selectedRun ? workflowStatus(selectedRun.status, selectedRun.conclusion) : null;
 
   const getStatusIcon = (conclusion: string | null, status: string) => {
@@ -187,7 +194,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         openWorkflowYaml(wf);
                       }}
                       className="p-1 rounded hover:bg-accent hover:text-foreground text-muted-foreground"
-                      title={t('actions.viewYaml')}
+                      title={!can('ci-cd:workflow-source') ? t('connections.unavailableCapability') : t('actions.viewYaml')} disabled={!can('ci-cd:workflow-source')}
                     >
                       <FileCode className="h-3 w-3" />
                     </button>
@@ -198,7 +205,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         openDispatchModal(wf);
                       }}
                       className="p-1 rounded hover:bg-accent hover:text-primary text-muted-foreground"
-                      title={t('actions.dispatch')}
+                      title={!can('ci-cd:dispatch') ? t('connections.unavailableCapability') : t('actions.dispatch')} disabled={!can('ci-cd:dispatch')}
                     >
                       <Play className="h-3 w-3 fill-current" />
                     </button>
@@ -234,6 +241,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                     <Button
                       variant="destructive"
                       size="xs"
+                      disabled={!canCancel}
+                      title={!canCancel ? t('connections.unavailableCapability') : undefined}
                       onClick={async () => {
                         if (await confirmAction({
                           title: t('actions.cancelRunConfirmTitle'),
@@ -253,7 +262,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         <Button
                           variant="outline"
                           size="xs"
-                          onClick={() => rerunWorkflowRun(selectedRun.id, true)}
+                          disabled={!can('ci-cd:rerun')} onClick={() => rerunWorkflowRun(selectedRun.id, true)}
+                          title={!can('ci-cd:rerun') ? t('connections.unavailableCapability') : undefined}
                           className="h-5 px-2 text-[11px] gap-1 text-git-tag hover:text-git-tag"
                         >
                           <RotateCcw className="h-2.5 w-2.5" />
@@ -263,7 +273,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                       <Button
                         variant="outline"
                         size="xs"
-                        onClick={() => rerunWorkflowRun(selectedRun.id, false)}
+                        disabled={!can('ci-cd:rerun')} onClick={() => rerunWorkflowRun(selectedRun.id, false)}
+                        title={!can('ci-cd:rerun') ? t('connections.unavailableCapability') : undefined}
                         className="h-5 px-2 text-[11px] gap-1"
                       >
                         <RotateCcw className="h-2.5 w-2.5" />
@@ -411,7 +422,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                         <Button
                           variant="ghost"
                           size="xs"
-                          onClick={() => openJobLogs(job.id, job.name)}
+                          disabled={!can('ci-cd:job-logs')} onClick={() => openJobLogs(job.id, job.name)}
+                          title={!can('ci-cd:job-logs') ? t('connections.unavailableCapability') : undefined}
                           className="px-2 text-[11px] gap-1 font-mono hover:text-git-added"
                         >
                           <Terminal className="h-3 w-3" />

@@ -41,7 +41,7 @@ before(async () => {
         `export { storeIntegrationToken } from './src/services/errors/credentials';`,
         `export { filterIssues, countUnresolved, scopeProjectIds } from './src/services/errors/issueQuery';`,
         `export { resolveStackFrame } from './src/services/errors/stackNavigation';`,
-        `export { SentryClient } from './src/services/errors/providers/sentry';`,
+        `export { SentryClient } from './src/plugins/sentry/client';`,
       ].join(''),
       resolveDir: root,
     },

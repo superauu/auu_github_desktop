@@ -35,7 +35,8 @@ export async function executeGitTransaction(cwd, run) { return run(executeGit); 
 export function serializeGitWrite() {}
 export const GitQueue = { isReadOnlyGitCommand: () => true, serializeGitWrite: () => {} };
 `;
-const I18N_STUB = `export const tNow = (key) => key; export const t = (key) => key;`;
+const I18N_STUB = `export const tNow = (key) => key; export const t = (key) => key;
+export class LocalizedError extends Error { constructor(key) { super(key); this.key = key; } }`;
 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-history-workflow-'));

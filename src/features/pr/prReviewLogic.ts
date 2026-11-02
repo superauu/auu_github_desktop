@@ -7,12 +7,12 @@
  * - isAuthDeniedError：识别 401/403 类错误
  */
 import type {
-  GitHubIssueComment,
-  GitHubPullRequestReview,
+  CollaborationIssueComment,
+  CollaborationPullRequestReview,
   ReviewEvent,
-} from '@/services/github/GitHubService';
+} from '@/services/collaboration/CollaborationService';
 
-/** 评审事件的合法枚举（与 GitHubService.REVIEW_EVENTS 保持一致，独立维护避免运行时循环依赖） */
+/** 评审事件的合法枚举（与 src/plugins/github/client.ts 的 REVIEW_EVENTS 保持一致，独立维护避免运行时循环依赖） */
 const REVIEW_EVENTS: readonly ReviewEvent[] = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'];
 
 /** unified diff 单行的分类与双侧行号 */
@@ -82,7 +82,7 @@ export interface TimelineEntry {
   avatarUrl?: string;
   body: string;
   /** 仅 review 有；PENDING 评审会被过滤 */
-  state?: GitHubPullRequestReview['state'];
+  state?: CollaborationPullRequestReview['state'];
   /** ISO 时间字符串（缺省为空串，如无 submitted_at 的异常数据） */
   at: string;
   /** 排序用毫秒时间戳，无效时间按 0 处理并以 id 兜底 */
@@ -91,8 +91,8 @@ export interface TimelineEntry {
 
 /** issue comments + reviews 合并为按时间升序的时间线（过滤 PENDING 评审；时间相同按 id 升序） */
 export function mergeTimeline(
-  issueComments: GitHubIssueComment[],
-  reviews: GitHubPullRequestReview[]
+  issueComments: CollaborationIssueComment[],
+  reviews: CollaborationPullRequestReview[]
 ): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
   for (const comment of issueComments) {

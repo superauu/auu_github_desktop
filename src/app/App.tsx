@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useThemeStore } from '@/stores/themeStore';
 import { restoreSavedRepository } from '@/services/git/RepositorySession';
-import { useGitHubStore } from '@/stores/githubStore';
+import { startIntegrationRuntime } from '@/services/integrations/runtime';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { initNotifications } from '@/services/notifications/NotificationService';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -10,17 +10,17 @@ import { AppTextContextMenu } from '@/components/ui/AppTextContextMenu';
 export const App: React.FC = () => {
   useEffect(() => {
     // 初始化只消费 store action（稳定引用），经 getState() 调用而不订阅整店：
-    // App 是根组件，订阅 githubStore 会让 CI watch 的每 15s commitChecks 写入全树重渲染。
+    // App 是根组件，Provider 的轮询更新不应触发全树重渲染。
     const disposeTheme = useThemeStore.getState().initTheme();
     void useSettingsStore.getState().initSecrets();
 
-    // Initialize GitHub auth state
-    void useGitHubStore.getState().initAuth();
+    const disposeIntegrations = startIntegrationRuntime();
 
     let cancelled = false;
     void restoreSavedRepository(() => cancelled);
     return () => {
       cancelled = true;
+      disposeIntegrations();
       disposeTheme?.();
     };
   }, []);

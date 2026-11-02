@@ -6,16 +6,16 @@ import './RepositoryOverview.css';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { useRepoStore, type MainNavTab } from '@/stores/repoStore';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { authorizeRepository, isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 import type { RepositoryInfo } from '@/services/git/types';
 import { overviewService, OverviewPermissionError } from './OverviewService';
 import { mapOverview, overviewCounts, overviewRepositories } from './overviewLogic';
 
-export function RepositoryOverview({ onOpenGitHubAuth }: { onOpenGitHubAuth?: () => void }) {
+export function RepositoryOverview({ onOpenConnection }: { onOpenConnection?: () => void }) {
   const { t, lang } = useI18n();
   const { open, recent, currentPath } = useRepoStore(useShallow(state => ({ open: state.openTabs, recent: state.recentRepos, currentPath: state.currentRepo?.path })));
-  const { token, profile, authenticated } = useGitHubStore(useShallow(state => ({ token: state.token, profile: state.activeProfileId, authenticated: state.isAuthenticated })));
+  const { token, profile, authenticated } = useCollaborationStore(useShallow(state => ({ token: state.token, profile: state.activeProfileId, authenticated: state.isAuthenticated })));
   const account = useMemo(() => ({ token, profile, authenticated }), [token, profile, authenticated]);
   const repos = useMemo(() => overviewRepositories(open, recent), [open, recent]);
   const [rows, setRows] = useState<Record<string, OverviewRowState>>({}), [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
@@ -30,7 +30,7 @@ export function RepositoryOverview({ onOpenGitHubAuth }: { onOpenGitHubAuth?: ()
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
     const id = ++generation.current; setBusy(true); setNotice('');
     setRows(previous => ({ ...previous, ...Object.fromEntries(targets.map(repo => [repo.path, { phase: 'reading' }])) }));
-    const active = () => { const github = useGitHubStore.getState(); return !abort.signal.aborted && generation.current === id && github.token === token && github.activeProfileId === profile && github.isAuthenticated === authenticated; };
+    const active = () => { const collaboration = useCollaborationStore.getState(); return !abort.signal.aborted && generation.current === id && collaboration.token === token && collaboration.activeProfileId === profile && collaboration.isAuthenticated === authenticated; };
     const update = (path: string, row: OverviewRowState) => { if (active()) setRows(previous => ({ ...previous, [path]: row })); };
     try {
       await mapOverview(targets, async repo => {
@@ -112,7 +112,7 @@ export function RepositoryOverview({ onOpenGitHubAuth }: { onOpenGitHubAuth?: ()
         <div className="overview-column-head" aria-hidden="true"><span>{t('overview.repositories')}</span><span>{t('overview.workspace')}</span><span>{t('overview.sync')}</span><span>{t('overview.checks')}</span><span /></div>
         <div className="overview-repository-list">{visible.map(repo => {
           const row = rows[repo.path] || { phase: 'pending' };
-          return <OverviewRepositoryRow key={repo.path} repo={repo} row={row} ci={row.account === account ? row.ci : undefined} current={repo.path === currentPath} expanded={expandedPath === repo.path} busy={busy} opening={!!opening} onToggle={() => setExpanded(expandedPath === repo.path ? null : repo.path)} onRetry={() => retry(repo, row)} onChanges={() => void navigate(repo, 'changes')} onHistory={() => void navigate(repo, 'history')} onConnect={onOpenGitHubAuth} />;
+          return <OverviewRepositoryRow key={repo.path} repo={repo} row={row} ci={row.account === account ? row.ci : undefined} current={repo.path === currentPath} expanded={expandedPath === repo.path} busy={busy} opening={!!opening} onToggle={() => setExpanded(expandedPath === repo.path ? null : repo.path)} onRetry={() => retry(repo, row)} onChanges={() => void navigate(repo, 'changes')} onHistory={() => void navigate(repo, 'history')} onConnect={onOpenConnection} />;
         })}</div>
       </> : <div className="overview-empty"><FolderGit2 aria-hidden="true" size={24} /><h3>{t(query ? 'overview.noResults' : 'overview.noAttention')}</h3><Button variant="outline" size="sm" onClick={() => { setQuery(''); setFilter('all'); }}>{t('overview.reset')}</Button></div>}
       {matching.length > limit && <Button className="overview-more" variant="outline" size="sm" disabled={busy} onClick={() => setLimit(value => value + 24)}>{t('overview.more')}</Button>}

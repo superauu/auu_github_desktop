@@ -6,7 +6,7 @@ import { gitService } from '@/services/git/GitService';
 import { useShallow } from 'zustand/react/shallow';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import React, { useEffect, useState } from 'react';
-import { Github } from '@/components/ui/brandIcons';
+import { Cloud as HostingCloud } from 'lucide-react';
 import {
   GitBranch as GitBranchIcon,
   RefreshCw,
@@ -53,7 +53,7 @@ import type { RepositoryInfo } from '@/services/git/types';
 import { useI18n } from '@/i18n';
 import { useLayoutStore } from '@/stores/layoutStore';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
@@ -99,10 +99,10 @@ interface HeaderProps {
   onToggleInspector: () => void;
   onOpenCommandPalette?: () => void;
   onOpenSettings?: () => void;
-  /** “管理账号”入口：直达设置的 GitHub 账号分区（缺省回落 onOpenSettings）。 */
+  /** “管理账号”入口：直达设置的 托管账号分区（缺省回落 onOpenSettings）。 */
   onOpenAccountSettings?: () => void;
   onOpenRepoDialog?: () => void;
-  onOpenGitHubAuth?: () => void;
+  onOpenConnection?: () => void;
 }
 
 const EMPTY_IGNORE_PATHS: string[] = [];
@@ -224,7 +224,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onOpenAccountSettings,
   onOpenRepoDialog,
-  onOpenGitHubAuth,
+  onOpenConnection,
 }) => {
   const [ignoreRepoPath, setIgnoreRepoPath] = useState<string | null>(null);
   const [worktreesRepoPath, setWorktreesRepoPath] = useState<string | null>(null);
@@ -260,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { resolvedTheme, setTheme } = useThemeStore(useShallow(state => ({ resolvedTheme: state.resolvedTheme, setTheme: state.setTheme })));
   const {
     user, isAuthenticated, profiles, activeProfileId, switchProfile, addProfile,
-  } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, switchProfile: state.switchProfile, addProfile: state.addProfile })));
+  } = useCollaborationStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, switchProfile: state.switchProfile, addProfile: state.addProfile })));
   const { t } = useI18n();
   useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
   const repoPath = currentRepo?.path;
@@ -607,7 +607,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Right: Theme Toggle, GitHub Auth, Settings */}
+          {/* Right: Theme Toggle, Hosting Accounts, Settings */}
           <div className="flex items-center gap-1 shrink-0 pl-2 pr-3" data-no-window-drag>
             {/* Theme Toggle */}
             <Tooltip>
@@ -625,7 +625,7 @@ export const Header: React.FC<HeaderProps> = ({
               <TooltipContent side="bottom">{t('header.toggleThemeTooltip')}</TooltipContent>
             </Tooltip>
 
-            {/* GitHub Auth Profile：未登录保持 Sign In；已登录变为多账号菜单（Profile 切换 / 添加账号 / 管理入口） */}
+            {/* Hosting Profile：未登录保持 Sign In；已登录变为多账号菜单（Profile 切换 / 添加账号 / 管理入口） */}
             {isAuthenticated ? (
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger asChild>
@@ -636,7 +636,7 @@ export const Header: React.FC<HeaderProps> = ({
                     {user?.avatar_url ? (
                       <img src={user.avatar_url} alt={user.login} className="h-3.5 w-3.5 rounded-full border border-border" />
                     ) : (
-                      <Github className="h-3 w-3 text-foreground" />
+                      <HostingCloud className="h-3 w-3 text-foreground" />
                     )}
                     <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
                       {profiles.find((profile) => profile.id === activeProfileId)?.label || user?.login}
@@ -663,8 +663,8 @@ export const Header: React.FC<HeaderProps> = ({
                     })}
                     <DropdownMenu.Separator className="my-1 border-t border-border" />
                     <DropdownMenu.Item className="menu-item"
-                      onSelect={() => { addProfile(); openDialogAfterMenuTeardown(onOpenGitHubAuth); }}
-                      {...selectOnPointerDown(() => { addProfile(); openDialogAfterMenuTeardown(onOpenGitHubAuth); })}
+                      onSelect={() => { addProfile(); openDialogAfterMenuTeardown(onOpenConnection); }}
+                      {...selectOnPointerDown(() => { addProfile(); openDialogAfterMenuTeardown(onOpenConnection); })}
                     >
                       <Plus className="h-4 w-4" />{t('profiles.addAccount')}
                     </DropdownMenu.Item>
@@ -680,11 +680,11 @@ export const Header: React.FC<HeaderProps> = ({
             ) : (
               <DialogActionTip tip={t('header.signGithubTooltip')}>
                 <button
-                  onClick={onOpenGitHubAuth}
+                  onClick={onOpenConnection}
                   aria-label={t('header.signGithubTooltip')}
                   className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs hover:bg-accent transition-colors border border-border/40 text-foreground"
                 >
-                  <Github className="h-3 w-3 text-foreground" />
+                  <HostingCloud className="h-3 w-3 text-foreground" />
                   <span className="font-medium text-[12px] max-w-[60px] truncate hidden xl:inline-block">
                     {t('header.login')}
                   </span>

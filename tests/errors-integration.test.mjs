@@ -96,7 +96,7 @@ test('域注册表治理：预留域不可声明，Sentry 能力全覆盖且命�
   ];
   assert.deepEqual([...app.DOMAIN_REGISTRY['error-tracking'].capabilities], vocabulary);
   // 预留域：declarable=false、无词汇表（§4.1）
-  for (const reserved of ['task-tracking', 'ci-cd', 'observability']) {
+  for (const reserved of ['observability']) {
     assert.equal(app.DOMAIN_REGISTRY[reserved].declarable, false, reserved);
     assert.deepEqual([...app.DOMAIN_REGISTRY[reserved].capabilities], [], reserved);
   }

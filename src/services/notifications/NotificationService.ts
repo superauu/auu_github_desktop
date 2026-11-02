@@ -2,8 +2,8 @@
  * T4 系统通知：应用在后台（窗口失焦/最小化，document.hidden）时，被监听的 CI 检查
  * 从运行中走向终态（success / failure）即弹系统通知（tauri-plugin-notification）。
  *
- * 信号来源（githubStore 对外只读，这里仅做外部 zustand subscribe，不改它）：
- * - store 的 CI watch 状态字段是 `commitChecks: Record<sha, GitHubCheckRun[]>`
+ * 信号来源（collaborationStore 对外只读，这里仅做外部 zustand subscribe，不改它）：
+ * - store 的 CI watch 状态字段是 `commitChecks: Record<sha, CollaborationCheckRun[]>`
  *   （watchPushChecks 轮询与 RightPane 选中提交等路径都会写入该字段）。
  * - 「watch 会话完成」的判定：同一 sha 的检查数组出现
  *   「存在未完成项（queued / in_progress）→ 全部 completed」的迁移，
@@ -15,9 +15,9 @@
  * 全部副作用经由可注入的 deps（假 plugin API / 假 store 可替换），通知失败与
  * 权限拒绝都静默降级，绝不影响 store 监听器（它运行在 zustand setState 内）。
  */
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { tNow } from '@/i18n';
-import type { GitHubCheckRun } from '@/services/github/types';
+import type { CollaborationCheckRun } from '@/services/collaboration/types';
 
 /** 同仓库同结论通知的最小间隔（毫秒）。 */
 const THROTTLE_MS = 30_000;
@@ -57,9 +57,12 @@ export interface NotificationsDeps {
   plugin: NotificationPluginApi;
 }
 
-/** 通知服务关心的 store 切面（githubStore 全量状态的窄化视图）。 */
+/** 通知服务关心的 store 切面（collaborationStore 全量状态的窄化视图）。 */
 export interface CiNotificationsState {
-  commitChecks: Record<string, GitHubCheckRun[]> | undefined;
+  providerId?: string | null;
+  server?: string;
+  activeProfileId?: string | null;
+  commitChecks: Record<string, CollaborationCheckRun[]> | undefined;
   currentOwner: string | null;
   currentRepoName: string | null;
 }
@@ -107,7 +110,7 @@ function composeSummary(completion: CiWatchCompletion): string {
 }
 
 export interface CiNotificationController {
-  /** 挂到 useGitHubStore.subscribe 上的监听器。 */
+  /** 挂到 useCollaborationStore.subscribe 上的监听器。 */
   handleStoreChange(state: CiNotificationsState, prevState: CiNotificationsState): void;
   dispose(): void;
 }
@@ -126,7 +129,8 @@ export function createCiNotificationController(deps: NotificationsDeps): CiNotif
     const repo = state.currentRepoName;
     if (!owner || !repo) return;
     for (const completion of diffCommitCheckCompletions(next, prevState?.commitChecks)) {
-      const dedupKey = `${completion.sha}:${completion.outcome}`;
+      const source = `${state.providerId ?? ''}:${state.server ?? ''}:${state.activeProfileId ?? ''}:${owner}/${repo}`;
+      const dedupKey = `${source}:${completion.sha}:${completion.outcome}`;
       if (notified.has(dedupKey)) continue;
       notified.add(dedupKey);
       if (notified.size > DEDUP_LIMIT) {
@@ -138,7 +142,7 @@ export function createCiNotificationController(deps: NotificationsDeps): CiNotif
       for (const [key, ts] of throttledAt) {
         if (now - ts >= THROTTLE_MS) throttledAt.delete(key);
       }
-      const throttleKey = `${owner}/${repo}:${completion.outcome}`;
+      const throttleKey = `${source}:${completion.outcome}`;
       const last = throttledAt.get(throttleKey);
       if (last !== undefined && now - last < THROTTLE_MS) continue;
       throttledAt.set(throttleKey, now);
@@ -218,7 +222,7 @@ export async function initNotifications(overrides?: Partial<NotificationsDeps>):
     isTauriEnv,
     isHidden: overrides?.isHidden ?? defaultIsHidden,
     now: overrides?.now ?? (() => Date.now()),
-    subscribeStore: overrides?.subscribeStore ?? ((listener) => useGitHubStore.subscribe(listener)),
+    subscribeStore: overrides?.subscribeStore ?? ((listener) => useCollaborationStore.subscribe(listener)),
     plugin,
   };
   const controller = createCiNotificationController(deps);

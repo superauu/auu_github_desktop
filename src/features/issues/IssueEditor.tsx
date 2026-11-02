@@ -4,17 +4,17 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useI18n } from '@/i18n';
-import { githubService } from '@/services/github/GitHubService';
-import type { GitHubIssue, GitHubLabel, IssueUser } from '@/services/github/issueTypes';
-import { useGitHubScope } from './useGitHubScope';
+import { collaborationService } from '@/services/collaboration/CollaborationService';
+import type { CollaborationIssue, CollaborationLabel, IssueUser } from '@/services/collaboration/issueTypes';
+import { useCollaborationScope } from './useCollaborationScope';
 import { toast } from '@/stores/toastStore';
 
-export function IssueEditor({ issue, onClose, onSaved }: { issue?: GitHubIssue; onClose: () => void; onSaved: (issue: GitHubIssue) => void }) {
-  const { t } = useI18n(), scope = useGitHubScope(), id = useId();
+export function IssueEditor({ issue, onClose, onSaved }: { issue?: CollaborationIssue; onClose: () => void; onSaved: (issue: CollaborationIssue) => void }) {
+  const { t } = useI18n(), scope = useCollaborationScope(), id = useId();
   const [title, setTitle] = useState(issue?.title || ''), [body, setBody] = useState(issue?.body || '');
   const [labels, setLabels] = useState(issue?.labels.map(label => label.name) || []);
   const [assignees, setAssignees] = useState(issue?.assignees.map(user => user.login) || []);
-  const [availableLabels, setAvailableLabels] = useState<GitHubLabel[]>(issue?.labels || []);
+  const [availableLabels, setAvailableLabels] = useState<CollaborationLabel[]>(issue?.labels || []);
   const [availableUsers, setAvailableUsers] = useState<IssueUser[]>(issue?.assignees || []);
   const [loadingMetadata, setLoadingMetadata] = useState(true), [metadataError, setMetadataError] = useState('');
   const [submitting, setSubmitting] = useState(false), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
@@ -24,7 +24,7 @@ export function IssueEditor({ issue, onClose, onSaved }: { issue?: GitHubIssue; 
     let active = true;
     if (!scope.owner || !scope.repo) return;
     setLoadingMetadata(true); setMetadataError('');
-    void Promise.allSettled([githubService.getIssueLabels(scope.owner, scope.repo), githubService.getIssueAssignees(scope.owner, scope.repo)]).then(([labelResult, userResult]) => {
+    void Promise.allSettled([collaborationService.getIssueLabels(scope.owner, scope.repo), collaborationService.getIssueAssignees(scope.owner, scope.repo)]).then(([labelResult, userResult]) => {
       if (!active || !scope.isCurrent()) return;
       if (labelResult.status === 'fulfilled') setAvailableLabels(previous => [...new Map([...previous, ...labelResult.value].map(label => [label.name, label])).values()]);
       if (userResult.status === 'fulfilled') setAvailableUsers(previous => [...new Map([...previous, ...userResult.value].map(user => [user.login, user])).values()]);
@@ -41,7 +41,7 @@ export function IssueEditor({ issue, onClose, onSaved }: { issue?: GitHubIssue; 
     sending.current = true; setSubmitting(true); setError('');
     try {
       const input = { title: title.trim(), body, labels, assignees };
-      const saved = issue ? await githubService.updateIssue(scope.owner, scope.repo, issue.number, input) : await githubService.createIssue(scope.owner, scope.repo, input);
+      const saved = issue ? await collaborationService.updateIssue(scope.owner, scope.repo, issue.number, input) : await collaborationService.createIssue(scope.owner, scope.repo, input);
       if (mounted.current && scope.isCurrent()) {
         const normalized = (values: string[]) => [...values].map(value => value.toLowerCase()).sort().join('\0');
         if (normalized(labels) !== normalized(saved.labels.map(label => label.name)) || normalized(assignees) !== normalized(saved.assignees.map(user => user.login))) toast.warning(t('issues.metadataNotApplied'));

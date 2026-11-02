@@ -1,3 +1,4 @@
+import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
 import { isRepositoryAccessCancelled } from '@/services/fs/RepositoryAccess';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { pushFromUi, remoteTagFromUi } from '@/services/git/RemoteActions';
@@ -40,10 +41,10 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
-import { useForgeStore } from '@/stores/forgeStore';
 import { useErrorsStore } from '@/stores/errorsStore';
+import { getErrorPlugin } from '@/services/integrations/plugins';
 import { countUnresolved, scopeProjectIds } from '@/services/errors/issueQuery';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { GitBranch, GitStash, GitTag } from '@/services/git/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -83,9 +84,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
     stashDrop,
   } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, tags: state.tags, stashes: state.stashes, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, checkoutBranch: state.checkoutBranch, deleteBranch: state.deleteBranch, createTag: state.createTag, deleteTag: state.deleteTag, stashPush: state.stashPush, stashPop: state.stashPop, stashApply: state.stashApply, stashDrop: state.stashDrop })));
 
-  const { pullRequests, selectPR } = useGitHubStore(useShallow(state => ({ pullRequests: state.pullRequests, selectPR: state.selectPR })));
-  const forgePulls = useForgeStore((state) => state.pulls);
-  const forgeDetection = useForgeStore((state) => state.detection);
+  const { can } = useCollaborationCapabilities();
+  const { pullRequests, selectPR } = useCollaborationStore(useShallow(state => ({ pullRequests: state.pullRequests, selectPR: state.selectPR })));
   // Errors 域导航（PRD §7.1）：连接建立才出现；徽标 = 当前作用域未解决数（99+ 截断）。
   // 注意：selector 只取 store 原始切片（引用稳定），派生值放 useMemo——
   // 在 useShallow 里 map 出新数组会破坏浅比较导致无限重渲染。
@@ -95,7 +95,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
   const errorsActiveRepoKey = useErrorsStore((state) => state.activeRepoKey);
   const errorsMappingsByRepo = useErrorsStore((state) => state.mappingsByRepo);
   const errorsDomainEnabled = useMemo(
-    () => errorsConnections.some((connection) => connection.enabled && connection.domains.includes('error-tracking')),
+    () => errorsConnections.some((connection) => connection.enabled && getErrorPlugin(connection.providerId) && connection.domains.includes('error-tracking')),
     [errorsConnections],
   );
   const errorsBadgeCount = useMemo(() => {
@@ -748,6 +748,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           </div>
         </button>
 
+        {can('task-tracking:list-issues') && (
         <button
           aria-current={activeTab === 'issues' ? 'page' : undefined}
           onClick={() => { setActiveTab('issues'); onNavigate?.(); }}
@@ -755,7 +756,9 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         >
           <CircleDot className="h-3.5 w-3.5" /><span>{t('issues.nav')}</span>
         </button>
+        )}
 
+        {can('code-hosting:list-pull-requests') && (
         <button
           aria-current={activeTab === 'pullRequests' ? 'page' : undefined}
           onClick={() => { setActiveTab('pullRequests'); onNavigate?.(); }}
@@ -776,10 +779,11 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             <span>{t('sidebar.pullRequests')}</span>
           </div>
           <Badge variant="outline" className="h-3.5 px-1 text-[12px] tabular-nums">
-            {/* 代码托管仓库显示 Forge 合并请求计数，GitHub 仓库显示 PR 计数 */}
-            {forgeDetection ? forgePulls.length : pullRequests.length}
+            {/* 所有代码托管平台共用当前合并请求计数 */}
+            {pullRequests.length}
           </Badge>
         </button>
+        )}
 
         {errorsDomainEnabled && (
           <button
@@ -809,6 +813,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           </button>
         )}
 
+        {can('ci-cd:list-pipelines') && (
         <button
           aria-current={activeTab === 'actions' ? 'page' : undefined}
           onClick={() => { setActiveTab('actions'); onNavigate?.(); }}
@@ -832,6 +837,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             CI
           </Badge>
         </button>
+        )}
       </div>
 
       {/* GitKraken-style [List] [Agents] Pill Switcher */}

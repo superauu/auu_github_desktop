@@ -1,9 +1,10 @@
-import type { GitHubIssue, IssueDraftContext, IssueReference } from '@/services/github/issueTypes';
+import { externalIssueUrl } from '@/services/integrations/links';
+import type { CollaborationIssue, IssueDraftContext, IssueReference } from '@/services/collaboration/issueTypes';
 import { tNow } from '@/i18n';
 
 const oneLine = (text: string) => text.replace(/[\r\n\0]+/g, ' ').trim().slice(0, 256);
 const ref = (issue: IssueReference) => `${issue.owner}/${issue.repo}#${issue.number}`;
-export const toIssueContext = (reference: IssueReference, issue: GitHubIssue): IssueDraftContext => ({
+export const toIssueContext = (reference: IssueReference, issue: CollaborationIssue): IssueDraftContext => ({
   ...reference, title: oneLine(issue.title), body: (issue.body || '').slice(0, 2000),
 });
 export function issuePromptContext(issues: IssueDraftContext[] = []) {
@@ -22,7 +23,7 @@ export function issueCommitDraft(issue: IssueDraftContext, bug = false) {
 export function issuePRDraft(issues: IssueDraftContext[]) {
   return { title: issues.length ? oneLine(issues[0].title) : '',
     // The source descriptions stay out of the executable closing-reference prose.
-    body: [`## ${tNow('issueFlow.background')}`, ...issues.map(issue => `- https://github.com/${issue.owner}/${issue.repo}/issues/${issue.number}`),
+    body: [`## ${tNow('issueFlow.background')}`, ...issues.map(issue => `- ${externalIssueUrl(issue) || ref(issue)}`),
       `\n## ${tNow('issueFlow.changeSummary')}`, `- [ ] ${tNow('issueFlow.describeChanges')}`,
       `\n## ${tNow('issueFlow.validation')}`, `- [ ] ${tNow('issueFlow.describeValidation')}`].join('\n'),
   };

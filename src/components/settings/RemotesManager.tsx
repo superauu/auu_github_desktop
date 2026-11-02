@@ -5,7 +5,7 @@ import { Plus, Trash2, RefreshCw, Check, X } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { gitService } from '@/services/git/GitService';
-import { parseGitHubRemote } from '@/services/git/remoteIdentity';
+import { parseForgeRemote } from '@/services/integrations/remoteIdentity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/stores/toastStore';
@@ -21,7 +21,7 @@ export const RemotesManager: React.FC = () => {
   const { currentRepo, refreshAll } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, refreshAll: state.refreshAll })));
 
   const [remotes, setRemotes] = useState<RemoteEntry[]>([]);
-  const [githubRemote, setGithubRemote] = useState('auto');
+  const [collaborationRemote, setCollaborationRemote] = useState('auto');
   const [loadError, setLoadError] = useState('');
   const [savingBinding, setSavingBinding] = useState(false);
   const loadGeneration = React.useRef(0);
@@ -41,10 +41,10 @@ export const RemotesManager: React.FC = () => {
     setIsLoading(true);
     setLoadError('');
     try {
-      const [list, preference] = await Promise.all([gitService.listRemotes(repoPath), gitService.getGitHubRemotePreference(repoPath)]);
+      const [list, preference] = await Promise.all([gitService.listRemotes(repoPath), gitService.getCollaborationRemotePreference(repoPath)]);
       if (generation !== loadGeneration.current) return;
       setRemotes(list);
-      setGithubRemote(preference);
+      setCollaborationRemote(preference);
     } catch (error: any) {
       if (generation !== loadGeneration.current) return;
       setLoadError(error?.message || t('remote.loadFailed'));
@@ -138,23 +138,29 @@ export const RemotesManager: React.FC = () => {
 
       {loadError && <p role="alert" className="text-xs text-destructive break-all">{loadError}</p>}
       <label className="block text-xs space-y-1">
-        <span>{t('remote.github')}</span>
-        <select className="w-full rounded-md border border-input bg-background p-2" value={githubRemote} disabled={isLoading || savingBinding || !!loadError} onChange={async event => {
+        <span>{t('remote.collaboration')}</span>
+        <select className="w-full rounded-md border border-input bg-background p-2" value={collaborationRemote} disabled={isLoading || savingBinding || !!loadError} onChange={async event => {
           const remote = event.target.value;
           const path = repoPath;
           setSavingBinding(true);
           try {
-            await gitService.setGitHubRemote(path, remote);
+            await gitService.setCollaborationRemote(path, remote);
             if (useRepoStore.getState().currentRepo?.path !== path) return;
-            setGithubRemote(remote);
+            setCollaborationRemote(remote);
             await refreshAll();
-            toast.success(t('remote.githubSaved'));
+            toast.success(t('remote.collaborationSaved'));
           } catch (error: any) { toast.error(t('remote.loadFailed'), error?.message); }
           finally { setSavingBinding(false); }
         }}>
           <option value="auto">{t('remote.automatic')}</option>
-          {githubRemote !== 'auto' && !remotes.some(remote => remote.name === githubRemote && parseGitHubRemote(remote.fetchUrl)) && <option value={githubRemote} disabled>{githubRemote} — {t('remote.invalid')}</option>}
-          {remotes.filter(remote => parseGitHubRemote(remote.fetchUrl)).map(remote => <option key={remote.name} value={remote.name}>{remote.name} — {remote.fetchUrl}</option>)}
+          {collaborationRemote !== 'auto' && !remotes.some(remote => remote.name === collaborationRemote) && <option value={collaborationRemote} disabled>{collaborationRemote} — {t('remote.invalid')}</option>}
+          {remotes.map(remote => {
+            // 只有能解析出托管身份的远程才是协作候选；当前生效值始终可见。
+            const hosting = !!parseForgeRemote(remote.fetchUrl || '');
+            return <option key={remote.name} value={remote.name} disabled={!hosting && remote.name !== collaborationRemote}>
+              {remote.name} — {remote.fetchUrl}{!hosting ? ` — ${t('remote.notHosting')}` : ''}
+            </option>;
+          })}
         </select>
       </label>
 

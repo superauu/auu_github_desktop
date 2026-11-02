@@ -14,7 +14,7 @@ import { DEFAULT_LAYOUT, useLayoutStore } from '@/stores/layoutStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { gitService } from '@/services/git/GitService';
 import type { GitCommit, GitBranch, GitFileChange, RepositoryInfo } from '@/services/git/types';
 import { prepareIssueFixture } from './IssueFixture';
@@ -46,7 +46,7 @@ const branches: GitBranch[] = [
   { name: `origin/${longBranch}`, isCurrent: false, isRemote: true, lastCommit: { hash: hash(0), message: subjects[0], date: '2026-10-01' } },
   { name: 'origin/main', isCurrent: false, isRemote: true, lastCommit: { hash: hash(1), message: subjects[1], date: '2026-10-01' } },
 ];
-const repo: RepositoryInfo = { id: 'visual-fixture', name: 'workspace-ui-fixture', path: '/__auugit_visual_fixture__', currentBranch: longBranch, lastOpenedAt: 0, isGitHubRepo: false };
+const repo: RepositoryInfo = { id: 'visual-fixture', name: 'workspace-ui-fixture', path: '/__auugit_visual_fixture__', currentBranch: longBranch, lastOpenedAt: 0 };
 
 function prepare() {
   // No network requests or native Git writes; all preferences remain in this tab's memory.
@@ -88,7 +88,7 @@ function prepare() {
   gitService.getRepoOperationState = async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false });
   gitService.getPushContext = async () => ({ branch: longBranch, remote: 'origin', targetBranch: longBranch, upstream: `origin/${longBranch}`, remotes: [], ahead: 0, behind: 0 });
   gitService.findCommits = async (_path, query) => commits.filter(commit => commit.subject.toLowerCase().includes(query.toLowerCase()));
-  useGitHubStore.setState({ user: null, isAuthenticated: false, profiles: [], fetchCommitChecks: async () => [] });
+  useCollaborationStore.setState({ user: null, isAuthenticated: false, profiles: [], fetchCommitChecks: async () => [] });
   useRepoStore.setState({ currentRepo: repo, openTabs: [repo], recentRepos: [repo], activeTab: 'history', commits, commitsLoadedAll: true, selectedCommit: commits[0], selectedBranch: longBranch, branches,
     status: { currentBranch: longBranch, trackingBranch: `origin/${longBranch}`, ahead: 0, behind: 0, isClean: false, staged: [], unstaged: files.slice(0, 2), untracked: files.slice(2) },
     tags: [{ name: 'v9.8.7', commitHash: hash(0), isAnnotated: false }], stashes: [], redoStack: [], isLoading: false, errorMessage: null, isLeftSidebarCollapsed: false, isRightPaneCollapsed: false,
@@ -128,5 +128,6 @@ function Fixture() {
 if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
   if (new URLSearchParams(location.search).get('automation') === '1') await import('../../tests/visual/automation.css');
   prepare();
+  if (new URLSearchParams(location.search).get('gitlab') === '1') await (await import('./GitLabFixture')).prepareGitLabFixture(repo);
   createRoot(document.getElementById('root')!).render(<Fixture />);
 }

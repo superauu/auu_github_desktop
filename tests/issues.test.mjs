@@ -1,4 +1,4 @@
-import { before, after, test } from 'node:test';
+import { before, after, test , beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -18,17 +18,18 @@ let app, tmp;
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-issues-'));
   const bundle = path.join(tmp, 'issues.cjs');
-  await build({ stdin: { contents: `export * from './src/features/issues/issueLogic'; export * from './src/features/issues/workflowLogic'; export * from './src/services/ai/issueContext'; export { refreshLinkedIssues } from './src/features/issues/refreshLinkedIssues'; export { GitHubService, githubService } from './src/services/github/GitHubService'; export { RelatedIssues } from './src/features/issues/RelatedIssues'; export { IssueEditor } from './src/features/issues/IssueEditor'; export { IssueDetail } from './src/features/issues/IssueDetail'; export { IssuePullRequestCard } from './src/features/issues/IssuePullRequestCard'; export { CurrentBranchIssue } from './src/features/issues/CurrentBranchIssue'; export { CommitComposer, useComposerDraft } from './src/components/layout/CommitComposer'; export { aiCommitService } from './src/services/ai/AiCommitService'; export { useRepoStore } from './src/stores/repoStore'; export { useGitHubStore } from './src/stores/githubStore'; export { useIssueWorkflowStore } from './src/stores/issueWorkflowStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-modal', setup(builder) {
+  await build({ stdin: { contents: `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; export { bindCollaborationClient } from './src/services/collaboration/CollaborationService'; export { useIntegrationStore } from './src/stores/integrationStore'; export * from './src/features/issues/issueLogic'; export * from './src/features/issues/workflowLogic'; export * from './src/services/ai/issueContext'; export { refreshLinkedIssues } from './src/features/issues/refreshLinkedIssues'; export { GitHubService } from './src/plugins/github/client'; export { collaborationService } from './src/services/collaboration/CollaborationService'; export { RelatedIssues } from './src/features/issues/RelatedIssues'; export { IssueEditor } from './src/features/issues/IssueEditor'; export { IssueDetail } from './src/features/issues/IssueDetail'; export { IssuePullRequestCard } from './src/features/issues/IssuePullRequestCard'; export { CurrentBranchIssue } from './src/features/issues/CurrentBranchIssue'; export { CommitComposer, useComposerDraft } from './src/components/layout/CommitComposer'; export { aiCommitService } from './src/services/ai/AiCommitService'; export { useRepoStore } from './src/stores/repoStore'; export { useCollaborationStore } from './src/stores/collaborationStore'; export { useIssueWorkflowStore } from './src/stores/issueWorkflowStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-modal', setup(builder) {
     builder.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({children}) { return children; }', loader: 'jsx' }));
   } }] });
   app = createRequire(import.meta.url)(bundle);
+  app.bindCollaborationClient(new app.GitHubService());
   app.useIssueWorkflowStore.persist.setOptions({ storage: { getItem: () => null, setItem() {}, removeItem() {} } });
 });
 after(async () => {
   globalThis.fetch = originalFetch;
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-issues-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 });
 });
-const authenticate = (owner = 'owner', profile = 'one') => app.useGitHubStore.setState({ currentOwner: owner, currentRepoName: 'repo', activeProfileId: profile, isAuthenticated: true, token: `test-${profile}` });
+const authenticate = (owner = 'owner', profile = 'one') => { const client = new app.GitHubService(); client.setToken(`test-${profile}`); app.bindCollaborationClient(client); app.useCollaborationStore.setState({ providerId: 'github', server: 'https://github.com', currentOwner: owner, currentRepoName: 'repo', activeProfileId: profile, isAuthenticated: true, token: `test-${profile}` }); };
 
 test('issue search is repository-scoped, paginated, excludes PRs and preserves incomplete-result metadata', async () => {
   const service = new app.GitHubService(); service.setToken('test-only'); let called;
@@ -72,13 +73,15 @@ test('closing directives preserve prose, deduplicate selections and never mistak
   assert.equal(app.issueBranchName(12, '中文'), 'issue/12-task');
 });
 
-test('timeline PR references accept only GitHub PR links, deduplicate and retain cross-repository identity', () => {
+test('timeline PR references accept only current-plugin PR links, deduplicate and retain cross-repository identity', () => {
+  app.useIntegrationStore.getState().setContext('/repo', { providerId: 'github', server: 'https://github.com' });
   const pr = { number: 3, title: 'Fix', state: 'open', html_url: 'https://github.com/other/fork/pull/3', pull_request: {} };
   assert.deepEqual(app.referencedPullRequests([
     { event: 'cross-referenced', source: { issue: pr } }, { event: 'cross-referenced', source: { issue: pr } },
     { event: 'cross-referenced', source: { issue: { ...pr, html_url: 'https://evil.example/pull/3' } } },
     { event: 'cross-referenced', source: { issue: { ...pr, pull_request: undefined } } },
   ]), [pr]);
+  app.useIntegrationStore.getState().setContext(null, null);
 });
 
 test('branch associations are isolated by local repository and survive a fork target reference', () => {
@@ -156,7 +159,7 @@ test('an issue write completing after account switch cannot select or close a ne
 });
 
 test('opening a closed linked PR outside the loaded page invalidates pending list replies', async () => {
-  authenticate(); const gate = deferred(), store = app.useGitHubStore;
+  authenticate(); const gate = deferred(), store = app.useCollaborationStore;
   store.setState({ prFilterState: 'open', pullRequests: [], selectedPR: null });
   globalThis.fetch = () => gate.promise;
   const pending = store.getState().loadPullRequests();
@@ -221,6 +224,7 @@ test('merge reconciliation only invalidates referenced tasks, never marks them c
 });
 
 test('PR cards discard older head-SHA checks and expose partial CI read failures', async () => {
+  app.useIntegrationStore.getState().setContext('/repo', { providerId: 'github', server: 'https://github.com', host: 'github.com', ownerPath: 'owner', repo: 'repo', remoteName: 'origin', connectionId: null });
   authenticate(); let renderer;
   const oldChecks = deferred(), currentChecks = deferred(); let head = 'old';
   globalThis.fetch = async url => {
@@ -299,3 +303,5 @@ test('switching branches invalidates in-flight generation and preserves the new 
     assert.doesNotMatch(text(renderer), /OLD AI RESULT/);
   } finally { app.aiCommitService.generateCommitMessageResult = originalGenerate; if (renderer) await act(async () => renderer.unmount()); }
 });
+
+beforeEach(() => { app.bindFixtureClient(new app.FixtureGitHubClient()); app.useIntegrationStore.getState().setContext(null, null); });

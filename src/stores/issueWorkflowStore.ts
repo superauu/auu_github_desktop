@@ -1,13 +1,16 @@
+import { useIntegrationStore } from '@/stores/integrationStore';
+import { installedHostingPlugins } from '@/services/integrations/plugins';
+import { scopeIssueReference } from '@/services/integrations/links';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { IssueReference } from '@/services/github/issueTypes';
+import type { IssueReference } from '@/services/collaboration/issueTypes';
 import { issueKey } from '@/features/issues/issueLogic';
 
 const branchKey = (path: string, branch: string) => JSON.stringify([path, branch]);
 const validReference = (value: unknown): value is IssueReference => {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<IssueReference>;
-  return typeof item.owner === 'string' && /^[\w.-]+$/.test(item.owner) && typeof item.repo === 'string' && /^[\w.-]+$/.test(item.repo)
+  return typeof item.owner === 'string' && /^[\w.-]+(?:\/[\w.-]+)*$/.test(item.owner) && typeof item.repo === 'string' && /^[\w.-]+$/.test(item.repo)
     && Number.isSafeInteger(item.number) && Number(item.number) > 0;
 };
 interface IssueWorkflowState {
@@ -22,9 +25,11 @@ interface IssueWorkflowState {
 }
 export const useIssueWorkflowStore = create<IssueWorkflowState>()(persist((set, get) => ({
   branchIssues: {}, requestedIssue: null, revisions: {},
-  linkBranch: (path, branch, issue) => set(state => ({ branchIssues: { ...state.branchIssues, [branchKey(path, branch)]: issue } })),
+  linkBranch: (path, branch, issue) => set(state => ({ branchIssues: { ...state.branchIssues, [branchKey(path, branch)]: scopeIssueReference(issue) } })),
   issueForBranch: (path, branch) => {
     const issue = get().branchIssues[branchKey(path, branch)];
+    const binding = useIntegrationStore.getState().binding;
+    if (binding && issue?.providerId && (issue.providerId !== binding.providerId || issue.server !== binding.server)) return undefined;
     return validReference(issue) ? issue : undefined;
   },
   unlinkBranch: (path, branch) => set(state => {
@@ -43,7 +48,7 @@ export const useIssueWorkflowStore = create<IssueWorkflowState>()(persist((set, 
   merge: (persisted, current) => {
     const raw = persisted && typeof persisted === 'object' ? (persisted as Partial<IssueWorkflowState>).branchIssues : null;
     const branchIssues = raw && typeof raw === 'object' && !Array.isArray(raw)
-      ? Object.fromEntries(Object.entries(raw).filter(([, value]) => validReference(value))) : {};
+      ? Object.fromEntries(Object.entries(raw).filter(([, value]) => validReference(value)).map(([key, value]) => [key, value.providerId ? value : installedHostingPlugins().find(plugin => plugin.migrateIssueReference)?.migrateIssueReference?.(value) ?? value])) : {};
     return { ...current, branchIssues };
   },
 }));

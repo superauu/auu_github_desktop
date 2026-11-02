@@ -21,7 +21,7 @@ import {
   GitMerge,
   Puzzle,
 } from 'lucide-react';
-import { Github } from '@/components/ui/brandIcons';
+import { Cloud as HostingCloud } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useThemeStore, ThemeMode } from '@/stores/themeStore';
 import { useLayoutStore } from '@/stores/layoutStore';
@@ -29,7 +29,7 @@ import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore, type Language } from '@/stores/settingsStore';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { gitService } from '@/services/git/GitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -252,7 +252,7 @@ const ProfileAvatar: React.FC<{ src: string | null; login: string; className?: s
   if (!src || failed) {
     return (
       <div className={cn('flex items-center justify-center rounded-full border border-border bg-accent text-muted-foreground shrink-0', className)} aria-hidden>
-        <Github className="h-[55%] w-[55%]" />
+        <HostingCloud className="h-[55%] w-[55%]" />
       </div>
     );
   }
@@ -263,20 +263,20 @@ interface SettingsDialogProps {
   initialTab?: SettingsTab;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onOpenGitHubAuth?: () => void;
+  onOpenConnection?: () => void;
 }
 
-type SettingsTab = 'general' | 'git' | 'github' | 'ai' | 'appearance' | 'shortcuts' | 'integrations';
+type SettingsTab = 'general' | 'git' | 'accounts' | 'ai' | 'appearance' | 'shortcuts' | 'integrations';
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   open,
   initialTab = 'appearance',
   onOpenChange,
-  onOpenGitHubAuth,
+  onOpenConnection,
 }) => {
   const { theme, setTheme } = useThemeStore(useShallow(state => ({ theme: state.theme, setTheme: state.setTheme })));
   const { resetLayout, navigationPinned, setNavigationPinned, inspectorPresentation, setInspectorPresentation } = useLayoutStore(useShallow(state => ({ resetLayout: state.resetLayout, navigationPinned: state.navigationPinned, setNavigationPinned: state.setNavigationPinned, inspectorPresentation: state.inspectorPresentation, setInspectorPresentation: state.setInspectorPresentation })));
-  const { user, isAuthenticated, profiles, activeProfileId, logout, switchProfile, removeProfile, addProfile } = useGitHubStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, logout: state.logout, switchProfile: state.switchProfile, removeProfile: state.removeProfile, addProfile: state.addProfile })));
+  const { user, isAuthenticated, profiles, activeProfileId, logout, switchProfile, removeProfile, addProfile } = useCollaborationStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, logout: state.logout, switchProfile: state.switchProfile, removeProfile: state.removeProfile, addProfile: state.addProfile })));
   const {
     gitCliPath,
     setGitCliPath,
@@ -450,16 +450,16 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </button>
 
               <button
-                aria-current={activeTab === 'github' ? 'page' : undefined} onClick={() => setActiveTab('github')}
+                aria-current={activeTab === 'accounts' ? 'page' : undefined} onClick={() => setActiveTab('accounts')}
                 className={cn(
                   "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition-colors",
-                  activeTab === 'github'
+                  activeTab === 'accounts'
                     ? "bg-accent text-accent-foreground font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                 )}
               >
-                <Github className="h-3.5 w-3.5" />
-                <span className="min-w-0 flex-1 truncate">{t('settings.tab.github')}</span>
+                <HostingCloud className="h-3.5 w-3.5" />
+                <span className="min-w-0 flex-1 truncate">{t('settings.tab.accounts')}</span>
               </button>
 
               <button
@@ -503,7 +503,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               {activeTab === 'appearance' && t('settings.panel.appearance')}
               {activeTab === 'git' && t('settings.panel.git')}
               {activeTab === 'ai' && t('settings.panel.ai')}
-              {activeTab === 'github' && t('settings.panel.github')}
+              {activeTab === 'accounts' && t('settings.panel.accounts')}
               {activeTab === 'shortcuts' && t('settings.panel.shortcuts')}
               {activeTab === 'integrations' && t('errors.settings.panel')}
             </span>
@@ -723,7 +723,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {/* Integrations Tab */}
             {activeTab === 'integrations' && (
               <div className="space-y-4">
-                <IntegrationsSection />
+                <IntegrationsSection onManageAccounts={providerId => { useCollaborationStore.getState().addProfile(providerId); onOpenChange(false); onOpenConnection?.(); }} />
               </div>
             )}
 
@@ -851,14 +851,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </div>
             )}
 
-            {/* GitHub Tab */}
-            {activeTab === 'github' && (
+            {/* Accounts Tab */}
+            {activeTab === 'accounts' && (
               <div className="space-y-4">
                 {isAuthenticated && user ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs font-medium text-foreground">
-                        {t('settings.github.accountsTitle')} <span className="text-muted-foreground font-normal">({profiles.length})</span>
+                        {t('settings.accounts.accountsTitle')} <span className="text-muted-foreground font-normal">({profiles.length})</span>
                       </div>
                       <Button
                         size="toolbar"
@@ -866,7 +866,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         onClick={() => {
                           onOpenChange(false);
                           addProfile();
-                          onOpenGitHubAuth?.();
+                          onOpenConnection?.();
                         }}
                         className="gap-1 border-primary/40 text-primary hover:bg-primary/10"
                       >
@@ -895,11 +895,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                   {isActive && (
                                     <Badge variant="success" className="h-3.5 text-[10px] px-1 gap-0.5 shrink-0">
                                       <CheckCircle2 className="h-2.5 w-2.5" />
-                                      <span>{t('settings.github.currentBadge')}</span>
+                                      <span>{t('settings.accounts.currentBadge')}</span>
                                     </Badge>
                                   )}
                                 </div>
-                                <div className="text-[12px] text-muted-foreground font-mono truncate">@{login}</div>
+                                <div className="text-[12px] text-muted-foreground font-mono truncate">@{login} · {profile.providerId} · {profile.server}</div>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
@@ -910,7 +910,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                   onClick={() => { void switchProfile(profile.id); }}
                                   className="gap-1"
                                 >
-                                  <span>{t('settings.github.switchTo')}</span>
+                                  <span>{t('settings.accounts.switchTo')}</span>
                                 </Button>
                               )}
                               <Button
@@ -919,10 +919,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 onClick={() => {
                                   if (isActive) {
                                     logout();
-                                    toast.info(t('settings.github.disconnectToast'));
+                                    toast.info(t('settings.accounts.disconnectToast'));
                                   } else {
                                     void removeProfile(profile.id);
-                                    toast.info(t('settings.github.removedToast').replace('{login}', login));
+                                    toast.info(t('settings.accounts.removedToast').replace('{login}', login));
                                   }
                                 }}
                                 className={cn('gap-1 text-xs h-7', !isActive && 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10')}
@@ -940,30 +940,29 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   <div className="p-4 rounded-xl border border-border bg-accent/20 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 rounded-full bg-foreground/10 text-foreground">
-                        <Github className="h-5 w-5" />
+                        <HostingCloud className="h-5 w-5" />
                       </div>
                       <div>
-                        <div className="font-semibold text-xs text-foreground">{t('settings.github.notConnected')}</div>
-                        <div className="text-[12px] text-muted-foreground">{t('settings.github.notConnectedDesc')}</div>
+                        <div className="font-semibold text-xs text-foreground">{t('settings.accounts.notConnected')}</div>
+                        <div className="text-[12px] text-muted-foreground">{t('settings.accounts.notConnectedDesc')}</div>
                       </div>
                     </div>
                     <Button
                       size="sm"
                       onClick={() => {
                         onOpenChange(false);
-                        onOpenGitHubAuth?.();
+                        onOpenConnection?.();
                       }}
                       className="gap-1.5 text-xs"
                     >
-                      <Github className="h-3.5 w-3.5" />
-                      <span>{t('settings.github.login')}</span>
+                      <HostingCloud className="h-3.5 w-3.5" />
+                      <span>{t('settings.accounts.login')}</span>
                     </Button>
                   </div>
                 )}
 
                 <div className="text-[12px] text-muted-foreground leading-relaxed">
-                  {t('settings.github.patHintPrefix')} <code className="bg-accent px-1 rounded font-mono">repo</code>、
-                  <code className="bg-accent px-1 rounded font-mono">workflow</code> {t('settings.github.patHintSuffix')}
+                  {t('connections.permissionsHint')}
                 </div>
               </div>
             )}

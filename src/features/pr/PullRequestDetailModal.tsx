@@ -1,3 +1,6 @@
+import { useCollaborationStore } from '@/stores/collaborationStore';
+import { getHostingPlugin } from '@/services/integrations/plugins';
+import { openExternalUrl } from '@/utils/openExternal';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
@@ -18,15 +21,15 @@ import {
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { tNow, useI18n } from '@/i18n';
 import {
-  githubService,
+  collaborationService,
   PR_FILES_SOFT_LIMIT,
-  type GitHubIssueComment,
-  type GitHubPullRequestFile,
-  type GitHubPullRequestReview,
-  type GitHubReviewComment,
+  type CollaborationIssueComment,
+  type CollaborationPullRequestFile,
+  type CollaborationPullRequestReview,
+  type CollaborationReviewComment,
   type ReviewEvent,
-} from '@/services/github/GitHubService';
-import type { GitHubPullRequest } from '@/services/github/types';
+} from '@/services/collaboration/CollaborationService';
+import type { CollaborationPullRequest } from '@/services/collaboration/types';
 import {
   mergeTimeline,
   resolveReviewCapability,
@@ -41,9 +44,10 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { htmlToPlainText } from '@/utils/htmlText';
 import { RelatedIssues } from '@/features/issues/RelatedIssues';
+import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
 
 interface PullRequestDetailModalProps {
-  pr: GitHubPullRequest;
+  pr: CollaborationPullRequest;
   owner: string;
   repo: string;
   onClose: () => void;
@@ -56,7 +60,7 @@ const REVIEW_EVENTS: ReadonlyArray<{ event: ReviewEvent; labelKey: string; activ
 ];
 
 /**
- * PR 评审详情弹窗：状态自足（数据经 GitHubService 按 owner/repo/number 直取）。
+ * PR 评审详情弹窗：状态自足（数据经协作网关按 owner/repo/number 直取）。
  * - Conversation：issue comments + reviews 按时间合并的时间线；
  * - Files：文件列表 + 单文件 patch 渲染 + 行内评论锚点与草稿；
  * - 提交评审：Approve / Request changes / Comment + 总评 + 待提交行内评论；
@@ -64,14 +68,18 @@ const REVIEW_EVENTS: ReadonlyArray<{ event: ReviewEvent; labelKey: string; activ
  */
 export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ pr, owner, repo, onClose }) => {
   const { t } = useI18n();
+  const { can } = useCollaborationCapabilities();
+  const canReview = can('code-hosting:review-pull-request');
+  const providerId = useCollaborationStore(state => state.providerId);
+  const supportedEvents = getHostingPlugin(providerId ?? '')?.reviewEvents ?? [];
 
   const [tab, setTab] = useState('conversation');
-  const [files, setFiles] = useState<GitHubPullRequestFile[] | null>(null);
+  const [files, setFiles] = useState<CollaborationPullRequestFile[] | null>(null);
   const [filesTruncated, setFilesTruncated] = useState(false);
   const [filesError, setFilesError] = useState('');
-  const [reviews, setReviews] = useState<GitHubPullRequestReview[]>([]);
-  const [reviewComments, setReviewComments] = useState<GitHubReviewComment[]>([]);
-  const [issueComments, setIssueComments] = useState<GitHubIssueComment[]>([]);
+  const [reviews, setReviews] = useState<CollaborationPullRequestReview[]>([]);
+  const [reviewComments, setReviewComments] = useState<CollaborationReviewComment[]>([]);
+  const [issueComments, setIssueComments] = useState<CollaborationIssueComment[]>([]);
   const [timelineError, setTimelineError] = useState('');
   const [timelineLoading, setTimelineLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -94,7 +102,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
     setPending([]); setExpandedFile(null); setReviewEvent('COMMENT');
     setReviewBody(''); setSubmitError(''); setSubmitting(false); setTab('conversation');
     if (!owner || !repo || !pr?.number) return;
-    void githubService.getPullRequestFiles(owner, repo, pr.number)
+    void collaborationService.getPullRequestFiles(owner, repo, pr.number)
       .then(result => {
         if (session !== sessionRef.current) return;
         setFiles(result.files); setFilesTruncated(result.truncated);
@@ -104,9 +112,9 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
         setFilesError(err?.message || tNow('prReview.filesLoadFailed'));
       });
     void Promise.all([
-      githubService.getPullRequestReviews(owner, repo, pr.number),
-      githubService.getPullRequestReviewComments(owner, repo, pr.number),
-      githubService.getPullRequestIssueComments(owner, repo, pr.number),
+      collaborationService.getPullRequestReviews(owner, repo, pr.number),
+      collaborationService.getPullRequestReviewComments(owner, repo, pr.number),
+      collaborationService.getPullRequestIssueComments(owner, repo, pr.number),
     ])
       .then(([nextReviews, nextComments, nextIssues]) => {
         if (session !== sessionRef.current) return;
@@ -125,8 +133,8 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
 
   const timeline = useMemo(() => mergeTimeline(issueComments, reviews), [issueComments, reviews]);
   const capability = useMemo(
-    () => resolveReviewCapability({ state: pr.state, merged_at: pr.merged_at }, forbidden),
-    [pr.state, pr.merged_at, forbidden]
+    () => resolveReviewCapability({ state: pr.state, merged_at: pr.merged_at }, forbidden || !canReview),
+    [pr.state, pr.merged_at, forbidden, canReview]
   );
   const visibleFiles = useMemo(() => (files ? files.slice(0, PR_FILES_SOFT_LIMIT) : []), [files]);
 
@@ -142,7 +150,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
     const session = sessionRef.current;
     setSubmitting(true); setSubmitError('');
     try {
-      await githubService.createPullRequestReview(owner, repo, pr.number, {
+      await collaborationService.createPullRequestReview(owner, repo, pr.number, {
         event: reviewEvent,
         body: reviewBody.trim() || undefined,
         comments: pending.map(({ path, side, line, body }) => ({ path, side, line, body })),
@@ -151,8 +159,8 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
       toast.success(t('prReview.submitted'), `${pr.title} #${pr.number}`);
       setPending([]); setReviewBody(''); setReviewEvent('COMMENT');
       const [nextReviews, nextComments] = await Promise.all([
-        githubService.getPullRequestReviews(owner, repo, pr.number),
-        githubService.getPullRequestReviewComments(owner, repo, pr.number),
+        collaborationService.getPullRequestReviews(owner, repo, pr.number),
+        collaborationService.getPullRequestReviewComments(owner, repo, pr.number),
       ]);
       if (session !== sessionRef.current) return;
       setReviews(nextReviews); setReviewComments(nextComments);
@@ -212,7 +220,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="xs" onClick={() => window.open(pr.html_url, '_blank')}
+            <Button variant="ghost" size="xs" onClick={() => void openExternalUrl(pr.html_url)}
               className="p-0 text-muted-foreground hover:text-foreground" title={t('pr.viewOnWeb')}>
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
@@ -418,7 +426,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                 </div>
 
                 <div role="radiogroup" aria-label={t('prReview.submitTitle')} className="flex flex-wrap gap-1.5">
-                  {REVIEW_EVENTS.map(({ event, labelKey, activeClass }) => (
+                  {REVIEW_EVENTS.filter(item => supportedEvents.includes(item.event)).map(({ event, labelKey, activeClass }) => (
                     <button
                       key={event}
                       type="button"

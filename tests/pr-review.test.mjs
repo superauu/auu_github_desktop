@@ -8,7 +8,7 @@
  * (e) patch 文本解析纯函数 parsePatch（add/del/context/hunk 头/+++ ---/No newline）。
  * 组件测试用 react-test-renderer（ModalSurface/Radix Tabs/ScrollArea 以 test-stub 替换）。
  */
-import { test, before, after } from 'node:test';
+import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -44,9 +44,10 @@ before(async () => {
   await build({
     stdin: {
       contents: [
-        `export { githubService, GitHubApiError, PR_FILES_SOFT_LIMIT } from './src/services/github/GitHubService';`,
+        `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; `,
+        `export { GitHubApiError } from './src/plugins/github/client'; export { collaborationService, PR_FILES_SOFT_LIMIT } from './src/services/collaboration/CollaborationService';`,
         `export { parsePatch, mergeTimeline, validateReviewSubmission, resolveReviewCapability, isAuthDeniedError } from './src/features/pr/prReviewLogic';`,
-        `export { PullRequestDetailModal } from './src/features/pr/PullRequestDetailModal';`,
+        `export { useCollaborationStore } from './src/stores/collaborationStore'; export { PullRequestDetailModal } from './src/features/pr/PullRequestDetailModal';`,
         `export { useToastStore } from './src/stores/toastStore';`,
       ].join('\n'),
       resolveDir: root,
@@ -65,6 +66,7 @@ before(async () => {
     }],
   });
   app = createRequire(import.meta.url)(bundle);
+  app.useCollaborationStore.setState({providerId:'github',server:'https://github.com'});
 });
 
 after(async () => {
@@ -96,7 +98,7 @@ const range = n => [...Array(n).keys()];
 test('getPullRequestFiles aggregates pages and flags more than 300 files as truncated', async () => {
   try {
     let calls = serveFilePages([range(100), range(100)]);
-    let result = await app.githubService.getPullRequestFiles('o', 'r', 7);
+    let result = await app.collaborationService.getPullRequestFiles('o', 'r', 7);
     assert.equal(result.files.length, 200);
     assert.equal(result.truncated, false, '200 files is within the soft limit');
     assert.equal(result.files[0].filename, 'f1-0.ts');
@@ -107,7 +109,7 @@ test('getPullRequestFiles aggregates pages and flags more than 300 files as trun
     for (const call of calls) assert.ok(call.startsWith('https://api.github.com/'), call);
 
     calls = serveFilePages([range(100), range(100), range(100), range(100)]);
-    result = await app.githubService.getPullRequestFiles('o', 'r', 7);
+    result = await app.collaborationService.getPullRequestFiles('o', 'r', 7);
     assert.equal(result.files.length, 400);
     assert.equal(result.truncated, true, 'more than 300 files must be flagged as truncated');
   } finally { globalThis.fetch = originalFetch; }
@@ -116,7 +118,7 @@ test('getPullRequestFiles aggregates pages and flags more than 300 files as trun
 test('getPullRequestFiles stops at the caller page cap (consistent pagination convention)', async () => {
   try {
     const calls = serveFilePages(range(20).map(() => range(100)));
-    const result = await app.githubService.getPullRequestFiles('o', 'r', 7, 3);
+    const result = await app.collaborationService.getPullRequestFiles('o', 'r', 7, 3);
     assert.equal(calls.length, 3);
     assert.equal(result.files.length, 300);
     assert.equal(result.truncated, false, 'exactly 300 files is not beyond the soft limit');
@@ -134,7 +136,7 @@ test('createPullRequestReview posts the event, body and anchored comments', asyn
     return new Response(JSON.stringify({ id: 9, user: { login: 'r' }, state: 'APPROVED', body: 'ship it', submitted_at: '2026-01-04T00:00:00Z' }));
   };
   try {
-    await app.githubService.createPullRequestReview('o', 'r', 7, {
+    await app.collaborationService.createPullRequestReview('o', 'r', 7, {
       event: 'APPROVE',
       body: 'ship it',
       comments: [
@@ -163,7 +165,7 @@ test('createPullRequestReview rejects unknown events before any request is sent'
   globalThis.fetch = async () => { calls++; return new Response('{}'); };
   try {
     await assert.rejects(
-      app.githubService.createPullRequestReview('o', 'r', 7, { event: 'MERGE' }),
+      app.collaborationService.createPullRequestReview('o', 'r', 7, { event: 'MERGE' }),
       error => error.name === 'GitHubApiError' && error.status === 400
     );
     assert.equal(calls, 0);
@@ -187,10 +189,10 @@ test('timeline endpoints normalize 401/403 into GitHubApiError for degradation',
   globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Bad credentials' }), { status: 401 });
   try {
     for (const call of [
-      () => app.githubService.getPullRequestReviews('o', 'r', 7),
-      () => app.githubService.getPullRequestReviewComments('o', 'r', 7),
-      () => app.githubService.getPullRequestIssueComments('o', 'r', 7),
-      () => app.githubService.getPullRequestFiles('o', 'r', 7),
+      () => app.collaborationService.getPullRequestReviews('o', 'r', 7),
+      () => app.collaborationService.getPullRequestReviewComments('o', 'r', 7),
+      () => app.collaborationService.getPullRequestIssueComments('o', 'r', 7),
+      () => app.collaborationService.getPullRequestFiles('o', 'r', 7),
     ]) {
       await assert.rejects(call(), error => error.name === 'GitHubApiError' && error.status === 401);
     }
@@ -307,25 +309,25 @@ async function mountModal(props) {
 test('review modal supports inline drafts and submits REQUEST_CHANGES only with a body', async () => {
   const store = app.useToastStore;
   const original = {
-    files: app.githubService.getPullRequestFiles,
-    reviews: app.githubService.getPullRequestReviews,
-    comments: app.githubService.getPullRequestReviewComments,
-    issues: app.githubService.getPullRequestIssueComments,
-    create: app.githubService.createPullRequestReview,
+    files: app.collaborationService.getPullRequestFiles,
+    reviews: app.collaborationService.getPullRequestReviews,
+    comments: app.collaborationService.getPullRequestReviewComments,
+    issues: app.collaborationService.getPullRequestIssueComments,
+    create: app.collaborationService.createPullRequestReview,
   };
   let createCalls = [];
   let reviewsFetches = 0;
-  app.githubService.getPullRequestFiles = async () => ({ files: [diffFileFixture], truncated: false });
-  app.githubService.getPullRequestReviews = async () => {
+  app.collaborationService.getPullRequestFiles = async () => ({ files: [diffFileFixture], truncated: false });
+  app.collaborationService.getPullRequestReviews = async () => {
     reviewsFetches++;
     return reviewsFetches === 1
       ? [{ id: 21, user: { login: 'carol' }, state: 'APPROVED', body: 'LGTM', submitted_at: '2026-01-02T18:00:00Z' }]
       : [{ id: 21, user: { login: 'carol' }, state: 'APPROVED', body: 'LGTM', submitted_at: '2026-01-02T18:00:00Z' },
          { id: 30, user: { login: 'me' }, state: 'CHANGES_REQUESTED', body: '请修改', submitted_at: '2026-01-05T00:00:00Z' }];
   };
-  app.githubService.getPullRequestReviewComments = async () => [reviewCommentFixture];
-  app.githubService.getPullRequestIssueComments = async () => [{ id: 11, user: { login: 'alice' }, body: 'first note', created_at: '2026-01-02T10:00:00Z', updated_at: '2026-01-02T10:00:00Z' }];
-  app.githubService.createPullRequestReview = async (...args) => { createCalls.push(args); return { id: 30 }; };
+  app.collaborationService.getPullRequestReviewComments = async () => [reviewCommentFixture];
+  app.collaborationService.getPullRequestIssueComments = async () => [{ id: 11, user: { login: 'alice' }, body: 'first note', created_at: '2026-01-02T10:00:00Z', updated_at: '2026-01-02T10:00:00Z' }];
+  app.collaborationService.createPullRequestReview = async (...args) => { createCalls.push(args); return { id: 30 }; };
 
   let renderer;
   try {
@@ -383,22 +385,22 @@ test('review modal supports inline drafts and submits REQUEST_CHANGES only with 
     assert.ok(store.getState().toasts.some(toast => toast.type === 'success'), 'success toast is shown');
   } finally {
     await act(async () => renderer?.unmount());
-    Object.assign(app.githubService, original);
+    Object.assign(app.collaborationService, original);
     app.useToastStore.setState({ toasts: [] });
   }
 });
 
 test('merged pull requests render read-only: no submission area and no comment buttons', async () => {
   const original = {
-    files: app.githubService.getPullRequestFiles,
-    reviews: app.githubService.getPullRequestReviews,
-    comments: app.githubService.getPullRequestReviewComments,
-    issues: app.githubService.getPullRequestIssueComments,
+    files: app.collaborationService.getPullRequestFiles,
+    reviews: app.collaborationService.getPullRequestReviews,
+    comments: app.collaborationService.getPullRequestReviewComments,
+    issues: app.collaborationService.getPullRequestIssueComments,
   };
-  app.githubService.getPullRequestFiles = async () => ({ files: [diffFileFixture], truncated: false });
-  app.githubService.getPullRequestReviews = async () => [];
-  app.githubService.getPullRequestReviewComments = async () => [];
-  app.githubService.getPullRequestIssueComments = async () => [];
+  app.collaborationService.getPullRequestFiles = async () => ({ files: [diffFileFixture], truncated: false });
+  app.collaborationService.getPullRequestReviews = async () => [];
+  app.collaborationService.getPullRequestReviewComments = async () => [];
+  app.collaborationService.getPullRequestIssueComments = async () => [];
   let renderer;
   try {
     renderer = await mountModal({ pr: prFixture({ merged_at: '2026-01-03T00:00:00Z' }), owner: 'o', repo: 'r', onClose() {} });
@@ -412,21 +414,21 @@ test('merged pull requests render read-only: no submission area and no comment b
     assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /在第 \d+ 行添加评论/, 'merged PRs must not offer inline comment buttons');
   } finally {
     await act(async () => renderer?.unmount());
-    Object.assign(app.githubService, original);
+    Object.assign(app.collaborationService, original);
   }
 });
 
 test('403 on timeline load hides the submission area and shows a readable permission hint', async () => {
   const original = {
-    files: app.githubService.getPullRequestFiles,
-    reviews: app.githubService.getPullRequestReviews,
-    comments: app.githubService.getPullRequestReviewComments,
-    issues: app.githubService.getPullRequestIssueComments,
+    files: app.collaborationService.getPullRequestFiles,
+    reviews: app.collaborationService.getPullRequestReviews,
+    comments: app.collaborationService.getPullRequestReviewComments,
+    issues: app.collaborationService.getPullRequestIssueComments,
   };
-  app.githubService.getPullRequestFiles = async () => ({ files: [diffFileFixture], truncated: false });
-  app.githubService.getPullRequestReviews = async () => { throw new app.GitHubApiError(403, 'Resource not accessible by integration'); };
-  app.githubService.getPullRequestReviewComments = async () => { throw new app.GitHubApiError(403, 'Resource not accessible by integration'); };
-  app.githubService.getPullRequestIssueComments = async () => [];
+  app.collaborationService.getPullRequestFiles = async () => ({ files: [diffFileFixture], truncated: false });
+  app.collaborationService.getPullRequestReviews = async () => { throw new app.GitHubApiError(403, 'Resource not accessible by integration'); };
+  app.collaborationService.getPullRequestReviewComments = async () => { throw new app.GitHubApiError(403, 'Resource not accessible by integration'); };
+  app.collaborationService.getPullRequestIssueComments = async () => [];
   let renderer;
   try {
     renderer = await mountModal({ pr: prFixture(), owner: 'o', repo: 'r', onClose() {} });
@@ -435,6 +437,8 @@ test('403 on timeline load hides the submission area and shows a readable permis
     assert.equal(renderer.root.findAllByProps({ 'data-pr-review-submit': 'true' }).length, 0);
   } finally {
     await act(async () => renderer?.unmount());
-    Object.assign(app.githubService, original);
+    Object.assign(app.collaborationService, original);
   }
 });
+
+beforeEach(() => { app.bindFixtureClient(new app.FixtureGitHubClient()); });

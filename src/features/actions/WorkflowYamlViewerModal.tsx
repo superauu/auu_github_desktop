@@ -2,13 +2,13 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useState, useEffect, useRef } from 'react';
 import { FileCode, X, Copy, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/stores/toastStore';
 import { useShallow } from 'zustand/react/shallow';
 
 export const WorkflowYamlViewerModal: React.FC = () => {
-  const { isYamlModalOpen, activeWorkflowYaml, closeWorkflowYaml } = useGitHubStore(useShallow(state => ({ isYamlModalOpen: state.isYamlModalOpen, activeWorkflowYaml: state.activeWorkflowYaml, closeWorkflowYaml: state.closeWorkflowYaml })));
+  const { isYamlModalOpen, activeWorkflowYaml, closeWorkflowYaml } = useCollaborationStore(useShallow(state => ({ isYamlModalOpen: state.isYamlModalOpen, activeWorkflowYaml: state.activeWorkflowYaml, closeWorkflowYaml: state.closeWorkflowYaml })));
   const { t } = useI18n();
   const [isCopied, setIsCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

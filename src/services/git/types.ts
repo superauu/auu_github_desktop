@@ -141,10 +141,9 @@ export interface RepositoryInfo {
   currentBranch: string;
   lastOpenedAt: number;
   remoteUrl?: string;
-  isGitHubRepo?: boolean;
-  gitHubOwner?: string;
-  gitHubRepo?: string;
-  gitHubRemote?: string;
+  /** 所选协作远程。null 表示本次探测没有绑定；undefined 兼容旧快照。 */
+  collaborationRemote?: GitRemote | null;
+
 }
 
 export interface IGitService {

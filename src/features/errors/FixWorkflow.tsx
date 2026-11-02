@@ -9,7 +9,7 @@ import { useRepoStore } from '@/stores/repoStore';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { buildBranchName, BRANCH_NAME_TEMPLATE, buildCommitTrailer, buildPrReferenceBlock, splitBranchFreshness } from '@/services/errors/fixFlow';
-import { getProviderManifest } from '@/services/errors/types';
+import { getProviderManifest } from '@/services/integrations/registry';
 import { openExternalUrl } from '@/utils/openExternal';
 import type { UnifiedErrorIssue } from '@/services/errors/types';
 import { Button } from '@/components/ui/button';

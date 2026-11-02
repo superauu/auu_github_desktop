@@ -14,10 +14,10 @@ const status = () => ({ currentBranch: 'main', headOid: 'a'.repeat(40), tracking
 const entry = (index = 1) => ({ id: `op-${index}`, title: 'Git fetch', type: 'error', createdAt: Date.now(), description: 'Network unavailable', repoPath: '/repo', elapsedMs: 1234 });
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-overview-')); const outfile = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/features/repository/overviewLogic'; export * from './src/features/repository/OverviewService'; export * from './src/stores/operationHistoryStorage'; export { useToastStore } from './src/stores/toastStore'; export { gitService } from './src/services/git/GitService';`, resolveDir: root }, outfile, bundle: true, platform: 'node', format: 'cjs', alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'native-permission', setup(builder) { builder.onLoad({ filter: /RepositoryAccess\.ts$/ }, () => ({ contents: `export const listRepositoryPermissions=async()=>globalThis.__overviewGrants||[]; export const authorizeGitBinary=async()=>{}; export const authorizeRepository=async()=>{};` })); } }] });
+  await build({ stdin: { contents: `export * from './src/features/repository/overviewLogic'; export * from './src/features/repository/OverviewService'; export * from './src/stores/operationHistoryStorage'; export { useToastStore } from './src/stores/toastStore'; export { gitService } from './src/services/git/GitService'; export { useCollaborationStore } from './src/stores/collaborationStore';`, resolveDir: root }, outfile, bundle: true, platform: 'node', format: 'cjs', alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'native-permission', setup(builder) { builder.onLoad({ filter: /RepositoryAccess\.ts$/ }, () => ({ contents: `export class RepositoryAccessCancelledError extends Error {}; export const isRepositoryAccessCancelled=()=>false; export const listRepositoryPermissions=async()=>globalThis.__overviewGrants||[]; export const authorizeGitBinary=async()=>{}; export const authorizeRepository=async()=>{};` })); } }] });
   app = createRequire(import.meta.url)(outfile);
 });
-beforeEach(() => { values.clear(); globalThis.localStorage = storage; delete globalThis.window; app.useToastStore.setState({ history: [], toasts: [], historyStorageFailed: false }); });
+beforeEach(() => { values.clear(); globalThis.localStorage = storage; delete globalThis.window; app.useCollaborationStore.setState({ profiles: [], providerId: 'github', server: 'https://github.com' }); app.useToastStore.setState({ history: [], toasts: [], historyStorageFailed: false }); });
 after(async () => { globalThis.fetch = originalFetch; delete globalThis.window; delete globalThis.__overviewGrants; if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-overview-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 }); });
 
 test('overview deduplicates open and recent repositories with platform-aware path identity and counts files once', () => {
@@ -64,10 +64,23 @@ test('partial and truncated CI never look passing, while a known failed check re
   ciFixture({ checks: { total_count: 2, check_runs: [{ status: 'completed', conclusion: 'failure' }] } }); assert.equal((await app.overviewService.ci(repo(), status(), null, true)).state, 'failed');
 });
 test('unauthenticated, untracked and unsupported repositories make no CI requests', async () => {
-  const requests = ciFixture({ url: 'https://gitlab.com/team/project.git' });
+  const requests = ciFixture({ url: 'https://unknown.example/team/project.git' });
   assert.equal((await app.overviewService.ci(repo(), status(), null, false)).state, 'auth');
   assert.equal((await app.overviewService.ci(repo(), { ...status(), trackingBranch: undefined }, null, true)).state, 'unpublished');
   assert.equal((await app.overviewService.ci(repo(), status(), null, true)).state, 'unsupported'); assert.equal(requests.length, 0);
+});
+
+test('GitLab overview uses its adapter and never borrows the active GitHub credential', async () => {
+  app.gitService.listRemotes = async () => [{ name: 'origin', fetchUrl: 'https://gitlab.com/group/sub/project.git' }];
+  app.gitService.getBranchCommitHash = async () => 'b'.repeat(40);
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url: String(url), headers: init.headers });
+    return new Response(JSON.stringify(String(url).includes('/pipelines') ? [{ id: 1, status: 'success' }] : []));
+  };
+  const result = await app.overviewService.ci(repo(), status(), 'github-secret', true);
+  assert.equal(result.state, 'passing'); assert.equal(requests.length, 2);
+  for (const request of requests) { assert.match(request.url, /gitlab.com\/api\/v4\/projects\/group%2Fsub%2Fproject/); assert.deepEqual(request.headers, {}); }
 });
 
 test('history round-trips metadata without executable actions, unknown fields or toast state', () => {

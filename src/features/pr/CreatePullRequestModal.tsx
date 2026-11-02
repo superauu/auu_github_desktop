@@ -1,3 +1,4 @@
+import { useIntegrationStore } from '@/stores/integrationStore';
 import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { ModalSurface } from '@/components/ui/ModalSurface';
@@ -5,31 +6,34 @@ import React, { useState, useEffect, useEffectEvent, useRef } from 'react';
 import { GitPullRequest, X, Loader2, Check, Sparkles } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { githubService } from '@/services/github/GitHubService';
+import { collaborationService, hasCollaborationOperation } from '@/services/collaboration/CollaborationService';
 import { gitService } from '@/services/git/GitService';
-import { parseGitHubRemote } from '@/services/git/remoteIdentity';
+import { remoteIdentityAtServer } from '@/services/integrations/repositoryBinding';
+import { repositoryRemote } from '@/services/integrations/repositoryBinding';
 import type { PushContext } from '@/services/git/types';
 import { aiCommitService } from '@/services/ai/AiCommitService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/stores/toastStore';
-import type { IssueReference } from '@/services/github/issueTypes';
+import type { IssueReference } from '@/services/collaboration/issueTypes';
 import { IssuePicker } from '@/features/issues/IssuePicker';
 import { withClosingIssues } from '@/features/issues/issueLogic';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
-import { useGitHubScope } from '@/features/issues/useGitHubScope';
+import { useCollaborationScope } from '@/features/issues/useCollaborationScope';
 import { issueKey } from '@/features/issues/issueLogic';
 import { issuePRDraft, toIssueContext } from '@/services/ai/issueContext';
 import { appendPrReferenceBlock } from '@/services/errors/fixFlow';
 import { useErrorsStore } from '@/stores/errorsStore';
-import { getProviderManifest } from '@/services/errors/types';
+import { getProviderManifest } from '@/services/integrations/registry';
 
 const sourceRepositories = (context: PushContext | null) => (context?.remotes || []).flatMap(remote => {
   const seen = new Set<string>();
   return (remote.pushUrl || remote.fetchUrl).split('\n').flatMap(url => {
-    const identity = parseGitHubRemote(url);
+    const target = useIntegrationStore.getState().binding;
+    const parsed = target ? remoteIdentityAtServer(url, target.server) : null;
+    const identity = parsed ? { owner: parsed.ownerPath, repo: parsed.repo } : undefined;
     if (!identity) return [];
     const id = JSON.stringify([remote.name, identity.owner.toLowerCase(), identity.repo.toLowerCase()]);
     if (seen.has(id)) return [];
@@ -52,10 +56,10 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   onCreated,
 }) => {
   const { currentRepo, branches, commits, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, commits: state.commits, status: state.status })));
-  const { currentOwner, currentRepoName, loadPullRequests, openPullRequest } = useGitHubStore(useShallow(state => ({ currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, loadPullRequests: state.loadPullRequests, openPullRequest: state.openPullRequest })));
+  const { currentOwner, currentRepoName, loadPullRequests, openPullRequest } = useCollaborationStore(useShallow(state => ({ currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, loadPullRequests: state.loadPullRequests, openPullRequest: state.openPullRequest })));
   const aiConfig = useSettingsStore(state => state.aiConfig);
   const { t } = useI18n();
-  const githubScope = useGitHubScope();
+  const collaborationScope = useCollaborationScope();
 
   const currentBranch =
     currentRepo?.currentBranch ||
@@ -85,8 +89,8 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const draftValue = useRef('');
   draftValue.current = JSON.stringify([title, body]);
 
-  const targetKey = JSON.stringify([currentRepo?.path, currentRepo?.gitHubRemote, currentOwner, currentRepoName, githubScope.key]);
-  const repoPath = currentRepo?.path, gitHubRemote = currentRepo?.gitHubRemote;
+  const targetKey = JSON.stringify([currentRepo?.path, (currentRepo ? repositoryRemote(currentRepo)?.name : undefined), currentOwner, currentRepoName, collaborationScope.key]);
+  const repoPath = currentRepo?.path, collaborationRemote = (currentRepo ? repositoryRemote(currentRepo)?.name : undefined);
   const sourceKey = JSON.stringify([targetKey, headBranch]);
   const session = useRef(0);
   const descriptionRequest = useRef(0);
@@ -119,15 +123,15 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     // The values above intentionally snapshot the draft at the start of this session.
   }, [open, targetKey]);
 
-  const snapshotBaseCandidates = useEffectEvent(() => branches.filter(branch => branch.isRemote && branch.remoteName === gitHubRemote)
+  const snapshotBaseCandidates = useEffectEvent(() => branches.filter(branch => branch.isRemote && branch.remoteName === collaborationRemote)
     .map(branch => branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1)));
   useEffect(() => {
     let active = true;
     setBaseBranch(''); setDefaultBase(''); setBaseFor(''); setLoadingBase(false);
-    if (!open || !currentOwner || !currentRepoName) return;
+    if (!open || !currentOwner || !currentRepoName || !hasCollaborationOperation('getRepositoryDefaultBranch')) return;
     setLoadingBase(true);
     const candidates = snapshotBaseCandidates();
-    void githubService.getRepositoryDefaultBranch(currentOwner, currentRepoName)
+    void collaborationService.getRepositoryDefaultBranch(currentOwner, currentRepoName)
       .then(value => { if (active) { setBaseBranch(value); setDefaultBase(value); setBaseFor(targetKey); } })
       .catch(() => {
         if (!active) return;
@@ -137,7 +141,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       .finally(() => { if (active) setLoadingBase(false); });
     return () => { active = false; };
     // Branches are a snapshot for the fallback; refreshing refs must not overwrite a chosen base.
-  }, [open, targetKey, currentOwner, currentRepoName, gitHubRemote]);
+  }, [open, targetKey, currentOwner, currentRepoName, collaborationRemote]);
 
   useEffect(() => {
     let active = true;
@@ -159,7 +163,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const source = sources.find(option => option.id === sourceId);
   const localBranchNames = branches.filter(branch => !branch.isRemote).map(branch => branch.name);
   const remoteBranchNames = Array.from(new Set([
-    ...branches.filter(branch => branch.isRemote && branch.remoteName === currentRepo?.gitHubRemote)
+    ...branches.filter(branch => branch.isRemote && branch.remoteName === (currentRepo ? repositoryRemote(currentRepo)?.name : undefined))
       .map(branch => branch.remoteBranch || branch.name.slice(branch.name.indexOf('/') + 1)),
     ...(baseFor === targetKey && defaultBase ? [defaultBase] : []),
   ])).filter(name => name && name !== 'HEAD');
@@ -168,8 +172,8 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const ready = !!source && sourceFor === sourceKey && baseFor === targetKey && !loadingBase && !!publishedBranch.trim() && remoteBranchNames.includes(baseBranch);
   const isCurrentTarget = () => {
     const repo = useRepoStore.getState().currentRepo;
-    const github = useGitHubStore.getState();
-    return githubScope.isCurrent() && JSON.stringify([repo?.path, repo?.gitHubRemote, github.currentOwner, github.currentRepoName, githubScope.key]) === targetKey;
+    const collaboration = useCollaborationStore.getState();
+    return collaborationScope.isCurrent() && JSON.stringify([repo?.path, (repo ? repositoryRemote(repo)?.name : undefined), collaboration.currentOwner, collaboration.currentRepoName, collaborationScope.key]) === targetKey;
   };
 
   const handleGenerateDesc = async () => {
@@ -179,11 +183,11 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     const originalDraft = draftValue.current;
     setIsGeneratingDesc(true);
     try {
-      const issueContext = includeIssueContext ? await Promise.all(linkedIssues.slice(0, 5).map(async reference => toIssueContext(reference, await githubService.getIssue(reference.owner, reference.repo, reference.number)))) : undefined;
+      const issueContext = includeIssueContext ? await Promise.all(linkedIssues.slice(0, 5).map(async reference => toIssueContext(reference, await collaborationService.getIssue(reference.owner, reference.repo, reference.number)))) : undefined;
       if (request !== descriptionRequest.current || currentSession !== session.current || !isCurrentTarget()) return;
       const generated = await aiCommitService.generatePRDescriptionResult({
         repoPath: currentRepo.path,
-        base: currentRepo.gitHubRemote ? `refs/remotes/${currentRepo.gitHubRemote}/${baseBranch}` : baseBranch,
+        base: repositoryRemote(currentRepo)?.name ? `refs/remotes/${repositoryRemote(currentRepo)?.name}/${baseBranch}` : baseBranch,
         head: `refs/heads/${headBranch}`,
         aiConfig,
         issueContext,
@@ -204,7 +208,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     const request = ++descriptionRequest.current, originalDraft = draftValue.current;
     setIsGeneratingDesc(true);
     try {
-      const contexts = await Promise.all(linkedIssues.slice(0, 5).map(async reference => toIssueContext(reference, await githubService.getIssue(reference.owner, reference.repo, reference.number))));
+      const contexts = await Promise.all(linkedIssues.slice(0, 5).map(async reference => toIssueContext(reference, await collaborationService.getIssue(reference.owner, reference.repo, reference.number))));
       if (request !== descriptionRequest.current || !isCurrentTarget()) return;
       const result = issuePRDraft(contexts);
       if (draftValue.current !== originalDraft) { toast.warning(t('issueFlow.draftChanged')); return; }
@@ -225,7 +229,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
     const currentSession = session.current;
     setIsSubmitting(true); setError(null);
     try {
-      const created = await githubService.createPullRequest(currentOwner, currentRepoName, {
+      const created = await collaborationService.createPullRequest(currentOwner, currentRepoName, {
         title: title.trim(),
         head: sameRepository ? publishedBranch.trim() : `${source.owner}:${publishedBranch.trim()}`,
         ...(!sameRepository ? { headRepo: source.repo } : {}),
@@ -234,15 +238,16 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
       });
       if (currentSession !== session.current || !isCurrentTarget()) return;
       // 记录 PR 到 Errors 链接（§5.3；分支未被链接时为空操作）
-      if (currentRepo && created.html_url) {
+      const providerId = useCollaborationStore.getState().providerId;
+      if (currentRepo && created.html_url && providerId) {
         useErrorsStore.getState().recordFixPullRequest(currentRepo.path, currentBranch, {
-          provider: 'github', number: created.number, url: created.html_url,
+          provider: providerId, number: created.number, url: created.html_url,
         });
       }
       toast.success(t('pr.created').replace('{n}', String(created.number)), created.html_url);
       await loadPullRequests();
       if (currentSession !== session.current || !isCurrentTarget()) return;
-      const fresh = useGitHubStore.getState().pullRequests.find(pr => pr.number === created.number);
+      const fresh = useCollaborationStore.getState().pullRequests.find(pr => pr.number === created.number);
       openPullRequest(fresh || created);
       onOpenChange(false);
       onCreated?.();

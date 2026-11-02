@@ -14,12 +14,12 @@ import {
   RepoOperationState,
 } from '@/services/git/types';
 import { gitService } from '@/services/git/GitService';
+import { getPullCheckoutRef } from '@/services/integrations/links';
 import { watchPushedCommit } from '@/services/git/PushChecks';
 import { sameWorktreePath } from '@/services/git/worktrees';
 import { tNow } from '@/i18n';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import { sameDiffLines } from '@/utils/diffRows';
-import { useGitHubStore } from '@/stores/githubStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { useWorkingReviewStore } from '@/stores/workingReviewStore';
@@ -239,7 +239,6 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (openId !== repoOpenId) return false;
       repoEpoch++; refreshId++; diffId++;
       refsFingerprint = null;
-      useGitHubStore.getState().clearRepo();
       set((state) => {
         let newTabs = state.openTabs;
         if (repo && !newTabs.some((t) => t.path === repo.path)) {
@@ -406,11 +405,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
       const refresh = refreshId;
       checkingExternal.add(epoch);
       try {
-        const [status, refs, remoteUrl] = await Promise.all([
-          gitService.getStatus(repo.path), gitService.getRefsFingerprint(repo.path), gitService.getGitHubBinding(repo.path).then(binding => binding?.fetchUrl),
+        const [status, refs, remoteBinding] = await Promise.all([
+          gitService.getStatus(repo.path), gitService.getRefsFingerprint(repo.path), gitService.getCollaborationBinding(repo.path),
         ]);
         if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
-        if (refsFingerprint !== refs || status.headOid !== get().status?.headOid || status.currentBranch !== repo.currentBranch || remoteUrl !== repo.remoteUrl) {
+        if (refsFingerprint !== refs || status.headOid !== get().status?.headOid || status.currentBranch !== repo.currentBranch
+          || remoteBinding?.fetchUrl !== repo.remoteUrl || JSON.stringify(remoteBinding ?? null) !== JSON.stringify(repo.collaborationRemote ?? null)) {
           await get().refreshAll();
           return;
         }
@@ -489,18 +489,17 @@ export const useRepoStore = create<RepoState>((set, get) => {
         const resolvedRefs = await nextRefs;
         if (!valid()) return;
         refsFingerprint = resolvedRefs;
-        activeRepo = { ...activeRepo, remoteUrl: detected.remoteUrl,
-          isGitHubRepo: detected.isGitHubRepo, gitHubOwner: detected.gitHubOwner, gitHubRepo: detected.gitHubRepo, gitHubRemote: detected.gitHubRemote };
+        activeRepo = { ...activeRepo, remoteUrl: detected.remoteUrl, collaborationRemote: detected.collaborationRemote };
 
         // Persist updated repo to localStorage
         saveRepositoryState(LAST_ACTIVE_REPO_KEY, activeRepo);
 
         set((state) => {
           const updatedTabs = state.openTabs.map((t) =>
-            t.path === activeRepo.path ? { ...t, currentBranch: activeRepo.currentBranch } : t
+            t.path === activeRepo.path ? { ...t, ...activeRepo } : t
           );
           const updatedRecent = state.recentRepos.map((r) =>
-            r.path === activeRepo.path ? { ...r, currentBranch: activeRepo.currentBranch } : r
+            r.path === activeRepo.path ? { ...r, ...activeRepo } : r
           );
           saveRepositoryState(RECENT_REPOS_KEY, updatedRecent);
 
@@ -530,10 +529,6 @@ export const useRepoStore = create<RepoState>((set, get) => {
         if (!get().selectedCommit && commits.length > 0) {
           set({ selectedCommit: commits[0] });
         }
-
-        if (activeRepo.gitHubOwner && activeRepo.gitHubRepo) {
-          void useGitHubStore.getState().syncRepo(activeRepo.gitHubOwner, activeRepo.gitHubRepo);
-        } else { useGitHubStore.getState().clearRepo(); }
 
       } catch (err: any) {
         if (valid()) set({ errorMessage: err.message, isLoading: false });
@@ -619,7 +614,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       const epoch = repoEpoch;
       set({ isLoading: true, errorMessage: null });
       try {
-        // 记录推送前本地 HEAD，成功后交给 GitHub 监听 CI 结果
+        // 记录推送前本地 HEAD，成功后交给集成运行时按推送目的地监听 CI 结果
         let pushedSha: string | null = null;
         try {
           pushedSha = await gitService.getBranchCommitHash(currentRepo.path, branch ? `refs/heads/${branch}` : 'HEAD');
@@ -954,7 +949,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
       if (!currentRepo) throw new Error(tNow('err.noRepoOpen'));
       set({ isLoading: true, errorMessage: null });
       try {
-        const branch = await gitService.fetchAndCheckoutPR(currentRepo.path, prNumber, customBranchName);
+        const branch = await gitService.fetchAndCheckoutPR(currentRepo.path, prNumber, customBranchName, getPullCheckoutRef(prNumber));
         await get().refreshAll();
         return branch;
       } catch (err: any) {

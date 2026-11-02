@@ -2,7 +2,8 @@
  * 列表查询与徽标口径（PRD §7.2/§7.3）：作用域、来源、严重级别、搜索的纯过滤逻辑。
  * 合并列表排序统一按 lastSeen 倒序（缺失排最后）。
  */
-import type { DomainId, NormalizedSeverity, UnifiedErrorIssue } from './types';
+import type { DomainId } from '../integrations/registry';
+import type { NormalizedSeverity, UnifiedErrorIssue } from './types';
 
 export type ErrorsScope = 'repo' | 'all';
 

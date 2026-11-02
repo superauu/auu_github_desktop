@@ -34,7 +34,7 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   onOpenSettings?: () => void;
   onOpenRepoDialog?: () => void;
-  onOpenGitHubAuth?: () => void;
+  onOpenConnection?: () => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -42,7 +42,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenChange,
   onOpenSettings,
   onOpenRepoDialog,
-  onOpenGitHubAuth,
+  onOpenConnection,
 }) => {
   const {
     setActiveTab,
@@ -341,7 +341,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               <Command.Item
                 onSelect={() => {
                   onOpenChange(false);
-                  onOpenGitHubAuth?.();
+                  onOpenConnection?.();
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >

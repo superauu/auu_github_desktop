@@ -5,11 +5,11 @@ import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Clock, CheckCircle2, Copy, FileCode, GitCommit, Layers, List, Network, X } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
-import { useGitHubStore } from '@/stores/githubStore';
+import { useCollaborationStore } from '@/stores/collaborationStore';
+import { checkStatus, type CiCheck } from '@/services/collaboration/checkStatus';
 import { gitService } from '@/services/git/GitService';
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import type { GitFileChange } from '@/services/git/types';
-import type { GitHubCheckRun } from '@/services/github/types';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ interface RightPaneProps {
   onClose: () => void;
   onOpenAiSettings: () => void;
 }
+const EMPTY_CHECKS: CiCheck[] = [];
 
 export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, onOpenAiSettings }) => {
   const { currentRepo, activeTab, selectedCommit, isRightPaneCollapsed, errorMessage } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, selectedCommit: state.selectedCommit, isRightPaneCollapsed: state.isRightPaneCollapsed, errorMessage: state.errorMessage })));
@@ -35,7 +36,11 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   const { t } = useI18n();
   const draft = useComposerDraft(currentRepo?.path, currentRepo?.currentBranch);
   const [files, setFiles] = useState<GitFileChange[]>([]);
-  const [checks, setChecks] = useState<GitHubCheckRun[]>([]);
+  const commitHash = selectedCommit?.hash;
+  const rawChecks = useCollaborationStore(state => commitHash ? state.commitChecks[commitHash] : undefined);
+  const checks = useMemo(() => rawChecks?.map(check => ({ id: check.id, name: check.name, status: checkStatus(check), webUrl: check.html_url, createdAt: check.started_at })) ?? EMPTY_CHECKS, [rawChecks]);
+  const checksError = useCollaborationStore(state => commitHash ? state.commitCheckErrors[commitHash] : undefined);
+  const integrationRevision = useCollaborationStore(state => `${state.providerId}:${state.server}:${state.activeProfileId}:${state.currentOwner}:${state.currentRepoName}:${state.isAuthenticated}`);
   const [loading, setLoading] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -48,22 +53,27 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   const [diffError, setDiffError] = useState<string | null>(null);
   const request = useRef(0);
   const invalidatePreview = useCallback(() => { request.current++; }, []);
-  const repoPath = currentRepo?.path, commitHash = selectedCommit?.hash;
-  const fetchChecks = useGitHubStore(state => state.fetchCommitChecks);
+  const repoPath = currentRepo?.path;
+  const fetchChecks = useCollaborationStore(state => state.fetchCommitChecks);
   useEffect(() => {
     let cancelled = false;
     invalidatePreview();
-    setFiles([]); setChecks([]); setPreview(null); setFilesError(null); setLoading(false); setFileFilter('');
+    setFiles([]); setPreview(null); setFilesError(null); setLoading(false); setFileFilter('');
     if (activeTab === 'history' && repoPath && commitHash) {
       setLoading(true);
       void gitService.getCommitFiles(repoPath, commitHash)
         .then(result => { if (!cancelled) setFiles(result); })
         .catch((error: Error) => { if (!cancelled) setFilesError(error.message); })
         .finally(() => { if (!cancelled) setLoading(false); });
-      void fetchChecks(commitHash).then(result => { if (!cancelled) setChecks(result); }).catch(() => {});
     }
     return () => { cancelled = true; invalidatePreview(); };
-  }, [repoPath, commitHash, activeTab, fetchChecks, reload, invalidatePreview]);
+  }, [repoPath, commitHash, activeTab, reload, invalidatePreview]);
+  useEffect(() => {
+    if (activeTab === 'history' && repoPath && commitHash) {
+      // CI Store 隔离上下文并持有错误；轮询刷新也会直接更新面板。
+      void fetchChecks(commitHash).catch(() => {});
+    }
+  }, [repoPath, commitHash, activeTab, fetchChecks, integrationRevision, reload]);
 
   const inspect = async (file: GitFileChange) => {
     if (!currentRepo || !selectedCommit) return;
@@ -133,11 +143,11 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
             {!loading && filteredFiles.length === 0 && files.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.noFileMatch')}</p>}
           </>}
         </section>
-        <section className="border-t border-border pt-3 space-y-2"><h3 className="text-[12px] text-muted-foreground">{t('rightPane.githubChecks')}</h3>
-          {!checks.length ? <p className="text-[12px] text-muted-foreground">{t('rightPane.noChecks')}</p> : checks.map(check => {
-            const Icon = check.conclusion === 'success' ? CheckCircle2 : check.status === 'completed' ? AlertCircle : Clock;
-            const color = check.conclusion === 'success' ? 'text-git-added' : ['failure', 'timed_out', 'action_required'].includes(check.conclusion || '') ? 'text-destructive' : 'text-muted-foreground';
-            return <div key={check.id} className="flex items-start gap-2 py-1"><Icon className={`h-4 w-4 shrink-0 ${color}`} /><span className="min-w-0 wrap-break-word">{check.name} · {check.conclusion || check.status}</span></div>;
+        <section className="border-t border-border pt-3 space-y-2"><h3 className="text-[12px] text-muted-foreground">{t('rightPane.ciChecks')}</h3>
+          {checksError ? <div role="alert"><ErrorNotice error={checksError} /><Button variant="outline" size="xs" onClick={() => setReload(value => value + 1)}>{t('composer.retry')}</Button></div> : !checks.length ? <p className="text-[12px] text-muted-foreground">{t('rightPane.noChecks')}</p> : checks.map(check => {
+            const Icon = check.status === 'success' ? CheckCircle2 : check.status === 'failed' ? AlertCircle : Clock;
+            const color = check.status === 'success' ? 'text-git-added' : check.status === 'failed' ? 'text-destructive' : 'text-muted-foreground';
+            return <div key={check.id} className="flex items-start gap-2 py-1"><Icon className={`h-4 w-4 shrink-0 ${color}`} /><span className="min-w-0 wrap-break-word">{check.name} · {t(`ci.status.${check.status}`)}</span></div>;
           })}
         </section>
       </div> : <p className="text-muted-foreground">{t('composer.selectCommit')}</p>)}

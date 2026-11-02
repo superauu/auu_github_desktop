@@ -2,7 +2,7 @@
  * Provider 运行时抽象（PRD §4.2/§10.1）：域视图与连接管理只面向本接口，
  * 平台语义在各 provider 文件内封装。新增 provider = 一个文件 + 注册到工厂。
  */
-import { SentryClient } from './providers/sentry';
+import { getErrorPlugin } from '@/services/integrations/plugins';
 import type { CommitRef, StackFrame, UnifiedErrorIssue } from './types';
 
 export interface ExternalOrg {
@@ -77,10 +77,7 @@ export function createProviderClient(
   providerId: string,
   credentials: { token: string; baseUrl?: string },
 ): ErrorProviderClient {
-  switch (providerId) {
-    case 'sentry':
-      return new SentryClient(credentials);
-    default:
-      throw new Error(`Unsupported provider: ${providerId}`);
-  }
+  const plugin = getErrorPlugin(providerId);
+  if (!plugin) throw new Error(`Unsupported or disabled provider: ${providerId}`);
+  return plugin.createClient(credentials);
 }

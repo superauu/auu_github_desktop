@@ -1,4 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
+import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
 import React, { lazy, Suspense } from 'react';
 import { useRepoStore } from '@/stores/repoStore';
 import { WelcomeView } from '@/features/repository/WelcomeView';
@@ -19,18 +20,19 @@ interface CenterStageProps {
   onOpenRepoDialog: () => void;
   onCloneRepoDialog: () => void;
   onInitRepoDialog: () => void;
-  onOpenGitHubAuth?: () => void;
+  onOpenConnection?: () => void;
 }
 
 export const CenterStage: React.FC<CenterStageProps> = ({
   onOpenRepoDialog,
   onCloneRepoDialog,
   onInitRepoDialog,
-  onOpenGitHubAuth,
+  onOpenConnection,
 }) => {
   const { currentRepo, activeTab } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab })));
   const { isEmbeddedTerminalOpen, setEmbeddedTerminalOpen } = useLayoutStore(useShallow(state => ({ isEmbeddedTerminalOpen: state.isEmbeddedTerminalOpen, setEmbeddedTerminalOpen: state.setEmbeddedTerminalOpen })));
   const { t } = useI18n();
+  const capabilities = useCollaborationCapabilities();
 
   if (!currentRepo && activeTab !== 'overview') {
     return (
@@ -43,14 +45,19 @@ export const CenterStage: React.FC<CenterStageProps> = ({
   }
 
   const renderActiveView = () => {
+    if ((activeTab === 'issues' && !capabilities.can('task-tracking:list-issues'))
+      || (activeTab === 'pullRequests' && !capabilities.can('code-hosting:list-pull-requests'))
+      || (activeTab === 'actions' && !capabilities.can('ci-cd:list-pipelines'))) {
+      return <div className="p-6 text-sm text-muted-foreground">{t('connections.unavailableCapability')}</div>;
+    }
     switch (activeTab) {
-      case 'overview': return <RepositoryOverview onOpenGitHubAuth={onOpenGitHubAuth} />;
+      case 'overview': return <RepositoryOverview onOpenConnection={onOpenConnection} />;
       case 'actions':
-        return <ActionsDashboardView onOpenAuthDialog={onOpenGitHubAuth} />;
+        return <ActionsDashboardView onOpenAuthDialog={onOpenConnection} />;
       case 'pullRequests':
         return <PullRequestsView />;
       case 'issues':
-        return <IssuesView onOpenAuthDialog={onOpenGitHubAuth} />;
+        return <IssuesView onOpenAuthDialog={onOpenConnection} />;
       case 'errors':
         return <ErrorsView />;
       case 'changes':

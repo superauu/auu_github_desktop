@@ -1,19 +1,21 @@
+import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { issueKey } from './issueLogic';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, CircleDot, Plus, RefreshCw, Search } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
 import './IssuesView.css';
-import { githubService } from '@/services/github/GitHubService';
-import type { GitHubIssue, IssueListOptions } from '@/services/github/issueTypes';
+import { collaborationService } from '@/services/collaboration/CollaborationService';
+import type { CollaborationIssue, IssueListOptions } from '@/services/collaboration/issueTypes';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 import { useRepoStore } from '@/stores/repoStore';
-import { useGitHubScope } from './useGitHubScope';
+import { useCollaborationScope } from './useCollaborationScope';
 import { IssueDetail } from './IssueDetail';
 import { IssueEditor } from './IssueEditor';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 
 export function IssuesView({ onOpenAuthDialog }: { onOpenAuthDialog?: () => void }) {
-  const { t } = useI18n(), scope = useGitHubScope();
+  const { t } = useI18n(), scope = useCollaborationScope();
   const path = useRepoStore(state => state.currentRepo?.path);
   if (!scope.isAuthenticated) return <div className="p-6 space-y-3 text-sm"><h1 className="font-semibold">{t('issues.nav')}</h1><p>{t('issues.needAuth')}</p><Button onClick={onOpenAuthDialog}>{t('issues.connect')}</Button></div>;
   if (!scope.owner || !scope.repo) return <div className="p-6 space-y-3 text-sm"><h1 className="font-semibold">{t('issues.nav')}</h1><p>{t('issues.noRepo')}</p><Button variant="outline" onClick={() => window.dispatchEvent(new CustomEvent('auugit:open-settings', { detail: 'git' }))}>{t('issues.configureRemote')}</Button></div>;
@@ -21,15 +23,16 @@ export function IssuesView({ onOpenAuthDialog }: { onOpenAuthDialog?: () => void
 }
 
 function IssueWorkspace() {
-  const { t } = useI18n(), scope = useGitHubScope();
+  const { can } = useCollaborationCapabilities();
+  const { t } = useI18n(), scope = useCollaborationScope();
   const [state, setState] = useState<IssueListOptions['state']>('open'), [query, setQuery] = useState('');
   const [label, setLabel] = useState(''), [assignee, setAssignee] = useState(''), [page, setPage] = useState(1);
-  const [items, setItems] = useState<GitHubIssue[]>([]), [total, setTotal] = useState(0), [incomplete, setIncomplete] = useState(false);
+  const [items, setItems] = useState<CollaborationIssue[]>([]), [total, setTotal] = useState(0), [incomplete, setIncomplete] = useState(false);
   const [selected, setSelected] = useState<number | null>(null), [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
   const requested = useIssueWorkflowStore(store => store.requestedIssue);
   const revision = useIssueWorkflowStore(store => Object.entries(store.revisions)
-    .filter(([key]) => key.startsWith(`${scope.owner}/${scope.repo}#`.toLowerCase())).reduce((sum, [, value]) => sum + value, 0));
+    .filter(([key]) => key.startsWith(issueKey({owner: scope.owner ?? '',repo: scope.repo ?? '',number: 0}).replace(/0$/, ''))).reduce((sum, [, value]) => sum + value, 0));
   useEffect(() => {
     if (!requested || requested.owner.toLowerCase() !== scope.owner?.toLowerCase() || requested.repo.toLowerCase() !== scope.repo?.toLowerCase()) return;
     setSelected(requested.number); useIssueWorkflowStore.getState().openIssue(null);
@@ -38,7 +41,7 @@ function IssueWorkspace() {
     let active = true;
     setLoading(true); setError(''); setItems([]);
     const timer = setTimeout(() => {
-      void githubService.searchIssues(scope.owner!, scope.repo!, { state, query, label, assignee, page }).then(result => {
+      void collaborationService.searchIssues(scope.owner!, scope.repo!, { state, query, label, assignee, page }).then(result => {
         if (!active || !scope.isCurrent()) return;
         setItems(result.items); setTotal(result.total_count); setIncomplete(result.incomplete_results);
       }).catch(reason => { if (active && scope.isCurrent()) setError(String(reason?.message || reason)); })
@@ -52,7 +55,7 @@ function IssueWorkspace() {
     <header className="app-toolbar">
       <div className="app-toolbar-group">
         <Button variant="ghost" size="icon" className="issues-icon-btn" disabled={loading} aria-label={t('issues.refresh')} title={t('issues.refresh')} onClick={refresh}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /></Button>
-        <Button size="toolbar" className="" onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" />{t('issues.create')}</Button>
+        <Button size="toolbar" className="" disabled={!can('task-tracking:create-issue')} title={!can('task-tracking:create-issue') ? t('connections.unavailableCapability') : undefined} onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" />{t('issues.create')}</Button>
         <span className="issues-scope" title={`${scope.owner}/${scope.repo}`}>{scope.owner}/{scope.repo}</span>
       </div>
       <div className="issues-tools">

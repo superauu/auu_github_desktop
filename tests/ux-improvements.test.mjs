@@ -1,4 +1,4 @@
-import { before, after, test } from 'node:test';
+import { before, after, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -39,7 +39,7 @@ const yaml = `on:
 const flush = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
 const openDialog = async () => {
   app.useRepoStore.setState({ branches: [{ name: 'main', isCurrent: true, isRemote: false }, { name: 'topic/test', isCurrent: false, isRemote: false }] });
-  app.useGitHubStore.setState({ currentOwner: 'owner', currentRepoName: 'repo', repoDetails: { default_branch: 'main' }, isDispatchModalOpen: true, dispatchTargetWorkflow: workflow });
+  app.useCollaborationStore.setState({ currentOwner: 'owner', currentRepoName: 'repo', repoDetails: { default_branch: 'main' }, isDispatchModalOpen: true, dispatchTargetWorkflow: workflow });
   let renderer;
   await act(async () => { renderer = create(React.createElement(app.WorkflowDispatchDialog)); });
   return renderer;
@@ -58,8 +58,8 @@ const remoteSubmit = renderer => renderer.root.findAllByType('button').at(-1);
 
 function prFixture({ head = 'topic', owner = 'team', repo = 'project', remote = 'upstream', sourceOwner = 'alice', sourceRepo = 'project' } = {}) {
   const originals = {
-    context: app.gitService.getPushContext, defaultBranch: app.githubService.getRepositoryDefaultBranch,
-    create: app.githubService.createPullRequest, refresh: app.useGitHubStore.getState().loadPullRequests,
+    context: app.gitService.getPushContext, defaultBranch: app.collaborationService.getRepositoryDefaultBranch,
+    create: app.collaborationService.createPullRequest, refresh: app.useCollaborationStore.getState().loadPullRequests,
   };
   const repository = { ...remoteRepo, path: '/pr-ui', currentBranch: head, gitHubRemote: remote, gitHubOwner: owner, gitHubRepo: repo };
   const context = { ...remoteContext, branch: head, targetBranch: head, remote: 'origin', remotes: [
@@ -72,16 +72,18 @@ function prFixture({ head = 'topic', owner = 'team', repo = 'project', remote = 
     { name: 'upstream/main', isCurrent: false, isRemote: true, remoteName: 'upstream', remoteBranch: 'main' },
   ] });
   const requests = [], closed = [];
-  app.useGitHubStore.setState({ currentOwner: owner, currentRepoName: repo, pullRequests: [], loadPullRequests: async () => {} });
+  app.useIntegrationStore.getState().setContext(repository.path, { providerId: 'github', server: 'https://github.com', host: 'github.com', ownerPath: owner, repo, remoteName: 'upstream', connectionId: null });
+  app.useCollaborationStore.setState({ providerId: 'github', server: 'https://github.com', currentOwner: owner, currentRepoName: repo, pullRequests: [], loadPullRequests: async () => {} });
   app.gitService.getPushContext = async () => context;
-  app.githubService.getRepositoryDefaultBranch = async targetOwner => targetOwner === 'alice' ? 'master' : 'main';
-  app.githubService.createPullRequest = async (...args) => { requests.push(args); return { number: 7, html_url: 'https://example.invalid/pr/7' }; };
+  app.collaborationService.getRepositoryDefaultBranch = async targetOwner => targetOwner === 'alice' ? 'master' : 'main';
+  app.collaborationService.createPullRequest = async (...args) => { requests.push(args); return { number: 7, html_url: 'https://example.invalid/pr/7' }; };
   const props = { open: true, onOpenChange: open => closed.push(open) };
   return { repository, context, requests, closed, props, cleanup() {
-    app.gitService.getPushContext = originals.context; app.githubService.getRepositoryDefaultBranch = originals.defaultBranch;
-    app.githubService.createPullRequest = originals.create;
-    app.useGitHubStore.setState({ currentOwner: null, currentRepoName: null, loadPullRequests: originals.refresh });
+    app.gitService.getPushContext = originals.context; app.collaborationService.getRepositoryDefaultBranch = originals.defaultBranch;
+    app.collaborationService.createPullRequest = originals.create;
+    app.useCollaborationStore.setState({ currentOwner: null, currentRepoName: null, loadPullRequests: originals.refresh });
     app.useRepoStore.setState({ currentRepo: null });
+    app.useIntegrationStore.getState().setContext(null, null);
   } };
 }
 
@@ -172,7 +174,7 @@ test('reopening PR creation after changing the collaboration remote resets the s
     await act(async () => renderer.update(React.createElement(app.CreatePullRequestModal, { ...fixture.props, open: false })));
     await act(async () => {
       app.useRepoStore.setState({ currentRepo: { ...fixture.repository, gitHubRemote: 'upstream', gitHubOwner: 'team' } });
-      app.useGitHubStore.setState({ currentOwner: 'team' });
+      app.useCollaborationStore.setState({ currentOwner: 'team' });
       renderer.update(React.createElement(app.CreatePullRequestModal, fixture.props));
     });
     assert.equal(prBase(renderer).props.value, 'main');
@@ -183,22 +185,22 @@ test('reopening PR creation after changing the collaboration remote resets the s
 
 test('late PR base responses and completed submissions cannot overwrite a different target session', async () => {
   const fixture = prFixture({ owner: 'alice', remote: 'origin' }); const oldDefault = deferred(); let renderer;
-  app.githubService.getRepositoryDefaultBranch = owner => owner === 'alice' ? oldDefault.promise : Promise.resolve('main');
+  app.collaborationService.getRepositoryDefaultBranch = owner => owner === 'alice' ? oldDefault.promise : Promise.resolve('main');
   try {
     await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
     assert.equal(submitButton(renderer).props.disabled, true);
     await act(async () => {
       app.useRepoStore.setState({ currentRepo: { ...fixture.repository, gitHubRemote: 'upstream', gitHubOwner: 'team' } });
-      app.useGitHubStore.setState({ currentOwner: 'team' });
+      app.useCollaborationStore.setState({ currentOwner: 'team' });
     });
     await act(async () => oldDefault.resolve('master'));
     assert.equal(prBase(renderer).props.value, 'main');
-    const creation = deferred(); app.githubService.createPullRequest = () => creation.promise;
+    const creation = deferred(); app.collaborationService.createPullRequest = () => creation.promise;
     let submission;
     await act(async () => { submission = submitPR(renderer); });
     await act(async () => {
       app.useRepoStore.setState({ currentRepo: { ...fixture.repository, gitHubRemote: 'origin' } });
-      app.useGitHubStore.setState({ currentOwner: 'alice' });
+      app.useCollaborationStore.setState({ currentOwner: 'alice' });
     });
     await act(async () => { creation.resolve({ number: 7, html_url: 'https://example.invalid/pr/7' }); await submission; });
     assert.deepEqual(fixture.closed, []); assert.equal(prBase(renderer).props.value, 'master');
@@ -208,7 +210,7 @@ test('late PR base responses and completed submissions cannot overwrite a differ
 test('GitHub PR requests include head_repo for a cross-repository source and retain specific validation errors', async () => {
   const fixture = prFixture(); let renderer;
   try {
-    app.githubService.createPullRequest = async () => { throw Error('Validation Failed: source branch does not exist'); };
+    app.collaborationService.createPullRequest = async () => { throw Error('Validation Failed: source branch does not exist'); };
     await act(async () => { renderer = create(React.createElement(app.CreatePullRequestModal, fixture.props)); });
     await act(async () => submitPR(renderer));
     assert.match(JSON.stringify(renderer.toJSON()), /source branch does not exist/);
@@ -217,7 +219,7 @@ test('GitHub PR requests include head_repo for a cross-repository source and ret
   let sent;
   globalThis.fetch = async (_url, init) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ number: 7 })); };
   try {
-    await app.githubService.createPullRequest('team', 'project', { title: 'PR', head: 'team:topic', headRepo: 'project-fork', base: 'main' });
+    await app.collaborationService.createPullRequest('team', 'project', { title: 'PR', head: 'team:topic', headRepo: 'project-fork', base: 'main' });
     assert.equal(sent.head, 'team:topic'); assert.equal(sent.head_repo, 'project-fork');
   } finally { globalThis.fetch = originalFetch; }
 });
@@ -360,13 +362,16 @@ test('remote configuration failures support retry and force push always shows it
 });
 
 test('push CI observation follows the actual destination repository and never turns a completed push into a failure', async () => {
-  const original = app.gitService.getPushContext, watch = app.useGitHubStore.getState().watchPushChecks;
+  const original = app.gitService.getPushContext, watch = app.useCollaborationStore.getState().watchPushChecks;
   const seen = [];
   app.gitService.getPushContext = async () => ({ ...remoteContext, remotes: [
     { name: 'origin', fetchUrl: 'https://github.com/fork/project.git', pushUrl: 'https://github.com/fork/project.git' },
     { name: 'upstream', fetchUrl: 'https://github.com/team/project.git', pushUrl: 'https://github.com/team/project.git' },
   ] });
-  app.useGitHubStore.setState({ currentOwner: 'team', currentRepoName: 'project', watchPushChecks: sha => seen.push(sha) });
+  const sync = app.useCollaborationStore.getState().syncRepo;
+  app.useCollaborationStore.setState({ syncRepo: async (owner, repo) => { app.useCollaborationStore.setState({ currentOwner: owner, currentRepoName: repo }); }, watchPushChecks: sha => seen.push(sha) });
+  app.useRepoStore.setState({ currentRepo: { ...remoteRepo, path: '/repo', remoteUrl: 'https://github.com/team/project.git' } });
+  const dispose = app.startIntegrationRuntime();
   try {
     await app.watchPushedCommit('/repo', 'origin', 'topic/path', 'fork-sha', () => true);
     assert.deepEqual(seen, []);
@@ -377,15 +382,18 @@ test('push CI observation follows the actual destination repository and never tu
     app.gitService.getPushContext = async () => { throw Error('metadata unavailable'); };
     await app.watchPushedCommit('/repo', 'upstream', 'topic/path', 'succeeded-sha', () => true);
   } finally {
+    dispose();
     app.gitService.getPushContext = original;
-    app.useGitHubStore.setState({ currentOwner: null, currentRepoName: null, watchPushChecks: watch });
+    app.useCollaborationStore.setState({ currentOwner: null, currentRepoName: null, watchPushChecks: watch, syncRepo: sync });
+    app.useRepoStore.setState({ currentRepo: null });
+    app.useIntegrationStore.getState().setContext(null, null);
   }
 });
 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-ux-'));
   const bundle = path.join(tmp, 'ux.cjs');
-  await build({ stdin: { contents: `export { useSettingsStore } from './src/stores/settingsStore'; export { CommitComposer } from './src/components/layout/CommitComposer'; export { CreatePullRequestModal } from './src/features/pr/CreatePullRequestModal'; export { useToastStore } from './src/stores/toastStore'; export * from './src/services/git/PushChecks'; export * from './src/stores/remoteDialogStore'; export * from './src/services/git/RemoteActions'; export { RemoteOperationDialog } from './src/features/git/RemoteOperationDialog'; export * from './src/services/github/WorkflowInputs'; export * from './src/services/git/GitQueue'; export { githubService } from './src/services/github/GitHubService'; export { useGitHubStore } from './src/stores/githubStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
+  await build({ stdin: { contents: `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; export { useSettingsStore } from './src/stores/settingsStore'; export { CommitComposer } from './src/components/layout/CommitComposer'; export { CreatePullRequestModal } from './src/features/pr/CreatePullRequestModal'; export { useToastStore } from './src/stores/toastStore'; export { useIntegrationStore } from './src/stores/integrationStore'; export { startIntegrationRuntime } from './src/services/integrations/runtime'; export * from './src/services/git/PushChecks'; export * from './src/stores/remoteDialogStore'; export * from './src/services/git/RemoteActions'; export { RemoteOperationDialog } from './src/features/git/RemoteOperationDialog'; export * from './src/services/collaboration/WorkflowInputs'; export { parseWorkflowInputs } from './src/plugins/shared/dispatchInputs'; export * from './src/services/git/GitQueue'; export { collaborationService } from './src/services/collaboration/CollaborationService'; export { useCollaborationStore } from './src/stores/collaborationStore'; export { useRepoStore } from './src/stores/repoStore'; export { ErrorBoundary } from './src/components/ui/ErrorBoundary'; export { WorkflowDispatchDialog } from './src/features/actions/WorkflowDispatchDialog'; export { RecoveryCenterDialog } from './src/features/git/RecoveryCenterDialog'; export { branchSafetyService } from './src/services/git/BranchSafetyService'; export { historyWorkflowService } from './src/services/git/HistoryWorkflowService'; export { gitService } from './src/services/git/GitService'; export { useConfirmStore } from './src/stores/confirmStore';`, resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent',
     plugins: [{ name: 'headless-modal', setup(build) { build.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({ children }) { return children; }', loader: 'jsx' })); } }],
   });
@@ -393,7 +401,7 @@ before(async () => {
 });
 after(async () => {
   globalThis.fetch = originalFetch;
-  app?.useGitHubStore.getState().clearRepo();
+  app?.useCollaborationStore.getState().clearRepo();
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-ux-')) await fs.rm(tmp, { recursive: true, force: true, maxRetries: 5 });
 });
 
@@ -419,23 +427,23 @@ test('manual triggers support shorthand, null and quoted keys while invalid defi
 test('workflow YAML requests encode the selected branch and reject unavailable file content', async () => {
   let request;
   globalThis.fetch = async (url, init) => { request = { url, init }; return new Response(JSON.stringify({ encoding: 'base64', content: Buffer.from('on: workflow_dispatch # 中文').toString('base64') })); };
-  const data = await app.githubService.getWorkflowYaml('owner', 'repo', workflow.path, 'topic/test #1');
+  const data = await app.collaborationService.getWorkflowYaml('owner', 'repo', workflow.path, 'topic/test #1');
   assert.equal(data.content, 'on: workflow_dispatch # 中文');
   assert.equal(new URL(request.url).searchParams.get('ref'), 'topic/test #1');
   assert.equal(request.init.cache, 'no-store');
   assert.ok(request.init.signal);
   globalThis.fetch = async () => new Response(JSON.stringify({ encoding: 'none', content: '' }));
-  await assert.rejects(app.githubService.getWorkflowYaml('owner', 'repo', workflow.path), /无法读取工作流参数定义/);
+  await assert.rejects(app.collaborationService.getWorkflowYaml('owner', 'repo', workflow.path), /无法读取工作流参数定义/);
   globalThis.fetch = originalFetch;
 });
 
 test('dispatch dialog loads real fields, submits declared names, and resets on reopening', async () => {
-  const originalYaml = app.githubService.getWorkflowYaml, originalDispatch = app.githubService.dispatchWorkflow;
+  const originalYaml = app.collaborationService.getWorkflowYaml, originalDispatch = app.collaborationService.dispatchWorkflow;
   let sent, renderer;
-  app.githubService.getWorkflowYaml = async () => ({ content: yaml });
-  app.githubService.dispatchWorkflow = async (...args) => { sent = args; };
-  const originalRefresh = app.useGitHubStore.getState().refreshActions;
-  app.useGitHubStore.setState({ refreshActions: async () => {} });
+  app.collaborationService.getWorkflowYaml = async () => ({ content: yaml });
+  app.collaborationService.dispatchWorkflow = async (...args) => { sent = args; };
+  const originalRefresh = app.useCollaborationStore.getState().refreshActions;
+  app.useCollaborationStore.setState({ refreshActions: async () => {} });
   try {
     renderer = await openDialog(); await flush();
     assert.equal(submitButton(renderer).props.disabled, false);
@@ -443,21 +451,21 @@ test('dispatch dialog loads real fields, submits declared names, and resets on r
     act(() => notes.props.onChange({ target: { value: 'hello' } }));
     await act(async () => { await renderer.root.findByType('form').props.onSubmit({ preventDefault() {} }); });
     assert.deepEqual(sent, ['owner', 'repo', 1, { ref: 'main', inputs: { region: 'ap-southeast-2', dryRun: 'false', count: '0', notes: 'hello' } }]);
-    assert.equal(app.useGitHubStore.getState().isDispatchModalOpen, false);
-    act(() => app.useGitHubStore.getState().openDispatchModal(workflow)); await flush();
+    assert.equal(app.useCollaborationStore.getState().isDispatchModalOpen, false);
+    act(() => app.useCollaborationStore.getState().openDispatchModal(workflow)); await flush();
     assert.equal(renderer.root.findByProps({ id: 'workflow-input-notes' }).findByType('input').props.value, '');
   } finally {
     if (renderer) act(() => renderer.unmount());
-    app.githubService.getWorkflowYaml = originalYaml; app.githubService.dispatchWorkflow = originalDispatch;
-    app.useGitHubStore.setState({ refreshActions: originalRefresh });
+    app.collaborationService.getWorkflowYaml = originalYaml; app.collaborationService.dispatchWorkflow = originalDispatch;
+    app.useCollaborationStore.setState({ refreshActions: originalRefresh });
   }
 });
 
 test('switching branches aborts old loads and never enables submission with stale inputs', async () => {
-  const original = app.githubService.getWorkflowYaml;
+  const original = app.collaborationService.getWorkflowYaml;
   const main = deferred(), topic = deferred();
   const requests = [];
-  app.githubService.getWorkflowYaml = (...args) => { requests.push(args); return args[3] === 'main' ? main.promise : topic.promise; };
+  app.collaborationService.getWorkflowYaml = (...args) => { requests.push(args); return args[3] === 'main' ? main.promise : topic.promise; };
   let renderer;
   try {
     renderer = await openDialog();
@@ -469,14 +477,14 @@ test('switching branches aborts old loads and never enables submission with stal
     await act(async () => topic.resolve({ content: 'on: workflow_dispatch' }));
     assert.equal(submitButton(renderer).props.disabled, false);
     assert.equal(renderer.root.findAllByType('input').length, 0);
-  } finally { if (renderer) act(() => renderer.unmount()); app.githubService.getWorkflowYaml = original; }
+  } finally { if (renderer) act(() => renderer.unmount()); app.collaborationService.getWorkflowYaml = original; }
 });
 
 test('failed workflow loads can retry and dispatch failures remain visible without closing the dialog', async () => {
-  const originalYaml = app.githubService.getWorkflowYaml, originalDispatch = app.githubService.dispatchWorkflow;
+  const originalYaml = app.collaborationService.getWorkflowYaml, originalDispatch = app.collaborationService.dispatchWorkflow;
   let attempt = 0, renderer;
-  app.githubService.getWorkflowYaml = async () => { if (++attempt === 1) throw new Error('offline'); return { content: 'on: workflow_dispatch' }; };
-  app.githubService.dispatchWorkflow = async () => { throw new Error('permission denied'); };
+  app.collaborationService.getWorkflowYaml = async () => { if (++attempt === 1) throw new Error('offline'); return { content: 'on: workflow_dispatch' }; };
+  app.collaborationService.dispatchWorkflow = async () => { throw new Error('permission denied'); };
   try {
     renderer = await openDialog(); await flush();
     assert.equal(submitButton(renderer).props.disabled, true);
@@ -485,9 +493,9 @@ test('failed workflow loads can retry and dispatch failures remain visible witho
     await act(async () => retry.props.onClick()); await flush();
     assert.equal(submitButton(renderer).props.disabled, false);
     await act(async () => renderer.root.findByType('form').props.onSubmit({ preventDefault() {} }));
-    assert.equal(app.useGitHubStore.getState().isDispatchModalOpen, true);
+    assert.equal(app.useCollaborationStore.getState().isDispatchModalOpen, true);
     assert.match(JSON.stringify(renderer.toJSON()), /permission denied/);
-  } finally { if (renderer) act(() => renderer.unmount()); app.githubService.getWorkflowYaml = originalYaml; app.githubService.dispatchWorkflow = originalDispatch; }
+  } finally { if (renderer) act(() => renderer.unmount()); app.collaborationService.getWorkflowYaml = originalYaml; app.collaborationService.dispatchWorkflow = originalDispatch; }
 });
 
 test('cancelling queued writes skips their callbacks while active and other repositories finish', async () => {
@@ -590,3 +598,5 @@ test('recovery deletion identifies the point, requires confirmation, and cancell
     assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /旧名称/);
   });
 });
+
+beforeEach(() => { app.bindFixtureClient(new app.FixtureGitHubClient()); });

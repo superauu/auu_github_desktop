@@ -1,4 +1,4 @@
-import { test, before, after } from 'node:test';
+import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -37,14 +37,14 @@ function stub(target, replacements) { const originals = Object.fromEntries(Objec
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-'));
   const bundle = path.join(tmp, 'app.cjs');
-  await build({ stdin: { contents: `export * from './src/services/git/RepositorySession'; export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export * from './src/services/git/IgnoreService'; export * from './src/services/git/worktrees'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useGitHubStore} from './src/stores/githubStore'; export {githubService, GitHubApiError} from './src/services/github/GitHubService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; export { resolveHostingBinding } from './src/services/integrations/repositoryBinding'; export { startIntegrationRuntime } from './src/services/integrations/runtime'; export * from './src/services/git/RepositorySession'; export * from './src/services/git/PorcelainParser'; export * from './src/services/git/GitQueue'; export * from './src/stores/workspaceSessionStore'; export * from './src/utils/cursorThemes'; export * from './src/services/git/IgnoreService'; export * from './src/services/git/worktrees'; export {gitService} from './src/services/git/GitService'; export {useRepoStore} from './src/stores/repoStore'; export {useCollaborationStore} from './src/stores/collaborationStore'; export { GitHubApiError, GitHubService } from './src/plugins/github/client'; export { collaborationService } from './src/services/collaboration/CollaborationService'; export {aiCommitService} from './src/services/ai/AiCommitService'; export {getCommitScope} from './src/services/git/commitScope'; export {fitWorkspacePanels} from './src/utils/workspaceSizing'; export {useSettingsStore} from './src/stores/settingsStore'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen(); base = `http://127.0.0.1:${server.httpServer.address().port}`;
   globalThis.fetch = (url, init) => routedFetch(typeof url === 'string' && url.startsWith('/api/') ? base + url : url, init);
 });
 after(async () => {
-  app?.useGitHubStore.getState().clearRepo(); globalThis.fetch = nativeFetch;
+  app?.useCollaborationStore.getState().clearRepo(); globalThis.fetch = nativeFetch;
   await server?.close();
   if (tmp && path.dirname(tmp) === root && path.basename(tmp).startsWith('.test-tmp-')) await fs.rm(tmp, { recursive: true, force: true });
 });
@@ -139,15 +139,16 @@ test('local API blocks foreign/simple requests, survives a failed spawn and supp
 });
 
 test('late repository responses cannot replace a newer repository and local repos clear GitHub binding', async () => {
+  const dispose = app.startIntegrationRuntime();
   const wait = deferred();
   const restore = stub(app.gitService, { getStatus: async (repo) => { if (repo === 'A') await wait.promise; return clean; }, getCommits: async () => [], getBranches: async () => [], getTags: async () => [], getStashes: async () => [], getRepoOperationState: async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false }), openRepository: async (repo) => info(repo) });
   try {
     app.useRepoStore.getState().setCurrentRepo(info('A')); const pending = app.useRepoStore.getState().refreshAll();
     app.useRepoStore.getState().setCurrentRepo(info('B')); await app.useRepoStore.getState().refreshAll();
     wait.resolve(); await pending; assert.equal(app.useRepoStore.getState().currentRepo.path, 'B');
-    app.useGitHubStore.setState({ currentOwner: 'old', currentRepoName: 'old' }); app.useRepoStore.getState().setCurrentRepo(info('local')); await app.useRepoStore.getState().refreshAll();
-    assert.equal(app.useGitHubStore.getState().currentOwner, null);
-  } finally { restore(); app.useRepoStore.getState().setCurrentRepo(null); }
+    app.useCollaborationStore.setState({ currentOwner: 'old', currentRepoName: 'old' }); app.useRepoStore.getState().setCurrentRepo(info('local')); await app.useRepoStore.getState().refreshAll();
+    assert.equal(app.useCollaborationStore.getState().currentOwner, null);
+  } finally { dispose(); restore(); app.useRepoStore.getState().setCurrentRepo(null); }
 });
 
 test('file selection ignores stale diffs and repeated edits refresh even with unchanged status codes', async () => {
@@ -173,23 +174,24 @@ test('file selection ignores stale diffs and repeated edits refresh even with un
 });
 
 test('GitHub results are scoped to the current binding and pagination loads older open PRs', async () => {
-  const wait = deferred(); const restore = stub(app.githubService, { getRepository: async (owner) => { if (owner === 'A') await wait.promise; return { name: owner }; }, getWorkflows: async () => [], getWorkflowRuns: async () => [], getPullRequests: async () => [] });
+  const wait = deferred(); const restore = stub(app.collaborationService, { getRepository: async (owner) => { if (owner === 'A') await wait.promise; return { name: owner }; }, getWorkflows: async () => [], getWorkflowRuns: async () => [], getPullRequests: async () => [] });
   try {
-    const pending = app.useGitHubStore.getState().syncRepo('A', 'repo'); await app.useGitHubStore.getState().syncRepo('B', 'repo'); wait.resolve(); await pending;
-    assert.equal(app.useGitHubStore.getState().repoDetails.name, 'B');
-  } finally { restore(); app.useGitHubStore.getState().clearRepo(); }
+    const pending = app.useCollaborationStore.getState().syncRepo('A', 'repo'); await app.useCollaborationStore.getState().syncRepo('B', 'repo'); wait.resolve(); await pending;
+    assert.equal(app.useCollaborationStore.getState().repoDetails.name, 'B');
+  } finally { restore(); app.useCollaborationStore.getState().clearRepo(); }
   const savedFetch = globalThis.fetch; let requests = 0;
   globalThis.fetch = async (url) => { requests++; assert.match(url, /state=open/); return new Response(JSON.stringify([{ number: requests }]), { headers: requests === 1 ? { Link: '<https://api.github.com/repos/o/r/pulls?state=open&page=2>; rel="next"' } : {} }); };
-  try { assert.deepEqual((await app.githubService.getPullRequests('o', 'r', 'open')).map((pr) => pr.number), [1, 2]); } finally { globalThis.fetch = savedFetch; }
+  try { assert.deepEqual((await app.collaborationService.getPullRequests('o', 'r', 'open')).map((pr) => pr.number), [1, 2]); } finally { globalThis.fetch = savedFetch; }
 });
 
 test('temporary authentication failures retain vault credentials; only 401 clears them', async () => {
+  app.useCollaborationStore.setState({ profiles: [], activeProfileId: null, providerId: 'github', server: 'https://github.com' });
   const calls = []; globalThis.window = { __TAURI_INTERNALS__: { invoke: async (command) => { calls.push(command); return command === 'get_github_token' ? 'vault-token' : null; } } };
-  let restore = stub(app.githubService, { verifyToken: async () => { throw new TypeError('offline'); } });
-  try { await app.useGitHubStore.getState().initAuth(); assert(!calls.includes('delete_github_token')); }
+  let restore = stub(app.GitHubService.prototype, { verifyToken: async () => { throw new TypeError('offline'); } });
+  try { await app.useCollaborationStore.getState().initAuth(); assert(!calls.includes('delete_github_token')); }
   finally { restore(); }
-  restore = stub(app.githubService, { verifyToken: async () => { throw new app.GitHubApiError(401, 'invalid'); } });
-  try { await app.useGitHubStore.getState().initAuth(); assert(calls.includes('delete_github_token')); }
+  restore = stub(app.GitHubService.prototype, { verifyToken: async () => { throw new app.GitHubApiError(401, 'invalid'); } });
+  try { await app.useCollaborationStore.getState().initAuth(); assert(calls.includes('delete_github_token')); }
   finally { restore(); delete globalThis.window; }
 });
 
@@ -205,22 +207,22 @@ test('builtin AI never sends source to an external endpoint, and settings never 
 });
 
 test('cancelled and timed-out CI checks are not announced as passing', async () => {
-  app.useGitHubStore.setState({ currentOwner: 'owner', currentRepoName: 'repo' }); app.useToastStore.setState({ toasts: [] });
-  const restore = stub(app.githubService, { getCommitChecks: async () => [{ name: 'test', status: 'completed', conclusion: 'timed_out' }] });
+  app.useCollaborationStore.setState({ currentOwner: 'owner', currentRepoName: 'repo' }); app.useToastStore.setState({ toasts: [] });
+  const restore = stub(app.collaborationService, { getCommitChecks: async () => [{ name: 'test', status: 'completed', conclusion: 'timed_out' }] });
   const timer = globalThis.setTimeout; const scheduled = [];
   globalThis.setTimeout = (callback, delay) => { scheduled.push({ callback, delay }); return 12345; };
   try {
-    app.useGitHubStore.getState().watchPushChecks('sha'); const poll = scheduled.find((item) => item.delay === 15000); await poll.callback();
+    app.useCollaborationStore.getState().watchPushChecks('sha'); const poll = scheduled.find((item) => item.delay === 15000); await poll.callback();
     assert(!app.useToastStore.getState().toasts.some((toast) => toast.type === 'success')); assert(app.useToastStore.getState().toasts.some((toast) => toast.type === 'warning'));
-  } finally { globalThis.setTimeout = timer; restore(); app.useGitHubStore.getState().clearRepo(); }
+  } finally { globalThis.setTimeout = timer; restore(); app.useCollaborationStore.getState().clearRepo(); }
 });
 
 
 test('GitHub remote detection accepts dotted repository names and rejects lookalike hosts', async () => {
   const repo = await repository(); git(repo, 'remote', 'add', 'origin', 'https://github.com/owner/repo.name.git');
-  let opened = await app.gitService.openRepository(repo); assert.equal(opened.gitHubRepo, 'repo.name');
+  let opened = await app.gitService.openRepository(repo); assert.equal(opened.collaborationRemote.fetchUrl, 'https://github.com/owner/repo.name.git');
   git(repo, 'remote', 'set-url', 'origin', 'https://evilgithub.com/owner/repo.git');
-  opened = await app.gitService.openRepository(repo); assert.equal(opened.isGitHubRepo, false);
+  opened = await app.gitService.openRepository(repo); assert.equal(app.resolveHostingBinding(opened.collaborationRemote, []), null);
 });
 
 test('successful push clears loading state', async () => {
@@ -536,16 +538,16 @@ test('GitHub collaboration binding can select upstream independently of push set
   git(repo, 'remote', 'add', 'origin', 'git@github.com:fork/project.git');
   git(repo, 'remote', 'add', 'upstream', 'https://github.com/team/project.git');
   git(repo, 'config', 'remote.pushDefault', 'origin');
-  assert.equal(await app.gitService.getGitHubRemotePreference(repo), 'auto');
-  await app.gitService.setGitHubRemote(repo, 'upstream');
-  assert.equal(await app.gitService.getGitHubRemotePreference(repo), 'upstream');
+  assert.equal(await app.gitService.getCollaborationRemotePreference(repo), 'auto');
+  await app.gitService.setCollaborationRemote(repo, 'upstream');
+  assert.equal(await app.gitService.getCollaborationRemotePreference(repo), 'upstream');
   const opened = await app.gitService.openRepository(repo);
-  assert.equal(opened.gitHubOwner, 'team'); assert.equal(opened.gitHubRemote, 'upstream');
+  assert.equal(opened.collaborationRemote.fetchUrl, 'https://github.com/team/project.git'); assert.equal(opened.collaborationRemote.name, 'upstream');
   assert.equal((await app.gitService.getPushContext(repo)).remote, 'origin');
   git(repo, 'remote', 'remove', 'upstream');
-  assert.equal((await app.gitService.openRepository(repo)).isGitHubRepo, false);
-  await app.gitService.setGitHubRemote(repo, 'auto');
-  assert.equal((await app.gitService.openRepository(repo)).gitHubOwner, 'fork');
+  assert.equal((await app.gitService.openRepository(repo)).collaborationRemote, null);
+  await app.gitService.setCollaborationRemote(repo, 'auto');
+  assert.equal((await app.gitService.openRepository(repo)).collaborationRemote.fetchUrl, 'git@github.com:fork/project.git');
 });
 
 test('AI key vault initialization waits for an in-flight key save', async () => {
@@ -569,11 +571,11 @@ test('logout cannot be undone by an in-flight credential write', async () => {
     if (command === 'delete_github_token') { vault = null; deleted = true; }
     return null;
   } } };
-  const restore = stub(app.githubService, { verifyToken: async () => ({ login: 'test' }) });
+  const restore = stub(app.GitHubService.prototype, { verifyToken: async () => ({ login: 'test' }) });
   try {
-    const pending = app.useGitHubStore.getState().login('TOKEN'); await eventually(() => started);
-    app.useGitHubStore.getState().logout(); wait.resolve(); await pending; await eventually(() => deleted);
-    assert.equal(vault, null); assert.equal(app.useGitHubStore.getState().isAuthenticated, false);
+    const pending = app.useCollaborationStore.getState().login('TOKEN'); await eventually(() => started);
+    app.useCollaborationStore.getState().logout(); wait.resolve(); await pending; await eventually(() => deleted);
+    assert.equal(vault, null); assert.equal(app.useCollaborationStore.getState().isAuthenticated, false);
   } finally { restore(); delete globalThis.window; }
 });
 
@@ -582,10 +584,10 @@ test('PR checkout refuses to overwrite divergent local commits', async () => {
   git(remote, 'update-ref', 'refs/pull/1/head', 'HEAD');
   const local = path.join(tmp, `repo-${++repoIndex}`); git(root, 'clone', remote, local);
   git(local, 'config', 'user.name', 'Regression'); git(local, 'config', 'user.email', 'review@example.invalid');
-  await app.gitService.fetchAndCheckoutPR(local, 1); await fs.writeFile(file(local, 'local'), 'unpublished'); await commit(local, 'local');
+  await app.gitService.fetchAndCheckoutPR(local, 1, undefined, 'refs/pull/1/head'); await fs.writeFile(file(local, 'local'), 'unpublished'); await commit(local, 'local');
   const localTip = git(local, 'rev-parse', 'HEAD').trim();
   await fs.writeFile(file(remote, 'remote'), 'remote'); await commit(remote, 'remote'); git(remote, 'update-ref', 'refs/pull/1/head', 'HEAD');
-  await assert.rejects(app.gitService.fetchAndCheckoutPR(local, 1));
+  await assert.rejects(app.gitService.fetchAndCheckoutPR(local, 1, undefined, 'refs/pull/1/head'));
   assert.equal(git(local, 'rev-parse', 'refs/heads/pr-1').trim(), localTip);
 });
 
@@ -1013,13 +1015,13 @@ test('ignore preview follows Git case sensitivity and reads ignored nested ignor
 
 
 test('Actions refresh fetches fresh run status and steps independently of repository and PR failures', async () => {
-  const store = app.useGitHubStore, gate = deferred();
+  const store = app.useCollaborationStore, gate = deferred();
   const old = { id: 25, status: 'in_progress', conclusion: null };
   const fresh = { ...old, status: 'completed', conclusion: 'success' };
   const jobs = [{ id: 42, status: 'completed', steps: [{ name: 'Build', status: 'completed', conclusion: 'success' }] }];
   store.setState({ currentOwner: 'owner', currentRepoName: 'repo', selectedRun: old, selectedRunJobs: [] });
   let calls = 0;
-  const restore = stub(app.githubService, {
+  const restore = stub(app.collaborationService, {
     getRepository: async () => { throw new Error('repository unavailable'); },
     getPullRequests: async () => { throw new Error('PR permission denied'); },
     getWorkflows: async () => [],
@@ -1034,7 +1036,7 @@ test('Actions refresh fetches fresh run status and steps independently of reposi
     assert.deepEqual(store.getState().selectedRunJobs, jobs);
     assert.equal(store.getState().isRefreshingActions, false);
     await store.getState().refreshActions(); assert.equal(calls, 2);
-    const restoreWorkflows = stub(app.githubService, { getWorkflows: async () => { throw new Error('workflow definitions unavailable'); } });
+    const restoreWorkflows = stub(app.collaborationService, { getWorkflows: async () => { throw new Error('workflow definitions unavailable'); } });
     try {
       await store.getState().refreshActions();
       assert.equal(store.getState().selectedRun.conclusion, 'success');
@@ -1046,11 +1048,11 @@ test('Actions refresh fetches fresh run status and steps independently of reposi
 });
 
 test('Actions refresh preserves older selections, reports job failures, and rejects stale repository replies', async () => {
-  const store = app.useGitHubStore;
+  const store = app.useCollaborationStore;
   const old = { id: 1, status: 'in_progress', conclusion: null };
   const fresh = { ...old, status: 'completed', conclusion: 'success' };
   store.setState({ currentOwner: 'owner', currentRepoName: 'repo', selectedRun: old });
-  const restore = stub(app.githubService, {
+  const restore = stub(app.collaborationService, {
     getWorkflows: async () => [], getWorkflowRuns: async () => [{ id: 99 }],
     getWorkflowRun: async (owner, repo, id) => { assert.equal(id, 1); return fresh; },
     getRunJobs: async () => { throw new Error('jobs unavailable'); },
@@ -1062,7 +1064,7 @@ test('Actions refresh preserves older selections, reports job failures, and reje
     assert.equal(store.getState().error, 'jobs unavailable');
     assert.equal(store.getState().isRefreshingActions, false);
     const gate = deferred();
-    const restorePending = stub(app.githubService, { getWorkflowRuns: async () => { await gate.promise; return [fresh]; } });
+    const restorePending = stub(app.collaborationService, { getWorkflowRuns: async () => { await gate.promise; return [fresh]; } });
     try {
       const pending = store.getState().refreshActions(); store.getState().clearRepo();
       gate.resolve(); await pending;
@@ -1074,10 +1076,10 @@ test('Actions refresh preserves older selections, reports job failures, and reje
 });
 
 test('changing the selected run during refresh keeps the new selection and its jobs', async () => {
-  const store = app.useGitHubStore, gate = deferred();
+  const store = app.useCollaborationStore, gate = deferred();
   const first = { id: 1 }, second = { id: 2 };
   store.setState({ currentOwner: 'owner', currentRepoName: 'repo', selectedRun: first });
-  const restore = stub(app.githubService, {
+  const restore = stub(app.collaborationService, {
     getWorkflows: async () => [],
     getWorkflowRuns: async () => { await gate.promise; return [first, second]; },
     getRunJobs: async (owner, repo, id) => [{ id: id * 10 }],
@@ -1102,20 +1104,20 @@ test('Actions API reads bypass the HTTP cache, including paginated job steps', a
     return new Response(JSON.stringify({ workflow_runs: [], workflows: [], id: 1 }));
   };
   try {
-    await app.githubService.getWorkflowRuns('o', 'r', 5);
-    await app.githubService.getWorkflowRun('o', 'r', 1);
-    await app.githubService.getWorkflows('o', 'r');
-    assert.equal((await app.githubService.getRunJobs('o', 'r', 1)).length, 2);
+    await app.collaborationService.getWorkflowRuns('o', 'r', 5);
+    await app.collaborationService.getWorkflowRun('o', 'r', 1);
+    await app.collaborationService.getWorkflows('o', 'r');
+    assert.equal((await app.collaborationService.getRunJobs('o', 'r', 1)).length, 2);
     assert.match(urls[0], /workflows\/5\/runs/);
   } finally { globalThis.fetch = savedFetch; }
 });
 
 test('running job logs show waiting, completed jobs load logs, and native string errors remain visible', async () => {
-  const store=app.useGitHubStore;
+  const store=app.useCollaborationStore;
   store.setState({currentOwner:'owner',currentRepoName:'repo'});
   let status='in_progress', downloads=0;
   const job={id:42,name:'Build',status,html_url:'https://github.com/owner/repo/actions/runs/1/job/42'};
-  const restore=stub(app.githubService,{
+  const restore=stub(app.collaborationService,{
     getJob:async()=>({...job,status}),
     getJobLogs:async()=>{downloads++;return {jobId:42,jobName:'Build',rawLogs:'compiled successfully'};},
   });
@@ -1127,7 +1129,7 @@ test('running job logs show waiting, completed jobs load logs, and native string
     status='completed';await store.getState().openJobLogs(42,'Build');
     assert.equal(store.getState().activeJobLogs.state,'ready');assert.equal(downloads,1);
     assert.equal(store.getState().activeJobLogs.rawLogs,'compiled successfully');
-    const restoreError=stub(app.githubService,{getJobLogs:async()=>{throw 'HTTP 403: missing actions permission';}});
+    const restoreError=stub(app.collaborationService,{getJobLogs:async()=>{throw 'HTTP 403: missing actions permission';}});
     try {
       await store.getState().openJobLogs(42,'Build');
       assert.equal(store.getState().activeJobLogs.state,'error');
@@ -1138,9 +1140,9 @@ test('running job logs show waiting, completed jobs load logs, and native string
 });
 
 test('closing or changing the repository invalidates pending job log requests', async () => {
-  const store=app.useGitHubStore, gate=deferred();let downloads=0;
+  const store=app.useCollaborationStore, gate=deferred();let downloads=0;
   store.setState({currentOwner:'owner',currentRepoName:'repo'});
-  const restore=stub(app.githubService,{
+  const restore=stub(app.collaborationService,{
     getJob:async()=>{await gate.promise;return {id:42,status:'completed',html_url:'https://github.com/owner/repo/actions/runs/1/job/42'};},
     getJobLogs:async()=>{downloads++;return {jobId:42,jobName:'Build',rawLogs:'late output'};},
   });
@@ -1206,3 +1208,5 @@ test('selecting an occupied branch opens its worktree and preserves dirty files 
     assert.equal(store.getState().openTabs.some(tab=>app.sameWorktreePath(tab.path,linked)),true);
   } finally {store.getState().setCurrentRepo(null);}
 });
+
+beforeEach(() => { app.bindFixtureClient(new app.FixtureGitHubClient()); });

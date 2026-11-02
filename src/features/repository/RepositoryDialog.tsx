@@ -411,7 +411,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
               <Input
                 value={cloneUrl}
                 onChange={(e) => setCloneUrl(e.target.value)}
-                placeholder="例如: https://github.com/superauu/auu_github_desktop.git"
+                placeholder="https://git.example.com/team/project.git"
                 className="font-mono text-xs"
               />
             </div>

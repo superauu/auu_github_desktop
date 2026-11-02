@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Check, ChevronRight, Power, RefreshCw, Trash2, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore } from '@/stores/errorsStore';
-import { useForgeStore } from '@/stores/forgeStore';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { confirmAction } from '@/stores/confirmStore';
@@ -10,10 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ProviderRequestError, type ExternalOrg } from '@/services/errors/providerService';
-import { getProviderManifest, providerDomains, PROVIDER_REGISTRY, type DomainId, type ProviderManifest } from '@/services/errors/types';
-import { ForgeApiError } from '@/services/forge/types';
-import { gitlabService } from '@/services/gitlab/GitLabService';
-import { giteaService } from '@/services/gitea/GiteaService';
+import { getProviderManifest, PROVIDER_REGISTRY, type DomainId, type ProviderManifest } from '@/services/integrations/registry';
+import { useCollaborationStore } from '@/stores/collaborationStore';
+import { installedExternalPlugins, isPluginEnabled, getHostingPlugin, setPluginEnabled, subscribePlugins } from '@/services/integrations/plugins';
 import type { PersistedConnection } from '@/stores/errorsStore';
 import { cn } from '@/utils/cn';
 
@@ -25,13 +23,11 @@ import { cn } from '@/utils/cn';
  * 连接管理：启用/停用、测试（健康态就地更新，不触碰导航）、删除（联动清 keyring 凭证）。
  */
 
-/** 按声明域拆分卡片清单（一个 provider 只归属一个域视图，v1 无跨域声明）。 */
-const groupProviders = (domain: DomainId): ProviderManifest[] =>
-  PROVIDER_REGISTRY.filter((manifest) => providerDomains(manifest).includes(domain));
-
-/** 管理行渲染用 manifest（与注册表同一实例，注册表变更时自动跟随）。 */
-const GITLAB_MANIFEST = getProviderManifest('gitlab')!;
-const GITEA_MANIFEST = getProviderManifest('gitea')!;
+const groupProviders = (domain: DomainId) => PROVIDER_REGISTRY.filter(manifest => manifest.primaryDomain === domain && (manifest.connectionKind !== 'hosting-account' || getHostingPlugin(manifest.id)));
+const providerGroups = [
+  ['error-tracking', 'errorTracking'], ['code-hosting', 'codeHosting'],
+  ['task-tracking', 'taskTracking'], ['ci-cd', 'ciCd'], ['observability', 'observability'],
+] as const;
 
 interface ConnectFormState {
   displayName: string;
@@ -52,16 +48,6 @@ function providerErrorMessage(error: unknown, translate: (key: string) => string
   return detail ? `${base}\n${detail}` : base;
 }
 
-function forgeErrorMessage(error: unknown, translate: (key: string) => string): string {
-  const status = error instanceof ForgeApiError ? error.status : undefined;
-  const base =
-    status === 401 || status === 403 ? translate('errors.connect.errorAuth')
-    : status === 0 ? translate('errors.connect.errorNetwork')
-    : translate('forge.connectFailed');
-  const detail = error instanceof Error && error.message ? error.message : '';
-  return detail ? `${base}\n${detail}` : base;
-}
-
 const hostOf = (url: string | undefined): string => {
   if (!url) return '';
   try {
@@ -71,150 +57,9 @@ const hostOf = (url: string | undefined): string => {
   }
 };
 
-/** 代码托管连接表单：服务地址（必填，gitlab.com 预填）+ PAT，一步验证并保存。 */
-const ForgeConnectForm: React.FC<{ manifest: ProviderManifest; onDone: () => void }> = ({ manifest, onDone }) => {
+export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: string) => void }> = ({ onManageAccounts }) => {
   const { t } = useI18n();
-  const connect = useForgeStore((state) => state.connect);
-  const kind = manifest.id === 'gitea' ? 'gitea' : 'gitlab';
-  const [server, setServer] = useState(kind === 'gitlab' ? 'https://gitlab.com' : '');
-  const [token, setToken] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    if (busy) return;
-    const trimmedServer = server.trim();
-    if (!/^https?:\/\//i.test(trimmedServer)) {
-      setFormError(t('errors.connect.invalidBaseUrl'));
-      return;
-    }
-    if (!token.trim()) {
-      setFormError(t('errors.connect.needToken'));
-      return;
-    }
-    setBusy(true);
-    setFormError(null);
-    try {
-      const user = await connect(kind, trimmedServer, token);
-      toast.success(t('forge.connected'), user.login);
-      onDone();
-    } catch (error) {
-      setFormError(forgeErrorMessage(error, t));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="space-y-2 rounded-lg border border-border p-2.5 bg-accent/20" data-testid="errors-connect-form">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">{t('errors.connect.formTitle').replace('{name}', manifest.name)}</span>
-        <Button variant="ghost" size="icon-xs" aria-label={t('common.close')} onClick={onDone}>
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
-      <label className="block space-y-1">
-        <span className="text-[12px] font-medium">{t('forge.serverUrl')}</span>
-        <Input
-          value={server}
-          onChange={(e) => setServer(e.target.value)}
-          placeholder={kind === 'gitlab' ? 'https://gitlab.com' : 'https://gitea.example.com'}
-          className="font-mono text-xs"
-          aria-label={t('forge.serverUrl')}
-          autoFocus
-        />
-      </label>
-      <label className="block space-y-1">
-        <span className="text-[12px] font-medium">{t('forge.token')}</span>
-        <Input
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          className="font-mono text-xs"
-          aria-label={t('forge.token')}
-        />
-      </label>
-      <p className="text-[12px] text-muted-foreground leading-relaxed">{t('forge.tokenHint')}</p>
-      {formError && <p role="alert" className="text-destructive select-text whitespace-pre-wrap">{formError}</p>}
-      <div className="flex items-center justify-end gap-2 pt-1">
-        <Button variant="default" size="xs" onClick={() => void submit()} disabled={busy} className="gap-1">
-          <Check className="h-3 w-3" />
-          <span>{busy ? t('errors.connect.verifying') : t('forge.connectSubmit')}</span>
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-/** 代码托管账号管理行：单平台单账号，测试即时校验，断开联动清 keyring。 */
-const ForgeAccountRow: React.FC<{ kind: 'gitlab' | 'gitea'; manifest: ProviderManifest }> = ({ kind, manifest }) => {
-  const { t } = useI18n();
-  const account = useForgeStore(useShallow((state) => (kind === 'gitlab' ? state.gitlab : state.gitea)));
-  const disconnect = useForgeStore((state) => state.disconnect);
-  const [testing, setTesting] = useState(false);
-
-  if (!account) return null;
-
-  const runTest = async () => {
-    if (testing) return;
-    setTesting(true);
-    try {
-      const service = kind === 'gitlab' ? gitlabService : giteaService;
-      const user = await service.verifyToken();
-      toast.success(t('errors.settings.testOk'), user.login);
-    } catch (error) {
-      toast.error(t('errors.settings.testFailed'), forgeErrorMessage(error, t));
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const remove = async () => {
-    if (!await confirmAction({
-      title: t('errors.settings.deleteTitle').replace('{name}', account.user?.login || manifest.name),
-      description: t('errors.settings.deleteDesc'),
-    })) {
-      return;
-    }
-    try {
-      await disconnect(kind);
-    } catch (error) {
-      toast.error(t('errors.settings.deleteFailed'), String(error instanceof Error ? error.message : error));
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
-      <span className="font-medium shrink-0">{account.user?.login || manifest.name}</span>
-      <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{hostOf(account.server)}</span>
-      <Badge variant="outline" className="h-4 px-1 gap-0.5 text-[10px] shrink-0 text-emerald-500 border-emerald-500/40">
-        {t('errors.settings.health.connected')}
-      </Badge>
-      <Button
-        variant="ghost"
-        size="xs"
-        className="p-0 shrink-0"
-        aria-label={t('errors.settings.test')}
-        disabled={testing}
-        onClick={() => void runTest()}
-      >
-        <RefreshCw className={testing ? 'h-3 w-3 animate-spin' : 'h-3 w-3'} />
-      </Button>
-      <Button
-        variant="ghost"
-        size="xs"
-        className="p-0 shrink-0 hover:text-destructive"
-        aria-label={t('errors.settings.deleteTitle').replace('{name}', account.user?.login || manifest.name)}
-        onClick={() => void remove()}
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
-    </div>
-  );
-};
-
-export const IntegrationsSection: React.FC = () => {
-  const { t } = useI18n();
+  const hostingProfiles = useCollaborationStore(state => state.profiles);
   const { connections, restoreConnections, verifyConnection, completeConnection, retestConnection, updateConnection, removeConnection, getRuntime } =
     useErrorsStore(
       useShallow((state) => ({
@@ -228,13 +73,8 @@ export const IntegrationsSection: React.FC = () => {
         getRuntime: state.getRuntime,
       })),
     );
-  const { gitlabAccount, giteaAccount, restoreAccounts } = useForgeStore(
-    useShallow((state) => ({
-      gitlabAccount: state.gitlab,
-      giteaAccount: state.gitea,
-      restoreAccounts: state.restoreAccounts,
-    })),
-  );
+  const [, updatePlugins] = useState(0);
+  useEffect(() => subscribePlugins(() => updatePlugins(value => value + 1)), []);
   // 插件选择：null = 卡片列表；否则展开该平台的连接表单
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [form, setForm] = useState<ConnectFormState | null>(null);
@@ -243,12 +83,16 @@ export const IntegrationsSection: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
 
-  useEffect(() => { restoreConnections(); restoreAccounts(); }, [restoreConnections, restoreAccounts]);
+  useEffect(() => { restoreConnections(); }, [restoreConnections]);
 
   const selectedManifest = selectedProviderId ? getProviderManifest(selectedProviderId) : null;
-  const selectedIsForge = selectedManifest ? providerDomains(selectedManifest).includes('code-hosting') : false;
 
   const startAdd = (providerId: string) => {
+    if (getProviderManifest(providerId)?.connectionKind === 'hosting-account') {
+      // 复用既有多账号管理和 OAuth/PAT 流程，避免创建第二份凭证。
+      onManageAccounts(providerId);
+      return;
+    }
     setSelectedProviderId(providerId);
     setForm({ displayName: '', baseUrl: '', token: '', orgs: null, orgId: '' });
     setFormError(null);
@@ -355,11 +199,16 @@ export const IntegrationsSection: React.FC = () => {
     );
   };
 
-  /** 卡片：provider + 连接计数徽标（错误追踪走 errorsStore，代码托管走 forgeStore 账号）。 */
+  /** 禁用当前绑定插件会清空会话与域数据，需用户确认；启用直接生效。 */
+  const togglePlugin = async (id: string, enabled: boolean) => {
+    if (!enabled && useCollaborationStore.getState().providerId === id
+      && !await confirmAction({ title: t('connections.disableActivePluginTitle'), description: t('connections.disableActivePluginDesc'), danger: true })) return;
+    setPluginEnabled(id, enabled);
+  };
+
+  /** 卡片：provider + 连接计数徽标，账号统一来自协作状态。 */
   const connectedCount = (manifest: ProviderManifest): number => {
-    if (providerDomains(manifest).includes('code-hosting')) {
-      return (manifest.id === 'gitlab' ? gitlabAccount : giteaAccount) ? 1 : 0;
-    }
+    if (manifest.connectionKind === 'hosting-account') return hostingProfiles.filter(profile => profile.providerId === manifest.id).length;
     return connections.filter((connection) => connection.providerId === manifest.id).length;
   };
 
@@ -385,12 +234,16 @@ export const IntegrationsSection: React.FC = () => {
 
   return (
     <section className="space-y-2 border-t border-border pt-3" data-testid="errors-integrations-section">
+      <div className="space-y-1" data-testid="plugin-controls">
+        {installedExternalPlugins().map(plugin => <label key={plugin.manifest.id} className="flex items-center justify-between text-xs py-1">
+          <span>{plugin.manifest.name}</span><input type="checkbox" aria-label={`${t('connections.enablePlugin')} ${plugin.manifest.name}`}
+            checked={isPluginEnabled(plugin.manifest.id)} onChange={event => void togglePlugin(plugin.manifest.id, event.target.checked)} />
+        </label>)}
+      </div>
       <h3 className="text-xs font-medium">{t('errors.settings.title')}</h3>
       <p className="text-[12px] text-muted-foreground">{t('errors.settings.description')}</p>
 
-      {form && selectedManifest && selectedIsForge ? (
-        <ForgeConnectForm manifest={selectedManifest} onDone={dismissForm} />
-      ) : form && selectedManifest ? (
+      {form && selectedManifest ? (
         /* —— 连接表单：选定的插件 + 只需 token —— */
         <div className="space-y-2 rounded-lg border border-border p-2.5 bg-accent/20" data-testid="errors-connect-form">
           <div className="flex items-center justify-between">
@@ -466,18 +319,21 @@ export const IntegrationsSection: React.FC = () => {
       ) : (
         /* —— 插件卡片：按域分组，选一个进入表单 —— */
         <div className="space-y-1" data-testid="errors-provider-cards">
-          <h4 className="pt-1 text-[12px] font-medium text-muted-foreground">{t('errors.settings.group.errorTracking')}</h4>
-          {groupProviders('error-tracking').map(renderCard)}
-          <h4 className="pt-1 text-[12px] font-medium text-muted-foreground">{t('errors.settings.group.codeHosting')}</h4>
-          {groupProviders('code-hosting').map(renderCard)}
+          {providerGroups.map(([domain, label]) => {
+            const providers = groupProviders(domain);
+            return providers.length > 0 && <React.Fragment key={domain}>
+              <h4 className="pt-1 text-[12px] font-medium text-muted-foreground">{t(`errors.settings.group.${label}`)}</h4>
+              {providers.map(renderCard)}
+            </React.Fragment>;
+          })}
         </div>
       )}
 
       {/* 已有连接的管理列表（按平台分组：错误追踪连接 + 代码托管账号） */}
-      {(connections.length > 0 || gitlabAccount || giteaAccount) && (
+      {(connections.length > 0) && (
         <div className="space-y-1">
           {PROVIDER_REGISTRY
-            .filter((manifest) => !providerDomains(manifest).includes('code-hosting'))
+            .filter((manifest) => manifest.connectionKind === 'error-token')
             .filter((manifest) => connections.some((connection) => connection.providerId === manifest.id))
             .map((manifest) => (
               <div key={manifest.id} className="space-y-1">
@@ -528,8 +384,6 @@ export const IntegrationsSection: React.FC = () => {
                 ))}
               </div>
             ))}
-          {gitlabAccount && <ForgeAccountRow kind="gitlab" manifest={GITLAB_MANIFEST} />}
-          {giteaAccount && <ForgeAccountRow kind="gitea" manifest={GITEA_MANIFEST} />}
         </div>
       )}
     </section>
