@@ -216,6 +216,7 @@ export interface IGitService {
   resolveConflictWithTheirs(repoPath: string, filePath: string): Promise<void>;
   resetConflictMarkers(repoPath: string, filePath: string): Promise<void>;
   readWorkingFile(repoPath: string, filePath: string): Promise<string>;
+  readFileRevision(repoPath: string, filePath: string, revision: 'WORKTREE' | 'INDEX' | string): Promise<string>;
   writeWorkingFile(repoPath: string, filePath: string, content: string, expectedContent?: string): Promise<void>;
 }
 

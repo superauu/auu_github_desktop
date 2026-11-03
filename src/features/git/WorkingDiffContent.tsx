@@ -13,6 +13,8 @@ import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import type { computeSplitRows } from '@/utils/diffRows';
 import { useI18n } from '@/i18n';
 import { cn } from '@/utils/cn';
+import type { DiffContentSide } from '@/utils/codeScope';
+import { useHunkScopes } from './useDiffFileContent';
 
 interface WorkingDiffContentProps {
   diffId: string; diffFontSize: number; wrap: boolean; locatedHeader?: string;
@@ -23,11 +25,16 @@ interface WorkingDiffContentProps {
   renderHunkActions: (index: number) => ReactNode; headerHunkIdx: Map<number, number>;
   ignoreWhitespace: boolean; selectedLines: Set<number>; lineBusy: boolean; pendingWrites: number;
   setSelectedLines: Dispatch<SetStateAction<Set<number>>>; diffQuery: string;
+  /** 整文件内容（可能不可用）；用于块头所属方法与完整文件视图。 */
+  fileLines?: string[] | null; contentSide?: DiffContentSide;
+  /** 只读的完整文件视图：隐藏行选择与块级暂存入口。 */
+  fullFile?: boolean;
 }
 
-export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, currentRepo, activeFile, status, fileDiffLoading, fileDiffError, loadFileDiff, fileDiffLines, diffMode, splitRows, renderHunkActions, headerHunkIdx, ignoreWhitespace, selectedLines, lineBusy, pendingWrites, setSelectedLines, diffQuery }: WorkingDiffContentProps) {
+export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, currentRepo, activeFile, status, fileDiffLoading, fileDiffError, loadFileDiff, fileDiffLines, diffMode, splitRows, renderHunkActions, headerHunkIdx, ignoreWhitespace, selectedLines, lineBusy, pendingWrites, setSelectedLines, diffQuery, fileLines = null, contentSide = 'new', fullFile = false }: WorkingDiffContentProps) {
   const { t } = useI18n();
   const stats = useMemo(() => diffHunkStats(fileDiffLines), [fileDiffLines]);
+  const scopes = useHunkScopes(fileDiffLines, fileLines, contentSide);
   return (
           <div id={diffId} tabIndex={-1} data-text-context style={{ fontSize: diffFontSize }} className={cn("review-diff-viewport glass-editor flex-1 min-h-0 overflow-auto font-mono leading-relaxed text-foreground select-text", wrap && "diff-wrap")}>
             {currentRepo && activeFile && isImagePath(activeFile.path) ? <ImageDiffView key={`${activeFile.path}-${activeFile.staged}-${status?.headOid}`} repoPath={currentRepo.path} path={activeFile.path} beforePath={activeFile.oldPath} before={activeFile.status === 'untracked' || (activeFile.staged && activeFile.status === 'added') ? 'EMPTY' : activeFile.staged ? (/^[0-9a-f]{40,64}$/.test(status?.headOid || '') ? status!.headOid! : 'EMPTY') : 'INDEX'} after={activeFile.staged ? 'INDEX' : 'WORKTREE'} /> : fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><ErrorNotice error={fileDiffError} /><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
@@ -47,7 +54,7 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, 
                         data-review-located={!!locatedHeader && row.headerContent === locatedHeader || undefined}
                         className={cn("review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2", locatedHeader && row.headerContent === locatedHeader && 'ring-2 ring-inset ring-primary')}
                       >
-                        <DiffHunkHeader header={row.headerContent || ''} stats={stats.get(row.sourceIndex ?? -1)} query={diffQuery} />
+                        <DiffHunkHeader header={row.headerContent || ''} stats={stats.get(row.sourceIndex ?? -1)} scope={scopes.get(row.sourceIndex ?? -1)} query={diffQuery} />
                         {renderHunkActions(row.hunkIdx ?? -1)}
                       </div>
                     );
@@ -113,7 +120,7 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, 
                       data-review-located={!!locatedHeader && line.content === locatedHeader || undefined}
                       className={cn("review-diff-hunk diff-line-header px-4 py-1 font-semibold select-none font-mono text-[12px] flex items-center justify-between gap-2", locatedHeader && line.content === locatedHeader && 'ring-2 ring-inset ring-primary')}
                     >
-                      <DiffHunkHeader header={line.content} stats={stats.get(idx)} query={diffQuery} />
+                      <DiffHunkHeader header={line.content} stats={stats.get(idx)} scope={scopes.get(idx)} query={diffQuery} />
                       {renderHunkActions(headerHunkIdx.get(idx) ?? -1)}
                     </div>
                   );
@@ -134,7 +141,7 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, 
                         : "border-transparent text-foreground/85"
                     )}
                   >
-                    {activeFile?.status === 'modified' && !ignoreWhitespace && <label className="w-7 flex justify-center items-center shrink-0 select-none">{(isAdd || isDel) && <input type="checkbox" aria-label={`${t('flow.selectLine')} ${line.oldNo ?? line.newNo}`} checked={selectedLines.has(idx)} disabled={lineBusy || !!pendingWrites} onChange={e => setSelectedLines(previous => { const next = new Set(previous); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })} />}</label>}
+                    {!fullFile && activeFile?.status === 'modified' && !ignoreWhitespace && <label className="w-7 flex justify-center items-center shrink-0 select-none">{(isAdd || isDel) && <input type="checkbox" aria-label={`${t('flow.selectLine')} ${line.oldNo ?? line.newNo}`} checked={selectedLines.has(idx)} disabled={lineBusy || !!pendingWrites} onChange={e => setSelectedLines(previous => { const next = new Set(previous); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })} />}</label>}
                     {/* Line Numbers */}
                     <div className="w-10 px-2 text-right text-muted-foreground select-none shrink-0 font-mono text-[12px] bg-muted/40 dark:bg-background/20">
                       {line.oldNo ?? ''}

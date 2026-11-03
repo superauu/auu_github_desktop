@@ -26,6 +26,9 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { moveListFocus } from '@/utils/listKeyboard';
 import { computeSplitRows } from '@/utils/diffRows';
 import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
+import { diffContentSide } from '@/utils/codeScope';
+import { expandDiffWithFile } from '@/utils/fullFileDiff';
+import { useDiffFileContent } from './useDiffFileContent';
 import React, { useState, useMemo, useEffect, useRef, useId } from 'react';
 import { DiffTools } from '@/components/ui/DiffTools';
 import { useGitActivity } from '@/hooks/useGitActivity';
@@ -116,6 +119,8 @@ export const WorkingChangesView: React.FC = () => {
   const [splitOpen, setSplitOpen] = useState(false);
   const [repoToolsOpen, setRepoToolsOpen] = useState(false);
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
+  /** 完整文件视图：只读展开未变更的上下文（暂存操作仍回到「仅变更」）。 */
+  const [fullFile, setFullFile] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
   const [showResolver, setShowResolver] = useState(true);
 
@@ -477,10 +482,19 @@ export const WorkingChangesView: React.FC = () => {
     return { addCount: add, delCount: del };
   }, [fileDiffLines]);
 
+  // 整文件内容：块头「所属方法」与「完整文件」只读视图共用同一份读取结果。
+  const diffSide = useMemo(() => diffContentSide(fileDiffLines), [fileDiffLines]);
+  const contentRevision = !activeFile ? null : diffSide === 'old'
+    ? (activeFile.staged ? (status?.headOid || 'HEAD') : 'INDEX')
+    : (activeFile.staged ? 'INDEX' : 'WORKTREE');
+  const contentPath = activeFile && contentMode === 'diff' && !isImagePath(activeFile.path) && activeFile.status !== 'conflicted' ? activeFile.path : null;
+  const fileContent = useDiffFileContent(currentRepo?.path ?? null, contentPath, contentRevision, workingChangesRevision);
+  const fullFileActive = fullFile && !!fileContent.lines;
+  const displayLines = useMemo(() => (fullFileActive && fileContent.lines ? expandDiffWithFile(fileDiffLines, fileContent.lines, diffSide) : fileDiffLines), [fullFileActive, fileContent.lines, fileDiffLines, diffSide]);
   const splitRows = useMemo(() => {
-    if (diffMode !== 'split' || fileDiffLines.length === 0) return [];
-    return computeSplitRows(fileDiffLines);
-  }, [diffMode, fileDiffLines]);
+    if (diffMode !== 'split' || displayLines.length === 0) return [];
+    return computeSplitRows(displayLines);
+  }, [diffMode, displayLines]);
   useEffect(() => { setLocatedHeader(undefined); }, [activeFile?.path, activeFile?.staged, fileDiffLines]);
   useEffect(() => {
     if (!locateTarget || activeFile?.path !== locateTarget.path || !!activeFile?.staged !== locateTarget.staged || fileDiffLoading) return;
@@ -495,7 +509,7 @@ export const WorkingChangesView: React.FC = () => {
     });
     return () => cancelAnimationFrame(frame);
   }, [locateTarget, activeFile?.path, activeFile?.staged, fileDiffLoading, fileDiffError, fileDiffLines, workingReview.snapshot, workingReview.ready, diffId]);
-  const diffContents = useMemo(() => diffMode === 'split' ? splitRows.map(row => row.isHeader ? formatDiffHunkLabel(row.headerContent || '', lang) : `${row.left?.content || ''}\n${row.right?.content || ''}`) : fileDiffLines.map(line => line.type === 'header' ? formatDiffHunkLabel(line.content, lang) : line.content), [diffMode, splitRows, fileDiffLines, lang]);
+  const diffContents = useMemo(() => diffMode === 'split' ? splitRows.map(row => row.isHeader ? formatDiffHunkLabel(row.headerContent || '', lang) : `${row.left?.content || ''}\n${row.right?.content || ''}`) : displayLines.map(line => line.type === 'header' ? formatDiffHunkLabel(line.content, lang) : line.content), [diffMode, splitRows, displayLines, lang]);
 
   // 块级操作：按 @@ 头切分 hunk，并为统一视图的每个块头记录索引
   const hunks = useMemo(() => groupDiffIntoHunks(fileDiffLines), [fileDiffLines]);
@@ -1144,6 +1158,35 @@ export const WorkingChangesView: React.FC = () => {
                 </div>
               )}
 
+              {/* 仅变更 / 完整文件（只读展开） */}
+              {contentMode === 'diff' && (!showResolver || activeFile.status !== 'conflicted') && (
+                <div className="glass-segmented flex items-center" title={fileContent.lines || fileContent.loading ? t('diff.fullFileHint') : fileContent.tooLarge ? t('diff.fullFileTooLarge') : t('diff.fullFileUnavailable')}>
+                  <button
+                    aria-pressed={!fullFileActive} onClick={() => setFullFile(false)}
+                    className={cn(
+                      "px-2 py-0.5 rounded text-[12px] font-medium transition-colors",
+                      !fullFileActive
+                        ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t('diff.changesOnly')}
+                  </button>
+                  <button
+                    aria-pressed={fullFileActive} disabled={!fileContent.lines}
+                    onClick={() => setFullFile(true)}
+                    className={cn(
+                      "px-2 py-0.5 rounded text-[12px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                      fullFileActive
+                        ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t('diff.fullFile')}
+                  </button>
+                </div>
+              )}
+
               <DiffFontControl />
               {/* Quick Stage/Unstage button */}
               <Button
@@ -1175,7 +1218,7 @@ export const WorkingChangesView: React.FC = () => {
 
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
         {activeFile && activeFile.status !== 'conflicted' && contentMode === 'diff' && <WorkingReviewPanel review={workingReview} filtered={ignoreWhitespace} onNext={nextReviewFile ? goToNextReview : undefined} onLocate={issue => void locateIssue(activeFile.path, issue)} />}
-        {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && <div className="workspace-divider px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
+        {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && !fullFileActive && <div className="workspace-divider px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
         {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
         {activeFile?.status === 'conflicted' && showResolver ? (
           <InteractiveConflictResolver
@@ -1199,10 +1242,13 @@ export const WorkingChangesView: React.FC = () => {
             fileDiffLoading={fileDiffLoading}
             fileDiffError={fileDiffError}
             loadFileDiff={loadFileDiff}
-            fileDiffLines={fileDiffLines}
+            fileDiffLines={displayLines}
             diffMode={diffMode}
             splitRows={splitRows}
-            renderHunkActions={renderHunkActions}
+            fileLines={fileContent.lines}
+            contentSide={diffSide}
+            fullFile={fullFileActive}
+            renderHunkActions={fullFileActive ? () => null : renderHunkActions}
             headerHunkIdx={headerHunkIdx}
             ignoreWhitespace={ignoreWhitespace}
             selectedLines={selectedLines}

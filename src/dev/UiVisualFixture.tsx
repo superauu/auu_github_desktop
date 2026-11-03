@@ -88,6 +88,8 @@ function prepare() {
   gitService.getRepoOperationState = async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false });
   gitService.getPushContext = async () => ({ branch: longBranch, remote: 'origin', targetBranch: longBranch, upstream: `origin/${longBranch}`, remotes: [], ahead: 0, behind: 0 });
   gitService.findCommits = async (_path, query) => commits.filter(commit => commit.subject.toLowerCase().includes(query.toLowerCase()));
+  // 差异视图会读整文件内容（块头所属方法 / 完整文件）；夹具默认无内容，禁止触网。
+  gitService.readFileRevision = async () => '';
   useCollaborationStore.setState({ user: null, isAuthenticated: false, profiles: [], fetchCommitChecks: async () => [] });
   useRepoStore.setState({ currentRepo: repo, openTabs: [repo], recentRepos: [repo], activeTab: 'history', commits, commitsLoadedAll: true, selectedCommit: commits[0], selectedBranch: longBranch, branches,
     status: { currentBranch: longBranch, trackingBranch: `origin/${longBranch}`, ahead: 0, behind: 0, isClean: false, staged: [], unstaged: files.slice(0, 2), untracked: files.slice(2) },

@@ -11,6 +11,21 @@ async function open(page: Page) {
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true', { timeout: 45_000 });
   await expect(page.locator('[data-diff-hunk-label]').first()).toBeVisible();
 }
+test('hunk header names the enclosing method and the whole file can be expanded read-only', async ({ page }) => {
+  await open(page);
+  const header = page.locator('.review-diff-hunk').first(), action = header.getByRole('button', { name: '取消暂存此块', exact: true });
+  // 所属方法来自整文件分析，块头不显示 Git 原始上下文文本。
+  await expect(header.locator('[data-diff-scope]')).toHaveText('taskPanel');
+  await expect(header).not.toContainText('The commit panel');
+  await expect(action).toBeVisible();
+  await page.getByRole('button', { name: '完整文件', exact: true }).click();
+  await expect(page.getByText('line 1', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('line 46', { exact: true }).first()).toBeVisible();
+  // 完整文件是只读浏览：块级暂存入口隐藏，回到「仅变更」后恢复。
+  await expect(action).toHaveCount(0);
+  await page.getByRole('button', { name: '仅变更', exact: true }).click();
+  await expect(action).toBeVisible();
+});
 test('readable ranges show actual change counts and copy the original header without altering hunk actions', async ({ page }) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { document.documentElement.dataset.hunkClipboard = text; } } }); });
   await open(page);

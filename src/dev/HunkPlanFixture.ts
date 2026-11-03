@@ -65,6 +65,12 @@ export function prepareHunkPlanFixture(repo: RepositoryInfo) {
   }
   gitService.getStatus = async () => useRepoStore.getState().status!;
   gitService.getFileDiff = async () => parseDiffOutput(displayedDiff);
+  // 整文件内容：块头的「所属方法」据此定位到 taskPanel（与 Git 原始上下文文本区分）。
+  gitService.readFileRevision = async () => {
+    const lines = Array.from({ length: 60 }, (_, index) => `line ${index + 1}`);
+    lines[40] = 'export function taskPanel() {';
+    return lines.join('\n');
+  };
   const disabledFetch = window.fetch;
   window.fetch = async (input, init) => {
     if (input === '/api/git' && init?.method === 'POST' && typeof init.body === 'string') {

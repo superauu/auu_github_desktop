@@ -10,6 +10,9 @@ import { DiffTools, highlightDiff } from '@/components/ui/DiffTools';
 import { X } from 'lucide-react';
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import { computeSplitRows } from '@/utils/diffRows';
+import { diffContentSide } from '@/utils/codeScope';
+import { expandDiffWithFile } from '@/utils/fullFileDiff';
+import { useDiffFileContent, useHunkScopes } from '@/features/git/useDiffFileContent';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { gitService } from '@/services/git/GitService';
@@ -28,6 +31,8 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
   const [query, setQuery] = useState('');
   const diffId = useId();
   const [split, setSplit] = useState(false);
+  /** 完整文件视图：只读展开未变更的上下文。 */
+  const [fullFile, setFullFile] = useState(false);
   const [mode, setMode] = useState<'changes' | 'snapshot'>('changes');
   // 从快照树跳转来的差异：在弹窗内临时替换主差异视图（仓库/提交/预览文件变化时重置）。
   const [jumped, setJumped] = useState<{ path: string; lines: ParsedDiffLine[]; loading: boolean; error: string | null } | null>(null);
@@ -70,9 +75,18 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
   const activeLines = jumped ? jumped.lines : lines;
   const activeLoading = jumped ? jumped.loading : loading;
   const activeError = jumped ? jumped.error : error;
-  const rows = useMemo(() => split ? computeSplitRows(activeLines) : [], [split, activeLines]);
-  const stats = useMemo(() => diffHunkStats(activeLines), [activeLines]);
-  const contents = useMemo(() => split ? rows.map(row => row.isHeader ? formatDiffHunkLabel(row.headerContent || '', lang) : `${row.left?.content || ''}\n${row.right?.content || ''}`) : activeLines.map(line => line.type === 'header' ? formatDiffHunkLabel(line.content, lang) : line.content), [split, rows, activeLines, lang]);
+  // 整文件内容：块头「所属方法」与「完整文件」只读视图共用；删除的文件只能读父提交一侧。
+  const contentSide = useMemo(() => diffContentSide(activeLines), [activeLines]);
+  const contentRevision = !repoPath ? null : contentSide === 'old'
+    ? (image?.before && image.before !== 'EMPTY' ? image.before : `${commitHash}^`)
+    : commitHash;
+  const fileContent = useDiffFileContent(repoPath || null, activePath || null, contentRevision);
+  const fullFileActive = fullFile && !!fileContent.lines;
+  const displayLines = useMemo(() => (fullFileActive && fileContent.lines ? expandDiffWithFile(activeLines, fileContent.lines, contentSide) : activeLines), [fullFileActive, fileContent.lines, activeLines, contentSide]);
+  const scopes = useHunkScopes(displayLines, fileContent.lines, contentSide);
+  const rows = useMemo(() => split ? computeSplitRows(displayLines) : [], [split, displayLines]);
+  const stats = useMemo(() => diffHunkStats(displayLines), [displayLines]);
+  const contents = useMemo(() => split ? rows.map(row => row.isHeader ? formatDiffHunkLabel(row.headerContent || '', lang) : `${row.left?.content || ''}\n${row.right?.content || ''}`) : displayLines.map(line => line.type === 'header' ? formatDiffHunkLabel(line.content, lang) : line.content), [split, rows, displayLines, lang]);
   const handleReload = useCallback(() => { if (jumped) loadJumpDiff(jumped.path); else onReload(); }, [jumped, loadJumpDiff, onReload]);
   const lineClass = (type?: string) => type === 'add' ? 'diff-line-add' : type === 'delete' ? 'diff-line-del' : type === 'header' ? 'diff-line-header' : '';
   const modeToggle = snapshotAvailable && <div className="flex gap-1">
@@ -88,17 +102,21 @@ export function CommitDiffDialog({ path, hash, lines, loading, error, onClose, o
         {backToOriginal}
         <DiffFontControl />
         {mode === 'changes' && <div className="flex gap-1"><Button variant={split ? 'ghost' : 'secondary'} aria-pressed={!split} onClick={() => setSplit(false)}>{t('diff.unified')}</Button><Button variant={split ? 'secondary' : 'ghost'} aria-pressed={split} onClick={() => setSplit(true)}>{t('diff.split')}</Button></div>}
+        {mode === 'changes' && <div className="flex gap-1" title={fileContent.lines || fileContent.loading ? t('diff.fullFileHint') : fileContent.tooLarge ? t('diff.fullFileTooLarge') : t('diff.fullFileUnavailable')}>
+          <Button variant={fullFileActive ? 'ghost' : 'secondary'} aria-pressed={!fullFileActive} onClick={() => setFullFile(false)}>{t('diff.changesOnly')}</Button>
+          <Button variant={fullFileActive ? 'secondary' : 'ghost'} aria-pressed={fullFileActive} disabled={!fileContent.lines} onClick={() => setFullFile(true)}>{t('diff.fullFile')}</Button>
+        </div>}
         {modeToggle}
         <Button variant="ghost" size="icon" aria-label={t('rightPane.closePreview')} onClick={onClose}><X className="h-4 w-4" /></Button>
       </header>
       {mode === 'snapshot' ? <CommitSnapshotTree repoPath={repoPath} commitHash={commitHash} onViewDiff={viewSnapshotDiff} /> : <>
         <DiffTools query={query} onQueryChange={setQuery} contents={contents} targetId={diffId} onReload={handleReload} />
         <div id={diffId} data-text-context style={{ fontSize: diffFontSize }} className={cn('flex-1 min-h-0 overflow-auto font-mono leading-6 select-text', wrap && 'diff-wrap')} role="region" tabIndex={0} aria-label={t('changes.viewDiff')}>
-          {activeLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : activeError ? <p role="alert" className="p-6 text-destructive">{activeError}</p> : !activeLines.length ? <p className="p-6 text-muted-foreground">{t('rightPane.noTextDiff')}</p> : split ?
-            <div className="min-w-[800px]"><VirtualRows items={rows} renderRow={(row, index) => row.isHeader ? <div key={index} className="diff-line-header px-3 py-1"><DiffHunkHeader header={row.headerContent || ''} stats={stats.get(row.sourceIndex ?? -1)} query={query} /></div> : <div key={index} className="grid grid-cols-2">
+          {activeLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : activeError ? <p role="alert" className="p-6 text-destructive">{activeError}</p> : !displayLines.length ? <p className="p-6 text-muted-foreground">{t('rightPane.noTextDiff')}</p> : split ?
+            <div className="min-w-[800px]"><VirtualRows items={rows} renderRow={(row, index) => row.isHeader ? <div key={index} className="diff-line-header px-3 py-1"><DiffHunkHeader header={row.headerContent || ''} stats={stats.get(row.sourceIndex ?? -1)} scope={scopes.get(row.sourceIndex ?? -1)} query={query} /></div> : <div key={index} className="grid grid-cols-2">
               {[row.left, row.right].map((side, sideIndex) => <div key={sideIndex} className={cn('flex min-w-0 border-r border-border', lineClass(side?.type))}><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{side?.lineNo}</span><span data-diff-content className="whitespace-pre overflow-x-auto px-2">{highlightDiff(side?.content || '', query)}</span></div>)}
             </div>} /></div> :
-            <VirtualRows items={activeLines} contentWidth={!wrap} renderRow={(line, index) => line.type === 'header' ? <div key={index} className="diff-line-header px-3 py-1"><DiffHunkHeader header={line.content} stats={stats.get(index)} query={query} /></div> : <div key={index} className={cn('flex whitespace-pre pr-6', lineClass(line.type))}><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.oldNo}</span><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.newNo}</span><span data-diff-content>{highlightDiff(line.content, query)}</span></div>} />}
+            <VirtualRows items={displayLines} contentWidth={!wrap} renderRow={(line, index) => line.type === 'header' ? <div key={index} className="diff-line-header px-3 py-1"><DiffHunkHeader header={line.content} stats={stats.get(index)} scope={scopes.get(index)} query={query} /></div> : <div key={index} className={cn('flex whitespace-pre pr-6', lineClass(line.type))}><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.oldNo}</span><span className="w-12 shrink-0 text-right pr-3 text-muted-foreground select-none">{line.newNo}</span><span data-diff-content>{highlightDiff(line.content, query)}</span></div>} />}
         </div>
       </>}
     </div>

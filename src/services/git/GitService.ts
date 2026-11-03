@@ -928,6 +928,23 @@ export class GitService implements IGitService {
     return data.content;
   }
 
+  /**
+   * 读取某个版本（工作区 / 索引 / 提交）的整文件内容，供差异视图补全上下文与定位所属方法。
+   * blob 不存在（新增或删除的一侧）返回空串；只做读取，不写入。
+   */
+  async readFileRevision(repoPath: string, filePath: string, revision: 'WORKTREE' | 'INDEX' | string): Promise<string> {
+    this.validateFilePath(filePath);
+    if (revision === 'WORKTREE') return this.readWorkingFile(repoPath, filePath, true);
+    if (revision !== 'INDEX' && !/^(?:[0-9a-f]{4,64}|HEAD)(?:[~^]\d*)*$/i.test(revision)) throw new Error('Invalid revision');
+    const spec = revision === 'INDEX' ? `:${filePath}` : `${revision}:${filePath}`;
+    try {
+      const res = await executeGit(['--literal-pathspecs', 'show', spec], repoPath);
+      return res.stdout;
+    } catch {
+      return '';
+    }
+  }
+
   async writeWorkingFile(repoPath: string, filePath: string, content: string, expectedContent?: string): Promise<void> {
     this.validateFilePath(filePath);
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
