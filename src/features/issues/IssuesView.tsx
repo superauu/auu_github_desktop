@@ -1,30 +1,33 @@
 import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { useIssueSource, type IssueSourceKind, type IssueSourceScope } from './useIssueSource';
 import { issueKey } from './issueLogic';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, CircleDot, Plus, RefreshCw, Search } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
 import './IssuesView.css';
-import { collaborationService } from '@/services/collaboration/CollaborationService';
 import type { CollaborationIssue, IssueListOptions } from '@/services/collaboration/issueTypes';
+import { issueClientFor, usesTaskProvider } from '@/services/integrations/taskService';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
-import { useRepoStore } from '@/stores/repoStore';
-import { useCollaborationScope } from './useCollaborationScope';
 import { IssueDetail } from './IssueDetail';
 import { IssueEditor } from './IssueEditor';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 
 export function IssuesView({ onOpenAuthDialog }: { onOpenAuthDialog?: () => void }) {
-  const { t } = useI18n(), scope = useCollaborationScope();
-  const path = useRepoStore(state => state.currentRepo?.path);
-  if (!scope.isAuthenticated) return <div className="p-6 space-y-3 text-sm"><h1 className="font-semibold">{t('issues.nav')}</h1><p>{t('issues.needAuth')}</p><Button onClick={onOpenAuthDialog}>{t('issues.connect')}</Button></div>;
-  if (!scope.owner || !scope.repo) return <div className="p-6 space-y-3 text-sm"><h1 className="font-semibold">{t('issues.nav')}</h1><p>{t('issues.noRepo')}</p><Button variant="outline" onClick={() => window.dispatchEvent(new CustomEvent('auugit:open-settings', { detail: 'git' }))}>{t('issues.configureRemote')}</Button></div>;
-  return <IssueWorkspace key={JSON.stringify([scope.key, path])} />;
+  const { t } = useI18n();
+  const { source, taskAvailable, repoAvailable, scope } = useIssueSource();
+  // 独立任务连接可独立点亮 Issues 页：双空（无托管账号且无任务连接）才引导连接。
+  if (!taskAvailable && !repoAvailable) return <div className="p-6 space-y-3 text-sm"><h1 className="font-semibold">{t('issues.nav')}</h1><p>{t('issues.needAuth')}</p><Button onClick={onOpenAuthDialog}>{t('issues.connect')}</Button></div>;
+  if (source === 'repo' && scope.isAuthenticated && !scope.owner) return <div className="p-6 space-y-3 text-sm"><h1 className="font-semibold">{t('issues.nav')}</h1><p>{t('issues.noRepo')}</p><Button variant="outline" onClick={() => window.dispatchEvent(new CustomEvent('auugit:open-settings', { detail: 'git' }))}>{t('issues.configureRemote')}</Button></div>;
+  return <IssueWorkspace source={source} taskAvailable={taskAvailable} repoAvailable={repoAvailable} scope={scope} />;
 }
 
-function IssueWorkspace() {
+function IssueWorkspace({ source, taskAvailable, repoAvailable, scope }: {
+  source: IssueSourceKind; taskAvailable: boolean; repoAvailable: boolean; scope: IssueSourceScope;
+}) {
   const { can } = useCollaborationCapabilities();
-  const { t } = useI18n(), scope = useCollaborationScope();
+  const { setSource } = useIssueSource();
+  const { t } = useI18n();
   const [state, setState] = useState<IssueListOptions['state']>('open'), [query, setQuery] = useState('');
   const [label, setLabel] = useState(''), [assignee, setAssignee] = useState(''), [page, setPage] = useState(1);
   const [items, setItems] = useState<CollaborationIssue[]>([]), [total, setTotal] = useState(0), [incomplete, setIncomplete] = useState(false);
@@ -32,16 +35,28 @@ function IssueWorkspace() {
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
   const requested = useIssueWorkflowStore(store => store.requestedIssue);
   const revision = useIssueWorkflowStore(store => Object.entries(store.revisions)
-    .filter(([key]) => key.startsWith(issueKey({owner: scope.owner ?? '',repo: scope.repo ?? '',number: 0}).replace(/0$/, ''))).reduce((sum, [, value]) => sum + value, 0));
+    .filter(([key]) => key.startsWith(issueKey(scope.source === 'task'
+      ? { owner: scope.owner, repo: scope.repo, number: 0, providerId: scope.providerId, server: scope.server }
+      : { owner: scope.owner, repo: scope.repo, number: 0 }).replace(/0$/, ''))).reduce((sum, [, value]) => sum + value, 0));
   useEffect(() => {
-    if (!requested || requested.owner.toLowerCase() !== scope.owner?.toLowerCase() || requested.repo.toLowerCase() !== scope.repo?.toLowerCase()) return;
-    setSelected(requested.number); useIssueWorkflowStore.getState().openIssue(null);
+    if (!requested) return;
+    // 任务引用按平台+编号匹配（工作区作用域没有 owner/repo 语义）；托管引用维持 owner/repo 匹配。
+    if (scope.source === 'task') {
+      if (usesTaskProvider(requested.providerId) && requested.providerId === scope.providerId) {
+        setSelected(requested.number); useIssueWorkflowStore.getState().openIssue(null);
+      }
+      return;
+    }
+    if (!requested.providerId && requested.owner.toLowerCase() === scope.owner?.toLowerCase() && requested.repo.toLowerCase() === scope.repo?.toLowerCase()) {
+      setSelected(requested.number); useIssueWorkflowStore.getState().openIssue(null);
+    }
   }, [requested, scope]);
   useEffect(() => {
     let active = true;
     setLoading(true); setError(''); setItems([]);
+    const client = issueClientFor(scope.providerId);
     const timer = setTimeout(() => {
-      void collaborationService.searchIssues(scope.owner!, scope.repo!, { state, query, label, assignee, page }).then(result => {
+      void client.searchIssues(scope.owner, scope.repo, { state, query, label, assignee, page }).then(result => {
         if (!active || !scope.isCurrent()) return;
         setItems(result.items); setTotal(result.total_count); setIncomplete(result.incomplete_results);
       }).catch(reason => { if (active && scope.isCurrent()) setError(String(reason?.message || reason)); })
@@ -56,7 +71,13 @@ function IssueWorkspace() {
       <div className="app-toolbar-group">
         <Button variant="ghost" size="icon" className="issues-icon-btn" disabled={loading} aria-label={t('issues.refresh')} title={t('issues.refresh')} onClick={refresh}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /></Button>
         <Button size="toolbar" className="" disabled={!can('task-tracking:create-issue')} title={!can('task-tracking:create-issue') ? t('connections.unavailableCapability') : undefined} onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" />{t('issues.create')}</Button>
-        <span className="issues-scope" title={`${scope.owner}/${scope.repo}`}>{scope.owner}/{scope.repo}</span>
+        {taskAvailable && repoAvailable && (
+          <div className="flex items-center rounded-md border border-border p-0.5" role="group" aria-label={t('issues.source')}>
+            <Button variant="ghost" size="toolbar" className={source === 'repo' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'} aria-pressed={source === 'repo'} onClick={() => setSource('repo')}>{t('issues.sourceRepo')}</Button>
+            <Button variant="ghost" size="toolbar" className={source === 'task' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'} aria-pressed={source === 'task'} onClick={() => setSource('task')}>{t('issues.sourceTask')}</Button>
+          </div>
+        )}
+        <span className="issues-scope" title={scope.label}>{scope.label}</span>
       </div>
       <div className="issues-tools">
         <div className="issues-search"><Search aria-hidden="true" size={13} /><input type="text" name="issue-search" autoComplete="off" spellCheck={false} aria-label={t('issues.search')} placeholder={t('issues.searchHint')} value={query} onChange={event => filter(() => setQuery(event.target.value))} /></div>
@@ -73,7 +94,7 @@ function IssueWorkspace() {
           {!loading && !error && !items.length && <div className="issues-empty"><CircleDot aria-hidden="true" size={20} /><p>{t('issues.empty')}</p></div>}
           {items.map(issue => <div key={issue.id} aria-current={selected === issue.number ? 'true' : undefined} className="issues-row" onClick={() => setSelected(issue.number)} {...keyboardRowProps(`#${issue.number} ${issue.title}`)}>
             <div className="issues-row-title"><span className="issues-state-dot" data-state={issue.state} aria-hidden="true" />{issue.title}</div>
-            <div className="issues-row-meta"><span>#{issue.number}</span><span>· {issue.user.login}</span><span>· {t(issue.state === 'open' ? 'issues.open' : 'issues.closed')}</span></div>
+            <div className="issues-row-meta"><span>{issue.identifier ?? `#${issue.number}`}</span><span>· {issue.user.login}</span><span>· {t(issue.state === 'open' ? 'issues.open' : 'issues.closed')}</span></div>
             {!!issue.labels.length && <p className="issues-row-labels">{issue.labels.map(item => item.name).join(' · ')}</p>}
           </div>)}
         </div>
@@ -83,9 +104,9 @@ function IssueWorkspace() {
         </footer>
       </section>
       <section aria-label={t('issues.detail')} className={`${selected ? 'flex' : 'hidden @[760px]:flex'} flex-col min-w-0 min-h-0 overflow-y-auto`}>
-        {selected ? <><Button className="@[760px]:hidden shrink-0 m-2 self-start" variant="ghost" size="xs" onClick={() => setSelected(null)}><ArrowLeft className="h-3 w-3 mr-1" />{t('issues.back')}</Button><IssueDetail key={JSON.stringify([scope.key, selected])} number={selected} onChanged={refresh} /></> : <p className="m-auto p-6 text-xs text-muted-foreground">{t('issues.select')}</p>}
+        {selected ? <><Button className="@[760px]:hidden shrink-0 m-2 self-start" variant="ghost" size="xs" onClick={() => setSelected(null)}><ArrowLeft className="h-3 w-3 mr-1" />{t('issues.back')}</Button><IssueDetail key={JSON.stringify([scope.key, selected])} scope={scope} number={selected} onChanged={refresh} /></> : <p className="m-auto p-6 text-xs text-muted-foreground">{t('issues.select')}</p>}
       </section>
     </div>
-    {creating && <IssueEditor onClose={() => setCreating(false)} onSaved={issue => { setCreating(false); setSelected(issue.number); refresh(); }} />}
+    {creating && <IssueEditor scope={scope} onClose={() => setCreating(false)} onSaved={issue => { setCreating(false); setSelected(issue.number); refresh(); }} />}
   </div>;
 }

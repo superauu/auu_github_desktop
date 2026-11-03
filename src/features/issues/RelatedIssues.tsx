@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
-import { collaborationService } from '@/services/collaboration/CollaborationService';
 import type { CollaborationIssue, IssueReference } from '@/services/collaboration/issueTypes';
+import { issueClientFor } from '@/services/integrations/taskService';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { issueLabel, issueKey, issueReferences, issueUrl } from './issueLogic';
@@ -22,8 +22,9 @@ export function RelatedIssues({ body, owner, repo }: { body: string | null; owne
     let active = true;
     if (!canRead) { setIssues([]); setLoading(false); return; }
     setIssues([]); setLoading(!!references.length);
+    // 按引用路由：任务引用走任务通道（后续 Linear URL 解析接入后生效），托管走协作通道。
     void Promise.all(references.map(async reference => {
-      try { return { reference, issue: await collaborationService.getIssue(reference.owner, reference.repo, reference.number) }; }
+      try { return { reference, issue: await issueClientFor(reference.providerId).getIssue(reference.owner, reference.repo, reference.number) }; }
       catch (reason) { return { reference, error: reason instanceof Error ? reason.message : String(reason) }; }
     })).then(result => { if (active && scope.isCurrent()) { setIssues(result); setLoading(false); } });
     return () => { active = false; };

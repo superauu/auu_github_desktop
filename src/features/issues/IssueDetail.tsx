@@ -1,33 +1,49 @@
-import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
+import { useCollaborationCapabilities, useIssueCapabilities } from '@/features/integrations/useCollaborationCapabilities';
 import { useActiveProviderId } from '@/features/integrations/useActiveProviderId';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, GitBranch, GitPullRequest, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
-import { collaborationService, type CollaborationIssueComment } from '@/services/collaboration/CollaborationService';
+import type { CollaborationIssueComment } from '@/services/collaboration/CollaborationService';
 import type { CollaborationIssue } from '@/services/collaboration/issueTypes';
-import { getHostingPlugin } from '@/services/integrations/plugins';
+import { getHostingPlugin, getTaskPlugin } from '@/services/integrations/plugins';
+import { issueClientFor } from '@/services/integrations/taskService';
 import { useRepoStore } from '@/stores/repoStore';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { CreatePullRequestModal } from '@/features/pr/CreatePullRequestModal';
 import { IssueEditor } from './IssueEditor';
 import { issueBranchName, issueUrl, referencedPullRequests } from './issueLogic';
-import { useCollaborationScope } from './useCollaborationScope';
+import { useIssueSource, type IssueSourceScope } from './useIssueSource';
 import { issueKey } from './issueLogic';
 import { IssuePullRequestCard } from './IssuePullRequestCard';
 import { confirmAction } from '@/stores/confirmStore';
 
-export function IssueDetail({ number, onChanged }: { number: number; onChanged: () => void }) {
-  const { t } = useI18n(), scope = useCollaborationScope();
-  const { can } = useCollaborationCapabilities();
+export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: IssueSourceScope; number: number; onChanged: () => void }) {
+  // scope 可省略（独立挂载/测试场景）：回落到来源派生作用域。
+  const derived = useIssueSource();
+  const scope = scopeProp ?? derived.scope;
+  const { t } = useI18n();
+  // 任务引用按任务连接的 manifest 收敛能力（不借托管平台亮按钮）；托管引用维持并集口径。
+  const { can } = useIssueCapabilities(scope.source === 'task' ? scope.providerId : undefined);
+  // 建 PR 永远走托管绑定（任务引用没有 PR 语义），按托管并集口径判定。
+  const { can: hostingCan } = useCollaborationCapabilities();
   const providerId = useActiveProviderId();
-  const providerLabel = providerId ? getHostingPlugin(providerId)?.manifest.name ?? null : null;
+  const providerLabel = scope.source === 'task'
+    ? getTaskPlugin(scope.providerId)?.manifest.name ?? null
+    : providerId ? getHostingPlugin(providerId)?.manifest.name ?? null : null;
   const repoPath = useRepoStore(state => state.currentRepo?.path);
   const branch = useRepoStore(state => state.currentRepo?.currentBranch || state.status?.currentBranch || state.branches.find(item => item.isCurrent)?.name);
-  const reference = { owner: scope.owner!, repo: scope.repo!, number };
+  const [issue, setIssue] = useState<CollaborationIssue | null>(null);
+  // 任务引用显式携带 providerId/server（不套托管绑定落款）；identifier 在加载后补齐，
+  // 供分支名与外链使用（issueKey 不含 identifier，刷新修订不受影响）。
+  const reference = useMemo(() => ({
+    owner: scope.owner, repo: scope.repo, number,
+    ...(scope.source === 'task' ? { providerId: scope.providerId, server: scope.server } : {}),
+    ...(issue?.identifier ? { identifier: issue.identifier } : {}),
+  }), [scope, number, issue?.identifier]);
   const revision = useIssueWorkflowStore(state => state.revisions[issueKey(reference)] || 0);
-  const [issue, setIssue] = useState<CollaborationIssue | null>(null), [comments, setComments] = useState<CollaborationIssueComment[]>([]);
+  const [comments, setComments] = useState<CollaborationIssueComment[]>([]);
   const [prs, setPRs] = useState<ReturnType<typeof referencedPullRequests>>([]);
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState(''), [activityError, setActivityError] = useState('');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [attempt, setAttempt] = useState(0), [comment, setComment] = useState('');
@@ -39,10 +55,10 @@ export function IssueDetail({ number, onChanged }: { number: number; onChanged: 
   useEffect(() => {
     let active = true;
     const request = ++reads.current;
-    if (!scope.owner || !scope.repo) return;
     setLoading(true); setLoadError(''); setActivityError('');
+    const client = issueClientFor(scope.providerId);
     void Promise.allSettled([
-      collaborationService.getIssue(scope.owner, scope.repo, number), collaborationService.getIssueComments(scope.owner, scope.repo, number), collaborationService.getIssueTimeline(scope.owner, scope.repo, number),
+      client.getIssue(scope.owner, scope.repo, number), client.getIssueComments(scope.owner, scope.repo, number), client.getIssueTimeline(scope.owner, scope.repo, number),
     ]).then(([detail, discussion, timeline]) => {
       if (!active || request !== reads.current || !scope.isCurrent()) return;
       if (detail.status === 'fulfilled') setIssue(detail.value); else setLoadError(String(detail.reason?.message || detail.reason));
@@ -70,7 +86,7 @@ export function IssueDetail({ number, onChanged }: { number: number; onChanged: 
     finally { sending.current = false; if (valid()) { setBusy(false); setAttempt(value => value + 1); } }
   };
   const changeState = (state: 'open' | 'closed', state_reason: 'completed' | 'not_planned' | 'reopened') => run(async () => {
-    const updated = await collaborationService.updateIssue(scope.owner!, scope.repo!, number, { state, state_reason });
+    const updated = await issueClientFor(scope.providerId).updateIssue(scope.owner, scope.repo, number, { state, state_reason });
     if (valid()) { setIssue(updated); onChanged(); }
   });
   const linkCurrentBranch = () => run(async () => {
@@ -86,13 +102,13 @@ export function IssueDetail({ number, onChanged }: { number: number; onChanged: 
   return <div className="w-full p-4 sm:p-5 space-y-5 text-xs max-w-4xl mx-auto" data-issue-detail={number}>
     <div className="space-y-3">
       {loadError && <p role="alert" className="text-destructive">{loadError}</p>}
-      <div className="flex flex-wrap gap-2 items-center"><span className={`rounded-full border px-2 py-1 font-medium ${issue.state === 'open' ? 'text-git-added border-git-added/40' : 'text-git-branch border-git-branch/40'}`}>{t(issue.state === 'open' ? 'issues.open' : issue.state_reason === 'not_planned' ? 'issues.notPlanned' : 'issues.closed')}</span><span className="text-muted-foreground">#{number} · {issue.user.login}</span><Button size="xs" variant="ghost" aria-label={t('issues.refresh')} disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-3 w-3" /></Button><a className="inline-flex items-center gap-1 text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer">{providerLabel ?? t('issues.viewOnPlatform')} <ExternalLink className="h-3 w-3" /></a></div>
+      <div className="flex flex-wrap gap-2 items-center"><span className={`rounded-full border px-2 py-1 font-medium ${issue.state === 'open' ? 'text-git-added border-git-added/40' : 'text-git-branch border-git-branch/40'}`}>{t(issue.state === 'open' ? 'issues.open' : issue.state_reason === 'not_planned' ? 'issues.notPlanned' : 'issues.closed')}</span><span className="text-muted-foreground">{issue.identifier ?? `#${number}`} · {issue.user.login}</span><Button size="xs" variant="ghost" aria-label={t('issues.refresh')} disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-3 w-3" /></Button><a className="inline-flex items-center gap-1 text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer">{providerLabel ?? t('issues.viewOnPlatform')} <ExternalLink className="h-3 w-3" /></a></div>
       <h1 className="text-lg font-semibold break-words select-text">{issue.title}</h1>
       <div className="flex flex-wrap gap-2">
         <Button size="xs" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => setEditing(true)}><Pencil className="h-3 w-3 mr-1" />{t('issues.edit')}</Button>
         <Button size="xs" variant="outline" disabled={busy || !repoPath} onClick={() => setBranchOpen(true)}><GitBranch className="h-3 w-3 mr-1" />{t('issues.createBranch')}</Button>
         <Button size="xs" variant="outline" disabled={busy || !repoPath || !branch || branch === 'DETACHED'} onClick={() => void linkCurrentBranch()} title={branch}>{t('issueFlow.linkBranch')}</Button>
-        <Button size="xs" variant="outline" disabled={busy || issue.state !== 'open' || !can('code-hosting:create-pull-request')} title={can('code-hosting:create-pull-request') ? undefined : t('connections.unavailableCapability')} onClick={() => setPROpen(true)}><GitPullRequest className="h-3 w-3 mr-1" />{t('issues.createPR')}</Button>
+        <Button size="xs" variant="outline" disabled={busy || issue.state !== 'open' || !hostingCan('code-hosting:create-pull-request')} title={hostingCan('code-hosting:create-pull-request') ? undefined : t('connections.unavailableCapability')} onClick={() => setPROpen(true)}><GitPullRequest className="h-3 w-3 mr-1" />{t('issues.createPR')}</Button>
       </div>
       <div className="flex flex-wrap gap-1">{issue.labels.map(label => <span key={label.id} className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: /^[a-f\d]{6}$/i.test(label.color) ? `#${label.color}` : undefined }} />{label.name}</span>)}</div>
       <p className="text-muted-foreground">{t('issues.assignees')}: {issue.assignees.map(user => user.login).join(', ') || t('issues.none')}</p>
@@ -107,7 +123,7 @@ export function IssueDetail({ number, onChanged }: { number: number; onChanged: 
     <section className="space-y-3"><h2 className="font-semibold">{t('issues.comments')}</h2>
       {activityError && <div role="alert" className="text-destructive">{activityError} <Button size="xs" variant="outline" disabled={busy} onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
       {comments.map(item => <article key={item.id} className="rounded-lg border border-border p-3 space-y-2 select-text"><div className="flex gap-2 flex-wrap text-muted-foreground"><span className="font-semibold text-foreground">{item.user.login}</span><time>{new Date(item.created_at).toLocaleString()}</time></div><p className="whitespace-pre-wrap break-words leading-relaxed">{item.body}</p></article>)}
-      <form onSubmit={event => { event.preventDefault(); if (!comment.trim()) return; void run(async () => { const saved = await collaborationService.createIssueComment(scope.owner!, scope.repo!, number, comment.trim()); if (valid()) { setComments(previous => [...previous, saved]); setComment(''); onChanged(); } }); }} className="space-y-2">
+      <form onSubmit={event => { event.preventDefault(); if (!comment.trim()) return; void run(async () => { const saved = await issueClientFor(scope.providerId).createIssueComment(scope.owner, scope.repo, number, comment.trim()); if (valid()) { setComments(previous => [...previous, saved]); setComment(''); onChanged(); } }); }} className="space-y-2">
         <label className="block space-y-1"><span>{t('issues.addComment')}</span><textarea aria-label={t('issues.addComment')} value={comment} onChange={event => setComment(event.target.value)} disabled={busy || issue.locked} rows={4} className="w-full rounded-lg border border-input bg-background p-2 resize-y disabled:opacity-50" /></label>
         {issue.locked && <p className="text-muted-foreground">{t('issues.locked')}</p>}
         <div className="flex gap-2 flex-wrap"><Button type="submit" size="sm" disabled={busy || issue.locked || !comment.trim() || !can('task-tracking:comment')} title={can('task-tracking:comment') ? undefined : t('connections.unavailableCapability')}>{t('issues.sendComment')}</Button>
@@ -116,8 +132,8 @@ export function IssueDetail({ number, onChanged }: { number: number; onChanged: 
       </form>
     </section>
     {error && <p role="alert" className="text-destructive whitespace-pre-wrap">{error}</p>}
-    {editing && <IssueEditor issue={issue} onClose={() => setEditing(false)} onSaved={saved => { reads.current++; setLoading(false); setIssue(saved); setEditing(false); setAttempt(value => value + 1); onChanged(); }} />}
-    {branchOpen && <CreateBranchModal open onOpenChange={setBranchOpen} defaultBranchName={issueBranchName(number, issue.title)} onCreated={name => { if (repoPath && scope.isCurrent()) useIssueWorkflowStore.getState().linkBranch(repoPath, name, reference); }} />}
+    {editing && <IssueEditor scope={scope} issue={issue} onClose={() => setEditing(false)} onSaved={saved => { reads.current++; setLoading(false); setIssue(saved); setEditing(false); setAttempt(value => value + 1); onChanged(); }} />}
+    {branchOpen && <CreateBranchModal open onOpenChange={setBranchOpen} defaultBranchName={issueBranchName(issue.identifier ?? number, issue.title)} onCreated={name => { if (repoPath && scope.isCurrent()) useIssueWorkflowStore.getState().linkBranch(repoPath, name, reference); }} />}
     {prOpen && <CreatePullRequestModal open initialIssue={reference} onOpenChange={setPROpen} onCreated={() => { if (valid()) useRepoStore.getState().setActiveTab('pullRequests'); }} />}
   </div>;
 }

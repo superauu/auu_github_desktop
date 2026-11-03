@@ -2,6 +2,9 @@ import { issueWorkflowEn, issueWorkflowZh } from './issueWorkflow';
 export const issuesZh = {
   ...issueWorkflowZh,
   'issues.nav': 'Issues',
+  'issues.source': 'Issue 来源',
+  'issues.sourceRepo': '仓库',
+  'issues.sourceTask': 'Linear',
   'issues.metadataNotApplied': 'Issue 已保存，但部分标签或负责人未在托管平台生效，请核对仓库权限与实际结果。',
   'issues.create': '新建 Issue', 'issues.edit': '编辑 Issue', 'issues.title': '标题', 'issues.description': '描述（Markdown）',
   'issues.labels': '标签', 'issues.assignees': '负责人', 'issues.none': '无', 'issues.save': '保存', 'issues.saving': '保存中…',
@@ -30,6 +33,9 @@ export const issuesZh = {
 export const issuesEn: Record<keyof typeof issuesZh, string> = {
   ...issueWorkflowEn,
   'issues.nav': 'Issues',
+  'issues.source': 'Issue source',
+  'issues.sourceRepo': 'Repository',
+  'issues.sourceTask': 'Linear',
   'issues.metadataNotApplied': 'Issue saved, but the hosting platform did not apply all labels or assignees. Check repository permissions and the saved result.',
   'issues.create': 'New issue', 'issues.edit': 'Edit issue', 'issues.title': 'Title', 'issues.description': 'Description (Markdown)',
   'issues.labels': 'Labels', 'issues.assignees': 'Assignees', 'issues.none': 'None', 'issues.save': 'Save', 'issues.saving': 'Saving…',

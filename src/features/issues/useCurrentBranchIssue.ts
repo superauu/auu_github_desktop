@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useRepoStore } from '@/stores/repoStore';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
-import { collaborationService } from '@/services/collaboration/CollaborationService';
 import type { CollaborationIssue } from '@/services/collaboration/issueTypes';
+import { issueClientFor, usesTaskProvider } from '@/services/integrations/taskService';
 import { issueKey } from './issueLogic';
 import { useCollaborationScope } from './useCollaborationScope';
 import { useCollaborationCapabilities } from '@/features/integrations/useCollaborationCapabilities';
@@ -23,13 +23,17 @@ export function useCurrentBranchIssue() {
   useEffect(() => {
     let active = true;
     setData(null);
-    if (!reference || !scope.isAuthenticated || !canRead) return;
-    void collaborationService.getIssue(reference.owner, reference.repo, reference.number)
-      .then(issue => { if (active && scope.isCurrent()) setData({ key, issue }); })
-      .catch(reason => { if (active && scope.isCurrent()) setData({ key, error: String(reason?.message || reason) }); });
+    if (!reference || !canRead) return;
+    // 任务引用不要求托管登录（GitHub 仓库也能挂 Linear 任务），按引用路由取数；
+    // 托管引用仍要求托管会话且未切换（isCurrent 防串台）。
+    const taskRef = usesTaskProvider(reference.providerId);
+    if (!taskRef && !scope.isAuthenticated) return;
+    void issueClientFor(reference.providerId).getIssue(reference.owner, reference.repo, reference.number)
+      .then(issue => { if (active && (taskRef || scope.isCurrent())) setData({ key, issue }); })
+      .catch(reason => { if (active && (taskRef || scope.isCurrent())) setData({ key, error: String(reason?.message || reason) }); });
     return () => { active = false; };
   }, [key, reference, revision, scope, canRead]);
   return { path, branch, reference: canRead ? reference : undefined, scope, issue: data?.key === key ? data.issue : undefined,
-    error: data?.key === key ? data.error : undefined, loading: !!reference && scope.isAuthenticated && data?.key !== key,
+    error: data?.key === key ? data.error : undefined, loading: !!reference && (usesTaskProvider(reference.providerId) || scope.isAuthenticated) && data?.key !== key,
   };
 }

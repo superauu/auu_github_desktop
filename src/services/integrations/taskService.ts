@@ -7,7 +7,8 @@
 import { useTaskStore } from '@/stores/taskStore';
 import { getTaskPlugin, subscribePlugins } from './plugins';
 import { OPERATION_CAPABILITIES, OPERATION_DOMAINS } from '@/services/collaboration/domainRouting';
-import { ProviderApiError, type ProviderClient } from '@/services/collaboration/client';
+import { ProviderApiError, type CollaborationClient, type ProviderClient } from '@/services/collaboration/client';
+import { collaborationService } from '@/services/collaboration/CollaborationService';
 import { LocalizedError } from '@/i18n';
 import type { ProviderManifest } from './registry';
 
@@ -69,6 +70,16 @@ export const taskService = new Proxy({} as Record<string, unknown>, {
 /** 任务引用路由：providerId 命中 task 插件 → task 通道；否则走托管协作通道。 */
 export function usesTaskProvider(providerId: string | null | undefined): boolean {
   return !!providerId && !!getTaskPlugin(providerId);
+}
+
+/** 议题组件可用的任务域方法面（两条通道同形）。 */
+export type TaskClientChannel = Pick<CollaborationClient,
+  'searchIssues' | 'getIssue' | 'createIssue' | 'updateIssue' | 'getIssueComments'
+  | 'createIssueComment' | 'getIssueTimeline' | 'getIssueLabels' | 'getIssueAssignees'>;
+
+/** 按引用/作用域的平台 id 取议题客户端：任务插件 → taskService，否则托管 collaborationService。 */
+export function issueClientFor(providerId: string | null | undefined): TaskClientChannel {
+  return usesTaskProvider(providerId) ? (taskService as unknown as TaskClientChannel) : collaborationService;
 }
 
 /** taskStore 变化时重绑活跃连接；未恢复或无连接时解绑。 */

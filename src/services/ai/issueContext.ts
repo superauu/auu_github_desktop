@@ -1,9 +1,11 @@
 import { externalIssueUrl } from '@/services/integrations/links';
+import { getTaskPlugin } from '@/services/integrations/plugins';
 import type { CollaborationIssue, IssueDraftContext, IssueReference } from '@/services/collaboration/issueTypes';
 import { tNow } from '@/i18n';
 
 const oneLine = (text: string) => text.replace(/[\r\n\0]+/g, ' ').trim().slice(0, 256);
-const ref = (issue: IssueReference) => `${issue.owner}/${issue.repo}#${issue.number}`;
+/** 引用键：任务引用（Linear 等）以 identifier 为键（ENG-123），托管保持 owner/repo#n。 */
+const ref = (issue: IssueReference) => issue.providerId && getTaskPlugin(issue.providerId) && issue.identifier ? issue.identifier : `${issue.owner}/${issue.repo}#${issue.number}`;
 export const toIssueContext = (reference: IssueReference, issue: CollaborationIssue): IssueDraftContext => ({
   ...reference, title: oneLine(issue.title), body: (issue.body || '').slice(0, 2000),
 });

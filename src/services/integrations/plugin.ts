@@ -38,4 +38,6 @@ export interface AuxPlugin {
   oauthRefresh?(refreshToken: string): Promise<AuxTokenSet>;
   /** OAuth 插件才提供：打开系统浏览器完成授权并取回令牌集（PKCE 免 secret）。 */
   oauth?: { authorize(): Promise<AuxTokenSet> };
+  /** 议题外链（覆盖 links.externalIssueUrl 的任务分支）；托管插件走 issuePath 拼接。 */
+  issueUrl?(reference: import('@/services/collaboration/issueTypes').IssueReference): string;
 }
