@@ -31,6 +31,7 @@ export const forgeZh = {
   'connections.errors.checkoutRefRequired': '缺少插件提供的 PR 检出引用。',
   'connections.errors.oauthDesktopOnly': '浏览器授权需要在桌面应用中进行。',
   'connections.errors.oauthNotConfigured': '当前版本尚未配置 Linear OAuth 应用，请改用个人 API Key 连接。',
+  'connections.errors.noTaskConnected': '尚未连接独立任务系统。',
 } as const;
 
 export const forgeEn = {
@@ -62,4 +63,5 @@ export const forgeEn = {
   'connections.errors.checkoutRefRequired': 'The plugin-provided PR checkout ref is missing.',
   'connections.errors.oauthDesktopOnly': 'Browser authorization is only available in the desktop app.',
   'connections.errors.oauthNotConfigured': 'This build is not yet configured with a Linear OAuth app. Use a personal API key instead.',
+  'connections.errors.noTaskConnected': 'No independent task system is connected.',
 } as const;

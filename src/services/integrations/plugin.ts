@@ -30,7 +30,12 @@ export interface HostingPlugin {
  * 与所声明域方法的客户端；域能力仍由 manifest 声明、经能力双检网关执行。
  * 与 DOMAIN_REGISTRY「只声明实际实现的能力」同一纪律，ci 档接入时再收敛其词汇。
  */
+export interface AuxTokenSet { accessToken: string; refreshToken: string; expiresAt: number; scope?: string }
 export interface AuxPlugin {
   manifest: ProviderManifest;
   createClient(credentials: { token: string }): AuthenticationClient & Partial<TaskTrackingClient>;
+  /** OAuth 插件才提供：轮转刷新令牌。调用方必须原子持久化返回的新 refresh token。 */
+  oauthRefresh?(refreshToken: string): Promise<AuxTokenSet>;
+  /** OAuth 插件才提供：打开系统浏览器完成授权并取回令牌集（PKCE 免 secret）。 */
+  oauth?: { authorize(): Promise<AuxTokenSet> };
 }
