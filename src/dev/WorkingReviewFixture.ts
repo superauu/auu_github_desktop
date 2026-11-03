@@ -3,6 +3,7 @@ import { gitService } from '@/services/git/GitService';
 import { parseDiffOutput } from '@/services/git/PorcelainParser';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useLayoutStore } from '@/stores/layoutStore';
 import type { GitFileChange } from '@/services/git/types';
 
 /** One hunk pair for task.ts plus a single-hunk untracked file, so hunk-, file- and batch-level review all apply. */
@@ -33,6 +34,11 @@ export function prepareWorkingReviewFixture() {
     { path: 'task.ts', status: 'modified', staged: true },
     { path: 'notes.md', status: 'untracked', staged: false },
   ];
+  const actionFixture = new URLSearchParams(location.search).has('fileActions');
+  if (actionFixture) files.push(
+    { path: 'src/long/directory/working-file.ts', status: 'modified', staged: false },
+    { path: 'src/long/directory/conflicted-file.ts', status: 'conflicted', staged: false },
+  );
   let flipped = false;
   const rawFor = (file: string) => file === 'notes.md' ? notesDiff('first') : taskDiff(flipped ? 'CHANGED' : 'first');
   const commits: string[] = [];
@@ -42,8 +48,35 @@ export function prepareWorkingReviewFixture() {
   useSettingsStore.setState({ reviewBeforeCommit: true });
   useRepoStore.setState(state => ({
     activeTab: 'changes', selectedFile: files[0],
-    status: state.status && { ...state.status, staged: [files[0]], unstaged: [], untracked: [files[1]], headOid: 'c'.repeat(40), isClean: false },
+    status: state.status && { ...state.status, staged: [files[0]], unstaged: files.slice(2), untracked: [files[1]], headOid: 'c'.repeat(40), isClean: false },
   }));
+  if (actionFixture) {
+    useRepoStore.setState({ isLeftSidebarCollapsed: true, isRightPaneCollapsed: true, readWorkingFile: async () => '' });
+    window.addEventListener('file-actions-fixture-width', event => useLayoutStore.getState().setChangesFileListWidth((event as CustomEvent<number>).detail));
+    const writes: { action: string; path: string }[] = [];
+    document.documentElement.dataset.fileActionsFixtureWrites = '[]';
+    const write = async (action: string, path: string) => {
+      writes.push({ action, path });
+      document.documentElement.dataset.fileActionsFixtureWrites = JSON.stringify(writes);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (new URLSearchParams(location.search).has('actionFailure')) throw new Error('Fixture index locked');
+      useRepoStore.setState(state => {
+        const status = state.status!;
+        if (action !== 'stage' && action !== 'unstage') return {};
+        const source = action === 'stage' ? [...status.unstaged, ...status.untracked] : status.staged;
+        const file = source.find(item => item.path === path)!;
+        const next = { ...file, staged: action === 'stage', status: file.status === 'untracked' ? 'added' as const : file.status };
+        return { status: { ...status,
+          staged: action === 'stage' ? [...status.staged, next] : status.staged.filter(item => item.path !== path),
+          unstaged: action === 'unstage' ? [...status.unstaged, next] : status.unstaged.filter(item => item.path !== path),
+          untracked: status.untracked.filter(item => item.path !== path),
+        } };
+      });
+    };
+    useRepoStore.setState({ stageFile: path => write('stage', path), unstageFile: path => write('unstage', path),
+      discardChanges: path => write('discard', path), resolveFileOurs: path => write('ours', path),
+      resolveFileTheirs: path => write('theirs', path), resetFileConflictMarkers: path => write('reset', path) });
+  }
   gitService.getStatus = async () => useRepoStore.getState().status!;
   gitService.getFileDiff = async (_repoPath, filePath) => parseDiffOutput(rawFor(filePath));
   gitService.commit = async (_path, message) => {

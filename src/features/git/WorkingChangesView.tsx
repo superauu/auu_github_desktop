@@ -146,10 +146,8 @@ export const WorkingChangesView: React.FC = () => {
   const visibleStaged = useMemo(() => visibleFiles.filter(file => file.staged), [visibleFiles]);
   const visibleUnstaged = useMemo(() => visibleFiles.filter(file => !file.staged && file.status !== 'untracked'), [visibleFiles]);
   const visibleUntracked = useMemo(() => visibleFiles.filter(file => file.status === 'untracked'), [visibleFiles]);
-  // 末列动作轨道固定宽度：悬停才出现的按钮不再挤动「待审核」徽标，三个分组共用同一条轨道。
-  // icon-sm 为 28px，gap-1 为 4px；有冲突文件时按冲突行的 5 个按钮预留。
-  const fileActionSlots = allFiles.some(file => file.status === 'conflicted') ? 5 : 2;
-  const fileActionTrack = fileActionSlots * 28 + (fileActionSlots - 1) * 4;
+  // 各分组共用固定动作轨道；窄面板用菜单，冲突操作不再挤占所有文件名的空间。
+  const compactFileActions = panels.files < 240;
   useEffect(() => { setFileSearch(''); setReviewFilter('all'); }, [currentRepo?.path, status?.currentBranch]);
   const fileListRef = useRef<HTMLDivElement>(null);
   const locateRequest = useRef(0);
@@ -324,8 +322,8 @@ export const WorkingChangesView: React.FC = () => {
         return <span className="text-[12px] font-mono font-bold text-git-untracked">U</span>;
       case 'conflicted':
         return (
-          <span className="text-[12px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-git-deleted border border-rose-500/40 " title={t('changes.conflictBadge')}>
-            {t('changes.conflict')}
+          <span className="shrink-0 text-[12px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-git-deleted border border-rose-500/40" title={t('changes.conflictBadge')} aria-label={t('changes.conflictBadge')}>
+            {panels.files < 360 ? '!' : t('changes.conflict')}
           </span>
         );
       default:
@@ -338,8 +336,10 @@ export const WorkingChangesView: React.FC = () => {
   // 统一处理暂存/取消暂存/放弃修改：等待真实结果后再提示，失败弹错误 toast；
   // 互斥防重入——并发改索引会撞 git index 锁
   const [listBusy, setListBusy] = useState(false);
+  const listActionRunning = useRef(false);
   const runGitAction = async (action: () => Promise<void>, successMsg: string, failMsg: string) => {
-    if (listBusy) return;
+    if (listActionRunning.current) return;
+    listActionRunning.current = true;
     setListBusy(true);
     try {
       await action();
@@ -347,6 +347,7 @@ export const WorkingChangesView: React.FC = () => {
     } catch (err: any) {
       toast.error(failMsg, err?.message);
     } finally {
+      listActionRunning.current = false;
       setListBusy(false);
     }
   };
@@ -450,14 +451,60 @@ export const WorkingChangesView: React.FC = () => {
     ];
   })();
 
+  const fileActions = (file: GitFileChange): ContextMenuItem[] => {
+    const action = (id: string, label: string, icon: React.ReactNode, run: () => Promise<void>, success: string, failure: string): ContextMenuItem => ({
+      id, label: t(label), icon, disabled: listBusy,
+      onClick: async () => {
+        const focused = document.activeElement;
+        await runGitAction(run, `${t(success)}: ${file.path}`, `${t(failure)}: ${file.path}`);
+        if (id !== 'stage' && id !== 'unstage') return;
+        requestAnimationFrame(() => {
+          // 分组变化会卸载按钮；恢复同一文件的焦点，但不打断等待期间的新选择。
+          if (document.activeElement !== focused && document.activeElement !== document.body) return;
+          const rows = Array.from(fileListRef.current?.querySelectorAll<HTMLElement>('[data-file-path]') ?? []).filter(element => element.dataset.filePath === file.path);
+          const target = rows.find(element => element.dataset.fileStaged === String(!file.staged)) ?? rows[0];
+          target?.focus();
+        });
+      },
+    });
+    if (file.status === 'conflicted' && !file.staged) return [
+      { id: 'resolve', label: t('changes.openConflictTool'), icon: <Split aria-hidden="true" className="size-3" />, onClick: () => { setSelectedFile(file); setShowResolver(true); } },
+      action('ours', 'changes.takeOurs', <Shield aria-hidden="true" className="size-3" />, () => resolveFileOurs(file.path), 'changes.tookOurs', 'changes.opFailed'),
+      action('theirs', 'changes.takeTheirs', <Download aria-hidden="true" className="size-3" />, () => resolveFileTheirs(file.path), 'changes.tookTheirs', 'changes.opFailed'),
+      action('reset', 'changes.resetMarkers', <RotateCcw aria-hidden="true" className="size-3" />, () => resetFileConflictMarkers(file.path), 'changes.markersReset', 'changes.resetFailed'),
+      action('stage', 'changes.resolvedTitle', <Plus aria-hidden="true" className="size-3" />, () => stageFile(file.path), 'changes.resolved', 'changes.resolvedFailed'),
+    ];
+    if (file.staged) return [action('unstage', 'changes.unstageTitle', <Minus aria-hidden="true" className="size-3" />, () => unstageFile(file.path), 'changes.unstagedToast', 'changes.unstageFailed')];
+    return [
+      ...(file.status === 'untracked' ? [] : [{ id: 'discard', label: t('changes.discardTitle'), icon: <RotateCcw aria-hidden="true" className="size-3" />, danger: true, disabled: listBusy, onClick: () => void handleDiscard(file.path) }]),
+      action('stage', file.status === 'untracked' ? 'changes.trackStageTitle' : 'changes.stageTitle', <Plus aria-hidden="true" className="size-3" />, () => stageFile(file.path), file.status === 'untracked' ? 'changes.tracked' : 'changes.stagedToast', file.status === 'untracked' ? 'changes.trackedFailed' : 'changes.stageFailed'),
+    ];
+  };
   const fileMenuItems: ContextMenuItem[] = fileMenu ? [
-    { id: 'stage', label: t(fileMenu.file.staged ? 'changes.unstageTitle' : 'changes.stageTitle'), onClick: () => void toggleFile(fileMenu.file) },
+    ...fileActions(fileMenu.file),
     ...(fileMenu.file.status === 'untracked' ? [{ id: 'ignore', label: t('ignore.title'), onClick: () => setIgnorePaths(
       picked.has(fileKey(fileMenu.file)) ? selectedFiles.filter(file => file.status === 'untracked').map(file => file.path) : [fileMenu.file.path]
     ) }] : []),
-    ...(!fileMenu.file.staged && fileMenu.file.status !== 'untracked' ? [{ id: 'discard', label: t('changes.discardTitle'), danger: true, onClick: () => void handleDiscard(fileMenu.file.path) }] : []),
     ...externalMenuItems,
   ] : [];
+
+  const renderFileActions = (file: GitFileChange) => (
+    <div data-working-file-actions className={cn(
+      'flex shrink-0 items-center justify-end gap-1 opacity-0 pointer-events-none transition-opacity motion-reduce:transition-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto',
+      compactFileActions ? 'w-7' : 'w-15',
+      fileMenu?.file.path === file.path && fileMenu.file.staged === file.staged && 'opacity-100 pointer-events-auto',
+    )}>
+      {compactFileActions || file.status === 'conflicted' ? (
+        <Button variant="ghost" size="icon-sm" aria-label={`${t('changes.moreActions')}: ${file.path}`} title={t('changes.moreActions')} aria-haspopup="menu" aria-expanded={fileMenu?.file.path === file.path && fileMenu.file.staged === file.staged} onClick={event => {
+          event.stopPropagation();
+          const box = event.currentTarget.getBoundingClientRect();
+          setFileMenu({ file, x: box.left, y: box.bottom });
+        }}><MoreHorizontal aria-hidden="true" className="size-3" /></Button>
+      ) : fileActions(file).map(action => (
+        <Button key={action.id} variant="ghost" size="icon-sm" disabled={action.disabled} title={action.label} aria-label={action.label} className={action.danger || action.id === 'unstage' ? 'hover:text-git-deleted' : 'hover:text-git-added'} onClick={event => { event.stopPropagation(); action.onClick?.(); }}>{action.icon}</Button>
+      ))}
+    </div>
+  );
 
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -772,30 +819,13 @@ export const WorkingChangesView: React.FC = () => {
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
-                        <div className="flex flex-1 items-center gap-2 min-w-0">
+                        <div className={cn("flex flex-1 items-center min-w-0", compactFileActions ? "gap-1" : "gap-2")}>
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
-                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 320} />
                         </div>
-                        <div className="flex shrink-0 items-center justify-end" style={{ width: fileActionTrack }}>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted shrink-0"
-                            title={t('changes.unstageTitle')}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              runGitAction(
-                                () => unstageFile(file.path),
-                                `${t('changes.unstagedToast')}: ${file.path}`,
-                                `${t('changes.unstageFailed')}: ${file.path}`
-                              );
-                            }}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        {renderFileActions(file)}
                       </div>
                     )} />
                   </div>
@@ -811,7 +841,8 @@ export const WorkingChangesView: React.FC = () => {
                       onClick={() => {
                         runGitAction(() => fileListFiltered ? applyVisibleFiles(visibleUnstaged, false) : stageAll(), t('changes.stageAllToast'), t('changes.stageFailed'));
                       }}
-                      className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center whitespace-nowrap text-[12px] text-muted-foreground hover:text-foreground"
+                      disabled={listBusy}
+                      className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center whitespace-nowrap text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {panels.files < 240 && <Plus aria-hidden="true" className="size-3" />}<span className={panels.files < 240 ? "sr-only" : undefined}>{t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.stageAllSection')}</span>
                     </button>
@@ -828,129 +859,13 @@ export const WorkingChangesView: React.FC = () => {
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
-                        <div className="flex flex-1 items-center gap-2 min-w-0">
+                        <div className={cn("flex flex-1 items-center min-w-0", compactFileActions ? "gap-1" : "gap-2")}>
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
-                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 320} />
                         </div>
-                        <div className="flex shrink-0 items-center justify-end gap-1 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto" style={{ width: fileActionTrack }}>
-                          {file.status === 'conflicted' ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-git-deleted hover:text-git-deleted hover:bg-destructive/10"
-                                title={t('changes.openConflictTool')}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedFile(file);
-                                  setShowResolver(true);
-                                }}
-                              >
-                                <Split className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-git-added hover:text-git-added hover:bg-git-added/10"
-                                title={t('changes.takeOurs')}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  try {
-                                    await resolveFileOurs(file.path);
-                                    toast.success(`${t('changes.tookOurs')}: ${file.path}`);
-                                  } catch (err: any) {
-                                    toast.error(t('changes.opFailed'), err.message);
-                                  }
-                                }}
-                              >
-                                <Shield className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-primary hover:bg-primary/10"
-                                title={t('changes.takeTheirs')}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  try {
-                                    await resolveFileTheirs(file.path);
-                                    toast.success(`${t('changes.tookTheirs')}: ${file.path}`);
-                                  } catch (err: any) {
-                                    toast.error(t('changes.opFailed'), err.message);
-                                  }
-                                }}
-                              >
-                                <Download className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-muted-foreground hover:text-foreground"
-                                title={t('changes.resetMarkers')}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  try {
-                                    await resetFileConflictMarkers(file.path);
-                                    toast.info(`${t('changes.markersReset')}: ${file.path}`);
-                                  } catch (err: any) {
-                                    toast.error(t('changes.resetFailed'), err.message);
-                                  }
-                                }}
-                              >
-                                <RotateCcw className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="hover:text-git-added"
-                                title={t('changes.resolvedTitle')}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  runGitAction(
-                                    () => stageFile(file.path),
-                                    `${t('changes.resolved')}: ${file.path}`,
-                                    `${t('changes.resolvedFailed')}: ${file.path}`
-                                  );
-                                }}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="hover:text-git-deleted"
-                                title={t('changes.discardTitle')}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDiscard(file.path);
-                                }}
-                              >
-                                <RotateCcw className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="hover:text-git-added"
-                                title={t('changes.stageTitle')}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  runGitAction(
-                                    () => stageFile(file.path),
-                                    `${t('changes.stagedToast')}: ${file.path}`,
-                                    `${t('changes.stageFailed')}: ${file.path}`
-                                  );
-                                }}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                        {renderFileActions(file)}
                       </div>
                     )} />
                   </div>
@@ -975,7 +890,8 @@ export const WorkingChangesView: React.FC = () => {
                           t('changes.stageFailed')
                         );
                       }}
-                      className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center whitespace-nowrap text-[12px] text-muted-foreground hover:text-foreground"
+                      disabled={listBusy}
+                      className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center whitespace-nowrap text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {panels.files < 240 && <Plus aria-hidden="true" className="size-3" />}<span className={panels.files < 240 ? "sr-only" : undefined}>{t(fileListFiltered ? 'workingReview.stageVisible' : 'changes.addAllSection')}</span>
                     </button>
@@ -992,30 +908,13 @@ export const WorkingChangesView: React.FC = () => {
                             : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
-                        <div className="flex flex-1 items-center gap-2 min-w-0">
+                        <div className={cn("flex flex-1 items-center min-w-0", compactFileActions ? "gap-1" : "gap-2")}>
                           {pickCheckbox(file)}
                           {getStatusBadge(file.status)}
                           <FilePath path={file.path} />
-                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
+                          <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 320} />
                         </div>
-                        <div className="flex shrink-0 items-center justify-end" style={{ width: fileActionTrack }}>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-added shrink-0"
-                            title={t('changes.trackStageTitle')}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              runGitAction(
-                                () => stageFile(file.path),
-                                `${t('changes.tracked')}: ${file.path}`,
-                                `${t('changes.trackedFailed')}: ${file.path}`
-                              );
-                            }}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        {renderFileActions(file)}
                       </div>
                     )} />
                   </div>
