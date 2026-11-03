@@ -23,11 +23,11 @@ export interface LinearTokenSet {
 
 /**
  * AuuGit 自己注册的 Linear OAuth 应用（linear.app → Settings → API → OAuth
- * applications，回跳地址 http://127.0.0.1:53862/callback，scopes read,issues:create）。
- * PKCE(S256) 模式下免 client_secret，公开客户端只凭 client_id + code_verifier 换令牌。
- * 空值 = 尚未注册，authorize 给出引导文案；测试与环境化配置经 setter 注入。
+ * applications，回跳地址 http://127.0.0.1:53862/callback，scopes read,issues:create，
+ * Public client 开启）。PKCE(S256) 模式下免 client_secret，公开客户端只凭
+ * client_id + code_verifier 换令牌。测试经 setLinearClientId 覆盖默认值。
  */
-export let LINEAR_CLIENT_ID = '';
+export let LINEAR_CLIENT_ID = '840ca5172c5aca527874e369544b060f';
 export function setLinearClientId(clientId: string): void { LINEAR_CLIENT_ID = clientId; }
 
 export interface OAuthCallbackResult { code: string | null; state: string | null; error: string | null }

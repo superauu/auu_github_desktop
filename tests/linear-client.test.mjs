@@ -164,5 +164,7 @@ test('oauth refresh carries the rotating refresh token', async () => {
 });
 
 test('unconfigured client id yields a guiding error instead of a broken authorize URL', async () => {
+  // 生产默认已注入真实 client_id；该测试显式清空以覆盖「未配置」引导分支。
+  api.setLinearClientId('');
   await assert.rejects(api.linearOAuthService.authorize(), error => error.message.includes('Linear OAuth'));
 });
