@@ -216,6 +216,10 @@ export const useTaskStore = create<TaskStoreState>((set, get) => ({
   },
 
   setConnectionHealth(id, health, statusMessage) {
+    // 健康态未变化时不得写入：runtime 对象每次都是新引用，无条件 set 会让
+    // 订阅者（startTaskService 的 rebind）被自己触发的更新再次唤起，自旋不止。
+    const current = get().runtime[id];
+    if (current?.health === health && current?.statusMessage === (statusMessage ?? '')) return;
     set({ runtime: { ...get().runtime, [id]: { health, statusMessage: statusMessage ?? '' } } });
   },
 

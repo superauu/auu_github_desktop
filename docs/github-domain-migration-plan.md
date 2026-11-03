@@ -156,6 +156,8 @@ GitLab 行内讨论使用 before/after 路径与 `base_sha/head_sha/start_sha`�
 
 **独立任务与 CI 装配档（2026-11-04 扩展）**：`task` / `ci` kind 生成 `TASK_PLUGINS` / `CI_PLUGINS`，最小契约是 `AuxPlugin`（manifest；凭证形态与客户端接口随首个插件落地收敛，不预造词汇）。manifest `connectionKind` 相应预留 `task-account`（站点+令牌）与 `ci-server`（用户令牌+作业映射）。当前边界：设置页连接表单仍只接线 `hosting-account` / `error-token`，能力门控（`useCollaborationCapabilities`）仍只统计托管账号连接——独立连接并入门控、仓库↔作业映射与 SHA 级关联键属于后续运行时改造；`installedExternalPlugins` 已含 task/ci 装配档，`PROVIDER_REGISTRY` 与设置页会在首个插件出现时看到它，届时必须先补齐连接形态的 UI 分支。
 
+**Linear 插件（2026-11-04，首个 task 装配档落地）**：`src/plugins/linear` —— GraphQL 客户端（api.linear.app，providerHttp 传输）+ PKCE OAuth（Rust 通用回跳命令 `oauth_loopback_begin/wait/cancel`，见 `src-tauri/src/oauth_callback.rs`，固定端口 53862，PKCE(S256) 免 client_secret）+ 个人 API Key 兜底。契约定型：`AuxPlugin = { manifest, createClient({ token }), oauthRefresh?, oauth?, issueUrl? }`。连接通道：`taskStore`（连接切片仿 errorsStore，令牌 JSON 存 `integration_token:<connectionId>` keyring 条目，OAuth 轮转刷新先落盘再继续）+ `taskService`（第二条客户端绑定通道，双检网关同 CollaborationService，401 刷新重试并同步 setToken）。能力并轨：`task-tracking:*` 能力 = 托管并集 ∪ 任务连接 manifest；`useIssueCapabilities` 对任务引用收敛到该连接的 manifest。引用语义：`IssueReference.identifier`（ENG-123）承载展示键与外链（`linear.app/issue/ENG-12`），任务引用显式携带 providerId/server 不套托管绑定落款；PR 关联指令对任务引用为 `Refs ENG-123`（无 Closes 语义），分支名 `issue/ENG-12-…`；分支↔任务关联按任务连接存在性校验。Issues 页双来源：`useIssueSource` 统一作用域（repo/task），双来源可用时显示切换器，任务作用域 owner='all' 占位。已知限制：Linear 无时间线实体（getIssueTimeline 空）、createIssue 用默认团队（无团队选择器）、正文中的 Linear URL/identifier 解析未接入（RelatedIssues 跨源解析后续轮）、真实 Linear 联调待 OAuth 应用注册（client_id 空值时 authorize 给引导文案，PAT 路径可先行）。
+
 PowerShell 构建示例：
 
 ```powershell

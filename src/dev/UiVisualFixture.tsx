@@ -102,6 +102,7 @@ function prepare() {
   });
   if (new URLSearchParams(location.search).get('issues') === '1') prepareIssueFixture(repo);
   if (new URLSearchParams(location.search).get('errors') === '1') prepareErrorsFixture(repo);
+  if (new URLSearchParams(location.search).get('linear') === '1') void import('./LinearFixture').then(module => module.prepareLinearFixture(repo));
   if (new URLSearchParams(location.search).get('hunks') === '1') prepareHunkPlanFixture(repo);
   if (new URLSearchParams(location.search).get('review') === '1') prepareWorkingReviewFixture();
   if (new URLSearchParams(location.search).get('overview') === '1') prepareOverviewFixture(repo);

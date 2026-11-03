@@ -40,14 +40,15 @@ function IssueWorkspace({ source, taskAvailable, repoAvailable, scope }: {
       : { owner: scope.owner, repo: scope.repo, number: 0 }).replace(/0$/, ''))).reduce((sum, [, value]) => sum + value, 0));
   useEffect(() => {
     if (!requested) return;
-    // 任务引用按平台+编号匹配（工作区作用域没有 owner/repo 语义）；托管引用维持 owner/repo 匹配。
+    // 任务引用按平台+编号匹配（工作区作用域没有 owner/repo 语义）；托管引用维持
+    // owner/repo 匹配——落款后的 providerId 是托管平台，不算任务引用。
     if (scope.source === 'task') {
       if (usesTaskProvider(requested.providerId) && requested.providerId === scope.providerId) {
         setSelected(requested.number); useIssueWorkflowStore.getState().openIssue(null);
       }
       return;
     }
-    if (!requested.providerId && requested.owner.toLowerCase() === scope.owner?.toLowerCase() && requested.repo.toLowerCase() === scope.repo?.toLowerCase()) {
+    if (!usesTaskProvider(requested.providerId) && requested.owner.toLowerCase() === scope.owner?.toLowerCase() && requested.repo.toLowerCase() === scope.repo?.toLowerCase()) {
       setSelected(requested.number); useIssueWorkflowStore.getState().openIssue(null);
     }
   }, [requested, scope]);

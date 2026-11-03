@@ -91,6 +91,9 @@ export function startTaskService(): () => void {
       bindTaskClient(null, null);
       return;
     }
+    // 同一连接已绑定即跳过：rebind 会被自己的 ensureFreshToken→setConnectionHealth
+    // 间接触发（zustand 订阅不按切片过滤），没有这道护栏就是无限自旋。
+    if (activeConnectionId === connection.id && activeClient) return;
     const plugin = getTaskPlugin(connection.providerId);
     if (!plugin) {
       bindTaskClient(null, null);
