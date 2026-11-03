@@ -1,5 +1,6 @@
 import { HOSTING_PLUGINS, ERROR_PLUGINS, TASK_PLUGINS, CI_PLUGINS } from '@/plugins';
 import type { HostingPlugin, AuxPlugin } from './plugin';
+import type { ProviderManifest } from './registry';
 const listeners = new Set<() => void>();
 const disabled = new Set<string>();
 let revision = 0;
@@ -8,7 +9,8 @@ export const getPluginRevision = () => revision;
 // 禁用标记在启动时清除。setPluginEnabled 仅保留内存态（隔离测试与故障注入），
 // 不落存储——否则一次测试注入会在下次启动被误当作持久禁用。
 try { localStorage.removeItem('auu_git_disabled_plugins'); } catch { /* storage unavailable */ }
-const allPlugins = (): readonly (HostingPlugin | AuxPlugin)[] => [...HOSTING_PLUGINS, ...ERROR_PLUGINS, ...TASK_PLUGINS, ...CI_PLUGINS];
+// 各装配档的公共面只有 manifest（ERROR_PLUGINS 保持推断类型，勿收窄）。
+const allPlugins = (): readonly { manifest: ProviderManifest }[] => [...HOSTING_PLUGINS, ...ERROR_PLUGINS, ...TASK_PLUGINS, ...CI_PLUGINS];
 export const installedHostingPlugins = () => HOSTING_PLUGINS;
 /** 独立任务系统与独立 CI 的装配档；设置页连接表单与能力门控并轨属后续运行时改造。 */
 export const installedTaskPlugins = () => TASK_PLUGINS;
@@ -26,3 +28,4 @@ export function subscribePlugins(listener: () => void) { listeners.add(listener)
 /** 喂给 PROVIDER_REGISTRY 的全部外部插件；task/ci 装配档为空时注册表现状不变。 */
 export const installedExternalPlugins = () => [...HOSTING_PLUGINS, ...ERROR_PLUGINS, ...TASK_PLUGINS, ...CI_PLUGINS];
 export const getErrorPlugin = (id: string) => ERROR_PLUGINS.find(plugin => plugin.manifest.id === id && !disabled.has(id));
+export const getTaskPlugin = (id: string): AuxPlugin | null => TASK_PLUGINS.find(plugin => plugin.manifest.id === id && !disabled.has(id)) ?? null;

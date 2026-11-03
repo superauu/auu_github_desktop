@@ -51,11 +51,13 @@ test('code-hosting domain is declarable with a fixed capability vocabulary', () 
 test('gitlab and gitea manifests declare code-hosting; registry groups by domain', () => {
   assert.deepEqual(app.GITLAB_PROVIDER.domains.map((d) => d.domain), ['code-hosting', 'task-tracking', 'ci-cd']);
   assert.deepEqual(app.GITEA_PROVIDER.domains.map((d) => d.domain), ['code-hosting', 'task-tracking', 'ci-cd']);
-  assert.equal(app.PROVIDER_REGISTRY.length, 4);
-  assert.deepEqual(app.PROVIDER_REGISTRY.map((p) => p.id), ['github', 'gitlab', 'gitea', 'sentry']);
+  assert.equal(app.PROVIDER_REGISTRY.length, 5);
+  assert.deepEqual(app.PROVIDER_REGISTRY.map((p) => p.id), ['github', 'gitlab', 'gitea', 'sentry', 'linear']);
   // 分组辅助：集成页按声明域拆卡片
   const codeHosting = app.PROVIDER_REGISTRY.filter((m) => app.providerDomains(m).includes('code-hosting'));
   assert.deepEqual(codeHosting.map((m) => m.id), ['github', 'gitlab', 'gitea']);
+  const taskTracking = app.PROVIDER_REGISTRY.filter((m) => app.providerDomains(m).includes('task-tracking'));
+  assert.deepEqual(taskTracking.map((m) => m.id), ['github', 'gitlab', 'gitea', 'linear']);
   const errorTracking = app.PROVIDER_REGISTRY.filter((m) => app.providerDomains(m).includes('error-tracking'));
   assert.deepEqual(errorTracking.map((m) => m.id), ['sentry']);
   assert.ok(app.getProviderManifest('gitlab'));

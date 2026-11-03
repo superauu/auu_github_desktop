@@ -5,6 +5,8 @@ export interface CollaborationLabel { id: number; name: string; color: string; d
 export interface IssueUser { login: string; avatar_url?: string }
 export interface CollaborationIssue {
   id: number; number: number; title: string; body: string | null;
+  /** 平台展示键（Linear 的 ENG-123 等）；托管平台留空，UI 优先显示它。 */
+  identifier?: string;
   state: 'open' | 'closed'; state_reason?: 'completed' | 'not_planned' | 'reopened' | null;
   html_url: string; user: IssueUser; labels: CollaborationLabel[]; assignees: IssueUser[];
   comments: number; created_at: string; updated_at: string; closed_at: string | null;

@@ -29,6 +29,8 @@ export const forgeZh = {
   'connections.errors.capabilityUnavailable': '当前插件不支持此操作：{op}',
   'connections.errors.invalidServerUrl': '服务器地址无效。',
   'connections.errors.checkoutRefRequired': '缺少插件提供的 PR 检出引用。',
+  'connections.errors.oauthDesktopOnly': '浏览器授权需要在桌面应用中进行。',
+  'connections.errors.oauthNotConfigured': '当前版本尚未配置 Linear OAuth 应用，请改用个人 API Key 连接。',
 } as const;
 
 export const forgeEn = {
@@ -58,4 +60,6 @@ export const forgeEn = {
   'connections.errors.capabilityUnavailable': 'The current plugin does not support this operation: {op}',
   'connections.errors.invalidServerUrl': 'Invalid server URL.',
   'connections.errors.checkoutRefRequired': 'The plugin-provided PR checkout ref is missing.',
+  'connections.errors.oauthDesktopOnly': 'Browser authorization is only available in the desktop app.',
+  'connections.errors.oauthNotConfigured': 'This build is not yet configured with a Linear OAuth app. Use a personal API key instead.',
 } as const;
