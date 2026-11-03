@@ -146,6 +146,10 @@ export const WorkingChangesView: React.FC = () => {
   const visibleStaged = useMemo(() => visibleFiles.filter(file => file.staged), [visibleFiles]);
   const visibleUnstaged = useMemo(() => visibleFiles.filter(file => !file.staged && file.status !== 'untracked'), [visibleFiles]);
   const visibleUntracked = useMemo(() => visibleFiles.filter(file => file.status === 'untracked'), [visibleFiles]);
+  // 末列动作轨道固定宽度：悬停才出现的按钮不再挤动「待审核」徽标，三个分组共用同一条轨道。
+  // icon-sm 为 28px，gap-1 为 4px；有冲突文件时按冲突行的 5 个按钮预留。
+  const fileActionSlots = allFiles.some(file => file.status === 'conflicted') ? 5 : 2;
+  const fileActionTrack = fileActionSlots * 28 + (fileActionSlots - 1) * 4;
   useEffect(() => { setFileSearch(''); setReviewFilter('all'); }, [currentRepo?.path, status?.currentBranch]);
   const fileListRef = useRef<HTMLDivElement>(null);
   const locateRequest = useRef(0);
@@ -774,22 +778,24 @@ export const WorkingChangesView: React.FC = () => {
                           <FilePath path={file.path} />
                           <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted shrink-0"
-                          title={t('changes.unstageTitle')}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            runGitAction(
-                              () => unstageFile(file.path),
-                              `${t('changes.unstagedToast')}: ${file.path}`,
-                              `${t('changes.unstageFailed')}: ${file.path}`
-                            );
-                          }}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
+                        <div className="flex shrink-0 items-center justify-end" style={{ width: fileActionTrack }}>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-deleted shrink-0"
+                            title={t('changes.unstageTitle')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              runGitAction(
+                                () => unstageFile(file.path),
+                                `${t('changes.unstagedToast')}: ${file.path}`,
+                                `${t('changes.unstageFailed')}: ${file.path}`
+                              );
+                            }}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     )} />
                   </div>
@@ -828,7 +834,7 @@ export const WorkingChangesView: React.FC = () => {
                           <FilePath path={file.path} />
                           <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
                         </div>
-                        <div className="hidden items-center gap-1 group-hover:flex group-focus-within:flex shrink-0">
+                        <div className="flex shrink-0 items-center justify-end gap-1 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto" style={{ width: fileActionTrack }}>
                           {file.status === 'conflicted' ? (
                             <>
                               <Button
@@ -992,22 +998,24 @@ export const WorkingChangesView: React.FC = () => {
                           <FilePath path={file.path} />
                           <WorkingReviewFileStatus state={fileReviews.stateFor(file)} compact={panels.files < 240} />
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-added shrink-0"
-                          title={t('changes.trackStageTitle')}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            runGitAction(
-                              () => stageFile(file.path),
-                              `${t('changes.tracked')}: ${file.path}`,
-                              `${t('changes.trackedFailed')}: ${file.path}`
-                            );
-                          }}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
+                        <div className="flex shrink-0 items-center justify-end" style={{ width: fileActionTrack }}>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-git-added shrink-0"
+                            title={t('changes.trackStageTitle')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              runGitAction(
+                                () => stageFile(file.path),
+                                `${t('changes.tracked')}: ${file.path}`,
+                                `${t('changes.trackedFailed')}: ${file.path}`
+                              );
+                            }}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     )} />
                   </div>
