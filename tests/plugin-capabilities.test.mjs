@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 import React from 'react';
 import './react19-test-env.mjs';
 import { create, act } from 'react-test-renderer';
-import { checkPluginComposition, composePlugins } from '../scripts/plugin-composition.mjs';
+import { checkPluginComposition, composePlugins, pluginCatalog } from '../scripts/plugin-composition.mjs';
 
 const root = process.cwd(); let temporary, api;
 before(async () => {
@@ -16,7 +16,7 @@ before(async () => {
   await build({ stdin: { contents: `export { IssueDetail } from './src/features/issues/IssueDetail'; export { CurrentBranchIssue } from './src/features/issues/CurrentBranchIssue'; export { RelatedIssues } from './src/features/issues/RelatedIssues'; export { useIssueWorkflowStore } from './src/stores/issueWorkflowStore'; export { IntegrationsSection } from './src/components/settings/IntegrationsSection'; export { useCollaborationStore } from './src/stores/collaborationStore'; export { useRepoStore } from './src/stores/repoStore'; export { bindCollaborationClient, collaborationService } from './src/services/collaboration/CollaborationService'; export { useCollaborationCapabilities } from './src/features/integrations/useCollaborationCapabilities'; export { activeProviderId } from './src/stores/collaboration/activeProvider';`, resolveDir: root }, outfile: file, bundle: true,
     platform: 'node', format: 'cjs', external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, loader: { '.css': 'empty' }, logLevel: 'silent', plugins: [{ name: 'read-only-tasks', setup(builder) {
       builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ loader: 'ts', contents: `
-        export const HOSTING_PLUGINS = [{ manifest: { id: 'tasks', name: 'Tasks', connectionKind: 'hosting-account', primaryDomain: 'task-tracking', domains: [{ domain: 'task-tracking', capabilities: ['task-tracking:list-issues', 'task-tracking:issue-detail'] }] } }, { manifest: { id: 'builds', name: 'Builds', connectionKind: 'hosting-account', primaryDomain: 'ci-cd', domains: [{ domain: 'ci-cd', capabilities: ['ci-cd:list-pipelines'] }] } }]; export const ERROR_PLUGINS = [];
+        export const HOSTING_PLUGINS = [{ manifest: { id: 'tasks', name: 'Tasks', connectionKind: 'hosting-account', primaryDomain: 'task-tracking', domains: [{ domain: 'task-tracking', capabilities: ['task-tracking:list-issues', 'task-tracking:issue-detail'] }] } }, { manifest: { id: 'builds', name: 'Builds', connectionKind: 'hosting-account', primaryDomain: 'ci-cd', domains: [{ domain: 'ci-cd', capabilities: ['ci-cd:list-pipelines'] }] } }]; export const ERROR_PLUGINS = []; export const TASK_PLUGINS = []; export const CI_PLUGINS = [];
       ` }));
     } }] });
   api = createRequire(import.meta.url)(file);
@@ -71,6 +71,34 @@ test('all build profiles come from the checked composition catalog', () => {
   const gitlab = composePlugins('gitlab'); assert.match(gitlab.data, /gitlabPlugin/); assert.doesNotMatch(gitlab.data, /github|gitea|sentry/); assert.doesNotMatch(gitlab.ui, /AuthDialog/); assert.deepEqual(gitlab.nativeFeatures, []);
   assert.match(composePlugins('none').data, /HOSTING_PLUGINS: readonly HostingPlugin\[\] = \[\]/);
   assert.throws(() => composePlugins('unknown')); assert.throws(() => composePlugins('gitlab,gitlab'));
+});
+test('plugin composition accepts independent task and ci kinds', async () => {
+  const fixtureRoot = await fs.mkdtemp(path.join(root, '.test-tmp-plugin-comp-'));
+  try {
+    for (const mod of ['jira', 'jenkins', 'gitea']) {
+      await fs.mkdir(path.join(fixtureRoot, 'src/plugins', mod), { recursive: true });
+      await fs.writeFile(path.join(fixtureRoot, 'src/plugins', mod, 'index.ts'), `export const ${mod}Plugin = { manifest: { id: '${mod}' } };\n`);
+    }
+    await fs.writeFile(path.join(fixtureRoot, 'plugins.config.json'), JSON.stringify({ plugins: [
+      { id: 'jira', kind: 'task', module: './jira' },
+      { id: 'jenkins', kind: 'ci', module: './jenkins' },
+      { id: 'gitea', kind: 'hosting', module: './gitea' },
+    ] }));
+    const full = composePlugins(undefined, fixtureRoot).data;
+    assert.match(full, /HOSTING_PLUGINS: readonly HostingPlugin\[\] = \[giteaPlugin\]/);
+    assert.match(full, /TASK_PLUGINS: readonly AuxPlugin\[\] = \[jiraPlugin\]/);
+    assert.match(full, /CI_PLUGINS: readonly AuxPlugin\[\] = \[jenkinsPlugin\]/);
+    const selective = composePlugins('jira', fixtureRoot).data;
+    assert.match(selective, /TASK_PLUGINS: readonly AuxPlugin\[\] = \[jiraPlugin\]/);
+    assert.match(selective, /CI_PLUGINS: readonly AuxPlugin\[\] = \[\]/);
+    assert.doesNotMatch(selective, /jenkinsPlugin|giteaPlugin/);
+    assert.deepEqual(composePlugins('jenkins', fixtureRoot).nativeFeatures, []);
+    assert.equal(pluginCatalog(fixtureRoot).map(plugin => plugin.kind).join(','), 'task,ci,hosting');
+    for (const broken of [{ id: 'ops', kind: 'deploy', module: './jira' }, { id: 'jira', kind: 'task', module: './missing' }]) {
+      await fs.writeFile(path.join(fixtureRoot, 'plugins.config.json'), JSON.stringify({ plugins: [broken] }));
+      assert.throws(() => pluginCatalog(fixtureRoot), /Invalid or duplicate plugin declaration|Plugin module missing/);
+    }
+  } finally { await fs.rm(fixtureRoot, { recursive: true, force: true }); }
 });
 
 test('task-only and CI-only plugins are reachable from connection settings', async () => {

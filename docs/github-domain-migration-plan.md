@@ -150,9 +150,11 @@ GitLab 行内讨论使用 before/after 路径与 `base_sha/head_sha/start_sha`�
 
 1. 在 `src/plugins/<id>` 实现插件。`ProviderClient` 必须提供认证契约，可选提供 `repository`、`taskTracking`、`codeHosting`、`ciCd` 方法集合。完整托管平台可通过 `contributeAllDomains` 贡献完整客户端；只读或单域插件不必填充其他域的空实现。
 2. 在 manifest 中声明实际支持的能力及 `primaryDomain`。读任务、写任务、评审、合并、日志、调度等分别授权；平台支持不等于当前令牌有权限，403 仍正常显示错误。单独任务和 CI 插件也有设置页连接入口。
-3. 在 `plugins.config.json` 添加模块及所需可选认证 UI、原生 feature，运行 `npm run plugins:generate`，再运行 `npm run check:plugins`。不要手改生成的 `src/plugins/index.ts` 和 `ui.ts`。带连字符的插件 ID 对应驼峰导出名，例如 `my-host` 对应 `myHostPlugin`。
+3. 在 `plugins.config.json` 添加模块（`kind` 决定装配档：`hosting` / `error` / `task` / `ci`）及所需可选认证 UI、原生 feature，运行 `npm run plugins:generate`，再运行 `npm run check:plugins`。不要手改生成的 `src/plugins/index.ts` 和 `ui.ts`。带连字符的插件 ID 对应驼峰导出名，例如 `my-host` 对应 `myHostPlugin`。
 4. 共享传输使用 `providerHttpRequest` 或 `providerFetch`；取消信号必须继续传递至宿主服务。不要自行跟随认证 API 重定向或在日志中输出令牌。自建服务器地址统一调用 `normalizeServerUrl`，路径前缀不能混入项目 namespace。
 5. 加入插件隔离、实际能力和必要平台语义测试，验证禁用/不装配该插件后其他域及本地 Git 继续工作。
+
+**独立任务与 CI 装配档（2026-11-04 扩展）**：`task` / `ci` kind 生成 `TASK_PLUGINS` / `CI_PLUGINS`，最小契约是 `AuxPlugin`（manifest；凭证形态与客户端接口随首个插件落地收敛，不预造词汇）。manifest `connectionKind` 相应预留 `task-account`（站点+令牌）与 `ci-server`（用户令牌+作业映射）。当前边界：设置页连接表单仍只接线 `hosting-account` / `error-token`，能力门控（`useCollaborationCapabilities`）仍只统计托管账号连接——独立连接并入门控、仓库↔作业映射与 SHA 级关联键属于后续运行时改造；`installedExternalPlugins` 已含 task/ci 装配档，`PROVIDER_REGISTRY` 与设置页会在首个插件出现时看到它，届时必须先补齐连接形态的 UI 分支。
 
 PowerShell 构建示例：
 

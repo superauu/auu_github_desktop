@@ -2,13 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export function pluginCatalog() {
+const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** 装配档：hosting=托管多域平台，error=错误追踪；task/ci=独立任务系统与独立 CI（AuxPlugin 最小契约）。 */
+const PLUGIN_KINDS = ['hosting', 'error', 'task', 'ci'];
+export function pluginCatalog(root = defaultRoot) {
   const catalog = JSON.parse(fs.readFileSync(path.join(root, 'plugins.config.json'), 'utf8')).plugins;
   const seen = new Set();
   for (const plugin of catalog) {
-    if (!/^[a-z][a-z0-9-]*$/.test(plugin.id) || seen.has(plugin.id) || !['hosting', 'error'].includes(plugin.kind)
-      || !/^\.\/[a-z][a-z0-9-]*$/.test(plugin.module)) throw new Error('Invalid or duplicate plugin declaration');
+    if (!/^[a-z][a-z0-9-]*$/.test(plugin.id) || seen.has(plugin.id) || !PLUGIN_KINDS.includes(plugin.kind)
+      || !/^\.\/[a-z][a-z0-9-]*$/.test(plugin.module)) throw new Error(`Invalid or duplicate plugin declaration: ${plugin.id ?? '(missing id)'}`);
     seen.add(plugin.id);
     if (!fs.existsSync(path.join(root, 'src/plugins', plugin.module, 'index.ts'))) throw new Error(`Plugin module missing: ${plugin.id}`);
     if (plugin.authView && (!/^\.\/[a-z0-9-]+\/[A-Za-z]+$/.test(plugin.authView) || !/^[A-Za-z]+$/.test(plugin.authExport)
@@ -17,8 +19,8 @@ export function pluginCatalog() {
   }
   return catalog;
 }
-export function composePlugins(profile) {
-  const catalog = pluginCatalog();
+export function composePlugins(profile, root = defaultRoot) {
+  const catalog = pluginCatalog(root);
   const ids = profile === undefined ? catalog.map(plugin => plugin.id) : profile === 'none' ? [] : profile.split(',').map(id => id.trim()).filter(Boolean);
   if (new Set(ids).size !== ids.length || ids.some(id => !catalog.some(plugin => plugin.id === id))) throw new Error(`Unknown or duplicate plugin profile: ${JSON.stringify(profile) ?? profile}`);
   const plugins = catalog.filter(plugin => ids.includes(plugin.id));
@@ -26,13 +28,15 @@ export function composePlugins(profile) {
   const symbol = plugin => `${plugin.id.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase())}Plugin`;
   const imports = plugins.map(plugin => `import { ${symbol(plugin)} } from '${plugin.module}';`).join('\n');
   const list = kind => plugins.filter(plugin => plugin.kind === kind).map(symbol).join(', ');
-  const data = `${header}${imports}\nimport type { HostingPlugin } from '@/services/integrations/plugin';\nexport const HOSTING_PLUGINS: readonly HostingPlugin[] = [${list('hosting')}];\nexport const ERROR_PLUGINS = [${list('error')}];\n`;
+  const data = `${header}${imports}\nimport type { HostingPlugin, AuxPlugin } from '@/services/integrations/plugin';\n`
+    + `export const HOSTING_PLUGINS: readonly HostingPlugin[] = [${list('hosting')}];\nexport const ERROR_PLUGINS = [${list('error')}];\n`
+    + `export const TASK_PLUGINS: readonly AuxPlugin[] = [${list('task')}];\nexport const CI_PLUGINS: readonly AuxPlugin[] = [${list('ci')}];\n`;
   const authViews = plugins.filter(plugin => plugin.authView).map(plugin => `${JSON.stringify(plugin.id)}: () => import('${plugin.authView}').then(module => ({ default: module.${plugin.authExport} }))`).join(', ');
   const ui = `${header}import type { ComponentType } from 'react';\ntype AuthView = () => Promise<{ default: ComponentType<{ open: boolean; onOpenChange(open: boolean): void }> }>;\nconst authViews: Record<string, AuthView> = { ${authViews} };\nexport const getPluginAuthView = (id: string): AuthView | undefined => authViews[id];\n`;
   return { data, ui, nativeFeatures: plugins.flatMap(plugin => plugin.nativeFeature ? [plugin.nativeFeature] : []) };
 }
-export function checkPluginComposition(write = false) {
-  const composition = composePlugins();
+export function checkPluginComposition(write = false, root = defaultRoot) {
+  const composition = composePlugins(undefined, root);
   for (const [file, content] of [['src/plugins/index.ts', composition.data], ['src/plugins/ui.ts', composition.ui]]) {
     const target = path.join(root, file);
     if (write) fs.writeFileSync(target, content);

@@ -123,7 +123,7 @@ test('GitHub can be disabled while GitLab owns the complete collaboration workfl
 
 test('removing the GitHub plugin from composition builds and runs GitLab without importing GitHub', async () => {
   const isolated = await bundle('gitlab-only', [{ name: 'gitlab-only', setup(builder) {
-    builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: `import { gitlabPlugin } from './gitlab'; export const HOSTING_PLUGINS = [gitlabPlugin]; export const ERROR_PLUGINS = [];`, loader: 'ts' }));
+    builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: `import { gitlabPlugin } from './gitlab'; export const HOSTING_PLUGINS = [gitlabPlugin]; export const ERROR_PLUGINS = []; export const TASK_PLUGINS = []; export const CI_PLUGINS = [];`, loader: 'ts' }));
   } }]);
   assert.ok(isolated.inputs.every(name => !/plugins[\\/](github|gitea|sentry)[\\/]/.test(name)), 'The isolated API bundle must not contain other platform implementations');
   const api = isolated.api; gitlabFixture();
@@ -134,7 +134,7 @@ test('removing the GitHub plugin from composition builds and runs GitLab without
   const ui = await build({ stdin: { contents: `export { App } from './src/app/App';`, resolveDir: root },
     outfile: path.join(temporary, 'gitlab-only-ui.js'), write: false, bundle: true, platform: 'browser', format: 'esm', metafile: true,
     alias: { '@': path.join(root, 'src') }, loader: { '.css': 'empty' }, logLevel: 'silent', plugins: [{ name: 'gitlab-only-ui', setup(builder) {
-      builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: `import { gitlabPlugin } from './gitlab'; export const HOSTING_PLUGINS = [gitlabPlugin]; export const ERROR_PLUGINS = [];`, loader: 'ts' }));
+      builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: `import { gitlabPlugin } from './gitlab'; export const HOSTING_PLUGINS = [gitlabPlugin]; export const ERROR_PLUGINS = []; export const TASK_PLUGINS = []; export const CI_PLUGINS = [];`, loader: 'ts' }));
       builder.onLoad({ filter: /src[\\/]plugins[\\/]ui\.ts$/ }, () => ({ contents: `export const getPluginAuthView = () => undefined;`, loader: 'ts' }));
     } }] });
   assert.ok(Object.keys(ui.metafile.inputs).every(name => !/plugins[\\/](github|gitea|sentry)[\\/]/.test(name)), 'The complete app UI must also build without other platform implementations');
@@ -283,7 +283,7 @@ test('task-only plugins do not have to implement or query code-hosting, reposito
         credentials: { read: async () => token, write: async value => { token = value; }, remove: async () => { token = null; } },
         issuePath: number => '/-/issues/' + number,
         createClient(server, secret) { const client = new GitLabClient(server, secret); return { verifyToken: value => client.verifyToken(value), setToken: value => client.setToken(value), taskTracking: client }; },
-      }]; export const ERROR_PLUGINS = [];
+      }]; export const ERROR_PLUGINS = []; export const TASK_PLUGINS = []; export const CI_PLUGINS = [];
     ` }));
   } }]);
   const fixture = gitlabFixture(), api = isolated.api, state = api.useCollaborationStore;
@@ -304,7 +304,7 @@ test('task-only plugins do not have to implement or query code-hosting, reposito
 
 test('a local-only runtime starts without plugins, authentication errors or provider traffic', async () => {
   const { api } = await bundle('local-only', [{ name: 'local-only', setup(builder) {
-    builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: 'export const HOSTING_PLUGINS = []; export const ERROR_PLUGINS = [];', loader: 'ts' }));
+    builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: 'export const HOSTING_PLUGINS = []; export const ERROR_PLUGINS = []; export const TASK_PLUGINS = []; export const CI_PLUGINS = [];', loader: 'ts' }));
   } }]);
   globalThis.fetch = async () => assert.fail('Local-only startup must not contact a provider');
   api.useRepoStore.setState({ currentRepo: { ...repository, collaborationRemote: null } });

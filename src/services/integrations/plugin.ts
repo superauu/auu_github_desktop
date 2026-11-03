@@ -22,3 +22,11 @@ export interface HostingPlugin {
   migrateIssueReference?(reference: import('@/services/collaboration/issueTypes').IssueReference): import('@/services/collaboration/issueTypes').IssueReference;
   migrateAccounts?(): { id: string; label: string; server: string; user?: { login: string; name: string | null; avatarUrl: string } }[];
 }
+/**
+ * 独立单域插件（task / ci 装配档）的最小装配契约：现阶段只要求 manifest。
+ * 凭证形态与客户端接口随首个独立任务/CI 插件落地时在此收敛——与 DOMAIN_REGISTRY
+ * 「只声明实际实现的能力」同一纪律，不为未接入的系统预造客户端词汇。
+ */
+export interface AuxPlugin {
+  manifest: ProviderManifest;
+}

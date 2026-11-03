@@ -56,7 +56,12 @@ export interface ProviderManifest {
   domains: readonly DomainContribution[];
   /** 多域平台在集成选择器中只显示一张卡片。 */
   primaryDomain: DomainId;
-  connectionKind: 'hosting-account' | 'error-token';
+  /**
+   * 连接形态：hosting-account=托管平台多账号（OAuth/PAT+server）；error-token=令牌连接
+   * （自托管地址+可选组织）。task-account=独立任务系统（站点+令牌）、ci-server=独立 CI
+   * （用户令牌+作业映射）目前只是词汇预留：设置页连接表单随首个对应插件落地时接线。
+   */
+  connectionKind: 'hosting-account' | 'error-token' | 'task-account' | 'ci-server';
 }
 import { installedExternalPlugins } from './plugins';
 export const PROVIDER_REGISTRY: readonly ProviderManifest[] = installedExternalPlugins().map(plugin => plugin.manifest);
