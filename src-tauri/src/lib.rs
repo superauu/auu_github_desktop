@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf, Component};
 use std::time::Duration;
 mod plugins;
 mod provider_http;
+mod oauth_callback;
 #[cfg(test)]
 use provider_http::validate_provider_request;
 mod file_io;
@@ -705,6 +706,9 @@ pub fn run() {
             delete_integration_token,
             provider_http::provider_http_request,
             provider_http::cancel_provider_http_request,
+            oauth_callback::oauth_loopback_begin,
+            oauth_callback::oauth_loopback_wait,
+            oauth_callback::oauth_loopback_cancel,
             open_external_url,
             open_local_path,
             execute_git,
