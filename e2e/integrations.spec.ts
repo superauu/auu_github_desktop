@@ -20,6 +20,8 @@ test('hosting plugins share connection management and workspace entries follow c
     await page.getByRole('button', { name: /打开设置/ }).click();
     await page.getByRole('dialog').getByRole('button', { name: '集成', exact: true }).click();
     await page.getByRole('button', { name: `选择要连接的平台: ${provider}`, exact: true }).click();
+    // 卡片展开后经「添加连接」进入连接弹层（连接信息合并进卡片本体）。
+    await page.getByRole('button', { name: '添加连接', exact: true }).click();
     const connection = page.getByRole('dialog', { name: '连接托管平台' });
     await expect(connection.getByRole('combobox')).toHaveValue(provider.toLowerCase());
     await expect(connection.getByLabel('服务器地址', { exact: true })).toHaveValue(`https://${provider.toLowerCase()}.com`);
@@ -33,6 +35,7 @@ test('hosting plugins share connection management and workspace entries follow c
   // 插件启停不再暴露为设置项；连接卡片始终列出全部已装配平台（否则无法建立第一个连接）。
   await expect(settings.getByRole('checkbox', { name: /启用插件/ })).toHaveCount(0);
   await settings.getByRole('button', { name: '选择要连接的平台: GitLab', exact: true }).click();
+  await settings.getByRole('button', { name: '添加连接', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('combobox').locator('option')).toHaveText(['GitHub', 'GitLab', 'Gitea / Forgejo']);
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-network-attempts', '[]');
   expect(errors).toEqual([]);
@@ -68,6 +71,7 @@ for (const prefix of ['', '&instancePrefix=1']) test(`GitLab primary repository 
   await page.getByRole('button', { name: /打开设置/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: '集成', exact: true }).click();
   await page.getByRole('button', { name: '选择要连接的平台: GitLab', exact: true }).click();
+  await page.getByRole('button', { name: '添加连接', exact: true }).click();
   await page.getByRole('dialog').getByRole('combobox').selectOption('gitea');
   await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
   await page.getByRole('button', { name: 'Issues', exact: true }).click();

@@ -49,8 +49,10 @@ test('a Linear task connection lights up Issues without any hosting account', as
   const settings = page.getByRole('dialog');
   await settings.getByRole('button', { name: '集成', exact: true }).click();
   await settings.getByRole('button', { name: '选择要连接的平台: Linear', exact: true }).click();
-  await expect(settings.getByRole('button', { name: '使用浏览器授权（推荐）' })).toBeVisible();
+  // 连接信息合并进卡片：已连接行直接可见；添加连接才展开 OAuth 表单。
   await expect(settings.getByText('Acme Linear', { exact: true })).toBeVisible();
+  await settings.getByRole('button', { name: '添加连接', exact: true }).click();
+  await expect(settings.getByRole('button', { name: '使用浏览器授权（推荐）' })).toBeVisible();
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('auu_git_task_connections') || '[]'))).toHaveLength(1);
   expect(errors).toEqual([]);

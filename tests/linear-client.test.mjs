@@ -134,7 +134,8 @@ test('organization users are queried as a plain list without unsupported argumen
   const client = new api.LinearClient('lin-token');
   await client.getIssueAssignees('all', 'linear');
   const query = linearRequests.at(-1).body.query;
-  assert.match(query, /organization \{ users \{/);
+  // UserConnection 形状：first 合法、enabled 不合法（真机两次报错各打中一边）。
+  assert.match(query, /organization \{ users\(first: 100\) \{ nodes \{/);
   assert.doesNotMatch(query, /enabled/);
 });
 

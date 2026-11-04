@@ -37,7 +37,7 @@ export async function prepareLinearFixture(_repository: RepositoryInfo) {
       return json({ viewer: { ...person, url: 'https://linear.app/alice' } });
     }
     if (query.includes('issueLabels') && query.includes('color')) return json({ issueLabels: { nodes: [{ id: 'label-uuid-1', name: 'bug', color: '#ff0000', description: null }] } });
-    if (query.includes('organization')) return json({ organization: { users: [person] } });
+    if (query.includes('organization')) return json({ organization: { users: { nodes: [person] } } });
     if (query.includes('workflowStates')) return json({ workflowStates: { nodes: [{ id: 'state-done', type: 'completed', name: 'Done' }, { id: 'state-todo', type: 'unstarted', name: 'Todo' }] } });
     if (query.includes('issues(')) {
       const filter = variables.filter ?? {};

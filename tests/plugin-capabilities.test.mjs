@@ -106,10 +106,14 @@ test('task-only and CI-only plugins are reachable from connection settings', asy
   const selected = [];
   try {
     await act(async () => { renderer = create(React.createElement(api.IntegrationsSection, { onManageAccounts: id => selected.push(id) })); });
+    // 卡片点击是展开（连接信息合并进卡片），托管平台的「添加连接」才进入账号流程。
     for (const name of ['Tasks', 'Builds']) {
       const button = renderer.root.findAllByType('button').find(button => button.props['aria-label']?.endsWith(`: ${name}`));
       assert.ok(button, `${name} connection entry`);
       await act(async () => button.props.onClick());
+      const add = renderer.root.findAllByType('button').find(button => button.props['aria-label'] === '添加连接');
+      assert.ok(add, `${name} add-connection action`);
+      await act(async () => add.props.onClick());
     }
     assert.deepEqual(selected, ['tasks', 'builds']);
   } finally { await act(async () => renderer?.unmount()); }

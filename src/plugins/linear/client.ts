@@ -94,8 +94,8 @@ export class LinearClient {
   }
 
   private async userId(displayName: string): Promise<string | null> {
-    // organization.users 是普通数组（不是连接）：不接受 first/enabled 参数。
-    const raw = await this.request('query { organization { users { id displayName name } } }');
+    // organization.users 是 UserConnection：接受 first，但不接受 enabled（曾误报 Unknown argument）。
+    const raw = await this.request('query { organization { users(first: 100) { nodes { id displayName name } } } }');
     return raw.organization?.users?.nodes?.find((member: any) => (member.displayName || member.name) === displayName)?.id ?? null;
   }
 
@@ -236,7 +236,7 @@ export class LinearClient {
       );
       if (raw.team) return (raw.team.members?.nodes ?? []).map(person);
     }
-    const raw = await this.request('query { organization { users { displayName name avatarUrl } } }');
-    return (raw.organization?.users ?? []).map(person);
+    const raw = await this.request('query { organization { users(first: 100) { nodes { displayName name avatarUrl } } } }');
+    return (raw.organization?.users?.nodes ?? []).map(person);
   }
 }

@@ -58,6 +58,9 @@ export const errorsZh = {
   'errors.connect.oauth': '使用浏览器授权（推荐）',
   'errors.connect.oauthConnecting': '等待浏览器授权…',
   'errors.connect.oauthHint': '点击后在系统浏览器完成平台授权，令牌自动存入系统凭据管理器，无需手动复制。',
+  'errors.settings.addConnection': '添加连接',
+  'errors.settings.manageAccounts': '管理账号',
+  'errors.settings.currentBadge': '当前',
   'errors.provider.linear.tokenHint': '兜底方式：在 linear.app「Settings → API」创建个人 API Key（lin_api_ 开头）并粘贴到这里。',
 
   // Errors 页
@@ -247,6 +250,9 @@ export const errorsEn = {
   'errors.connect.oauth': 'Authorize in browser (recommended)',
   'errors.connect.oauthConnecting': 'Waiting for browser authorization…',
   'errors.connect.oauthHint': 'Finish the authorization in your system browser; the token is stored in the system credential manager automatically — no manual copy.',
+  'errors.settings.addConnection': 'Add connection',
+  'errors.settings.manageAccounts': 'Manage accounts',
+  'errors.settings.currentBadge': 'Current',
   'errors.provider.linear.tokenHint': 'Fallback: create a personal API key (lin_api_…) in linear.app "Settings → API" and paste it here.',
 
   // Errors view

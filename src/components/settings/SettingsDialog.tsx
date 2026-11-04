@@ -723,7 +723,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
             {/* Integrations Tab */}
             {activeTab === 'integrations' && (
               <div className="space-y-4">
-                <IntegrationsSection onManageAccounts={providerId => { useCollaborationStore.getState().addProfile(providerId); onOpenChange(false); onOpenConnection?.(); }} />
+                <IntegrationsSection onManageAccounts={providerId => { useCollaborationStore.getState().addProfile(providerId); onOpenChange(false); onOpenConnection?.(); }} onOpenAccountsTab={() => setActiveTab('accounts')} />
               </div>
             )}
 

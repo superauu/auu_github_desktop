@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, ChevronRight, Power, RefreshCw, Trash2, X } from 'lucide-react';
+import { Check, CheckCircle2, ChevronRight, Plus, Power, RefreshCw, Trash2, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore, type PersistedConnection } from '@/stores/errorsStore';
 import { useTaskStore, type TaskConnection } from '@/stores/taskStore';
@@ -117,9 +117,10 @@ const ConnectionRow: React.FC<{
   </div>
 );
 
-export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: string) => void }> = ({ onManageAccounts }) => {
+export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: string) => void; onOpenAccountsTab?: () => void }> = ({ onManageAccounts, onOpenAccountsTab }) => {
   const { t } = useI18n();
   const hostingProfiles = useCollaborationStore(state => state.profiles);
+  const activeProfileId = useCollaborationStore(state => state.activeProfileId);
   const { connections, restoreConnections, verifyConnection, completeConnection, retestConnection, updateConnection, removeConnection, getRuntime } =
     useErrorsStore(
       useShallow((state) => ({
@@ -150,6 +151,8 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
   useEffect(() => subscribePlugins(() => updatePlugins(value => value + 1)), []);
   // 插件选择：null = 卡片列表；否则展开该平台的连接表单
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  // 卡片展开态：连接信息合并进平台卡片，同屏只展开一个。
+  const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
   const [form, setForm] = useState<ConnectFormState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -343,25 +346,93 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
     return connections.filter((connection) => connection.providerId === manifest.id).length;
   };
 
-  const renderCard = (manifest: ProviderManifest) => (
-    <button
-      key={manifest.id}
-      aria-label={`${t('errors.settings.pickProvider')}: ${manifest.name}`}
-      onClick={() => startAdd(manifest.id)}
-      className="w-full flex items-center justify-between rounded-md border border-border px-2.5 py-2 text-left transition-colors hover:bg-accent/40"
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium">{manifest.name}</span>
-        <Badge
-          variant="outline"
-          className={cn('h-4 px-1 text-[10px]', connectedCount(manifest) > 0 ? 'text-emerald-500 border-emerald-500/40' : 'text-muted-foreground')}
+  /** 卡片：可展开的平台项——连接信息合并进卡片本体，不再有独立的底部列表。 */
+  const renderCard = (manifest: ProviderManifest) => {
+    const open = expandedProviderId === manifest.id;
+    const hostingRows = manifest.connectionKind === 'hosting-account'
+      ? hostingProfiles.filter(profile => profile.providerId === manifest.id)
+      : [];
+    const errorRows = manifest.connectionKind === 'error-token' ? connections.filter((connection) => connection.providerId === manifest.id) : [];
+    const taskRows = manifest.connectionKind === 'task-account' ? task.connections.filter((connection) => connection.providerId === manifest.id) : [];
+    return (
+      <div key={manifest.id} className="rounded-md border border-border">
+        <button
+          aria-label={`${t('errors.settings.pickProvider')}: ${manifest.name}`}
+          aria-expanded={open}
+          onClick={() => setExpandedProviderId(open ? null : manifest.id)}
+          className="w-full flex items-center justify-between rounded-md px-2.5 py-2 text-left transition-colors hover:bg-accent/40"
         >
-          {connectedCount(manifest) > 0 ? t('errors.settings.connectedCount').replace('{n}', String(connectedCount(manifest))) : t('errors.settings.notConnected')}
-        </Badge>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium">{manifest.name}</span>
+            <Badge
+              variant="outline"
+              className={cn('h-4 px-1 text-[10px]', connectedCount(manifest) > 0 ? 'text-emerald-500 border-emerald-500/40' : 'text-muted-foreground')}
+            >
+              {connectedCount(manifest) > 0 ? t('errors.settings.connectedCount').replace('{n}', String(connectedCount(manifest))) : t('errors.settings.notConnected')}
+            </Badge>
+          </div>
+          <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', open && 'rotate-90')} />
+        </button>
+        {open && (
+          <div className="space-y-1 border-t border-border px-2 py-1.5" data-testid={`provider-expanded-${manifest.id}`}>
+            {hostingRows.map(profile => (
+              <div key={profile.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                <span className="font-medium shrink-0">{profile.user?.login ?? profile.label}</span>
+                <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{profile.server}</span>
+                {profile.id === activeProfileId && (
+                  <Badge variant="success" className="h-4 px-1 gap-0.5 text-[10px] shrink-0">
+                    <CheckCircle2 className="h-2.5 w-2.5" />
+                    <span>{t('errors.settings.currentBadge')}</span>
+                  </Badge>
+                )}
+                <Button variant="ghost" size="xs" className="shrink-0" onClick={() => (onOpenAccountsTab ? onOpenAccountsTab() : onManageAccounts(manifest.id))}>
+                  {t('errors.settings.manageAccounts')}
+                </Button>
+              </div>
+            ))}
+            {errorRows.map(connection => (
+              <ConnectionRow
+                key={connection.id}
+                name={connection.displayName}
+                detail={`${connection.orgId ?? ''}${connection.baseUrl ? ` · ${hostOf(connection.baseUrl)}` : ''}`}
+                enabled={connection.enabled}
+                health={getRuntime(connection.id).health}
+                testing={testingId === connection.id}
+                labels={rowLabels(connection.displayName)}
+                onToggle={() => updateConnection(connection.id, { enabled: !connection.enabled })}
+                onTest={() => void runTest(connection.id)}
+                onDelete={() => void deleteConnection(connection)}
+              />
+            ))}
+            {taskRows.map(connection => (
+              <ConnectionRow
+                key={connection.id}
+                name={connection.displayName}
+                detail=""
+                enabled={connection.enabled}
+                health={task.getRuntime(connection.id).health}
+                testing={testingId === connection.id}
+                labels={rowLabels(connection.displayName)}
+                onToggle={() => task.updateConnection(connection.id, { enabled: !connection.enabled })}
+                onTest={() => void runTaskTest(connection.id)}
+                onDelete={() => void deleteTaskConnection(connection)}
+              />
+            ))}
+            <Button
+              variant="ghost"
+              size="xs"
+              aria-label={t('errors.settings.addConnection')}
+              className="w-full justify-start gap-1 text-muted-foreground"
+              onClick={() => (manifest.connectionKind === 'hosting-account' ? onManageAccounts(manifest.id) : startAdd(manifest.id))}
+            >
+              <Plus className="h-3 w-3" />
+              <span>{t('errors.settings.addConnection')}</span>
+            </Button>
+          </div>
+        )}
       </div>
-      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-    </button>
-  );
+    );
+  };
 
   return (
     <section className="space-y-3 border-t border-border pt-3" data-testid="errors-integrations-section">
@@ -478,52 +549,6 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
         </div>
       )}
 
-      {/* 已有连接的管理列表（按平台分组：错误追踪连接 + 独立任务连接；托管账号在「账号」页） */}
-      {(connections.length > 0 || task.connections.length > 0) && (
-        <div className="space-y-1">
-          {PROVIDER_REGISTRY
-            .filter((manifest) => manifest.connectionKind === 'error-token' || manifest.connectionKind === 'task-account')
-            .filter((manifest) => [...connections, ...task.connections].some((connection) => connection.providerId === manifest.id))
-            .map((manifest) => {
-              const errorRows = connections.filter((connection) => connection.providerId === manifest.id);
-              const taskRows = task.connections.filter((connection) => connection.providerId === manifest.id);
-              if (!errorRows.length && !taskRows.length) return null;
-              return (
-                <div key={manifest.id} className="space-y-1">
-                  <div className="pt-1 text-[11px] font-medium text-muted-foreground">{manifest.name}</div>
-                  {errorRows.map((connection) => (
-                    <ConnectionRow
-                      key={connection.id}
-                      name={connection.displayName}
-                      detail={`${connection.orgId ?? ''}${connection.baseUrl ? ` · ${hostOf(connection.baseUrl)}` : ''}`}
-                      enabled={connection.enabled}
-                      health={getRuntime(connection.id).health}
-                      testing={testingId === connection.id}
-                      labels={rowLabels(connection.displayName)}
-                      onToggle={() => updateConnection(connection.id, { enabled: !connection.enabled })}
-                      onTest={() => void runTest(connection.id)}
-                      onDelete={() => void deleteConnection(connection)}
-                    />
-                  ))}
-                  {taskRows.map((connection) => (
-                    <ConnectionRow
-                      key={connection.id}
-                      name={connection.displayName}
-                      detail=""
-                      enabled={connection.enabled}
-                      health={task.getRuntime(connection.id).health}
-                      testing={testingId === connection.id}
-                      labels={rowLabels(connection.displayName)}
-                      onToggle={() => task.updateConnection(connection.id, { enabled: !connection.enabled })}
-                      onTest={() => void runTaskTest(connection.id)}
-                      onDelete={() => void deleteTaskConnection(connection)}
-                    />
-                  ))}
-                </div>
-              );
-            })}
-        </div>
-      )}
     </section>
   );
 };
