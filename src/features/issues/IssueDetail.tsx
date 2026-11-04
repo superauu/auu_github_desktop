@@ -133,7 +133,14 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
           <p className="text-muted-foreground text-[11px]">{t('issueFlow.refreshHint')}</p>
           {!prs.length && !activityError && <p className="text-muted-foreground text-xs">{t('issues.noPRs')}</p>}
         </section>
-        <section className="issues-section">
+
+        {error && <p role="alert" className="text-destructive whitespace-pre-wrap text-xs">{error}</p>}
+      </div>
+      <aside className="issues-detail-aside">
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.assignees')}</span><span className="issues-prop-value">{issue.assignees.map(user => user.login).join(', ') || t('issues.none')}</span></div>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.labels')}</span><span className="issues-prop-value">{issue.labels.length ? issue.labels.map(label => <span key={label.id} className="issues-label-chip"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: /^[a-f\d]{6}$/i.test(label.color) ? `#${label.color}` : undefined }} />{label.name}</span>) : t('issues.none')}</span></div>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.source')}</span><span className="issues-prop-value">{providerLabel ?? '—'}</span></div>
+                <section className="issues-section">
           <h2 className="issues-section-title">{t('issues.comments')}</h2>
           {activityError && <div role="alert" className="text-destructive text-xs">{activityError} <Button size="xs" variant="outline" disabled={busy} onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
           {comments.map(item => <article key={item.id} className="issues-comment select-text"><div className="issues-comment-head"><span className="issues-comment-author">{item.user.login}</span><time>{new Date(item.created_at).toLocaleString()}</time></div><p className="issues-comment-body">{item.body}</p></article>)}
@@ -146,11 +153,6 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
           </form>
         </section>
         {error && <p role="alert" className="text-destructive whitespace-pre-wrap text-xs">{error}</p>}
-      </div>
-      <aside className="issues-detail-aside">
-        <div className="issues-prop"><span className="issues-prop-label">{t('issues.assignees')}</span><span className="issues-prop-value">{issue.assignees.map(user => user.login).join(', ') || t('issues.none')}</span></div>
-        <div className="issues-prop"><span className="issues-prop-label">{t('issues.labels')}</span><span className="issues-prop-value">{issue.labels.length ? issue.labels.map(label => <span key={label.id} className="issues-label-chip"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: /^[a-f\d]{6}$/i.test(label.color) ? `#${label.color}` : undefined }} />{label.name}</span>) : t('issues.none')}</span></div>
-        <div className="issues-prop"><span className="issues-prop-label">{t('issues.source')}</span><span className="issues-prop-value">{providerLabel ?? '—'}</span></div>
       </aside>
     </div>
     {editing && <IssueEditor scope={scope} issue={issue} onClose={() => setEditing(false)} onSaved={saved => { reads.current++; setLoading(false); setIssue(saved); setEditing(false); setAttempt(value => value + 1); onChanged(); }} />}

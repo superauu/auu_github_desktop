@@ -74,7 +74,7 @@
 .issues-state-chip[data-state='closed'] { color: var(--color-muted-foreground); border-color: color-mix(in srgb, var(--color-muted-foreground) 40%, transparent); }
 .issues-detail-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .issues-detail-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 12px 14px 18px; }
-@container (min-width: 880px) { .issues-detail-body { grid-template-columns: minmax(0, 1fr) 300px; } }
+@container (min-width: 880px) { .issues-detail-body { grid-template-columns: minmax(0, 1fr) 320px; } }
 .issues-detail-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .issues-detail-aside { min-width: 0; display: flex; flex-direction: column; }
 @container (min-width: 880px) { .issues-detail-aside { padding-left: 14px; border-left: 1px solid var(--color-border); } }
