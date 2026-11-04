@@ -133,10 +133,9 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
     if (!scope) return null;
     const isSelected = selected?.scope.key === key && selected.number === issue.number;
     return <div key={`${key}:${index}`} aria-current={isSelected ? 'true' : undefined} className="issues-row" onClick={() => setSelected({ scope, number: issue.number })} {...keyboardRowProps(`#${issue.number} ${issue.title}`)}>
-      <div className="issues-row-title"><span className="issues-state-dot" data-state={issue.state} aria-hidden="true" />{issue.title}</div>
-      <div className="issues-row-meta"><span>{issue.identifier ?? `#${issue.number}`}</span><span>· {issue.user.login}</span><span>· {t(issue.state === 'open' ? 'issues.open' : 'issues.closed')}</span>
+      <div className="issues-row-title"><span className="issues-state-dot" data-state={issue.state} aria-hidden="true" /><span className="issues-row-title-text">{issue.title}</span></div>
+      <div className="issues-row-meta"><span>{issue.identifier ?? `#${issue.number}`}</span><span>· {t(issue.state === 'open' ? 'issues.open' : 'issues.closed')}</span><span className="issues-row-author">· {issue.user.login}</span>
         {available.length > 1 && <span className="issues-row-source" title={scope.label}>{scope.source === 'repo' ? t('issues.sourceRepo') : t('issues.sourceTask')}</span>}</div>
-      {!!issue.labels.length && <p className="issues-row-labels">{issue.labels.map(item => item.name).join(' · ')}</p>}
     </div>;
   };
 

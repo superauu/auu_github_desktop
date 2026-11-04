@@ -19,7 +19,9 @@ test('a Linear task connection lights up Issues without any hosting account', as
   // 详情：identifier 展示、外链指向 linear.app、任务能力按钮可用（Linear 声明了评论/更新）。
   await page.getByRole('listitem', { name: /#12 Linear task without hosting account/ }).click();
   const detail = page.locator('[data-issue-detail="12"]');
-  await expect(detail.getByText(/ENG-12 · Alice/)).toBeVisible();
+  // 新布局：编号与作者分开呈现（标题行 + meta 行）。
+  await expect(detail.getByText('ENG-12', { exact: true })).toBeVisible();
+  await expect(detail.getByText('Alice', { exact: true }).first()).toBeVisible();
   await expect(detail.getByRole('link', { name: /Linear/ })).toHaveAttribute('href', 'https://linear.app/issue/ENG-12');
   // 任务能力按 Linear manifest 判定：编辑/评论可用；评论按钮需先填文本。
   await expect(detail.getByRole('button', { name: /编辑 Issue/ })).toBeEnabled();

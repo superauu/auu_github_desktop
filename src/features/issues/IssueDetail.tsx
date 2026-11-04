@@ -20,11 +20,12 @@ import { issueKey } from './issueLogic';
 import { IssuePullRequestCard } from './IssuePullRequestCard';
 import { confirmAction } from '@/stores/confirmStore';
 
+/** 详情页：桌面式全宽布局（吸顶标题栏 + 主内容/属性双栏），不再是网页式居中窄栏。 */
 export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: IssueSourceScope; number: number; onChanged: () => void }) {
-  // scope 可省略（独立挂载/测试场景）：回落到来源派生作用域。
+  const { t } = useI18n();
+  // scope 可省略（独立挂载/测试场景）：回落到仓库作用域。
   const fallback = useFallbackIssueScope();
   const scope = scopeProp ?? fallback;
-  const { t } = useI18n();
   // 任务引用按任务连接的 manifest 收敛能力（不借托管平台亮按钮）；托管引用维持并集口径。
   const { can } = useIssueCapabilities(scope.source === 'task' ? scope.providerId : undefined);
   // 建 PR 永远走托管绑定（任务引用没有 PR 语义），按托管并集口径判定。
@@ -100,39 +101,58 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
   });
   if (loading && !issue) return <p role="status" className="p-5 text-xs text-muted-foreground">{t('common.loading')}</p>;
   if (!issue) return <div role="alert" className="p-5 text-xs space-y-2"><p className="text-destructive">{loadError}</p><Button size="xs" variant="outline" onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>;
-  return <div className="w-full p-4 sm:p-5 space-y-5 text-xs max-w-4xl mx-auto" data-issue-detail={number}>
-    <div className="space-y-3">
-      {loadError && <p role="alert" className="text-destructive">{loadError}</p>}
-      <div className="flex flex-wrap gap-2 items-center"><span className={`rounded-full border px-2 py-1 font-medium ${issue.state === 'open' ? 'text-git-added border-git-added/40' : 'text-git-branch border-git-branch/40'}`}>{t(issue.state === 'open' ? 'issues.open' : issue.state_reason === 'not_planned' ? 'issues.notPlanned' : 'issues.closed')}</span><span className="text-muted-foreground">{issue.identifier ?? `#${number}`} · {issue.user.login}</span><Button size="xs" variant="ghost" aria-label={t('issues.refresh')} disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-3 w-3" /></Button><a className="inline-flex items-center gap-1 text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer" onClick={event => { if (issueUrl(reference)) { event.preventDefault(); void openExternalUrl(issueUrl(reference)); } }}>{providerLabel ?? t('issues.viewOnPlatform')} <ExternalLink className="h-3 w-3" /></a></div>
-      <h1 className="text-lg font-semibold break-words select-text">{issue.title}</h1>
-      <div className="flex flex-wrap gap-2">
+  const stateLabel = t(issue.state === 'open' ? 'issues.open' : issue.state_reason === 'not_planned' ? 'issues.notPlanned' : 'issues.closed');
+  return <div className="issues-detail" data-issue-detail={number}>
+    <header className="issues-detail-head">
+      <div className="issues-detail-title-row">
+        <span className="issues-detail-id">{issue.identifier ?? `#${number}`}</span>
+        <h1 className="issues-detail-title select-text">{issue.title}</h1>
+      </div>
+      <div className="issues-detail-meta">
+        <span className="issues-state-chip" data-state={issue.state}>{stateLabel}</span>
+        <span>{issue.user.login}</span>
+        {providerLabel && <a className="inline-flex items-center gap-1 text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer" onClick={event => { const url = issueUrl(reference); if (url) { event.preventDefault(); void openExternalUrl(url); } }}>{providerLabel} <ExternalLink className="h-3 w-3" /></a>}
+        <Button size="icon-xs" variant="ghost" aria-label={t('issues.refresh')} disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-3 w-3" /></Button>
+      </div>
+      <div className="issues-detail-actions">
         <Button size="xs" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => setEditing(true)}><Pencil className="h-3 w-3 mr-1" />{t('issues.edit')}</Button>
         <Button size="xs" variant="outline" disabled={busy || !repoPath} onClick={() => setBranchOpen(true)}><GitBranch className="h-3 w-3 mr-1" />{t('issues.createBranch')}</Button>
         <Button size="xs" variant="outline" disabled={busy || !repoPath || !branch || branch === 'DETACHED'} onClick={() => void linkCurrentBranch()} title={branch}>{t('issueFlow.linkBranch')}</Button>
         <Button size="xs" variant="outline" disabled={busy || issue.state !== 'open' || !hostingCan('code-hosting:create-pull-request')} title={hostingCan('code-hosting:create-pull-request') ? undefined : t('connections.unavailableCapability')} onClick={() => setPROpen(true)}><GitPullRequest className="h-3 w-3 mr-1" />{t('issues.createPR')}</Button>
       </div>
-      <div className="flex flex-wrap gap-1">{issue.labels.map(label => <span key={label.id} className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: /^[a-f\d]{6}$/i.test(label.color) ? `#${label.color}` : undefined }} />{label.name}</span>)}</div>
-      <p className="text-muted-foreground">{t('issues.assignees')}: {issue.assignees.map(user => user.login).join(', ') || t('issues.none')}</p>
+      {loadError && <p role="alert" className="text-destructive text-xs">{loadError}</p>}
+    </header>
+    <div className="issues-detail-body">
+      <div className="issues-detail-main">
+        <div className="issues-description select-text">{issue.body || t('issues.noDescription')}</div>
+        <section className="issues-section">
+          <h2 className="issues-section-title">{t('issues.relatedPRs')}</h2>
+          {prs.slice(0, prLimit).map(pr => <IssuePullRequestCard key={pr.html_url} url={pr.html_url} refresh={attempt + autoTick + revision} />)}
+          {prs.length > prLimit && <Button size="xs" variant="outline" onClick={() => setPRLimit(value => value + 5)}>{t('issueFlow.morePRs')}</Button>}
+          <p className="text-muted-foreground text-[11px]">{t('issues.referencesHint')}</p>
+          <p className="text-muted-foreground text-[11px]">{t('issueFlow.refreshHint')}</p>
+          {!prs.length && !activityError && <p className="text-muted-foreground text-xs">{t('issues.noPRs')}</p>}
+        </section>
+        <section className="issues-section">
+          <h2 className="issues-section-title">{t('issues.comments')}</h2>
+          {activityError && <div role="alert" className="text-destructive text-xs">{activityError} <Button size="xs" variant="outline" disabled={busy} onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
+          {comments.map(item => <article key={item.id} className="issues-comment select-text"><div className="issues-comment-head"><span className="issues-comment-author">{item.user.login}</span><time>{new Date(item.created_at).toLocaleString()}</time></div><p className="issues-comment-body">{item.body}</p></article>)}
+          <form onSubmit={event => { event.preventDefault(); if (!comment.trim()) return; void run(async () => { const saved = await issueClientFor(scope.providerId).createIssueComment(scope.owner, scope.repo, number, comment.trim()); if (valid()) { setComments(previous => [...previous, saved]); setComment(''); onChanged(); } }); }} className="issues-composer space-y-2">
+            <label className="block space-y-1 text-xs"><span>{t('issues.addComment')}</span><textarea aria-label={t('issues.addComment')} value={comment} onChange={event => setComment(event.target.value)} disabled={busy || issue.locked} rows={4} /></label>
+            {issue.locked && <p className="text-muted-foreground text-[11px]">{t('issues.locked')}</p>}
+            <div className="flex gap-2 flex-wrap"><Button type="submit" size="sm" disabled={busy || issue.locked || !comment.trim() || !can('task-tracking:comment')} title={can('task-tracking:comment') ? undefined : t('connections.unavailableCapability')}>{t('issues.sendComment')}</Button>
+              {issue.state === 'open' ? <><Button type="button" size="sm" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('closed', 'completed')}>{t('issues.closeCompleted')}</Button><Button type="button" size="sm" variant="ghost" disabled={busy || !can('task-tracking:update-issue') || !can('task-tracking:close-state-reason')} title={!can('task-tracking:close-state-reason') ? t('issues.notPlannedUnsupported') : can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('closed', 'not_planned')}>{t('issues.closeNotPlanned')}</Button></> : <Button type="button" size="sm" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('open', 'reopened')}>{t('issues.reopen')}</Button>}
+            </div>
+          </form>
+        </section>
+        {error && <p role="alert" className="text-destructive whitespace-pre-wrap text-xs">{error}</p>}
+      </div>
+      <aside className="issues-detail-aside">
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.assignees')}</span><span className="issues-prop-value">{issue.assignees.map(user => user.login).join(', ') || t('issues.none')}</span></div>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.labels')}</span><span className="issues-prop-value">{issue.labels.length ? issue.labels.map(label => <span key={label.id} className="issues-label-chip"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: /^[a-f\d]{6}$/i.test(label.color) ? `#${label.color}` : undefined }} />{label.name}</span>) : t('issues.none')}</span></div>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.source')}</span><span className="issues-prop-value">{providerLabel ?? '—'}</span></div>
+      </aside>
     </div>
-    <div className="rounded-xl border border-border bg-background/40 p-4 whitespace-pre-wrap break-words select-text leading-relaxed">{issue.body || t('issues.noDescription')}</div>
-    <section className="space-y-2"><h2 className="font-semibold">{t('issues.relatedPRs')}</h2><p className="text-muted-foreground text-[11px]">{t('issues.referencesHint')}</p>
-      {prs.slice(0, prLimit).map(pr => <IssuePullRequestCard key={pr.html_url} url={pr.html_url} refresh={attempt + autoTick + revision} />)}
-      {prs.length > prLimit && <Button size="xs" variant="outline" onClick={() => setPRLimit(value => value + 5)}>{t('issueFlow.morePRs')}</Button>}
-      <p className="text-muted-foreground text-[11px]">{t('issueFlow.refreshHint')}</p>
-      {!prs.length && !activityError && <p className="text-muted-foreground">{t('issues.noPRs')}</p>}
-    </section>
-    <section className="space-y-3"><h2 className="font-semibold">{t('issues.comments')}</h2>
-      {activityError && <div role="alert" className="text-destructive">{activityError} <Button size="xs" variant="outline" disabled={busy} onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
-      {comments.map(item => <article key={item.id} className="rounded-lg border border-border p-3 space-y-2 select-text"><div className="flex gap-2 flex-wrap text-muted-foreground"><span className="font-semibold text-foreground">{item.user.login}</span><time>{new Date(item.created_at).toLocaleString()}</time></div><p className="whitespace-pre-wrap break-words leading-relaxed">{item.body}</p></article>)}
-      <form onSubmit={event => { event.preventDefault(); if (!comment.trim()) return; void run(async () => { const saved = await issueClientFor(scope.providerId).createIssueComment(scope.owner, scope.repo, number, comment.trim()); if (valid()) { setComments(previous => [...previous, saved]); setComment(''); onChanged(); } }); }} className="space-y-2">
-        <label className="block space-y-1"><span>{t('issues.addComment')}</span><textarea aria-label={t('issues.addComment')} value={comment} onChange={event => setComment(event.target.value)} disabled={busy || issue.locked} rows={4} className="w-full rounded-lg border border-input bg-background p-2 resize-y disabled:opacity-50" /></label>
-        {issue.locked && <p className="text-muted-foreground">{t('issues.locked')}</p>}
-        <div className="flex gap-2 flex-wrap"><Button type="submit" size="sm" disabled={busy || issue.locked || !comment.trim() || !can('task-tracking:comment')} title={can('task-tracking:comment') ? undefined : t('connections.unavailableCapability')}>{t('issues.sendComment')}</Button>
-          {issue.state === 'open' ? <><Button type="button" size="sm" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('closed', 'completed')}>{t('issues.closeCompleted')}</Button><Button type="button" size="sm" variant="ghost" disabled={busy || !can('task-tracking:update-issue') || !can('task-tracking:close-state-reason')} title={!can('task-tracking:close-state-reason') ? t('issues.notPlannedUnsupported') : can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('closed', 'not_planned')}>{t('issues.closeNotPlanned')}</Button></> : <Button type="button" size="sm" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('open', 'reopened')}>{t('issues.reopen')}</Button>}
-        </div>
-      </form>
-    </section>
-    {error && <p role="alert" className="text-destructive whitespace-pre-wrap">{error}</p>}
     {editing && <IssueEditor scope={scope} issue={issue} onClose={() => setEditing(false)} onSaved={saved => { reads.current++; setLoading(false); setIssue(saved); setEditing(false); setAttempt(value => value + 1); onChanged(); }} />}
     {branchOpen && <CreateBranchModal open onOpenChange={setBranchOpen} defaultBranchName={issueBranchName(issue.identifier ?? number, issue.title)} onCreated={name => { if (repoPath && scope.isCurrent()) useIssueWorkflowStore.getState().linkBranch(repoPath, name, reference); }} />}
     {prOpen && <CreatePullRequestModal open initialIssue={reference} onOpenChange={setPROpen} onCreated={() => { if (valid()) useRepoStore.getState().setActiveTab('pullRequests'); }} />}
