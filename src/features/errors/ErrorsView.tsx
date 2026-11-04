@@ -6,7 +6,7 @@
  * 平台返回的异常内容保持原文（§7.5），本视图文案全部走 t()。
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Search, Settings, Sparkles, SquareArrowOutUpRight, Trash2 } from 'lucide-react';
+import { Bug, ExternalLink, RefreshCw, Search, Settings, Sparkles, SquareArrowOutUpRight, Trash2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore } from '@/stores/errorsStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -28,6 +28,8 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { PanelCount } from '@/components/ui/PanelCount';
+import { WorkspaceError, WorkspaceLoading } from '@/components/ui/WorkspaceNotice';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { cn } from '@/utils/cn';
@@ -238,14 +240,14 @@ export const ErrorsView: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0">
+    <div data-workspace-view="errors" className="flex h-full min-h-0">
       {/* 左：列表窗格（宽度可拖拽，layoutStore 持久化） */}
       <div style={{ width: errorsListWidth }} className="shrink-0 border-r border-border bg-sidebar/50 flex flex-col min-h-0">
         {/* 面板头：标题 + 计数 + 刷新（全局 34px 面板头规格） */}
         <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
           <div className="min-w-0 flex items-center gap-1.5">
             <span className="ui-panel-title block truncate" title={t('errors.nav')}>{t('errors.nav')}</span>
-            <span className="panel-count">{visibleIssues.length}</span>
+            <PanelCount count={visibleIssues.length} kind="filteredLoaded" />
           </div>
           <Button variant="ghost" size="icon-xs" aria-label={t('errors.refresh')} title={t('errors.refresh')} disabled={syncing} onClick={() => void sync()} className="text-muted-foreground hover:text-foreground">
             <RefreshCw className={cn('h-3 w-3', syncing && 'animate-spin')} />
@@ -305,14 +307,12 @@ export const ErrorsView: React.FC = () => {
 
         {/* 降级横幅：按连接粒度，不拖死整页（§7.3.2） */}
         {failedConnections.map((connection) => (
-          <div key={connection.id} role="alert" className="mx-2 mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-[12px] flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-foreground">
-              {t('errors.banner.sourceFailed').replace('{name}', connection.displayName)}
-            </span>
-            <Button variant="ghost" size="xs" onClick={() => void sync()}>{t('errors.banner.retry')}</Button>
+          <WorkspaceError key={connection.id} actions={<>
+            <Button variant="ghost" size="xs" disabled={syncing} onClick={() => void sync()}>{t('errors.banner.retry')}</Button>
             <Button variant="ghost" size="xs" onClick={openSettings}>{t('errors.banner.settings')}</Button>
-          </div>
+          </>}>
+            {t('errors.banner.sourceFailed').replace('{name}', connection.displayName)}
+          </WorkspaceError>
         ))}
 
         <div className="flex-1 overflow-y-auto min-h-0">
@@ -344,6 +344,8 @@ export const ErrorsView: React.FC = () => {
                 </Button>
               </div>
             </div>
+          ) : syncing && visibleIssues.length === 0 ? (
+            <WorkspaceLoading>{t('errors.syncing')}</WorkspaceLoading>
           ) : visibleIssues.length === 0 ? (
             <EmptyState variant="search" title={t('errors.list.emptyFiltered')} />
           ) : (
@@ -440,7 +442,7 @@ export const ErrorsView: React.FC = () => {
       />
 
       {/* 右：详情窗格 */}
-      <div className="flex-1 min-w-0 overflow-y-auto">
+      <div className="flex-1 min-w-0 overflow-y-auto bg-card/10">
         {selectedIssue ? (
           <ErrorDetail
             issue={selectedIssue}
@@ -552,7 +554,7 @@ const ErrorDetail: React.FC<{
   return (
     <div className="p-4 space-y-5 text-xs" data-testid="errors-detail">
       {/* 头部区：tinted 徽标 + 标题 + 主 CTA——详情页的视觉锚点 */}
-      <div className="pb-4 border-b border-border">
+      <div className="workspace-detail-header -mx-4 -mt-4">
         <div className="flex items-center gap-1.5">
           <Badge variant="outline" className={cn('h-5 px-1.5 text-[11px] font-medium', severityPill[issue.severity])}>
             {t(`errors.severity.${issue.severity}`)}
@@ -562,9 +564,9 @@ const ErrorDetail: React.FC<{
           </Badge>
           {issue.rawStatus && <span className="text-[11px] text-muted-foreground font-mono">{issue.rawStatus}</span>}
         </div>
-        <h2 className="mt-2 text-base font-semibold text-foreground break-words select-text">{issue.title}</h2>
-        {issue.message && <p className="mt-1 text-[12px] text-muted-foreground font-mono break-words select-text">{issue.message}</p>}
-        <div className="mt-2 flex items-center gap-3 text-[12px] text-muted-foreground">
+        <h2 className="workspace-detail-title text-foreground select-text">{issue.title}</h2>
+        {issue.message && <p className="text-[12px] text-muted-foreground font-mono break-words select-text">{issue.message}</p>}
+        <div className="workspace-detail-meta">
           <span className="font-mono">{issue.shortId}</span>
           {issue.externalUrl && (
             <button
@@ -577,35 +579,35 @@ const ErrorDetail: React.FC<{
           )}
         </div>
         {(canResolve || canIgnore || (aiConfigured && repoPath)) && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <div className="workspace-detail-actions">
             {issue.status === 'unresolved' ? (
               <>
                 {canResolve && (
-                  <Button variant="default" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('resolve', 'resolve')}>
+                  <Button variant="default" size="toolbar" disabled={!!statusBusy} onClick={() => void runStatusAction('resolve', 'resolve')}>
                     {t('errors.fix.resolve')}
                   </Button>
                 )}
                 {canResolveInRelease && (
-                  <Button variant="ghost" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('resolveInNextRelease', 'release')}>
+                  <Button variant="ghost" size="toolbar" disabled={!!statusBusy} onClick={() => void runStatusAction('resolveInNextRelease', 'release')}>
                     {t('errors.fix.resolveInRelease')}
                   </Button>
                 )}
                 {canIgnore && (
-                  <Button variant="ghost" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('ignore', 'ignore')}>
+                  <Button variant="ghost" size="toolbar" disabled={!!statusBusy} onClick={() => void runStatusAction('ignore', 'ignore')}>
                     {t('errors.fix.ignore')}
                   </Button>
                 )}
               </>
             ) : (
               canResolve && (
-                <Button variant="default" size="xs" disabled={!!statusBusy} onClick={() => void runStatusAction('unresolve', 'reopen')}>
+                <Button variant="default" size="toolbar" disabled={!!statusBusy} onClick={() => void runStatusAction('unresolve', 'reopen')}>
                   {t('errors.fix.reopen')}
                 </Button>
               )
             )}
             {/* AI 修复（§8.5）：无 apiKey / builtin 供给时不渲染（验收项）；堆栈未加载完前禁用 */}
             {aiConfigured && repoPath && (
-              <Button variant="outline" size="xs" className="gap-1" disabled={load.loading} onClick={() => setAiFixOpen(true)}>
+              <Button variant="outline" size="toolbar" className="gap-1" disabled={load.loading} onClick={() => setAiFixOpen(true)}>
                 <Sparkles className="h-3 w-3" />
                 <span>{t('errors.ai.button')}</span>
               </Button>
@@ -669,10 +671,7 @@ const ErrorDetail: React.FC<{
       <section className="space-y-1.5">
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t('errors.detail.stacktrace')}</h3>
         {load.loading && (
-          <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            {t('errors.detail.loading')}
-          </p>
+          <WorkspaceLoading>{t('errors.detail.loading')}</WorkspaceLoading>
         )}
         {load.error && <p role="alert" className="text-[12px] text-destructive select-text">{t('errors.detail.loadFailed')}: {load.error}</p>}
         {!load.loading && !load.error && (load.frames?.length ?? 0) === 0 && (

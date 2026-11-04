@@ -61,6 +61,7 @@ import { InteractiveConflictResolver } from './InteractiveConflictResolver';
 import { useRepoStore } from '@/stores/repoStore';
 import { useI18n } from '@/i18n';
 import { useLayoutStore, DEFAULT_LAYOUT } from '@/stores/layoutStore';
+import { PanelCount } from '@/components/ui/PanelCount';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -667,7 +668,7 @@ export const WorkingChangesView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-transparent">
+    <div data-workspace-view="changes" className="flex-1 h-full flex flex-col overflow-hidden select-none bg-transparent">
       {/* Top Conflict In-Progress Banner */}
       <ConflictBanner />
       {splitOpen && currentRepo && <CommitSplitDialog repoPath={currentRepo.path} onClose={() => setSplitOpen(false)} />}
@@ -677,12 +678,12 @@ export const WorkingChangesView: React.FC = () => {
         {/* Changes File List Sub-panel */}
         <div
           style={{ width: panels.files }}
-          className="glass-file-list border-r border-border flex flex-col shrink-0 h-full overflow-hidden"
+          className="glass-file-list bg-sidebar/50 border-r border-border flex flex-col shrink-0 h-full overflow-hidden"
         >
           <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
           <div className="min-w-0 flex items-center gap-1.5">
             <span className="ui-panel-title block truncate" title={t('rightPane.changes')}>{t('rightPane.changes')}</span>
-            <span className="panel-count">{totalChanges}</span>
+            <PanelCount count={totalChanges} kind="changes" />
           </div>
 
           <div className="flex shrink-0 items-center gap-0.5">
@@ -814,10 +815,10 @@ export const WorkingChangesView: React.FC = () => {
                         key={file.path}
                         {...fileRowProps(file)}
                         className={cn(
-                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
+                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 border-l-2 text-xs cursor-pointer transition-colors group",
                           activeFile?.path === file.path && activeFile?.staged === file.staged
-                            ? "bg-accent text-accent-foreground font-medium"
-                            : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                            ? "bg-primary/12 border-l-primary text-foreground font-medium"
+                            : "border-l-transparent text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
                         <div className={cn("flex flex-1 items-center min-w-0", compactFileActions ? "gap-1" : "gap-2")}>
@@ -854,10 +855,10 @@ export const WorkingChangesView: React.FC = () => {
                         key={file.path}
                         {...fileRowProps(file)}
                         className={cn(
-                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
+                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 border-l-2 text-xs cursor-pointer transition-colors group",
                           activeFile?.path === file.path && activeFile?.staged === file.staged
-                            ? "bg-accent text-accent-foreground font-medium"
-                            : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                            ? "bg-primary/12 border-l-primary text-foreground font-medium"
+                            : "border-l-transparent text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
                         <div className={cn("flex flex-1 items-center min-w-0", compactFileActions ? "gap-1" : "gap-2")}>
@@ -903,10 +904,10 @@ export const WorkingChangesView: React.FC = () => {
                         key={file.path}
                         {...fileRowProps(file)}
                         className={cn(
-                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 rounded-md text-xs cursor-pointer transition-colors group",
+                          "flex min-h-[44px] items-center justify-between px-2 py-1.5 border-l-2 text-xs cursor-pointer transition-colors group",
                           activeFile?.path === file.path && activeFile?.staged === file.staged
-                            ? "bg-accent text-accent-foreground font-medium"
-                            : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                            ? "bg-primary/12 border-l-primary text-foreground font-medium"
+                            : "border-l-transparent text-muted-foreground hover:text-foreground hover:bg-accent/40"
                         )}
                       >
                         <div className={cn("flex flex-1 items-center min-w-0", compactFileActions ? "gap-1" : "gap-2")}>

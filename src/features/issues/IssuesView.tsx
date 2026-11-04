@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CircleCheck, CircleDot, MessageSquare, Plus, RefreshCw, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
+import { PanelCount } from '@/components/ui/PanelCount';
+import { WorkspaceError, WorkspaceLoading } from '@/components/ui/WorkspaceNotice';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
 import { ModalSurface } from '@/components/ui/ModalSurface';
@@ -48,7 +50,7 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
   const [label, setLabel] = useState(''), [assignee, setAssignee] = useState('');
   const [selected, setSelected] = useState<SelectedIssue | null>(null), [creating, setCreating] = useState<CreateTarget>(null);
   const [attempt, setAttempt] = useState(0);
-  // 列表列宽可拖拽（持久化）；与根组件的分栏一致使用指针捕获，拖拽中不写存储。
+  // 列宽由共享手柄调节，支持鼠标、触摸与键盘。
   const [listWidth, setListWidth] = useState<number>(() => {
     try {
       const raw = Number(localStorage.getItem('auugit_issue_list_width'));
@@ -127,7 +129,7 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
     </button></div>;
   };
 
-  return <div className="@container flex flex-col h-full min-h-0" data-issues-workspace>
+  return <div className="@container flex flex-col h-full min-h-0" data-issues-workspace data-workspace-view="issues">
     <header className="app-toolbar justify-between">
       <div className="app-toolbar-group">
         <CircleDot className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
@@ -143,12 +145,12 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
         <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
           <div className="min-w-0 flex items-center gap-1.5">
             <span className="ui-panel-title block truncate" title={t('issues.list')}>{t('issues.list')}</span>
-            <span className="panel-count">{total}</span>
+            <PanelCount count={total} kind="totalMatching" />
           </div>
           <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-foreground" disabled={loading} aria-label={t('issues.refresh')} title={t('issues.refresh')} onClick={refresh}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'issues-refreshing' : ''}`} aria-hidden="true" /></Button>
         </div>
         <div className="issues-list-head">
-        <div className="relative"><Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" aria-hidden="true" /><Input type="text" name="issue-search" autoComplete="off" spellCheck={false} aria-label={t('issues.search')} placeholder={t('issues.searchHint')} value={query} onChange={event => filterUpdate(() => setQuery(event.target.value))} className="h-7 pl-7 text-[12px]" /></div>
+        <div className="relative"><Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5 pointer-events-none" aria-hidden="true" /><Input type="text" name="issue-search" autoComplete="off" spellCheck={false} aria-label={t('issues.search')} placeholder={t('issues.searchHint')} value={query} onChange={event => filterUpdate(() => setQuery(event.target.value))} className="h-7 pl-7 text-[12px]" /></div>
         <div className="issues-tools">
         <select name="issue-state" aria-label={t('issues.state')} className="issues-select" value={state} onChange={event => filterUpdate(() => setState(event.target.value as IssueListOptions['state']))}>{(['open', 'closed', 'all'] as const).map(value => <option key={value} value={value}>{t(value === 'all' ? 'issues.allStates' : `issues.${value}`)}</option>)}</select>
         {available.length > 1 && <select name="issue-source" aria-label={t('issues.source')} className="issues-select" value={filter} onChange={event => filterUpdate(() => setFilter(event.target.value as IssueSourceFilter))}><option value="all">{t('issues.sourceAll')}</option><option value="repo">{t('issues.sourceRepo')}</option><option value="task">{t('issues.sourceTask')}</option></select>}
@@ -163,8 +165,8 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
         </label></div>
         </div>
         <div ref={listRef} className="issues-list-content flex-1 overflow-y-auto" role="list" data-keyboard-list aria-busy={loading} aria-label={t('issues.list')}>
-          {loading && !merged.length && <p role="status" className="issues-note">{t('common.loading')}</p>}
-          {failures.map(page => <div key={`failure:${page.scope.key}`} role="alert" className="issues-note space-y-2"><p>{page.scope.source === 'repo' ? t('issues.sourceRepo') : t('issues.sourceTask')}: {page.error}</p><Button variant="outline" size="xs" disabled={loading} onClick={() => void retryFailed()}>{t('remote.retry')}</Button></div>)}
+          {loading && !merged.length && <WorkspaceLoading>{t('common.loading')}</WorkspaceLoading>}
+          {failures.map(page => <WorkspaceError key={page.scope.key} actions={<Button variant="ghost" size="xs" disabled={loading} onClick={() => void retryFailed()}>{t('remote.retry')}</Button>}><p>{page.scope.source === 'repo' ? t('issues.sourceRepo') : t('issues.sourceTask')}: {page.error}</p></WorkspaceError>)}
           {!loading && !failures.length && !merged.length && <div className="p-2"><EmptyState variant="search" title={t('issues.empty')} desc={t('issues.emptyHint')} />{hasFilters && <div className="flex justify-center"><Button variant="outline" size="xs" onClick={clearFilters}>{t('issues.clearFilters')}</Button></div>}</div>}
           {merged.map(row)}
           {merged.length > 0 && <div className="issues-list-footer">
@@ -184,7 +186,7 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
           title={t('issues.resizeList')}
         />
       </div>
-      <section aria-label={t('issues.detail')} className={`issues-detail-panel ${selected ? 'flex' : 'hidden @[760px]:flex'} flex-1 flex-col min-w-0 min-h-0 overflow-y-auto`}>
+      <section aria-label={t('issues.detail')} className={`issues-detail-panel bg-card/10 ${selected ? 'flex' : 'hidden @[760px]:flex'} flex-1 flex-col min-w-0 min-h-0 overflow-y-auto`}>
         {selected ? <><Button className="@[760px]:hidden shrink-0 m-2 self-start" variant="ghost" size="xs" onClick={() => setSelected(null)}><ArrowLeft className="h-3 w-3 mr-1" />{t('issues.back')}</Button><IssueDetail key={JSON.stringify([selected.scope.key, selected.number])} scope={selected.scope} number={selected.number} onChanged={refresh} /></> : <div className="m-auto"><EmptyState compact icon={<CircleDot className="h-7 w-7" aria-hidden="true" />} title={t('issues.selectTitle')} desc={t('issues.select')} /></div>}
       </section>
     </div>

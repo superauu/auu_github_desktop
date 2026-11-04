@@ -36,6 +36,8 @@ import { WorkflowYamlViewerModal } from './WorkflowYamlViewerModal';
 import { cn } from '@/utils/cn';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { workflowStatus } from '@/utils/workflowStatus';
+import { PanelCount } from '@/components/ui/PanelCount';
+import { WorkspaceError, WorkspaceLoading } from '@/components/ui/WorkspaceNotice';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -95,7 +97,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
   };
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
+    <div data-workspace-view="actions" className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Banner: Auth Info */}
       <div className="app-toolbar justify-between">
         <div className="app-toolbar-group">
@@ -140,7 +142,6 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
         </div>
       </div>
 
-      {error && <div role="alert" className="px-4 py-2 border-b border-border"><ErrorNotice error={error} /></div>}
 
       {/* Main 2-Column Split: Workflows List (Left) + Runs & Jobs Explorer (Right) */}
       <div className="flex-1 flex overflow-hidden">
@@ -152,7 +153,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
             <div className="min-w-0 flex items-center gap-1.5">
               <span className="ui-panel-title block truncate" title={t('actions.workflows')}>{t('actions.workflows')}</span>
-              <span className="panel-count">{workflows.length}</span>
+              <PanelCount count={workflows.length} />
             </div>
           </div>
 
@@ -238,7 +239,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
               <div className="min-w-0 flex items-center gap-1.5">
                 <span className="ui-panel-title block truncate" title={t('actions.runHistory')}>{t('actions.runHistory')}</span>
-                <span className="panel-count">{workflowRuns.length}</span>
+                <PanelCount count={workflowRuns.length} />
               </div>
 
               {/* Rerun / Cancel actions on selectedRun */}
@@ -293,9 +294,10 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
               )}
             </div>
 
+            {error && <WorkspaceError actions={<Button variant="ghost" size="xs" disabled={isRefreshingActions} onClick={() => void refreshActions()}>{t('remote.retry')}</Button>}><ErrorNotice compact error={error} /></WorkspaceError>}
             <ScrollArea className="flex-1">
               <div className="divide-y divide-border/50" role="list" data-keyboard-list aria-label={t('actions.runHistory')} aria-busy={isRefreshingActions || isLoadingRuns}>
-                {(isLoadingRuns || (isRefreshingActions && !workflowRuns.length)) && <p role="status" className="p-4 text-xs text-muted-foreground">{t('ui.actions.loading')}</p>}
+                {(isLoadingRuns || (isRefreshingActions && !workflowRuns.length)) && <WorkspaceLoading>{t('ui.actions.loading')}</WorkspaceLoading>}
                 {!isLoadingRuns && !isRefreshingActions && !error && !workflowRuns.length && <EmptyState title={t('ui.actions.empty')} />}
                 {workflowRuns.map((run) => {
                   const isSelected = selectedRun?.id === run.id;
@@ -364,8 +366,8 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                 <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
                 {selectedRun ? (
                   <>
-                    <span className="ui-panel-title block truncate">Run #{selectedRun.run_number} {t('actions.jobsTitle')}</span>
-                    <span className="panel-count">{selectedRunJobs.length}</span>
+                    <span className="ui-panel-title block truncate">{t('actions.runJobsTitle').replace('{number}', String(selectedRun.run_number))}</span>
+                    <PanelCount count={selectedRunJobs.length} />
                   </>
                 ) : (
                   <span className="ui-panel-title block truncate">{t('actions.pickRun')}</span>
@@ -384,7 +386,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             </div>
 
             <ScrollArea className="flex-1 p-3">
-              {isLoadingJobs ? <p role="status" className="py-12 text-center text-xs text-muted-foreground">{t('ui.actions.jobsLoading')}</p> : selectedRunJobs.length === 0 ? (
+              {isLoadingJobs ? <WorkspaceLoading>{t('ui.actions.jobsLoading')}</WorkspaceLoading> : selectedRunJobs.length === 0 ? (
                 <div className="py-12 text-center text-xs text-muted-foreground">
                   {t(selectedRun ? 'actions.noJobs' : 'actions.pickRun')}
                 </div>

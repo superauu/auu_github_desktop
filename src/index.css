@@ -875,9 +875,6 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
 }
 .glass-statusbar button { min-height: 24px; border-radius: 4px; padding: 0 4px; }
 .glass-statusbar button:hover { background: hsl(var(--foreground) / 0.06); }
-.glass-file-list {
-  background: hsl(var(--card));
-}
 .glass-editor { background: hsl(var(--background)); }
 .glass-terminal { background: hsl(var(--background)); }
 .glass-terminal-header { background: hsl(var(--card) / 0.45); }
@@ -1035,3 +1032,21 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
   color: var(--color-muted-foreground);
   font-variant-numeric: tabular-nums;
 }
+
+/* 桌面详情阅读面：紧凑的标题 / 元信息 / 动作行，不套固定高度工具条。 */
+.workspace-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 16px;
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.workspace-detail-title { min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; font-weight: 600; }
+.workspace-detail-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; font-size: 11px; line-height: 18px; color: var(--color-muted-foreground); }
+.workspace-detail-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.workspace-notice { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px 8px; padding: 8px 12px; font-size: 12px; line-height: 18px; flex-shrink: 0; }
+.workspace-error > :nth-child(2) { flex-basis: 140px; }
+.workspace-notice-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-left: auto; }

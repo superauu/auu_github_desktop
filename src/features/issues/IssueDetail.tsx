@@ -2,6 +2,8 @@ import { useCollaborationCapabilities, useIssueCapabilities } from '@/features/i
 import { useActiveProviderId } from '@/features/integrations/useActiveProviderId';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, GitBranch, GitPullRequest, Pencil, RefreshCw } from 'lucide-react';
+import { PanelCount } from '@/components/ui/PanelCount';
+import { WorkspaceError, WorkspaceLoading } from '@/components/ui/WorkspaceNotice';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { openExternalUrl } from '@/utils/openExternal';
@@ -100,26 +102,26 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
     const currentBranch = repo.currentRepo?.currentBranch || repo.status?.currentBranch || repo.branches.find(item => item.isCurrent)?.name;
     if (valid() && repo.currentRepo?.path === repoPath && currentBranch === branch) useIssueWorkflowStore.getState().linkBranch(repoPath, branch, reference);
   });
-  if (loading && !issue) return <p role="status" className="p-5 text-xs text-muted-foreground">{t('common.loading')}</p>;
-  if (!issue) return <div role="alert" className="p-5 text-xs space-y-2"><p className="text-destructive">{loadError}</p><Button size="xs" variant="outline" onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>;
+  if (loading && !issue) return <WorkspaceLoading>{t('common.loading')}</WorkspaceLoading>;
+  if (!issue) return <WorkspaceError actions={<Button size="xs" variant="ghost" onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button>}>{loadError}</WorkspaceError>;
   const stateLabel = t(issue.state === 'open' ? 'issues.open' : issue.state_reason === 'not_planned' ? 'issues.notPlanned' : 'issues.closed');
   return <div className="issues-detail" data-issue-detail={number}>
-    <header className="issues-detail-head">
+    <header className="workspace-detail-header issues-detail-head">
       <div className="issues-detail-title-row">
         <span className="issues-detail-id">{issue.identifier ?? `#${number}`}</span>
-        <h1 className="issues-detail-title select-text">{issue.title}</h1>
+        <h1 className="workspace-detail-title issues-detail-title select-text">{issue.title}</h1>
       </div>
-      <div className="issues-detail-meta">
+      <div className="workspace-detail-meta issues-detail-meta">
         <span className="issues-state-chip" data-state={issue.state}>{stateLabel}</span>
         <span>{issue.user.login}</span>
         {providerLabel && <a className="inline-flex items-center gap-1 text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer" onClick={event => { const url = issueUrl(reference); if (url) { event.preventDefault(); void openExternalUrl(url); } }}>{providerLabel} <ExternalLink className="h-3 w-3" /></a>}
         <Button size="icon-xs" variant="ghost" aria-label={t('issues.refresh')} disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-3 w-3" /></Button>
       </div>
-      <div className="issues-detail-actions">
-        <Button size="xs" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => setEditing(true)}><Pencil className="h-3 w-3 mr-1" />{t('issues.edit')}</Button>
-        <Button size="xs" variant="outline" disabled={busy || !repoPath} onClick={() => setBranchOpen(true)}><GitBranch className="h-3 w-3 mr-1" />{t('issues.createBranch')}</Button>
-        <Button size="xs" variant="outline" disabled={busy || !repoPath || !branch || branch === 'DETACHED'} onClick={() => void linkCurrentBranch()} title={branch}>{t('issueFlow.linkBranch')}</Button>
-        <Button size="xs" variant="outline" disabled={busy || issue.state !== 'open' || !hostingCan('code-hosting:create-pull-request')} title={hostingCan('code-hosting:create-pull-request') ? undefined : t('connections.unavailableCapability')} onClick={() => setPROpen(true)}><GitPullRequest className="h-3 w-3 mr-1" />{t('issues.createPR')}</Button>
+      <div className="workspace-detail-actions issues-detail-actions">
+        <Button size="toolbar" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => setEditing(true)}><Pencil className="h-3 w-3" />{t('issues.edit')}</Button>
+        <Button size="toolbar" variant="outline" disabled={busy || !repoPath} onClick={() => setBranchOpen(true)}><GitBranch className="h-3 w-3" />{t('issues.createBranch')}</Button>
+        <Button size="toolbar" variant="outline" disabled={busy || !repoPath || !branch || branch === 'DETACHED'} onClick={() => void linkCurrentBranch()} title={branch}>{t('issueFlow.linkBranch')}</Button>
+        <Button size="toolbar" variant="outline" disabled={busy || issue.state !== 'open' || !hostingCan('code-hosting:create-pull-request')} title={hostingCan('code-hosting:create-pull-request') ? undefined : t('connections.unavailableCapability')} onClick={() => setPROpen(true)}><GitPullRequest className="h-3 w-3" />{t('issues.createPR')}</Button>
       </div>
       {loadError && <p role="alert" className="text-destructive text-xs">{loadError}</p>}
     </header>
@@ -136,7 +138,7 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
         </section>
 
         <section className="issues-section issues-discussion">
-          <h2 className="issues-section-title">{t('issues.comments')} <span className="panel-count">{comments.length}</span></h2>
+          <h2 className="issues-section-title">{t('issues.comments')} <PanelCount count={comments.length} kind="comments" /></h2>
           {!comments.length && !activityError && <p className="text-xs text-muted-foreground">{t('issues.noComments')}</p>}
           {activityError && <div role="alert" className="text-destructive text-xs">{activityError} <Button size="xs" variant="outline" disabled={busy} onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
           {comments.map(item => <article key={item.id} className="issues-comment select-text"><div className="issues-comment-head"><span className="issues-comment-author">{item.user.login}</span><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en')}</time></div><Markdown baseUrl={issue.html_url}>{item.body}</Markdown></article>)}

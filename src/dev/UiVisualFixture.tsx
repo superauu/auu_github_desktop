@@ -15,6 +15,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useWorkspaceSessionStore } from '@/stores/workspaceSessionStore';
 import { useCollaborationStore } from '@/stores/collaborationStore';
+import { useErrorsStore } from '@/stores/errorsStore';
 import { gitService } from '@/services/git/GitService';
 import type { GitCommit, GitBranch, GitFileChange, RepositoryInfo } from '@/services/git/types';
 import { prepareIssueFixture } from './IssueFixture';
@@ -106,6 +107,29 @@ function prepare() {
   if (new URLSearchParams(location.search).get('hunks') === '1') prepareHunkPlanFixture(repo);
   if (new URLSearchParams(location.search).get('review') === '1') prepareWorkingReviewFixture();
   if (new URLSearchParams(location.search).get('overview') === '1') prepareOverviewFixture(repo);
+  // 使用本夹具与组件共享的 store 实例；测试不另行 import 模块，避免 HMR URL
+  // 产生第二份 store。该入口只存在于隔离的开发夹具，并需显式启用。
+  if (new URLSearchParams(location.search).get('panels') === '1') {
+    type PanelCommand = {
+      view?: ReturnType<typeof useRepoStore.getState>['activeTab'];
+      width?: number;
+      loadPullRequests?: boolean;
+      loading?: 'pr' | 'actions';
+      failure?: 'pr' | 'actions';
+      syncing?: boolean;
+    };
+    window.addEventListener('workspace-panels-fixture', event => {
+      const command = (event as CustomEvent<PanelCommand>).detail;
+      if (command.width !== undefined) useLayoutStore.getState().setPrListWidth(command.width);
+      if (command.view) useRepoStore.setState({ activeTab: command.view });
+      if (command.loadPullRequests) void useCollaborationStore.getState().loadPullRequests();
+      if (command.loading === 'pr') useCollaborationStore.setState({ isLoadingPullRequests: true });
+      if (command.loading === 'actions') useCollaborationStore.setState({ isRefreshingActions: true, isLoadingRuns: true });
+      if (command.failure === 'pr') useCollaborationStore.setState({ isLoadingPullRequests: false, pullRequestsError: 'Network connection unavailable' });
+      if (command.failure === 'actions') useCollaborationStore.setState({ isRefreshingActions: false, isLoadingRuns: false, error: 'Network connection unavailable' });
+      if (command.syncing !== undefined) useErrorsStore.setState({ syncing: command.syncing });
+    });
+  }
   if (new URLSearchParams(location.search).get('interactions') === '1') {
     const other: RepositoryInfo = { ...repo, id: 'other-fixture', path: '/__auugit_other_fixture__', name: 'other-ui-fixture', currentBranch: 'main' };
     const otherCommit: GitCommit = { ...commits[0], hash: 'f'.repeat(40), shortHash: 'fffffff', subject: 'Other repository commit', refs: ['HEAD -> main'] };

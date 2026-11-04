@@ -85,7 +85,8 @@ test('PR search selects details from visible results and removes stale managemen
     assert.match(JSON.stringify(renderer.toJSON()), /Second change/);
     await act(async () => search.props.onChange({ target: { value: 'No matching PR' } }));
     assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /Second change/);
-    assert.equal(renderer.root.findAllByType('select').length, 0, 'merge controls must disappear with stale details');
+    assert.equal(renderer.root.findAllByType('select').filter(select => select.props.name !== 'pull-request-state').length, 0, 'merge controls must disappear with stale details');
+    assert.equal(renderer.root.findAllByType('select').filter(select => select.props.name === 'pull-request-state').length, 1, 'the list status filter remains available without a selected PR');
     assert.equal(store.getState().selectedPR.id, 1, 'search must not mutate stored selection');
   } finally { await act(async () => renderer?.unmount()); app.collaborationService.getPullRequestReviews = originalReviews; app.collaborationService.getCommitChecks = originalChecks; store.getState().clearRepo(); }
 });

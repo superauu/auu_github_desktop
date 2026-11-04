@@ -114,6 +114,8 @@ export function prepareErrorsFixture(repository: RepositoryInfo) {
     loadMore: async () => {},
     // AppLayout 启动时也会调 restoreConnections——打桩避免覆盖注入的连接
     restoreConnections: () => {},
+    // 启动重验也保持在内存中，保留正常/降级双连接场景，不访问真实服务。
+    retestEnabled: async () => {},
     loadRepoContext: () => useErrorsStore.setState({ activeRepoKey: REPO_KEY, activeRepoPath: repository.path }),
   });
   // dev 凭证（内存 Map）：详情窗格的堆栈/嫌疑提交请求需要它走 fetch 桩

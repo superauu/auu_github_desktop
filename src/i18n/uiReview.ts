@@ -1,4 +1,9 @@
 export const uiReviewZh = {
+  'ui.count.totalMatching': '符合当前筛选的总数：{count}（含未加载项）',
+  'ui.count.filteredLoaded': '已加载且符合当前筛选的数量：{count}',
+  'ui.count.loaded': '当前已加载数量：{count}',
+  'ui.count.changes': '工作区变更条目：{count}（暂存与未暂存分别计数）',
+  'ui.count.comments': '当前已加载评论数：{count}',
   'ui.advanced': '高级选项',
   'ui.clearSearch': '清空搜索',
   'ui.pr.loading': '正在加载合并请求…',
@@ -44,6 +49,11 @@ export const uiReviewZh = {
 };
 
 export const uiReviewEn: Record<keyof typeof uiReviewZh, string> = {
+  'ui.count.totalMatching': 'Total matching the current filters: {count} (includes items not loaded yet)',
+  'ui.count.filteredLoaded': 'Loaded items matching the current filters: {count}',
+  'ui.count.loaded': 'Currently loaded items: {count}',
+  'ui.count.changes': 'Workspace change entries: {count} (staged and unstaged versions count separately)',
+  'ui.count.comments': 'Currently loaded comments: {count}',
   'ui.advanced': 'Advanced options', 'ui.clearSearch': 'Clear search',
   'ui.pr.loading': 'Loading pull requests…', 'ui.pr.empty': 'No pull requests yet',
   'ui.pr.emptyDesc': 'Try another status filter or create a pull request.',

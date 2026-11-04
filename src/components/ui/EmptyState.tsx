@@ -74,7 +74,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   return (
     <div className={cn(compact ? 'py-8 px-6 text-center space-y-1.5 select-none' : 'py-14 px-4 text-center space-y-1 select-none', className)}>
-      <div className={cn('text-muted-foreground/50 mb-2', compact && 'mb-1')}>
+      <div aria-hidden="true" className={cn('flex justify-center text-muted-foreground/50 mb-2', compact && 'mb-1')}>
         {icon ?? <Illustration variant={variant} />}
       </div>
       <div className="text-xs font-medium text-foreground/85">{title}</div>

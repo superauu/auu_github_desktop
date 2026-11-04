@@ -23,20 +23,39 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
   title = '按住并拖动调节宽度，双击恢复默认',
 }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const dragInfoRef = useRef<{ startX: number; startWidth: number }>({
-    startX: 0,
-    startWidth: currentSize,
-  });
+  const dragInfoRef = useRef<{ startX: number; startWidth: number; pointerId: number; element: HTMLDivElement } | null>(null);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !e.isPrimary) return;
     e.preventDefault();
     e.stopPropagation();
-
+    e.currentTarget.focus({ preventScroll: true });
+    e.currentTarget.setPointerCapture(e.pointerId);
     dragInfoRef.current = {
       startX: e.clientX,
       startWidth: currentSize,
+      pointerId: e.pointerId,
+      element: e.currentTarget,
     };
     setIsDragging(true);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragInfoRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const delta = (e.clientX - drag.startX) * (reverse ? -1 : 1);
+    onSizeChange(Math.max(minSize, Math.min(maxSize, drag.startWidth + delta)));
+  };
+
+  const finishDrag = () => {
+    const drag = dragInfoRef.current;
+    dragInfoRef.current = null;
+    if (drag?.element.hasPointerCapture(drag.pointerId)) drag.element.releasePointerCapture(drag.pointerId);
+    setIsDragging(false);
+  };
+
+  const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragInfoRef.current?.pointerId === e.pointerId) finishDrag();
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
@@ -50,34 +69,26 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
   useEffect(() => {
     if (!isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - dragInfoRef.current.startX;
-      const rawNewWidth = reverse
-        ? dragInfoRef.current.startWidth - deltaX
-        : dragInfoRef.current.startWidth + deltaX;
-
-      const clamped = Math.max(minSize, Math.min(maxSize, rawNewWidth));
-      onSizeChange(clamped);
-    };
-
-    const handleMouseUp = () => {
+    const handleBlur = () => {
+      const drag = dragInfoRef.current;
+      dragInfoRef.current = null;
+      if (drag?.element.hasPointerCapture(drag.pointerId)) drag.element.releasePointerCapture(drag.pointerId);
       setIsDragging(false);
     };
 
     // 拖拽期间全局防止选中文本并保持 col-resize 指针
+    const cursor = document.body.style.cursor;
+    const userSelect = document.body.style.userSelect;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('blur', handleBlur);
 
     return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = cursor;
+      document.body.style.userSelect = userSelect;
+      window.removeEventListener('blur', handleBlur);
     };
-  }, [isDragging, minSize, maxSize, reverse, onSizeChange]);
+  }, [isDragging]);
 
   return (
     <div
@@ -87,22 +98,26 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
         if (event.key === 'End') { event.preventDefault(); onSizeChange(maxSize); }
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const delta = (event.key === 'ArrowRight' ? 16 : -16) * (reverse ? -1 : 1); onSizeChange(Math.max(minSize, Math.min(maxSize, currentSize + delta))); }
       }}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onLostPointerCapture={handlePointerEnd}
       onDoubleClick={handleDoubleClick}
       title={title}
       className={cn(
-        'group relative w-1.5 shrink-0 z-20 cursor-col-resize select-none transition-colors h-full flex items-center justify-center',
-        isDragging ? 'bg-primary/80' : 'bg-transparent hover:bg-primary/30',
+        'group relative w-1.5 shrink-0 z-20 cursor-col-resize touch-none select-none transition-colors h-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
+        isDragging ? 'bg-primary/15' : 'bg-transparent hover:bg-primary/10',
         className
       )}
     >
       {/* 居中的高亮细线 */}
       <div
         className={cn(
-          'w-[1.5px] h-full transition-[background-color,box-shadow] duration-150',
+          'w-px h-full transition-colors duration-150',
           isDragging
-            ? 'bg-primary shadow-[0_0_8px_rgba(0,229,255,0.8)]'
-            : 'bg-transparent group-hover:bg-primary/80'
+            ? 'bg-primary'
+            : 'bg-border group-hover:bg-primary/80 group-focus-visible:bg-primary'
         )}
       />
     </div>

@@ -18,6 +18,18 @@ Issue writes and GitHub merge behavior are simulated in tab-local memory; no rea
 issues, comments, branches or pull requests are created by these browser tests.
 Workflow checks also cover branch-aware task banners, opt-in generation context,
 preview-before-replace behavior, partial CI failures and refreshes that preserve drafts.
+
+`workspace-panels.spec.ts` covers the desktop list/detail workspaces (Changes,
+Issues, merge requests, Errors and CI/CD) in Chinese/dark and English/light modes.
+Its screenshots are separate from the six history cases in `cases.json` and the
+three Issue screenshots in `issues.spec.ts`. Two additional screenshots cover the
+minimum 200px merge-request list in both languages. Behavioral checks cover
+reachable filters/counts/refresh at 200/240/320/550px, mouse and touch resizing,
+pointer cancellation, keyboard reset, compact icon alignment, narrow list height,
+pagination count semantics, panel-local loading/retry, and partial source failures.
+Changes keeps its multi-row diff controls; reading headers use compact 14px titles,
+metadata and 28px actions. These are desktop workspaces rather than page heroes.
+
 Review evidence uses an in-memory bridge response restricted to full-index diff
 reads on the synthetic fixture repository. All other bridge calls remain blocked.
 The test fails on browser errors or attempts to contact repository APIs or external

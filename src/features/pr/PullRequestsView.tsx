@@ -42,6 +42,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
+import { PanelCount } from '@/components/ui/PanelCount';
+import { WorkspaceError, WorkspaceLoading } from '@/components/ui/WorkspaceNotice';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { htmlToPlainText } from '@/utils/htmlText';
 
@@ -189,7 +191,7 @@ export const PullRequestsView: React.FC = () => {
   const canManagePR = Boolean(currentOwner && currentRepoName && activePR && activePR.state === 'open');
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
+    <div data-workspace-view="pullRequests" className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
       {/* Top Header Bar */}
       <div className="app-toolbar justify-between">
         <div className="app-toolbar-group">
@@ -205,8 +207,6 @@ export const PullRequestsView: React.FC = () => {
         </div>
       </div>
 
-      {pullRequestsError && <div role="alert" className="px-4 py-2 border-b border-border"><ErrorNotice error={pullRequestsError} /><Button variant="outline" size="xs" disabled={isLoadingPullRequests} onClick={() => void loadPullRequests()}>{t('remote.retry')}</Button></div>}
-      {isLoadingPullRequests && <p role="status" className="px-4 py-2 text-xs text-muted-foreground">{t('ui.pr.loading')}</p>}
 
       {/* Main Split: Left PR List + Right PR Review Details */}
       <div className="flex-1 flex overflow-hidden">
@@ -215,46 +215,18 @@ export const PullRequestsView: React.FC = () => {
           style={{ width: prListWidth }}
           className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
         >
-          {/* Panel header: 状态筛选 + 计数 + 刷新（与 Issues/Errors 面板头同规格） */}
-          <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0 overflow-x-clip">
-            <div className="glass-segmented shrink-0">
-              <button
-                aria-pressed={prFilterState === 'open'} onClick={() => setPRFilterState('open')}
-                className={cn(
-                  "px-2.5 text-[12px] font-medium transition-colors",
-                  prFilterState === 'open'
-                    ? "font-semibold text-accent-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t('pr.filterOpen')}
-              </button>
-              <button
-                aria-pressed={prFilterState === 'closed'} onClick={() => setPRFilterState('closed')}
-                className={cn(
-                  "px-2.5 text-[12px] font-medium transition-colors",
-                  prFilterState === 'closed'
-                    ? "font-semibold text-accent-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t('pr.filterClosed')}
-              </button>
-              <button
-                aria-pressed={prFilterState === 'all'} onClick={() => setPRFilterState('all')}
-                className={cn(
-                  "px-2.5 text-[12px] font-medium transition-colors",
-                  prFilterState === 'all'
-                    ? "font-semibold text-accent-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t('pr.filterAll')}
-              </button>
-            </div>
+          {/* 原生状态下拉适配 200px 左栏，计数与刷新始终留位。 */}
+          <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
+            <select name="pull-request-state" aria-label={t('pr.filterState')} value={prFilterState}
+              onChange={event => setPRFilterState(event.target.value as 'open' | 'closed' | 'all')}
+              className="h-7 min-w-0 flex-1 max-w-44 rounded-md border border-input bg-background px-1.5 text-[12px]">
+              <option value="open">{t('pr.filterOpen')}</option>
+              <option value="closed">{t('pr.filterClosed')}</option>
+              <option value="all">{t('pr.filterAll')}</option>
+            </select>
             <div className="flex shrink-0 items-center gap-1.5">
-              <span className="panel-count">{filteredPRs.length}</span>
-              <Button variant="ghost" size="icon-xs" onClick={() => loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" aria-label={t('pr.refreshTitle')} title={t('pr.refreshTitle')}>
+              <PanelCount count={filteredPRs.length} kind="filteredLoaded" />
+              <Button variant="ghost" size="icon-xs" onClick={() => void loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" aria-label={t('pr.refreshTitle')} title={t('pr.refreshTitle')}>
                 <RotateCw className={cn('h-3 w-3', isLoadingPullRequests && 'animate-spin')} />
               </Button>
             </div>
@@ -262,7 +234,7 @@ export const PullRequestsView: React.FC = () => {
           {/* Search row: 左栏内全宽（与 Issues/Errors 的过滤带同规格） */}
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
             <div className="relative w-full">
-              <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" />
+              <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5 pointer-events-none" aria-hidden="true" />
               <Input
                 name="pull-request-search"
                 autoComplete="off"
@@ -274,6 +246,8 @@ export const PullRequestsView: React.FC = () => {
               />
             </div>
           </div>
+          {pullRequestsError && <WorkspaceError actions={<Button variant="ghost" size="xs" disabled={isLoadingPullRequests} onClick={() => void loadPullRequests()}>{t('remote.retry')}</Button>}><ErrorNotice compact error={pullRequestsError} /></WorkspaceError>}
+          {isLoadingPullRequests && <WorkspaceLoading>{t('ui.pr.loading')}</WorkspaceLoading>}
           <ScrollArea className="flex-1">
             {filteredPRs.length === 0 ? (
               !isLoadingPullRequests && !pullRequestsError && <EmptyState variant={searchQuery.trim() ? 'search' : 'inbox'} title={t(!currentOwner || !currentRepoName ? 'ui.pr.noRepository' : searchQuery.trim() ? 'pr.noMatch' : 'ui.pr.empty')} desc={searchQuery.trim() ? undefined : t('ui.pr.emptyDesc')} />
@@ -393,26 +367,26 @@ export const PullRequestsView: React.FC = () => {
           ) : (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
               {/* PR Header Toolbar */}
-              <div className="p-4 border-b border-border/80 bg-accent/15 flex flex-wrap items-start justify-between gap-4 shrink-0">
+              <div className="workspace-detail-header">
                 <div className="space-y-1.5 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-foreground">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <h1 className="workspace-detail-title select-text">
                       {activePR.title}
-                    </span>
-                    <span className="text-xs font-mono text-muted-foreground">
+                    </h1>
+                    <span className="text-xs font-mono text-muted-foreground shrink-0">
                       #{activePR.number}
                     </span>
                   </div>
 
                   {/* Flow branch indicator */}
-                  <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-                    <Badge variant="outline" className="h-4 text-[11px] gap-1">
+                  <div className="workspace-detail-meta">
+                    <Badge variant="outline" className="h-4 text-[11px] gap-1 min-w-0 max-w-full font-mono">
                       <GitBranch className="h-2.5 w-2.5 text-git-branch" />
-                      <span>{activePR.head.ref}</span>
+                      <span className="truncate" title={activePR.head.ref}>{activePR.head.ref}</span>
                     </Badge>
                     <span>{t('pr.mergeInto')}</span>
-                    <Badge variant="outline" className="h-4 text-[11px]">
-                      {activePR.base.ref}
+                    <Badge variant="outline" className="h-4 text-[11px] min-w-0 max-w-full font-mono">
+                      <span className="truncate" title={activePR.base.ref}>{activePR.base.ref}</span>
                     </Badge>
 
                     <span className="text-muted-foreground/60">•</span>
@@ -421,7 +395,7 @@ export const PullRequestsView: React.FC = () => {
                 </div>
 
                 {/* Right Action: Checkout PR Branch + Merge/Close */}
-                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <div className="workspace-detail-actions">
                   <Button
                     variant="outline"
                     size="toolbar"
