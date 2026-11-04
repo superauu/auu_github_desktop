@@ -1,10 +1,12 @@
 import { externalIssueUrl, scopeIssueReference, isCurrentPlatformUrl, currentPlatformPath } from '@/services/integrations/links';
-import type { IssueReference, IssueTimelineEvent } from '@/services/collaboration/issueTypes';
+import { getTaskPlugin } from '@/services/integrations/plugins';
+import type { CollaborationIssue, IssueReference, IssueTimelineEvent } from '@/services/collaboration/issueTypes';
 
 export const issueKey = (reference: IssueReference) => { const issue = scopeIssueReference(reference); return `${issue.providerId && issue.server ? `${issue.providerId}:${issue.server}:` : ''}${issue.owner}/${issue.repo}#${issue.number}`; };
 export const issueUrl = externalIssueUrl;
-export const issueLabel = (issue: IssueReference) => `${issue.owner}/${issue.repo}#${issue.number}`;
-export const issueBranchName = (number: number, title: string) => `issue/${number}-${title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 55).replace(/-$/, '') || 'task'}`;
+/** 提交/PR 文案里的引用键：任务引用优先 identifier（ENG-123），托管保持 owner/repo#n。 */
+export const issueLabel = (issue: IssueReference) => issue.providerId && getTaskPlugin(issue.providerId) && issue.identifier ? issue.identifier : `${issue.owner}/${issue.repo}#${issue.number}`;
+export const issueBranchName = (key: number | string, title: string) => `issue/${key}-${title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 55).replace(/-$/, '') || 'task'}`;
 const prose = (body: string) => body.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`|<!--[\s\S]*?-->/g, '');
 
 /** Only references outside code blocks count as links; numbers and repository names are validated. */
@@ -29,14 +31,25 @@ export function issueReferences(body: string | null, owner: string, repo: string
 
 export function withClosingIssues(body: string, issues: IssueReference[]): string {
   // Keep user prose intact. Always include an explicit closing directive for selected issues.
+  // 托管引用用 Closes 指令（平台会在合并时关闭）；任务引用（Linear 等）没有该语义，
+  // 退化为纯引用（identifier 键），由平台的 Git 集成按分支/标题自行关联。
   const directives = [...new Map(issues.map(issue => [issueKey(issue), issue])).values()]
-    .map(issue => `Closes ${issue.owner}/${issue.repo}#${issue.number}`)
+    .map(issue => issue.providerId && getTaskPlugin(issue.providerId)
+      ? `Refs ${issueLabel(issue)}`
+      : `Closes ${issue.owner}/${issue.repo}#${issue.number}`)
     .filter(line => !prose(body).split('\n').some(existing => existing.trim().toLowerCase() === line.toLowerCase()));
   return [body.trim(), ...directives].filter(Boolean).join('\n\n');
 }
 
-export function referencedPullRequests(events: IssueTimelineEvent[]) {
-  const found = new Map<string, NonNullable<NonNullable<IssueTimelineEvent['source']>['issue']>>();
+/** 合并多个来源的 Issue 页：按更新时间倒序，行上携带来源键供详情路由与行 key 使用。 */
+export interface SourcedIssue { key: string; index: number; issue: CollaborationIssue }
+export function mergeIssuePages(pages: { key: string; items: CollaborationIssue[] }[]): SourcedIssue[] {
+  return pages
+    .flatMap(({ key, items }) => items.map((issue, index) => ({ key, index, issue })))
+    .sort((a, b) => (b.issue.updated_at ?? '').localeCompare(a.issue.updated_at ?? '') || a.key.localeCompare(b.key));
+}
+
+export function referencedPullRequests(events: IssueTimelineEvent[]) {  const found = new Map<string, NonNullable<NonNullable<IssueTimelineEvent['source']>['issue']>>();
   for (const event of events) {
     const pr = event.source?.issue;
     if (event.event !== 'cross-referenced' || !pr?.pull_request) continue;

@@ -1,4 +1,13 @@
 import type { ProviderManifest } from '@/services/integrations/registry';
+export const LINEAR_PROVIDER: ProviderManifest = {
+  // 独立任务系统（首个 task 装配档）：无自建实例，Linear 只此一家，故无 server 概念。
+  // Linear 无「关闭原因」语义（完成/取消即状态类型），不声明 close-state-reason。
+  id: 'linear', name: 'Linear', primaryDomain: 'task-tracking', connectionKind: 'task-account',
+  domains: [{ domain: 'task-tracking', capabilities: [
+    'task-tracking:list-issues', 'task-tracking:issue-detail', 'task-tracking:create-issue',
+    'task-tracking:update-issue', 'task-tracking:comment',
+  ] }],
+};
 export const SENTRY_PROVIDER: ProviderManifest = {
   id: 'sentry', name: 'Sentry', primaryDomain: 'error-tracking', connectionKind: 'error-token',
   domains: [{ domain: 'error-tracking', capabilities: [

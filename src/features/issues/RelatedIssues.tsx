@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
-import { collaborationService } from '@/services/collaboration/CollaborationService';
+import { openExternalUrl } from '@/utils/openExternal';
 import type { CollaborationIssue, IssueReference } from '@/services/collaboration/issueTypes';
+import { issueClientFor } from '@/services/integrations/taskService';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { issueLabel, issueKey, issueReferences, issueUrl } from './issueLogic';
@@ -22,8 +23,9 @@ export function RelatedIssues({ body, owner, repo }: { body: string | null; owne
     let active = true;
     if (!canRead) { setIssues([]); setLoading(false); return; }
     setIssues([]); setLoading(!!references.length);
+    // 按引用路由：任务引用走任务通道（后续 Linear URL 解析接入后生效），托管走协作通道。
     void Promise.all(references.map(async reference => {
-      try { return { reference, issue: await collaborationService.getIssue(reference.owner, reference.repo, reference.number) }; }
+      try { return { reference, issue: await issueClientFor(reference.providerId).getIssue(reference.owner, reference.repo, reference.number) }; }
       catch (reason) { return { reference, error: reason instanceof Error ? reason.message : String(reason) }; }
     })).then(result => { if (active && scope.isCurrent()) { setIssues(result); setLoading(false); } });
     return () => { active = false; };
@@ -34,7 +36,7 @@ export function RelatedIssues({ body, owner, repo }: { body: string | null; owne
     {issues.map(({ reference, issue, error }) => {
       const sameRepo = reference.owner.toLowerCase() === scope.owner?.toLowerCase() && reference.repo.toLowerCase() === scope.repo?.toLowerCase();
       return <div key={issueKey(reference)} className="rounded-lg border border-border p-2 space-y-1">
-        {sameRepo && issue ? <button className="text-primary text-left break-words" onClick={() => { useIssueWorkflowStore.getState().openIssue(reference); useRepoStore.getState().setActiveTab('issues'); }}>{issueLabel(reference)} · {issue.title}</button> : <a className="text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer">{issueLabel(reference)} ↗</a>}
+        {sameRepo && issue ? <button className="text-primary text-left break-words" onClick={() => { useIssueWorkflowStore.getState().openIssue(reference); useRepoStore.getState().setActiveTab('issues'); }}>{issueLabel(reference)} · {issue.title}</button> : <a className="text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer" onClick={event => { const url = issueUrl(reference); if (url) { event.preventDefault(); void openExternalUrl(url); } }}>{issueLabel(reference)} ↗</a>}
         {issue && <p className="text-muted-foreground">{t(issue.state === 'open' ? 'issues.open' : 'issues.closed')}</p>}
         {error && <p className="text-destructive">{error}</p>}
       </div>;

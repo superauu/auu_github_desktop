@@ -1,6 +1,7 @@
 import { CircleDot, RefreshCw, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
+import { openExternalUrl } from '@/utils/openExternal';
 import { useRepoStore } from '@/stores/repoStore';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
 import { issueLabel, issueKey, issueUrl } from './issueLogic';
@@ -15,7 +16,7 @@ export function CurrentBranchIssue() {
   return <section aria-label={t('issueFlow.currentTask')} className="flex items-center gap-2 shrink-0 min-w-0 px-3 py-1 border-b border-border bg-primary/5 text-xs" data-current-issue={issueKey(reference)}>
     <CircleDot className="h-3.5 w-3.5 shrink-0 text-git-added" /><span className="shrink-0 text-muted-foreground">{t('issueFlow.currentTask')}</span>
     {sameRepo ? <button className="truncate text-primary text-left min-w-0" title={label} onClick={() => { useIssueWorkflowStore.getState().openIssue(reference); useRepoStore.getState().setActiveTab('issues'); }}>{label}</button>
-      : <a className="truncate text-primary min-w-0" href={issueUrl(reference)} target="_blank" rel="noreferrer" title={label}>{label} ↗</a>}
+      : <a className="truncate text-primary min-w-0" href={issueUrl(reference)} target="_blank" rel="noreferrer" title={label} onClick={event => { const url = issueUrl(reference); if (url) { event.preventDefault(); void openExternalUrl(url); } }}>{label} ↗</a>}
     {issue && <span className="shrink-0 text-muted-foreground">{t(issue.state === 'open' ? 'issues.open' : 'issues.closed')}</span>}
     {loading && <span role="status" className="text-muted-foreground">{t('common.loading')}</span>}
     {error && <span className="truncate text-destructive" title={error}>{error}</span>}

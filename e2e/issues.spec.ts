@@ -98,7 +98,7 @@ test('filters, keyboard selection and a narrow issue detail layout remain usable
   await page.getByRole('textbox', { name: '搜索 Issue', exact: true }).fill('');
   await page.setViewportSize({ width: 750, height: 600 });
   const row = page.getByRole('listitem', { name: '#12 Connect issue and PR workflow' });
-  await row.focus(); await page.keyboard.press('Enter');
+  await row.getByRole('button').focus(); await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: '返回列表' })).toBeVisible();
   await expect(page.locator('[data-issue-detail="12"]')).toBeVisible();
   await expect(page.getByRole('button', { name: '创建关联 PR', exact: true })).toBeVisible();
@@ -112,12 +112,13 @@ for (const scenario of [{ theme: 'dark', width: 1440, height: 900 }, { theme: 'l
   test(`issue detail ${scenario.theme} ${scenario.width}x${scenario.height}`, async ({ page }) => {
     await page.setViewportSize({ width: scenario.width, height: scenario.height });
     await page.emulateMedia({ colorScheme: scenario.theme as 'dark' | 'light', reducedMotion: 'reduce' });
-    await page.goto(`/tests/visual/index.html?automation=1&issues=1&theme=${scenario.theme}`);
+    await page.goto(`/tests/visual/index.html?automation=1&issues=1&issueLayout=1&theme=${scenario.theme}`);
     await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-ready', 'true');
     await selectIssue(page);
     await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
     await page.mouse.move(-1, -1);
     await expect(page).toHaveScreenshot(`issues-${scenario.theme}-${scenario.width}x${scenario.height}.png`);
+    if (scenario.width === 1440) await page.locator('.issues-list-panel').screenshot({ path: 'test-results/issues-compact-list.png' });
   });
 }
 
@@ -162,6 +163,87 @@ test('the current task follows branch switches and issue drafts only replace tex
   await pr.getByRole('button', { name: '取消', exact: true }).click();
   await banner.getByRole('button', { name: '解除当前分支关联', exact: true }).click();
   await expect(banner).toHaveCount(0);
+});
+
+test('Markdown renders GFM safely in descriptions, comments and draft previews', async ({ page }) => {
+  await selectIssue(page);
+  await page.getByRole('button', { name: '编辑 Issue', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const markdown = '# Rendered heading\n\n**Bold text** and ~~removed~~ [guide](https://example.com/guide).\n\n- [x] Completed\n- [ ] Pending\n\n| Column | Value |\n| --- | --- |\n| Issue | 12 |\n\n```ts\nconst safe = true;\n```\n\n![Project logo](' + new URL('/logo.svg', page.url()).href + ')\n\n[unsafe](javascript:alert(1))\n\n<script>alert(1)</script>\n<img src="https://example.com/tracker" onerror="alert(1)">';
+  await dialog.getByLabel('描述（Markdown）', { exact: true }).fill(markdown);
+  await dialog.getByRole('button', { name: '预览', exact: true }).click();
+  await expect(dialog.getByRole('heading', { name: 'Rendered heading' })).toBeVisible();
+  await expect(dialog.getByRole('table')).toBeVisible();
+  await expect(dialog.getByRole('img', { name: 'Project logo' })).toBeVisible();
+  await expect(dialog.locator('script, img[src="https://example.com/tracker"], a[href^="javascript:"]')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '编辑', exact: true }).click();
+  await expect(dialog.getByLabel('描述（Markdown）', { exact: true })).toHaveValue(markdown);
+  await dialog.getByRole('button', { name: '保存', exact: true }).click();
+  const detail = page.locator('[data-issue-detail="12"]');
+  await expect(detail.getByRole('heading', { name: 'Rendered heading' })).toBeVisible();
+  await expect(detail.locator('pre code')).toHaveText('const safe = true;\n');
+  await expect(detail.getByRole('checkbox').first()).toBeChecked();
+  await expect(detail.getByRole('checkbox').first()).toBeDisabled();
+  await expect(detail.getByRole('link', { name: 'guide', exact: true })).toHaveAttribute('href', 'https://example.com/guide');
+  await detail.getByRole('textbox', { name: '撰写评论' }).fill('### Review result\n\n**Verified** with `Markdown`.');
+  await detail.getByRole('button', { name: '预览', exact: true }).click();
+  await expect(detail.getByRole('region', { name: '撰写评论 · 预览' })).toContainText('Verified');
+  await detail.getByRole('button', { name: '发表评论', exact: true }).click();
+  await expect(detail.locator('.issues-comment').getByRole('heading', { name: 'Review result' })).toBeVisible();
+});
+
+test('list filters clear together and the divider supports keyboard resizing', async ({ page }) => {
+  await page.getByRole('button', { name: '筛选', exact: true }).click();
+  await page.getByRole('textbox', { name: '标签', exact: true }).fill('enhancement');
+  await expect(page.getByText('没有符合条件的 Issue', { exact: true })).toBeVisible();
+  await page.locator('.issues-list-head').getByRole('button', { name: '清除筛选', exact: true }).click();
+  await expect(page.getByRole('listitem', { name: '#12 Connect issue and PR workflow' })).toBeVisible();
+  const divider = page.getByRole('separator', { name: '调整列表宽度' });
+  await divider.focus();
+  const width = Number(await divider.getAttribute('aria-valuenow'));
+  await page.keyboard.press('ArrowRight');
+  await expect(divider).toHaveAttribute('aria-valuenow', String(width + 20));
+  await selectIssue(page);
+  await divider.focus();
+  await page.keyboard.press('End');
+  expect(await page.locator('[data-issue-detail]').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.setViewportSize({ width: 1050, height: 700 });
+  expect(await page.locator('[data-issue-detail]').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+});
+
+test('load more appends issues, retries the failed page, preserves selection and resets for a new filter', async ({ page }) => {
+  await page.goto('/tests/visual/index.html?automation=1&issues=1&issuePages=1&issuePageFailure=1');
+  const list = page.getByRole('list', { name: 'Issue 列表', exact: true });
+  await expect(list.getByRole('listitem')).toHaveCount(30);
+  await expect(page.getByRole('button', { name: /上一页|下一页/ })).toHaveCount(0);
+  await selectIssue(page);
+  const comment = page.getByRole('textbox', { name: '撰写评论', exact: true });
+  await comment.fill('Keep this discussion draft while loading more issues.');
+  const loadMore = list.getByRole('button', { name: '加载更多 Issues', exact: true });
+  await loadMore.click();
+  const failure = list.getByRole('alert');
+  await expect(failure).toContainText('Next issue page temporarily unavailable');
+  await expect(list.getByRole('listitem')).toHaveCount(30);
+  await failure.getByRole('button', { name: '重试', exact: true }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(60);
+  await expect(list.getByRole('listitem', { name: '#12 Connect issue and PR workflow', exact: true }).getByRole('button')).toHaveAttribute('aria-current', 'true');
+  await expect(comment).toHaveValue('Keep this discussion draft while loading more issues.');
+  // The footer stays in the list's scrolling area, so appending another page
+  // keeps the existing viewport instead of replacing it with a new page.
+  await loadMore.scrollIntoViewIfNeeded();
+  const scrollTop = await list.evaluate(element => element.scrollTop);
+  await loadMore.click();
+  await expect(list.getByRole('listitem')).toHaveCount(65);
+  expect(await list.evaluate(element => element.scrollTop)).toBeGreaterThanOrEqual(scrollTop - 2);
+  await expect(loadMore).toHaveCount(0);
+  await expect(list.getByText('已加载全部 65 条', { exact: true })).toBeVisible();
+  const reads = JSON.parse(await page.locator('html').getAttribute('data-issue-fixture-pages') || '[]');
+  expect(reads.map((read: { page: number }) => read.page)).toEqual([1, 2, 2, 3]);
+  await page.getByRole('textbox', { name: '搜索 Issue', exact: true }).fill('Paginated issue 163');
+  await expect(list.getByRole('listitem')).toHaveCount(1);
+  await expect(list.getByRole('listitem', { name: '#163 Paginated issue 163', exact: true })).toBeVisible();
+  expect(await list.evaluate(element => element.scrollTop)).toBe(0);
+  await expect(list.getByText('已加载全部 1 条', { exact: true })).toBeVisible();
 });
 
 test('the Issue workflow shows partial CI honestly, retries, and preserves a discussion draft on refresh', async ({ page }) => {

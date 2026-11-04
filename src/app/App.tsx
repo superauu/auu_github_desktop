@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { useThemeStore } from '@/stores/themeStore';
 import { restoreSavedRepository } from '@/services/git/RepositorySession';
 import { startIntegrationRuntime } from '@/services/integrations/runtime';
+import { startTaskService } from '@/services/integrations/taskService';
+import { useTaskStore } from '@/stores/taskStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { initNotifications } from '@/services/notifications/NotificationService';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -15,12 +17,16 @@ export const App: React.FC = () => {
     void useSettingsStore.getState().initSecrets();
 
     const disposeIntegrations = startIntegrationRuntime();
+    // 独立任务连接（Linear）：恢复连接并绑定第二条客户端通道（导航门控在启动即生效）。
+    void useTaskStore.getState().restoreConnections();
+    const disposeTaskService = startTaskService();
 
     let cancelled = false;
     void restoreSavedRepository(() => cancelled);
     return () => {
       cancelled = true;
       disposeIntegrations();
+      disposeTaskService();
       disposeTheme?.();
     };
   }, []);

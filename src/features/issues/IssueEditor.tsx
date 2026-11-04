@@ -4,13 +4,18 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useI18n } from '@/i18n';
-import { collaborationService } from '@/services/collaboration/CollaborationService';
 import type { CollaborationIssue, CollaborationLabel, IssueUser } from '@/services/collaboration/issueTypes';
-import { useCollaborationScope } from './useCollaborationScope';
+import { issueClientFor } from '@/services/integrations/taskService';
+import { useFallbackIssueScope, type IssueSourceScope } from './useIssueSource';
 import { toast } from '@/stores/toastStore';
+import { MarkdownField } from '@/components/ui/Markdown';
 
-export function IssueEditor({ issue, onClose, onSaved }: { issue?: CollaborationIssue; onClose: () => void; onSaved: (issue: CollaborationIssue) => void }) {
-  const { t } = useI18n(), scope = useCollaborationScope(), id = useId();
+export function IssueEditor({ scope: scopeProp, issue, onClose, onSaved }: { scope?: IssueSourceScope; issue?: CollaborationIssue; onClose: () => void; onSaved: (issue: CollaborationIssue) => void }) {
+  const { t } = useI18n(), id = useId();
+  // scope 可省略（独立挂载/测试场景）：回落到来源派生作用域。
+  const fallback = useFallbackIssueScope();
+  const scope = scopeProp ?? fallback;
+  const client = issueClientFor(scope.providerId);
   const [title, setTitle] = useState(issue?.title || ''), [body, setBody] = useState(issue?.body || '');
   const [labels, setLabels] = useState(issue?.labels.map(label => label.name) || []);
   const [assignees, setAssignees] = useState(issue?.assignees.map(user => user.login) || []);
@@ -22,9 +27,8 @@ export function IssueEditor({ issue, onClose, onSaved }: { issue?: Collaboration
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     let active = true;
-    if (!scope.owner || !scope.repo) return;
     setLoadingMetadata(true); setMetadataError('');
-    void Promise.allSettled([collaborationService.getIssueLabels(scope.owner, scope.repo), collaborationService.getIssueAssignees(scope.owner, scope.repo)]).then(([labelResult, userResult]) => {
+    void Promise.allSettled([client.getIssueLabels(scope.owner, scope.repo), client.getIssueAssignees(scope.owner, scope.repo)]).then(([labelResult, userResult]) => {
       if (!active || !scope.isCurrent()) return;
       if (labelResult.status === 'fulfilled') setAvailableLabels(previous => [...new Map([...previous, ...labelResult.value].map(label => [label.name, label])).values()]);
       if (userResult.status === 'fulfilled') setAvailableUsers(previous => [...new Map([...previous, ...userResult.value].map(user => [user.login, user])).values()]);
@@ -33,15 +37,15 @@ export function IssueEditor({ issue, onClose, onSaved }: { issue?: Collaboration
       setLoadingMetadata(false);
     });
     return () => { active = false; };
-  }, [scope, attempt]);
+  }, [scope, attempt, client]);
   const toggle = (values: string[], value: string) => values.includes(value) ? values.filter(item => item !== value) : [...values, value];
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (sending.current || !title.trim() || !scope.owner || !scope.repo || !scope.isCurrent()) return;
+    if (sending.current || !title.trim() || !scope.isCurrent()) return;
     sending.current = true; setSubmitting(true); setError('');
     try {
       const input = { title: title.trim(), body, labels, assignees };
-      const saved = issue ? await collaborationService.updateIssue(scope.owner, scope.repo, issue.number, input) : await collaborationService.createIssue(scope.owner, scope.repo, input);
+      const saved = issue ? await client.updateIssue(scope.owner, scope.repo, issue.number, input) : await client.createIssue(scope.owner, scope.repo, input);
       if (mounted.current && scope.isCurrent()) {
         const normalized = (values: string[]) => [...values].map(value => value.toLowerCase()).sort().join('\0');
         if (normalized(labels) !== normalized(saved.labels.map(label => label.name)) || normalized(assignees) !== normalized(saved.assignees.map(user => user.login))) toast.warning(t('issues.metadataNotApplied'));
@@ -53,10 +57,10 @@ export function IssueEditor({ issue, onClose, onSaved }: { issue?: Collaboration
   return <ModalSurface onDismiss={onClose} dismissible={!submitting} label={t(issue ? 'issues.edit' : 'issues.create')} className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-3">
     <form onSubmit={submit} className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-card p-5 space-y-4 shadow-2xl">
       <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold">{t(issue ? 'issues.edit' : 'issues.create')}</h2><Button type="button" variant="ghost" size="icon" aria-label={t('common.close')} onClick={onClose} disabled={submitting}><X className="h-4 w-4" /></Button></div>
-      <p className="text-xs text-muted-foreground">{scope.owner}/{scope.repo}{issue ? ` #${issue.number}` : ''}</p>
+      <p className="text-xs text-muted-foreground">{scope.label}{issue ? ` ${issue.identifier ?? `#${issue.number}`}` : ''}</p>
       <fieldset disabled={submitting} className="space-y-4 min-w-0">
         <label className="block space-y-1 text-xs" htmlFor={`${id}-title`}><span>{t('issues.title')}</span><Input id={`${id}-title`} value={title} maxLength={256} onChange={event => setTitle(event.target.value)} required autoFocus /></label>
-        <label className="block space-y-1 text-xs" htmlFor={`${id}-body`}><span>{t('issues.description')}</span><textarea id={`${id}-body`} value={body} onChange={event => setBody(event.target.value)} rows={7} className="w-full rounded-lg border border-input bg-background p-2 text-xs font-mono resize-y" /></label>
+        <MarkdownField label={t('issues.description')} value={body} onChange={setBody} baseUrl={issue?.html_url} disabled={submitting} />
         {loadingMetadata && <p role="status" className="text-xs text-muted-foreground">{t('common.loading')}</p>}
         {metadataError && <div role="alert" className="text-xs text-destructive">{metadataError} <Button type="button" size="xs" variant="outline" onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
         <div role="group" aria-label={t('issues.labels')} className="space-y-2"><p className="text-xs font-medium">{t('issues.labels')}</p><div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto">

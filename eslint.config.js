@@ -24,7 +24,9 @@ export default tseslint.config(
       // TypeScript checks unused symbols; legacy API responses are intentionally untyped.
       'no-unused-vars': 'off',
       // ignoreRestSiblings: 放行「解构剔除敏感字段」惯用法（如 settingsStore 剔除 apiKey）。
-      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
+      // argsIgnorePattern: `_` 前缀是既有的「占位参数」惯例（dev 夹具、域方法里
+      // 平台用不到的 owner/repo 形参），显式承认而不是逼出 void 消费。
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true, argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-expressions': ['error', { allowTernary: true }],
       // Error.cause 需要 ES2022，target 已升级，恢复 recommended 默认检查。

@@ -90,6 +90,8 @@ export const AppLayout: React.FC = () => {
   const errorsPollingIntervalSec = useSettingsStore((state) => state.errorsPollingIntervalSec);
   useEffect(() => {
     useErrorsStore.getState().restoreConnections();
+    // 健康态只存内存：启动后台验证一次，连接行不再停在「未验证」等用户手动刷新。
+    void useErrorsStore.getState().retestEnabled();
     useErrorsStore.getState().startPolling(errorsPollingIntervalSec);
     return () => useErrorsStore.getState().stopPolling();
   }, [errorsPollingIntervalSec]);

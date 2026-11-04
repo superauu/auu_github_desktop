@@ -1,10 +1,14 @@
-export interface IssueReference { owner: string; repo: string; number: number; providerId?: string; server?: string }
+export interface IssueReference { owner: string; repo: string; number: number; providerId?: string; server?: string;
+  /** 平台展示键（ENG-123）：任务引用的 URL 与提交引用以它为键，托引用可省略。 */
+  identifier?: string }
 export interface IssueDraftContext extends IssueReference { title: string; body: string }
 export interface CollaborationCommitStatus { id: number; context: string; state: 'error' | 'failure' | 'pending' | 'success' | 'warning'; description?: string | null; target_url?: string | null }
 export interface CollaborationLabel { id: number; name: string; color: string; description?: string | null }
 export interface IssueUser { login: string; avatar_url?: string }
 export interface CollaborationIssue {
   id: number; number: number; title: string; body: string | null;
+  /** 平台展示键（Linear 的 ENG-123 等）；托管平台留空，UI 优先显示它。 */
+  identifier?: string;
   state: 'open' | 'closed'; state_reason?: 'completed' | 'not_planned' | 'reopened' | null;
   html_url: string; user: IssueUser; labels: CollaborationLabel[]; assignees: IssueUser[];
   comments: number; created_at: string; updated_at: string; closed_at: string | null;
