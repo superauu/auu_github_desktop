@@ -9,7 +9,7 @@ export function keyboardRowProps(label: string): HTMLAttributes<HTMLDivElement> 
   } as HTMLAttributes<HTMLDivElement>;
 }
 
-export function handleRowKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+export function handleRowKeyDown(event: KeyboardEvent<HTMLElement>) {
   if (event.target !== event.currentTarget) return;
   const row = event.currentTarget;
   if (event.key === 'Enter' || event.key === ' ') {

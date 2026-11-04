@@ -19,10 +19,11 @@ import { useFallbackIssueScope, type IssueSourceScope } from './useIssueSource';
 import { issueKey } from './issueLogic';
 import { IssuePullRequestCard } from './IssuePullRequestCard';
 import { confirmAction } from '@/stores/confirmStore';
+import { Markdown, MarkdownField } from '@/components/ui/Markdown';
 
 /** 详情页：桌面式全宽布局（吸顶标题栏 + 主内容/属性双栏），不再是网页式居中窄栏。 */
 export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: IssueSourceScope; number: number; onChanged: () => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   // scope 可省略（独立挂载/测试场景）：回落到仓库作用域。
   const fallback = useFallbackIssueScope();
   const scope = scopeProp ?? fallback;
@@ -124,7 +125,7 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
     </header>
     <div className="issues-detail-body">
       <div className="issues-detail-main">
-        <div className="issues-description select-text">{issue.body || t('issues.noDescription')}</div>
+        <div className="issues-description"><Markdown baseUrl={issue.html_url}>{issue.body || t('issues.noDescription')}</Markdown></div>
         <section className="issues-section">
           <h2 className="issues-section-title">{t('issues.relatedPRs')}</h2>
           {prs.slice(0, prLimit).map(pr => <IssuePullRequestCard key={pr.html_url} url={pr.html_url} refresh={attempt + autoTick + revision} />)}
@@ -134,25 +135,29 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
           {!prs.length && !activityError && <p className="text-muted-foreground text-xs">{t('issues.noPRs')}</p>}
         </section>
 
-        {error && <p role="alert" className="text-destructive whitespace-pre-wrap text-xs">{error}</p>}
-      </div>
-      <aside className="issues-detail-aside">
-        <div className="issues-prop"><span className="issues-prop-label">{t('issues.assignees')}</span><span className="issues-prop-value">{issue.assignees.map(user => user.login).join(', ') || t('issues.none')}</span></div>
-        <div className="issues-prop"><span className="issues-prop-label">{t('issues.labels')}</span><span className="issues-prop-value">{issue.labels.length ? issue.labels.map(label => <span key={label.id} className="issues-label-chip"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: /^[a-f\d]{6}$/i.test(label.color) ? `#${label.color}` : undefined }} />{label.name}</span>) : t('issues.none')}</span></div>
-        <div className="issues-prop"><span className="issues-prop-label">{t('issues.source')}</span><span className="issues-prop-value">{providerLabel ?? '—'}</span></div>
-                <section className="issues-section">
-          <h2 className="issues-section-title">{t('issues.comments')}</h2>
+        <section className="issues-section issues-discussion">
+          <h2 className="issues-section-title">{t('issues.comments')} <span className="issues-count">{comments.length}</span></h2>
+          {!comments.length && !activityError && <p className="text-xs text-muted-foreground">{t('issues.noComments')}</p>}
           {activityError && <div role="alert" className="text-destructive text-xs">{activityError} <Button size="xs" variant="outline" disabled={busy} onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
-          {comments.map(item => <article key={item.id} className="issues-comment select-text"><div className="issues-comment-head"><span className="issues-comment-author">{item.user.login}</span><time>{new Date(item.created_at).toLocaleString()}</time></div><p className="issues-comment-body">{item.body}</p></article>)}
+          {comments.map(item => <article key={item.id} className="issues-comment select-text"><div className="issues-comment-head"><span className="issues-comment-author">{item.user.login}</span><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en')}</time></div><Markdown baseUrl={issue.html_url}>{item.body}</Markdown></article>)}
           <form onSubmit={event => { event.preventDefault(); if (!comment.trim()) return; void run(async () => { const saved = await issueClientFor(scope.providerId).createIssueComment(scope.owner, scope.repo, number, comment.trim()); if (valid()) { setComments(previous => [...previous, saved]); setComment(''); onChanged(); } }); }} className="issues-composer space-y-2">
-            <label className="block space-y-1 text-xs"><span>{t('issues.addComment')}</span><textarea aria-label={t('issues.addComment')} value={comment} onChange={event => setComment(event.target.value)} disabled={busy || issue.locked} rows={4} /></label>
+            <MarkdownField label={t('issues.addComment')} value={comment} onChange={setComment} disabled={busy || issue.locked} rows={4} baseUrl={issue.html_url} />
             {issue.locked && <p className="text-muted-foreground text-[11px]">{t('issues.locked')}</p>}
             <div className="flex gap-2 flex-wrap"><Button type="submit" size="sm" disabled={busy || issue.locked || !comment.trim() || !can('task-tracking:comment')} title={can('task-tracking:comment') ? undefined : t('connections.unavailableCapability')}>{t('issues.sendComment')}</Button>
               {issue.state === 'open' ? <><Button type="button" size="sm" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('closed', 'completed')}>{t('issues.closeCompleted')}</Button><Button type="button" size="sm" variant="ghost" disabled={busy || !can('task-tracking:update-issue') || !can('task-tracking:close-state-reason')} title={!can('task-tracking:close-state-reason') ? t('issues.notPlannedUnsupported') : can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('closed', 'not_planned')}>{t('issues.closeNotPlanned')}</Button></> : <Button type="button" size="sm" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => void changeState('open', 'reopened')}>{t('issues.reopen')}</Button>}
             </div>
           </form>
         </section>
+
         {error && <p role="alert" className="text-destructive whitespace-pre-wrap text-xs">{error}</p>}
+      </div>
+      <aside className="issues-detail-aside">
+        <h2 className="issues-section-title">{t('issues.properties')}</h2>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.assignees')}</span><span className="issues-prop-value">{issue.assignees.map(user => user.login).join(', ') || t('issues.none')}</span></div>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.labels')}</span><span className="issues-prop-value">{issue.labels.length ? issue.labels.map(label => <span key={label.id} className="issues-label-chip"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: /^[a-f\d]{6}$/i.test(label.color) ? `#${label.color}` : undefined }} />{label.name}</span>) : t('issues.none')}</span></div>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.source')}</span><span className="issues-prop-value">{providerLabel ?? '—'}</span></div>
+        <div className="issues-prop"><span className="issues-prop-label">{t('issues.updated')}</span><time className="issues-prop-value" dateTime={issue.updated_at}>{new Date(issue.updated_at).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en')}</time></div>
+
       </aside>
     </div>
     {editing && <IssueEditor scope={scope} issue={issue} onClose={() => setEditing(false)} onSaved={saved => { reads.current++; setLoading(false); setIssue(saved); setEditing(false); setAttempt(value => value + 1); onChanged(); }} />}

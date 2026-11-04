@@ -34,6 +34,23 @@ export function prepareIssueFixture(repository: RepositoryInfo) {
     html_url: `https://github.com/fixture/project/issues/${number}`, user, labels: [labels[0]], assignees: [user], comments: 0, created_at: stamp, updated_at: stamp, closed_at: state === 'closed' ? stamp : null,
   });
   const issues = [issue(12, 'Connect issue and PR workflow'), issue(13, 'Completed keyboard navigation', 'closed')];
+  const paginated = new URLSearchParams(location.search).get('issuePages') === '1';
+  if (paginated) issues.push(...Array.from({ length: 64 }, (_, index) => issue(100 + index, `Paginated issue ${100 + index}`)));
+  const pageReads: { page: number; query: string }[] = [];
+  let failNextPage = new URLSearchParams(location.search).get('issuePageFailure') === '1';
+  document.documentElement.dataset.issueFixturePages = '[]';
+  if (new URLSearchParams(location.search).get('issueLayout') === '1') {
+    issues[0].body = '## Keep the workflow connected\n\nReview the **issue context**, create a branch, and follow the linked pull request in one place.\n\n### Acceptance criteria\n\n- [x] Preserve issue labels and assignees\n- [ ] Verify keyboard navigation\n- [ ] Review the linked pull request\n\n> Discussion and implementation stay connected throughout the review.\n\n```ts\nconst branch = "issue/12-connect-workflow";\n```\n\n| Area | Expected behavior |\n| --- | --- |\n| Issues | Read and discuss |\n| Pull requests | Track review and CI |\n\n[Read the project guide](https://github.com/fixture/project)';
+    issues[0].comments = 3;
+    issues[0].labels = labels;
+    issues.push(issue(14, 'Render Markdown images and tables in issue descriptions'), issue(15, 'Improve empty states for disconnected repositories'), issue(16, 'Keep discussion drafts when refreshing a linked issue'), issue(17, 'Support long issue titles without hiding the context or overflowing the issue list'));
+    issues[2].labels = [labels[1]];
+    issues[3].labels = [];
+    issues[3].assignees = [];
+    issues[4].labels = [];
+    issues[5].labels = [];
+    issues[5].assignees = [];
+  }
   const comments = new Map<number, { id: number; user: typeof user; body: string; created_at: string; updated_at: string }[]>();
   const prs: CollaborationPullRequest[] = [];
   const writes: { kind: string; data: unknown }[] = [];
@@ -41,6 +58,9 @@ export function prepareIssueFixture(repository: RepositoryInfo) {
   document.documentElement.dataset.issueFixtureWrites = '[]';
   const clone = <T,>(data: T): T => structuredClone(data);
   collaborationService.searchIssues = async (_owner, _repo, options) => {
+    pageReads.push({ page: options.page, query: options.query });
+    document.documentElement.dataset.issueFixturePages = JSON.stringify(pageReads);
+    if (paginated && options.page === 2 && failNextPage) { failNextPage = false; throw new Error('Next issue page temporarily unavailable'); }
     const all = issues.filter(item => (options.state === 'all' || item.state === options.state)
       && (!options.query || `${item.title} ${item.body}`.toLowerCase().includes(options.query.toLowerCase()))
       && (!options.label || item.labels.some(label => label.name === options.label))

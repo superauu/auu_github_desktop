@@ -15,9 +15,10 @@ test('a Linear task connection lights up Issues without any hosting account', as
   // 任务连接独立点亮 Issues 导航；合并请求/CI 仍不出现（任务连接不贡献这些域）。
   await page.getByRole('button', { name: 'Issues', exact: true }).click();
   await expect(page.getByText('Acme Linear', { exact: true })).toBeVisible();
-  await expect(page.getByRole('listitem', { name: /#12 Linear task without hosting account/ })).toBeVisible();
+  // 任务来源的列表行以 identifier 作为展示键（Linear 为 ENG-12）。
+  await expect(page.getByRole('listitem', { name: /ENG-12 Linear task without hosting account/ })).toBeVisible();
   // 详情：identifier 展示、外链指向 linear.app、任务能力按钮可用（Linear 声明了评论/更新）。
-  await page.getByRole('listitem', { name: /#12 Linear task without hosting account/ }).click();
+  await page.getByRole('listitem', { name: /ENG-12 Linear task without hosting account/ }).click();
   const detail = page.locator('[data-issue-detail="12"]');
   // 新布局：编号与作者分开呈现（标题行 + meta 行）。
   await expect(detail.getByText('ENG-12', { exact: true })).toBeVisible();

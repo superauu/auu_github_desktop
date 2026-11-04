@@ -8,6 +8,7 @@ import type { CollaborationIssue, CollaborationLabel, IssueUser } from '@/servic
 import { issueClientFor } from '@/services/integrations/taskService';
 import { useFallbackIssueScope, type IssueSourceScope } from './useIssueSource';
 import { toast } from '@/stores/toastStore';
+import { MarkdownField } from '@/components/ui/Markdown';
 
 export function IssueEditor({ scope: scopeProp, issue, onClose, onSaved }: { scope?: IssueSourceScope; issue?: CollaborationIssue; onClose: () => void; onSaved: (issue: CollaborationIssue) => void }) {
   const { t } = useI18n(), id = useId();
@@ -59,7 +60,7 @@ export function IssueEditor({ scope: scopeProp, issue, onClose, onSaved }: { sco
       <p className="text-xs text-muted-foreground">{scope.label}{issue ? ` ${issue.identifier ?? `#${issue.number}`}` : ''}</p>
       <fieldset disabled={submitting} className="space-y-4 min-w-0">
         <label className="block space-y-1 text-xs" htmlFor={`${id}-title`}><span>{t('issues.title')}</span><Input id={`${id}-title`} value={title} maxLength={256} onChange={event => setTitle(event.target.value)} required autoFocus /></label>
-        <label className="block space-y-1 text-xs" htmlFor={`${id}-body`}><span>{t('issues.description')}</span><textarea id={`${id}-body`} value={body} onChange={event => setBody(event.target.value)} rows={7} className="w-full rounded-lg border border-input bg-background p-2 text-xs font-mono resize-y" /></label>
+        <MarkdownField label={t('issues.description')} value={body} onChange={setBody} baseUrl={issue?.html_url} disabled={submitting} />
         {loadingMetadata && <p role="status" className="text-xs text-muted-foreground">{t('common.loading')}</p>}
         {metadataError && <div role="alert" className="text-xs text-destructive">{metadataError} <Button type="button" size="xs" variant="outline" onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
         <div role="group" aria-label={t('issues.labels')} className="space-y-2"><p className="text-xs font-medium">{t('issues.labels')}</p><div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto">
