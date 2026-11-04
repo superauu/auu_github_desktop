@@ -6,14 +6,14 @@ import { Input } from '@/components/ui/input';
 import { useI18n } from '@/i18n';
 import type { CollaborationIssue, CollaborationLabel, IssueUser } from '@/services/collaboration/issueTypes';
 import { issueClientFor } from '@/services/integrations/taskService';
-import { useIssueSource, type IssueSourceScope } from './useIssueSource';
+import { useFallbackIssueScope, type IssueSourceScope } from './useIssueSource';
 import { toast } from '@/stores/toastStore';
 
 export function IssueEditor({ scope: scopeProp, issue, onClose, onSaved }: { scope?: IssueSourceScope; issue?: CollaborationIssue; onClose: () => void; onSaved: (issue: CollaborationIssue) => void }) {
   const { t } = useI18n(), id = useId();
   // scope 可省略（独立挂载/测试场景）：回落到来源派生作用域。
-  const derived = useIssueSource();
-  const scope = scopeProp ?? derived.scope;
+  const fallback = useFallbackIssueScope();
+  const scope = scopeProp ?? fallback;
   const client = issueClientFor(scope.providerId);
   const [title, setTitle] = useState(issue?.title || ''), [body, setBody] = useState(issue?.body || '');
   const [labels, setLabels] = useState(issue?.labels.map(label => label.name) || []);

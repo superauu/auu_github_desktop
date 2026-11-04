@@ -1,6 +1,6 @@
 import { externalIssueUrl, scopeIssueReference, isCurrentPlatformUrl, currentPlatformPath } from '@/services/integrations/links';
 import { getTaskPlugin } from '@/services/integrations/plugins';
-import type { IssueReference, IssueTimelineEvent } from '@/services/collaboration/issueTypes';
+import type { CollaborationIssue, IssueReference, IssueTimelineEvent } from '@/services/collaboration/issueTypes';
 
 export const issueKey = (reference: IssueReference) => { const issue = scopeIssueReference(reference); return `${issue.providerId && issue.server ? `${issue.providerId}:${issue.server}:` : ''}${issue.owner}/${issue.repo}#${issue.number}`; };
 export const issueUrl = externalIssueUrl;
@@ -41,8 +41,15 @@ export function withClosingIssues(body: string, issues: IssueReference[]): strin
   return [body.trim(), ...directives].filter(Boolean).join('\n\n');
 }
 
-export function referencedPullRequests(events: IssueTimelineEvent[]) {
-  const found = new Map<string, NonNullable<NonNullable<IssueTimelineEvent['source']>['issue']>>();
+/** 合并多个来源的 Issue 页：按更新时间倒序，行上携带来源键供详情路由与行 key 使用。 */
+export interface SourcedIssue { key: string; index: number; issue: CollaborationIssue }
+export function mergeIssuePages(pages: { key: string; items: CollaborationIssue[] }[]): SourcedIssue[] {
+  return pages
+    .flatMap(({ key, items }) => items.map((issue, index) => ({ key, index, issue })))
+    .sort((a, b) => (b.issue.updated_at ?? '').localeCompare(a.issue.updated_at ?? '') || a.key.localeCompare(b.key));
+}
+
+export function referencedPullRequests(events: IssueTimelineEvent[]) {  const found = new Map<string, NonNullable<NonNullable<IssueTimelineEvent['source']>['issue']>>();
   for (const event of events) {
     const pr = event.source?.issue;
     if (event.event !== 'cross-referenced' || !pr?.pull_request) continue;

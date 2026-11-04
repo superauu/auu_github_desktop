@@ -14,15 +14,15 @@ import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { CreatePullRequestModal } from '@/features/pr/CreatePullRequestModal';
 import { IssueEditor } from './IssueEditor';
 import { issueBranchName, issueUrl, referencedPullRequests } from './issueLogic';
-import { useIssueSource, type IssueSourceScope } from './useIssueSource';
+import { useFallbackIssueScope, type IssueSourceScope } from './useIssueSource';
 import { issueKey } from './issueLogic';
 import { IssuePullRequestCard } from './IssuePullRequestCard';
 import { confirmAction } from '@/stores/confirmStore';
 
 export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: IssueSourceScope; number: number; onChanged: () => void }) {
   // scope 可省略（独立挂载/测试场景）：回落到来源派生作用域。
-  const derived = useIssueSource();
-  const scope = scopeProp ?? derived.scope;
+  const fallback = useFallbackIssueScope();
+  const scope = scopeProp ?? fallback;
   const { t } = useI18n();
   // 任务引用按任务连接的 manifest 收敛能力（不借托管平台亮按钮）；托管引用维持并集口径。
   const { can } = useIssueCapabilities(scope.source === 'task' ? scope.providerId : undefined);

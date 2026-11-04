@@ -17,7 +17,7 @@ before(async () => {
   const file = path.join(temporary, 'issue-source.cjs');
   await build({ stdin: { contents: `
     export { scopeIssueReference, externalIssueUrl } from './src/services/integrations/links';
-    export { withClosingIssues, issueLabel, issueBranchName } from './src/features/issues/issueLogic';
+    export { withClosingIssues, issueLabel, issueBranchName, mergeIssuePages } from './src/features/issues/issueLogic';
     export { useIssueWorkflowStore } from './src/stores/issueWorkflowStore';
     export { useTaskStore } from './src/stores/taskStore';
     export { useIntegrationStore } from './src/stores/integrationStore';
@@ -88,6 +88,15 @@ test('branch-issue association accepts task refs only while the task connection 
   await api.useTaskStore.getState().removeConnection(connection.id);
   assert.equal(api.useIssueWorkflowStore.getState().issueForBranch('/repo', 'issue/ENG-12-x'), undefined);
   store.unlinkBranch('/repo', 'issue/ENG-12-x');
+});
+
+test('merged issue pages sort by updated time across sources and keep source keys', () => {
+  const issue = (number, updated_at) => ({ id: number, number, title: 't' + number, body: null, state: 'open', html_url: '', user: { login: 'a' }, labels: [], assignees: [], comments: 0, created_at: '', updated_at, closed_at: null });
+  const merged = api.mergeIssuePages([
+    { key: 'repo-key', items: [issue(1, '2026-01-01T00:00:00Z'), issue(2, '2026-03-01T00:00:00Z')] },
+    { key: 'task-key', items: [issue(3, '2026-02-01T00:00:00Z')] },
+  ]);
+  assert.deepEqual(merged.map(row => [row.key, row.issue.number]), [['repo-key', 2], ['task-key', 3], ['repo-key', 1]]);
 });
 
 test('issue client routing sends task refs to the task channel and hosting refs to collaboration', async () => {

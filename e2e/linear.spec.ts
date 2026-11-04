@@ -38,6 +38,12 @@ test('a Linear task connection lights up Issues without any hosting account', as
   const stored = Object.values(links.state?.branchIssues ?? {})[0] as { identifier?: string; providerId?: string } | undefined;
   expect(stored?.identifier).toBe('ENG-12');
   expect(stored?.providerId).toBe('linear');
+  // 单一来源时不出现来源过滤器；新建 Issue 直接在任务平台打开编辑器（默认上次选择）。
+  await expect(page.locator('select[name="issue-source"]')).toHaveCount(0);
+  await page.getByRole('button', { name: '新建 Issue', exact: true }).click();
+  const editor = page.getByRole('dialog');
+  await expect(editor.getByRole('textbox', { name: '标题' })).toBeVisible();
+  await editor.getByRole('button', { name: '取消', exact: true }).click();
   // 设置 → 集成：Linear 卡片在任务追踪分组且有连接；管理行提供测试/删除。
   await page.getByRole('button', { name: /打开设置/ }).click();
   const settings = page.getByRole('dialog');
