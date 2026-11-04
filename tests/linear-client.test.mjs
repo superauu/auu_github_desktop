@@ -11,7 +11,8 @@ let temporary, api;
 let linearRequests, tokenRequests, graphqlResponse, tokenResponse;
 
 function respond(body, status = 200) {
-  return { status, ok: status >= 200 && status < 300, headers: new Map(), text: async () => JSON.stringify(body) };
+  // headers 须带 content-type：tokenRequest 按 content-type 守卫端点漂移。
+  return { status, ok: status >= 200 && status < 300, headers: new Map([['content-type', 'application/json']]), text: async () => JSON.stringify(body) };
 }
 
 before(async () => {
@@ -55,7 +56,10 @@ before(async () => {
     if (command === 'provider_http_request') {
       const { method, url, headers, body } = args.request;
       const response = await globalThis.__fetchShim(url, { method, headers, body: body ?? undefined });
-      return { status: response.status, headers: {}, body: await response.text() };
+      // headers 转小写键对象（生产 Rust 桥同款形状），tokenRequest 的 content-type 守卫依赖它。
+      const headerMap = {};
+      response.headers.forEach((value, name) => { headerMap[name.toLowerCase()] = value; });
+      return { status: response.status, headers: headerMap, body: await response.text() };
     }
     if (command === 'cancel_provider_http_request') return null;
     if (command === 'oauth_loopback_begin') { session = { id: 'loopback-test-1', port: args.port }; return session; }
@@ -142,7 +146,7 @@ test('oauth authorize runs the PKCE loopback flow and validates state', async ()
     });
     const tokens = await api.linearOAuthService.authorize();
     const exchange = tokenRequests.at(-1);
-    assert.equal(exchange.url, 'https://linear.app/oauth/token');
+    assert.equal(exchange.url, 'https://api.linear.app/oauth/token');
     assert.equal(exchange.body.get('grant_type'), 'authorization_code');
     assert.equal(exchange.body.get('code'), 'auth-1');
     assert.ok((exchange.body.get('code_verifier') ?? '').length >= 43);

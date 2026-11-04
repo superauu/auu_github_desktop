@@ -5,7 +5,8 @@ import { ProviderApiError } from '@/services/collaboration/client';
 import { providerHttpRequest } from '@/services/http/providerHttp';
 
 const AUTHORIZE_URL = 'https://linear.app/oauth/authorize';
-const TOKEN_URL = 'https://linear.app/oauth/token';
+/** 令牌端点在 api 子域：linear.app/oauth/token 会命中 SPA fallback 返回 200+HTML。 */
+const TOKEN_URL = 'https://api.linear.app/oauth/token';
 /** 与 Linear OAuth 应用登记的回跳地址保持一致（oauth_callback.rs 注释同步）。 */
 export const LOOPBACK_PORT = 53862;
 const REDIRECT_URI = `http://127.0.0.1:${LOOPBACK_PORT}/callback`;
@@ -119,7 +120,11 @@ export class LinearOAuthService {
     const response = await providerHttpRequest('POST', TOKEN_URL, { 'Content-Type': 'application/x-www-form-urlencoded' },
       new URLSearchParams(form).toString());
     let payload: any;
-    try { payload = JSON.parse(response.body); } catch { throw new ProviderApiError(response.status, `Linear token endpoint returned non-JSON: ${response.status}`); }
+    // 非 JSON 响应附带正文片段：端点漂移/网关页/风控页都能一眼定位。
+    if (!/^application\/json/i.test(response.headers['content-type'] ?? '')) {
+      throw new ProviderApiError(response.status, `Linear token endpoint returned ${response.headers['content-type'] ?? 'unknown content-type'}: ${response.status} ${response.body.slice(0, 160)}`);
+    }
+    try { payload = JSON.parse(response.body); } catch { throw new ProviderApiError(response.status, `Linear token endpoint returned non-JSON: ${response.status} ${response.body.slice(0, 160)}`); }
     if (response.status < 200 || response.status >= 300 || payload.error) {
       throw new ProviderApiError(response.status === 200 ? 400 : response.status,
         `Linear token endpoint: ${payload.error_description || payload.error || `HTTP ${response.status}`}`);
