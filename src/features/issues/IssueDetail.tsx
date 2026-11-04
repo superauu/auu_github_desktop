@@ -136,7 +136,7 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
         </section>
 
         <section className="issues-section issues-discussion">
-          <h2 className="issues-section-title">{t('issues.comments')} <span className="issues-count">{comments.length}</span></h2>
+          <h2 className="issues-section-title">{t('issues.comments')} <span className="panel-count">{comments.length}</span></h2>
           {!comments.length && !activityError && <p className="text-xs text-muted-foreground">{t('issues.noComments')}</p>}
           {activityError && <div role="alert" className="text-destructive text-xs">{activityError} <Button size="xs" variant="outline" disabled={busy} onClick={() => setAttempt(value => value + 1)}>{t('remote.retry')}</Button></div>}
           {comments.map(item => <article key={item.id} className="issues-comment select-text"><div className="issues-comment-head"><span className="issues-comment-author">{item.user.login}</span><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en')}</time></div><Markdown baseUrl={issue.html_url}>{item.body}</Markdown></article>)}

@@ -6,7 +6,7 @@
  * 平台返回的异常内容保持原文（§7.5），本视图文案全部走 t()。
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Settings, Sparkles, SquareArrowOutUpRight, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bug, ExternalLink, Loader2, RefreshCw, Search, Settings, Sparkles, SquareArrowOutUpRight, Trash2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErrorsStore } from '@/stores/errorsStore';
 import { useRepoStore } from '@/stores/repoStore';
@@ -26,6 +26,7 @@ import { FixWorkflowSection } from './FixWorkflow';
 import { AiFixDialog } from './AiFixDialog';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ModalSurface } from '@/components/ui/ModalSurface';
@@ -239,60 +240,67 @@ export const ErrorsView: React.FC = () => {
   return (
     <div className="flex h-full min-h-0">
       {/* 左：列表窗格（宽度可拖拽，layoutStore 持久化） */}
-      <div style={{ width: errorsListWidth }} className="shrink-0 border-r border-border flex flex-col min-h-0">
-        <div className="app-toolbar justify-between">
-          <div className="app-toolbar-group">
-            <select
-              value={scope}
-              onChange={(e) => setScope(e.target.value as ErrorsScope)}
-              aria-label={t('errors.scope.repo')}
-              className="h-7 rounded-md border border-input bg-transparent px-1.5 text-xs"
-            >
-              <option value="repo" className="bg-popover text-foreground">{t('errors.scope.repo')}</option>
-              <option value="all" className="bg-popover text-foreground">{t('errors.scope.all')}</option>
-            </select>
-            <select
-              value={sourceFilter ?? ''}
-              onChange={(e) => setSourceFilter(e.target.value || null)}
-              aria-label={t('errors.filter.source.all')}
-              className="h-7 max-w-36 rounded-md border border-input bg-transparent px-1.5 text-xs"
-            >
-              <option value="" className="bg-popover text-foreground">{t('errors.filter.source.all')}</option>
-              {connections.map((connection) => (
-                <option key={connection.id} value={connection.id} className="bg-popover text-foreground">
-                  {connection.displayName}
-                </option>
-              ))}
-            </select>
-            <select
-              value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value as NormalizedSeverity | 'all')}
-              aria-label={t('errors.filter.severity.all')}
-              className="h-7 rounded-md border border-input bg-transparent px-1.5 text-xs"
-            >
-              <option value="all" className="bg-popover text-foreground">{t('errors.filter.severity.all')}</option>
-              {(['critical', 'error', 'warning', 'info'] as const).map((level) => (
-                <option key={level} value={level} className="bg-popover text-foreground">{t(`errors.severity.${level}`)}</option>
-              ))}
-            </select>
+      <div style={{ width: errorsListWidth }} className="shrink-0 border-r border-border bg-sidebar/50 flex flex-col min-h-0">
+        {/* 面板头：标题 + 计数 + 刷新（全局 34px 面板头规格） */}
+        <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
+          <div className="min-w-0 flex items-center gap-1.5">
+            <span className="ui-panel-title block truncate" title={t('errors.nav')}>{t('errors.nav')}</span>
+            <span className="panel-count">{visibleIssues.length}</span>
           </div>
-          <div className="app-toolbar-group">
-            <Button variant="ghost" size="icon-sm" aria-label={t('errors.refresh')} disabled={syncing} onClick={() => void sync()}>
-              <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} />
-            </Button>
-          </div>
+          <Button variant="ghost" size="icon-xs" aria-label={t('errors.refresh')} title={t('errors.refresh')} disabled={syncing} onClick={() => void sync()} className="text-muted-foreground hover:text-foreground">
+            <RefreshCw className={cn('h-3 w-3', syncing && 'animate-spin')} />
+          </Button>
+        </div>
+        {/* 过滤带：下拉行（§7.2 工具栏） */}
+        <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value as ErrorsScope)}
+            aria-label={t('errors.scope.repo')}
+            className="h-7 min-w-0 rounded-md border border-input bg-transparent px-1.5 text-[12px]"
+          >
+            <option value="repo" className="bg-popover text-foreground">{t('errors.scope.repo')}</option>
+            <option value="all" className="bg-popover text-foreground">{t('errors.scope.all')}</option>
+          </select>
+          <select
+            value={sourceFilter ?? ''}
+            onChange={(e) => setSourceFilter(e.target.value || null)}
+            aria-label={t('errors.filter.source.all')}
+            className="h-7 min-w-0 max-w-36 rounded-md border border-input bg-transparent px-1.5 text-[12px]"
+          >
+            <option value="" className="bg-popover text-foreground">{t('errors.filter.source.all')}</option>
+            {connections.map((connection) => (
+              <option key={connection.id} value={connection.id} className="bg-popover text-foreground">
+                {connection.displayName}
+              </option>
+            ))}
+          </select>
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value as NormalizedSeverity | 'all')}
+            aria-label={t('errors.filter.severity.all')}
+            className="h-7 min-w-0 rounded-md border border-input bg-transparent px-1.5 text-[12px]"
+          >
+            <option value="all" className="bg-popover text-foreground">{t('errors.filter.severity.all')}</option>
+            {(['critical', 'error', 'warning', 'info'] as const).map((level) => (
+              <option key={level} value={level} className="bg-popover text-foreground">{t(`errors.severity.${level}`)}</option>
+            ))}
+          </select>
         </div>
         {/* 搜索行：占满全宽（§7.2 工具栏） */}
-        <div className="app-toolbar">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`${t('errors.search.placeholder')}…`}
-            aria-label={t('errors.search.placeholder')}
-            autoComplete="off"
-            className="h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs placeholder:text-muted-foreground"
-          />
+        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
+          <div className="relative w-full">
+            <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" aria-hidden="true" />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('errors.search.placeholder')}
+              aria-label={t('errors.search.placeholder')}
+              autoComplete="off"
+              className="h-7 pl-7 pr-2 text-[12px]"
+            />
+          </div>
         </div>
 
         {/* 降级横幅：按连接粒度，不拖死整页（§7.3.2） */}
@@ -337,7 +345,7 @@ export const ErrorsView: React.FC = () => {
               </div>
             </div>
           ) : visibleIssues.length === 0 ? (
-            <p className="p-4 text-center text-[12px] text-muted-foreground">{t('errors.list.emptyFiltered')}</p>
+            <EmptyState variant="search" title={t('errors.list.emptyFiltered')} />
           ) : (
             <div className="py-1">
               {visibleIssues.map((issue) => {
@@ -349,7 +357,7 @@ export const ErrorsView: React.FC = () => {
                     key={key}
                     className={cn(
                       'group flex items-stretch border-l-2 transition-colors',
-                      selected ? 'bg-primary/10 border-l-primary' : 'border-l-transparent hover:bg-accent/40',
+                      selected ? 'bg-primary/12 border-l-primary' : 'border-l-transparent hover:bg-accent/40',
                     )}
                   >
                     {/* 行主体：独立 button（外链是兄弟节点，避免 button 嵌套 button） */}
@@ -443,7 +451,7 @@ export const ErrorsView: React.FC = () => {
           />
         ) : (
           <div className="h-full flex items-center justify-center">
-            <p className="text-[12px] text-muted-foreground">{t('errors.detail.select')}</p>
+            <EmptyState compact icon={<Bug className="h-7 w-7" />} title={t('errors.detail.select')} />
           </div>
         )}
       </div>

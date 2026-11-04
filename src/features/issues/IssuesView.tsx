@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CircleCheck, CircleDot, MessageSquare, Plus, RefreshCw, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Input } from '@/components/ui/input';
 import { ModalSurface } from '@/components/ui/ModalSurface';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import './IssuesView.css';
 import type { IssueListOptions } from '@/services/collaboration/issueTypes';
 import { usesTaskProvider } from '@/services/integrations/taskService';
@@ -52,22 +55,10 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
       return Number.isFinite(raw) && raw >= 220 && raw <= 640 ? raw : 320;
     } catch { return 320; }
   });
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const beginResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    dragRef.current = { startX: event.clientX, startWidth: listWidth };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const moveResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    setListWidth(Math.min(640, Math.max(220, drag.startWidth + (event.clientX - drag.startX))));
-  };
-  const endResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
-    dragRef.current = null;
+  // 列宽持久化：拖拽（ResizeHandle 回调）与键盘调节都会触发。
+  useEffect(() => {
     try { localStorage.setItem('auugit_issue_list_width', String(listWidth)); } catch { /* storage unavailable */ }
-    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* pointer already released */ }
-  };
+  }, [listWidth]);
   const requested = useIssueWorkflowStore(store => store.requestedIssue);
   const activeScopes = useMemo(() => filter === 'all' ? available : available.filter(scope => scope.source === filter), [available, filter]);
 
@@ -137,17 +128,27 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
   };
 
   return <div className="@container flex flex-col h-full min-h-0" data-issues-workspace>
-    <header className="issues-toolbar">
-      <div className="issues-toolbar-context"><CircleDot size={18} aria-hidden="true" /><span className="issues-toolbar-title">{t('issues.nav')}</span>
+    <header className="app-toolbar justify-between">
+      <div className="app-toolbar-group">
+        <CircleDot className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+        <span className="font-semibold text-foreground truncate">{t('issues.nav')}</span>
         <span className="issues-scope" title={activeScopes.map(scope => scope.label).join(' · ')}>{activeScopes.map(scope => scope.label).join(' · ')}</span>
       </div>
-      <Button size="toolbar" onClick={startCreate}><Plus className="h-3.5 w-3.5" aria-hidden="true" />{t('issues.create')}</Button>
+      <div className="app-toolbar-group">
+        <Button size="toolbar" onClick={startCreate}><Plus className="h-3.5 w-3.5" aria-hidden="true" />{t('issues.create')}</Button>
+      </div>
     </header>
-    <div className="issues-columns grid grid-cols-1 flex-1 min-h-0" style={{ '--issue-list-w': `${listWidth}px` } as React.CSSProperties}>
-      <section aria-label={t('issues.list')} className={`issues-list-panel ${selected ? 'hidden @[760px]:flex' : 'flex'} flex-col min-h-0 min-w-0`}>
+    <div className="issues-columns flex flex-col flex-1 min-h-0" style={{ '--issue-list-w': `${listWidth}px` } as React.CSSProperties}>
+      <section aria-label={t('issues.list')} className={`issues-list-panel border-r border-border bg-sidebar/50 ${selected ? 'hidden @[760px]:flex' : 'flex'} flex-col min-h-0 min-w-0`}>
+        <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
+          <div className="min-w-0 flex items-center gap-1.5">
+            <span className="ui-panel-title block truncate" title={t('issues.list')}>{t('issues.list')}</span>
+            <span className="panel-count">{total}</span>
+          </div>
+          <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-foreground" disabled={loading} aria-label={t('issues.refresh')} title={t('issues.refresh')} onClick={refresh}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'issues-refreshing' : ''}`} aria-hidden="true" /></Button>
+        </div>
         <div className="issues-list-head">
-          <div className="issues-list-heading"><h2>{t('issues.list')}</h2><span className="issues-count">{total}</span><Button variant="ghost" size="icon" className="issues-icon-btn" disabled={loading} aria-label={t('issues.refresh')} title={t('issues.refresh')} onClick={refresh}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'issues-refreshing' : ''}`} aria-hidden="true" /></Button></div>
-        <div className="issues-search"><Search aria-hidden="true" size={13} /><input type="text" name="issue-search" autoComplete="off" spellCheck={false} aria-label={t('issues.search')} placeholder={t('issues.searchHint')} value={query} onChange={event => filterUpdate(() => setQuery(event.target.value))} /></div>
+        <div className="relative"><Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" aria-hidden="true" /><Input type="text" name="issue-search" autoComplete="off" spellCheck={false} aria-label={t('issues.search')} placeholder={t('issues.searchHint')} value={query} onChange={event => filterUpdate(() => setQuery(event.target.value))} className="h-7 pl-7 text-[12px]" /></div>
         <div className="issues-tools">
         <select name="issue-state" aria-label={t('issues.state')} className="issues-select" value={state} onChange={event => filterUpdate(() => setState(event.target.value as IssueListOptions['state']))}>{(['open', 'closed', 'all'] as const).map(value => <option key={value} value={value}>{t(value === 'all' ? 'issues.allStates' : `issues.${value}`)}</option>)}</select>
         {available.length > 1 && <select name="issue-source" aria-label={t('issues.source')} className="issues-select" value={filter} onChange={event => filterUpdate(() => setFilter(event.target.value as IssueSourceFilter))}><option value="all">{t('issues.sourceAll')}</option><option value="repo">{t('issues.sourceRepo')}</option><option value="task">{t('issues.sourceTask')}</option></select>}
@@ -164,7 +165,7 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
         <div ref={listRef} className="issues-list-content flex-1 overflow-y-auto" role="list" data-keyboard-list aria-busy={loading} aria-label={t('issues.list')}>
           {loading && !merged.length && <p role="status" className="issues-note">{t('common.loading')}</p>}
           {failures.map(page => <div key={`failure:${page.scope.key}`} role="alert" className="issues-note space-y-2"><p>{page.scope.source === 'repo' ? t('issues.sourceRepo') : t('issues.sourceTask')}: {page.error}</p><Button variant="outline" size="xs" disabled={loading} onClick={() => void retryFailed()}>{t('remote.retry')}</Button></div>)}
-          {!loading && !failures.length && !merged.length && <div className="issues-empty"><Search aria-hidden="true" size={24} /><strong>{t('issues.empty')}</strong><p>{t('issues.emptyHint')}</p>{hasFilters && <Button variant="outline" size="xs" onClick={clearFilters}>{t('issues.clearFilters')}</Button>}</div>}
+          {!loading && !failures.length && !merged.length && <div className="p-2"><EmptyState variant="search" title={t('issues.empty')} desc={t('issues.emptyHint')} />{hasFilters && <div className="flex justify-center"><Button variant="outline" size="xs" onClick={clearFilters}>{t('issues.clearFilters')}</Button></div>}</div>}
           {merged.map(row)}
           {merged.length > 0 && <div className="issues-list-footer">
             {hasMore && <Button variant="outline" size="xs" className="w-full" disabled={loading} onClick={() => void loadMore()}>{t(loading ? 'common.loading' : 'issues.loadMore')}</Button>}
@@ -173,29 +174,18 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
           </div>}
         </div>
       </section>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t('issues.resizeList')}
-        aria-valuemin={220}
-        aria-valuemax={640}
-        aria-valuenow={listWidth}
-        tabIndex={0}
-        className="issues-resizer hidden @[760px]:flex items-center justify-center cursor-col-resize select-none"
-        onKeyDown={event => {
-          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-          event.preventDefault();
-          const width = event.key === 'Home' ? 220 : event.key === 'End' ? 640 : Math.min(640, Math.max(220, listWidth + (event.key === 'ArrowLeft' ? -20 : 20)));
-          setListWidth(width); try { localStorage.setItem('auugit_issue_list_width', String(width)); } catch { /* storage unavailable */ }
-        }}
-        onPointerDown={beginResize}
-        onPointerMove={moveResize}
-        onPointerUp={endResize}
-        onPointerCancel={endResize}
-        onDoubleClick={() => { setListWidth(320); try { localStorage.setItem('auugit_issue_list_width', '320'); } catch { /* storage unavailable */ } }}
-      />
-      <section aria-label={t('issues.detail')} className={`issues-detail-panel ${selected ? 'flex' : 'hidden @[760px]:flex'} flex-col min-w-0 min-h-0 overflow-y-auto`}>
-        {selected ? <><Button className="@[760px]:hidden shrink-0 m-2 self-start" variant="ghost" size="xs" onClick={() => setSelected(null)}><ArrowLeft className="h-3 w-3 mr-1" />{t('issues.back')}</Button><IssueDetail key={JSON.stringify([selected.scope.key, selected.number])} scope={selected.scope} number={selected.number} onChanged={refresh} /></> : <div className="issues-detail-empty"><CircleDot size={32} aria-hidden="true" /><h2>{t('issues.selectTitle')}</h2><p>{t('issues.select')}</p></div>}
+      <div className="issues-resize-host">
+        <ResizeHandle
+          currentSize={listWidth}
+          onSizeChange={setListWidth}
+          minSize={220}
+          maxSize={640}
+          defaultSize={320}
+          title={t('issues.resizeList')}
+        />
+      </div>
+      <section aria-label={t('issues.detail')} className={`issues-detail-panel ${selected ? 'flex' : 'hidden @[760px]:flex'} flex-1 flex-col min-w-0 min-h-0 overflow-y-auto`}>
+        {selected ? <><Button className="@[760px]:hidden shrink-0 m-2 self-start" variant="ghost" size="xs" onClick={() => setSelected(null)}><ArrowLeft className="h-3 w-3 mr-1" />{t('issues.back')}</Button><IssueDetail key={JSON.stringify([selected.scope.key, selected.number])} scope={selected.scope} number={selected.number} onChanged={refresh} /></> : <div className="m-auto"><EmptyState compact icon={<CircleDot className="h-7 w-7" aria-hidden="true" />} title={t('issues.selectTitle')} desc={t('issues.select')} /></div>}
       </section>
     </div>
     {creating === 'pick' && (

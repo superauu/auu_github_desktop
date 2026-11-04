@@ -1020,3 +1020,18 @@ body, .cursor-default { cursor: var(--app-cursor-default); }
   gap: 6px;
   min-width: 0;
 }
+
+/* 面板头计数徽章：左右结构页统一（此前括号内联/mono Badge/小徽章四种并存） */
+.panel-count {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--color-muted);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  font-variant-numeric: tabular-nums;
+}

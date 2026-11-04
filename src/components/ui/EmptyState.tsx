@@ -5,6 +5,10 @@ type Variant = 'check' | 'search' | 'inbox' | 'branch' | 'stash';
 
 interface EmptyStateProps {
   variant?: Variant;
+  /** 自定义图标（紧凑占位用）；缺省时按 variant 渲染主题色描边插画 */
+  icon?: React.ReactNode;
+  /** 紧凑排版：右栏「未选中」占位等小空间场景 */
+  compact?: boolean;
   title: string;
   desc?: string;
   className?: string;
@@ -62,14 +66,16 @@ const Illustration: React.FC<{ variant: Variant }> = ({ variant }) => {
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
   variant = 'inbox',
+  icon,
+  compact = false,
   title,
   desc,
   className,
 }) => {
   return (
-    <div className={cn('py-14 px-4 text-center space-y-1 select-none', className)}>
-      <div className="text-muted-foreground/50 mb-2">
-        <Illustration variant={variant} />
+    <div className={cn(compact ? 'py-8 px-6 text-center space-y-1.5 select-none' : 'py-14 px-4 text-center space-y-1 select-none', className)}>
+      <div className={cn('text-muted-foreground/50 mb-2', compact && 'mb-1')}>
+        {icon ?? <Illustration variant={variant} />}
       </div>
       <div className="text-xs font-medium text-foreground/85">{title}</div>
       {desc && <div className="text-[12px] text-muted-foreground leading-relaxed max-w-[260px] mx-auto">{desc}</div>}

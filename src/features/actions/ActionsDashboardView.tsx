@@ -37,6 +37,7 @@ import { cn } from '@/utils/cn';
 import { keyboardRowProps } from '@/utils/keyboardNavigation';
 import { workflowStatus } from '@/utils/workflowStatus';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface ActionsDashboardViewProps {
   onOpenAuthDialog?: () => void;
@@ -126,14 +127,15 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           )}
           <Button
             variant="ghost"
-            size="toolbar"
+            size="icon-sm"
             onClick={() => refreshActions()}
             disabled={isRefreshingActions || !currentOwner || !currentRepoName}
             aria-busy={isRefreshingActions}
-            className="gap-1 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={t(isRefreshingActions ? 'actions.refreshing' : 'actions.refresh')}
+            title={t(isRefreshingActions ? 'actions.refreshing' : 'actions.refresh')}
           >
-            <RotateCw className={cn('h-3 w-3', isRefreshingActions && 'animate-spin')} />
-            <span>{t(isRefreshingActions ? 'actions.refreshing' : 'actions.refresh')}</span>
+            <RotateCw className={cn('h-3.5 w-3.5', isRefreshingActions && 'animate-spin')} />
           </Button>
         </div>
       </div>
@@ -147,8 +149,11 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
           style={{ width: actionsWorkflowsWidth }}
           className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
         >
-          <div className="h-8 px-3 border-b border-border flex items-center justify-between text-[12px] font-semibold text-muted-foreground uppercase tracking-wider bg-accent/10 shrink-0">
-            <span>{t('actions.workflows')} ({workflows.length})</span>
+          <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
+            <div className="min-w-0 flex items-center gap-1.5">
+              <span className="ui-panel-title block truncate" title={t('actions.workflows')}>{t('actions.workflows')}</span>
+              <span className="panel-count">{workflows.length}</span>
+            </div>
           </div>
 
           <ScrollArea className="flex-1 p-1.5">
@@ -156,10 +161,10 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
               <button
                 onClick={() => selectWorkflow(null)}
                 className={cn(
-                  "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center justify-between transition-colors",
+                  "w-full text-left px-2.5 py-1.5 text-xs font-medium flex items-center justify-between transition-colors border-l-2",
                   selectedWorkflow === null
-                    ? "bg-accent text-accent-foreground font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    ? "bg-primary/12 text-foreground border-l-primary font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40 border-l-transparent"
                 )}
               >
                 <span>{t('actions.allWorkflows')}</span>
@@ -175,10 +180,10 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                   aria-current={selectedWorkflow?.id === wf.id ? 'true' : undefined}
                   onClick={() => selectWorkflow(wf)}
                   className={cn(
-                    "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center justify-between transition-colors group cursor-pointer",
+                    "w-full text-left px-2.5 py-1.5 text-xs font-medium flex items-center justify-between transition-colors group cursor-pointer border-l-2",
                     selectedWorkflow?.id === wf.id
-                      ? "bg-accent text-accent-foreground font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                      ? "bg-primary/12 text-foreground border-l-primary font-semibold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/40 border-l-transparent"
                   )}
                 >
                   <div className="flex items-center gap-1.5 truncate min-w-0 pr-1">
@@ -227,13 +232,14 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
         />
 
         {/* Right Stage: Runs Table (Top) + Jobs Breakdown (Bottom) */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">
           {/* Top Half: Workflow Runs List */}
           <div className="flex-1 flex flex-col border-b border-border overflow-hidden">
-            <div className="h-8 px-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground bg-accent/10 shrink-0">
-              <span className="font-semibold text-foreground">
-                {t('actions.runHistory')}
-              </span>
+            <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
+              <div className="min-w-0 flex items-center gap-1.5">
+                <span className="ui-panel-title block truncate" title={t('actions.runHistory')}>{t('actions.runHistory')}</span>
+                <span className="panel-count">{workflowRuns.length}</span>
+              </div>
 
               {/* Rerun / Cancel actions on selectedRun */}
               {selectedRun && (
@@ -290,7 +296,7 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
             <ScrollArea className="flex-1">
               <div className="divide-y divide-border/50" role="list" data-keyboard-list aria-label={t('actions.runHistory')} aria-busy={isRefreshingActions || isLoadingRuns}>
                 {(isLoadingRuns || (isRefreshingActions && !workflowRuns.length)) && <p role="status" className="p-4 text-xs text-muted-foreground">{t('ui.actions.loading')}</p>}
-                {!isLoadingRuns && !isRefreshingActions && !error && !workflowRuns.length && <p className="p-4 text-xs text-muted-foreground">{t('ui.actions.empty')}</p>}
+                {!isLoadingRuns && !isRefreshingActions && !error && !workflowRuns.length && <EmptyState title={t('ui.actions.empty')} />}
                 {workflowRuns.map((run) => {
                   const isSelected = selectedRun?.id === run.id;
 
@@ -301,10 +307,10 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                       aria-current={isSelected ? 'true' : undefined}
                       onClick={() => selectRun(run)}
                       className={cn(
-                        "p-2.5 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors group",
+                        "p-2.5 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors group border-l-2",
                         isSelected
-                          ? "bg-accent/60 border-l-2 border-primary"
-                          : "hover:bg-accent/30 border-l-2 border-transparent"
+                          ? "bg-primary/12 border-l-primary"
+                          : "hover:bg-accent/40 border-l-transparent"
                       )}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -353,12 +359,17 @@ export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
 
           {/* Bottom Half: Jobs Tree Explorer with Terminal Log Button */}
           <div className="h-64 flex flex-col bg-card/20 overflow-hidden shrink-0">
-            <div className="h-8 px-3 border-b border-border flex items-center justify-between text-xs text-muted-foreground bg-accent/20 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <Layers className="h-3.5 w-3.5 text-primary" />
-                <span className="font-semibold text-foreground">
-                  {selectedRun ? `Run #${selectedRun.run_number} ${t('actions.jobsTitle')} (${selectedRunJobs.length})` : t('actions.pickRun')}
-                </span>
+            <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
+              <div className="min-w-0 flex items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
+                {selectedRun ? (
+                  <>
+                    <span className="ui-panel-title block truncate">Run #{selectedRun.run_number} {t('actions.jobsTitle')}</span>
+                    <span className="panel-count">{selectedRunJobs.length}</span>
+                  </>
+                ) : (
+                  <span className="ui-panel-title block truncate">{t('actions.pickRun')}</span>
+                )}
               </div>
               {selectedRun && (
                 <div className="flex items-center gap-2">

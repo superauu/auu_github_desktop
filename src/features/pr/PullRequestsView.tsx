@@ -190,76 +190,18 @@ export const PullRequestsView: React.FC = () => {
 
   return (
     <div className="flex-1 h-full flex flex-col overflow-hidden select-none bg-background">
-      {/* Top Header Filter Bar */}
+      {/* Top Header Bar */}
       <div className="app-toolbar justify-between">
         <div className="app-toolbar-group">
-          <Button variant="ghost" size="icon-sm" onClick={() => loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" title={t('pr.refreshTitle')}>
-            <RotateCw className={cn('h-3.5 w-3.5', isLoadingPullRequests && 'animate-spin')} />
-          </Button>
+          <GitPullRequest className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="font-semibold text-foreground truncate">{t('pr.title')}</span>
+        </div>
+
+        <div className="app-toolbar-group">
           <Button size="toolbar" onClick={() => setCreatePROpen(true)} disabled={!currentOwner || !currentRepoName || !can('code-hosting:create-pull-request')} title={!can('code-hosting:create-pull-request') ? t('connections.unavailableCapability') : currentOwner ? t('pr.createTitle') : t('pr.needLogin')}>
             <Plus className="h-3.5 w-3.5" />
             <span>{t('pr.newPR')}</span>
           </Button>
-          <GitPullRequest className="h-3.5 w-3.5 text-primary shrink-0" />
-          <span className="font-semibold text-foreground truncate">{t('pr.title')}</span>
-          <Badge variant="outline" className="h-4 text-[11px] font-mono shrink-0">
-            {filteredPRs.length} {t('pr.count')}
-          </Badge>
-        </div>
-
-        <div className="app-toolbar-group">
-          {/* State Filter Buttons */}
-          <div className="glass-segmented">
-            <button
-              aria-pressed={prFilterState === 'open'} onClick={() => setPRFilterState('open')}
-              className={cn(
-                "px-2.5 text-[12px] font-medium transition-colors",
-                prFilterState === 'open'
-                  ? "font-semibold text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t('pr.filterOpen')}
-            </button>
-            <button
-              aria-pressed={prFilterState === 'closed'} onClick={() => setPRFilterState('closed')}
-              className={cn(
-                "px-2.5 text-[12px] font-medium transition-colors",
-                prFilterState === 'closed'
-                  ? "font-semibold text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t('pr.filterClosed')}
-            </button>
-            <button
-              aria-pressed={prFilterState === 'all'} onClick={() => setPRFilterState('all')}
-              className={cn(
-                "px-2.5 text-[12px] font-medium transition-colors",
-                prFilterState === 'all'
-                  ? "font-semibold text-accent-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t('pr.filterAll')}
-            </button>
-          </div>
-
-          {/* Search Box */}
-          <div className="relative w-48">
-            <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" />
-            <Input
-              name="pull-request-search"
-              autoComplete="off"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('pr.searchPlaceholder')}
-              aria-label={t('pr.searchPlaceholder')}
-              className="h-7 pl-7 text-[12px]"
-            />
-          </div>
-
-
         </div>
       </div>
 
@@ -273,11 +215,70 @@ export const PullRequestsView: React.FC = () => {
           style={{ width: prListWidth }}
           className="border-r border-border bg-sidebar/50 flex flex-col shrink-0 h-full overflow-hidden"
         >
-          <ScrollArea className="flex-1 p-2">
+          {/* Panel header: 状态筛选 + 计数 + 刷新（与 Issues/Errors 面板头同规格） */}
+          <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0 overflow-x-clip">
+            <div className="glass-segmented shrink-0">
+              <button
+                aria-pressed={prFilterState === 'open'} onClick={() => setPRFilterState('open')}
+                className={cn(
+                  "px-2.5 text-[12px] font-medium transition-colors",
+                  prFilterState === 'open'
+                    ? "font-semibold text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t('pr.filterOpen')}
+              </button>
+              <button
+                aria-pressed={prFilterState === 'closed'} onClick={() => setPRFilterState('closed')}
+                className={cn(
+                  "px-2.5 text-[12px] font-medium transition-colors",
+                  prFilterState === 'closed'
+                    ? "font-semibold text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t('pr.filterClosed')}
+              </button>
+              <button
+                aria-pressed={prFilterState === 'all'} onClick={() => setPRFilterState('all')}
+                className={cn(
+                  "px-2.5 text-[12px] font-medium transition-colors",
+                  prFilterState === 'all'
+                    ? "font-semibold text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t('pr.filterAll')}
+              </button>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="panel-count">{filteredPRs.length}</span>
+              <Button variant="ghost" size="icon-xs" onClick={() => loadPullRequests()} disabled={isLoadingPullRequests || !currentOwner || !currentRepoName} aria-busy={isLoadingPullRequests} className="text-muted-foreground hover:text-foreground" aria-label={t('pr.refreshTitle')} title={t('pr.refreshTitle')}>
+                <RotateCw className={cn('h-3 w-3', isLoadingPullRequests && 'animate-spin')} />
+              </Button>
+            </div>
+          </div>
+          {/* Search row: 左栏内全宽（与 Issues/Errors 的过滤带同规格） */}
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0">
+            <div className="relative w-full">
+              <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2.5" />
+              <Input
+                name="pull-request-search"
+                autoComplete="off"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('pr.searchPlaceholder')}
+                aria-label={t('pr.searchPlaceholder')}
+                className="h-7 pl-7 text-[12px]"
+              />
+            </div>
+          </div>
+          <ScrollArea className="flex-1">
             {filteredPRs.length === 0 ? (
               !isLoadingPullRequests && !pullRequestsError && <EmptyState variant={searchQuery.trim() ? 'search' : 'inbox'} title={t(!currentOwner || !currentRepoName ? 'ui.pr.noRepository' : searchQuery.trim() ? 'pr.noMatch' : 'ui.pr.empty')} desc={searchQuery.trim() ? undefined : t('ui.pr.emptyDesc')} />
             ) : (
-              <div className="space-y-1.5" role="list" data-keyboard-list aria-label={t('pr.title')} aria-busy={isLoadingPullRequests}>
+              <div className="divide-y divide-border/50" role="list" data-keyboard-list aria-label={t('pr.title')} aria-busy={isLoadingPullRequests}>
                 {filteredPRs.map((pr) => {
                   const isSelected = activePR?.id === pr.id;
                   const isMerged = !!pr.merged_at;
@@ -290,10 +291,10 @@ export const PullRequestsView: React.FC = () => {
                       aria-current={isSelected ? 'true' : undefined}
                       onClick={() => selectPR(pr)}
                       className={cn(
-                        "p-3 rounded-lg border text-xs cursor-pointer transition-[background-color,border-color,box-shadow] group space-y-2",
+                        "p-2.5 border-l-2 text-xs cursor-pointer transition-colors group space-y-2",
                         isSelected
-                          ? "bg-accent border-primary/40 shadow-2xs"
-                          : "bg-card/40 border-border/60 hover:bg-accent/40"
+                          ? "bg-primary/12 border-l-primary"
+                          : "border-l-transparent hover:bg-accent/40"
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -386,8 +387,8 @@ export const PullRequestsView: React.FC = () => {
         {/* Right Stage: Detailed PR Review View */}
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-card/10">
           {!activePR ? (
-            <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
-              {t('pr.pickToReview')}
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState compact icon={<GitPullRequest className="h-7 w-7" />} title={t('pr.pickToReview')} />
             </div>
           ) : (
             <div className="flex-1 flex flex-col h-full overflow-hidden">

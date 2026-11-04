@@ -680,8 +680,9 @@ export const WorkingChangesView: React.FC = () => {
           className="glass-file-list border-r border-border flex flex-col shrink-0 h-full overflow-hidden"
         >
           <div className="workspace-panel-header gap-1 px-2 border-b border-border flex items-center justify-between text-xs text-foreground bg-accent/20 shrink-0">
-          <div className="min-w-0">
-            <span className="ui-panel-title block truncate" title={`${t('rightPane.changes')} (${totalChanges})`}>{t('rightPane.changes')} ({totalChanges})</span>
+          <div className="min-w-0 flex items-center gap-1.5">
+            <span className="ui-panel-title block truncate" title={t('rightPane.changes')}>{t('rightPane.changes')}</span>
+            <span className="panel-count">{totalChanges}</span>
           </div>
 
           <div className="flex shrink-0 items-center gap-0.5">
@@ -937,7 +938,7 @@ export const WorkingChangesView: React.FC = () => {
 
       {/* Diff Viewer Pane */}
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-card/10">
-        {/* Diff Toolbar */}
+        {/* Diff Toolbar（多行工具条堆叠：路径行 + 差异控制 + 审核动作，勿改单行固定高） */}
         <div className="workspace-divider px-3 py-2 border-b border-border flex flex-wrap gap-2 text-xs bg-card/40 shrink-0">
           <div className="flex items-center gap-2 min-w-0 w-full">
             <span title={activeFile?.path} className="ui-panel-title text-foreground truncate">

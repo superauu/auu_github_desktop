@@ -202,7 +202,7 @@ test('list filters clear together and the divider supports keyboard resizing', a
   await divider.focus();
   const width = Number(await divider.getAttribute('aria-valuenow'));
   await page.keyboard.press('ArrowRight');
-  await expect(divider).toHaveAttribute('aria-valuenow', String(width + 20));
+  await expect(divider).toHaveAttribute('aria-valuenow', String(width + 16));
   await selectIssue(page);
   await divider.focus();
   await page.keyboard.press('End');
