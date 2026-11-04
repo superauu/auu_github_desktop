@@ -81,7 +81,15 @@ pub(crate) async fn oauth_loopback_wait(id: String, timeout_ms: u64) -> Result<L
             if cancelled.load(Ordering::Relaxed) { return Err("OAuth loopback wait aborted".into()); }
             if Instant::now() >= deadline { return Err("OAuth loopback wait timed out".into()); }
             match listener.listener.accept() {
-                Ok((stream, _)) => return serve_callback(stream),
+                Ok((stream, _)) => {
+                    // 浏览器常有预连接/探测连接（favicon、预取）：没有回调参数的连接
+                    // 应答 400 后继续等，真正的重定向在后续连接里。
+                    match serve_callback(stream) {
+                        Ok(Some(callback)) => return Ok(callback),
+                        Ok(None) => continue,
+                        Err(error) => return Err(error),
+                    }
+                }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(POLL_INTERVAL),
                 Err(error) => return Err(error.to_string()),
             }
@@ -101,25 +109,35 @@ pub(crate) fn oauth_loopback_cancel(id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 读取单个回调请求，提取查询参数并应答完成页。浏览器通常还会预取 favicon 等，
-/// 但我们 accept 一次即关，多余连接由 RST 自然处理。
-fn serve_callback(mut stream: TcpStream) -> Result<LoopbackCallback, String> {
+/// 读取单个回调请求，提取查询参数并应答完成页。
+/// 返回 `Ok(None)` 表示这条连接没有回调参数（浏览器预连接/favicon 探测）：
+/// 已应答 400，调用方应继续 accept 等真正的重定向。
+///
+/// Windows 坑：accept 出来的流**继承监听器的非阻塞模式**，浏览器重定向的数据
+/// 往往还没抵达，`read` 会立即返回 WSAEWOULDBLOCK（os error 10035）——必须把
+/// 流切回阻塞模式再读，靠 5 秒读超时兜底，否则就撞上「非阻止性套接字操作」。
+fn serve_callback(mut stream: TcpStream) -> Result<Option<LoopbackCallback>, String> {
+    stream.set_nonblocking(false).map_err(|error| error.to_string())?;
     stream.set_read_timeout(Some(Duration::from_secs(5))).map_err(|error| error.to_string())?;
     stream.set_write_timeout(Some(Duration::from_secs(5))).map_err(|error| error.to_string())?;
     let mut bytes = Vec::new();
     let mut chunk = [0u8; 1024];
-    // 只需要请求行，读到第一个空行或上限即停；读不到请求行按无回调处理。
+    // 只需要请求行，读到第一个空行/EOF/读超时即停；超时多半是探测连接，按无回调处理。
     loop {
-        let count = stream.read(&mut chunk).map_err(|error| error.to_string())?;
-        if count == 0 || bytes.len() >= MAX_REQUEST_BYTES { break; }
-        bytes.extend_from_slice(&chunk[..count]);
-        if bytes.windows(4).any(|window| window == b"\r\n\r\n") { break; }
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(count) => {
+                bytes.extend_from_slice(&chunk[..count]);
+                if bytes.len() >= MAX_REQUEST_BYTES || bytes.windows(4).any(|window| window == b"\r\n\r\n") { break; }
+            }
+        }
     }
     let request = String::from_utf8_lossy(&bytes);
     let request_line = request.lines().next().unwrap_or_default();
     let target = request_line.split_whitespace().nth(1).unwrap_or_default();
     let callback = parse_query(target);
-    let (status_line, page) = if callback.code.is_some() || callback.error.is_some() {
+    let has_callback = callback.code.is_some() || callback.error.is_some();
+    let (status_line, page) = if has_callback {
         ("HTTP/1.1 200 OK", COMPLETION_PAGE)
     } else {
         ("HTTP/1.1 400 Bad Request", "Invalid OAuth callback.")
@@ -131,10 +149,7 @@ fn serve_callback(mut stream: TcpStream) -> Result<LoopbackCallback, String> {
     // 响应写失败不影响结果：code 已经拿到，浏览器断开只是体验问题。
     let _ = stream.write_all(response.as_bytes());
     let _ = stream.flush();
-    if callback.code.is_none() && callback.error.is_none() {
-        return Err("OAuth callback did not contain code or error".into());
-    }
-    Ok(callback)
+    if has_callback { Ok(Some(callback)) } else { Ok(None) }
 }
 
 /// 解析请求行目标里的查询串。只认 `path?query` 形态；多值取最后一个，
@@ -207,6 +222,26 @@ mod tests {
         assert_eq!(callback.error, None);
         // 会话一次性：wait 之后再 wait 必须报未知会话。
         assert!(oauth_loopback_wait(session.id, 1000).await.unwrap_err().contains("Unknown"));
+    }
+
+    /// 浏览器预连接/探测连接先行（无回调参数），真重定向在第二条连接上：
+    /// wait 必须跳过探测连接继续等，而不是把 10035/无参数当致命错误。
+    #[tokio::test]
+    async fn probe_connections_are_skipped_until_the_real_redirect_arrives() {
+        let _serial = SERIAL.lock().await;
+        let session = oauth_loopback_begin(0).unwrap();
+        let port = session.port;
+        let driver = std::thread::spawn(move || {
+            // 探测连接：连上后不发数据就关（模拟浏览器预连接）。
+            let probe = TcpStream::connect(("127.0.0.1", port)).expect("connect probe");
+            let _ = probe;
+            std::thread::sleep(Duration::from_millis(150));
+            browser_get(port, "/callback?code=later-1&state=st-2");
+        });
+        let callback = oauth_loopback_wait(session.id, 8000).await.unwrap();
+        driver.join().unwrap();
+        assert_eq!(callback.code.as_deref(), Some("later-1"));
+        assert_eq!(callback.state.as_deref(), Some("st-2"));
     }
 
     #[tokio::test]
