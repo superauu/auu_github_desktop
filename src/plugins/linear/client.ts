@@ -94,7 +94,8 @@ export class LinearClient {
   }
 
   private async userId(displayName: string): Promise<string | null> {
-    const raw = await this.request('query { organization { users(first: 100, enabled: true) { nodes { id displayName name } } } }');
+    // organization.users 是普通数组（不是连接）：不接受 first/enabled 参数。
+    const raw = await this.request('query { organization { users { id displayName name } } }');
     return raw.organization?.users?.nodes?.find((member: any) => (member.displayName || member.name) === displayName)?.id ?? null;
   }
 
@@ -221,11 +222,8 @@ export class LinearClient {
   /** Linear 无时间线实体：跨引用事件留空，评论走独立接口（MVP 已知限制）。 */
   async getIssueTimeline(_owner: string, _repo: string, _number: number): Promise<IssueTimelineEvent[]> { return []; }
 
-  async getIssueLabels(owner: string, _repo: string): Promise<CollaborationLabel[]> {
-    const raw = await this.request(
-      `query ($team: String) { issueLabels(first: 100, filter: { team: { key: { eq: $team } } }) { nodes { id name color description } } }`,
-      { team: owner !== 'all' && owner ? owner : null },
-    );
+  async getIssueLabels(_owner: string, _repo: string): Promise<CollaborationLabel[]> {
+    const raw = await this.request('query { issueLabels(first: 100) { nodes { id name color description } } }');
     return (raw.issueLabels?.nodes ?? []).map((label: any) => ({ id: numericId(label.id), name: label.name, color: bareColor(label.color), description: label.description ?? null }));
   }
 
@@ -238,7 +236,7 @@ export class LinearClient {
       );
       if (raw.team) return (raw.team.members?.nodes ?? []).map(person);
     }
-    const raw = await this.request('query { organization { users(first: 100, enabled: true) { nodes { displayName name avatarUrl } } } }');
-    return (raw.organization?.users?.nodes ?? []).map(person);
+    const raw = await this.request('query { organization { users { displayName name avatarUrl } } }');
+    return (raw.organization?.users ?? []).map(person);
   }
 }

@@ -130,6 +130,14 @@ test('linear client locates issues by team key and number and reports auth failu
   await assert.rejects(client.getIssue('ENG', 'linear', 999), error => error.status === 404);
 });
 
+test('organization users are queried as a plain list without unsupported arguments', async () => {
+  const client = new api.LinearClient('lin-token');
+  await client.getIssueAssignees('all', 'linear');
+  const query = linearRequests.at(-1).body.query;
+  assert.match(query, /organization \{ users \{/);
+  assert.doesNotMatch(query, /enabled/);
+});
+
 test('oauth authorize runs the PKCE loopback flow and validates state', async () => {
   api.setLinearClientId('cli-test');
   try {
