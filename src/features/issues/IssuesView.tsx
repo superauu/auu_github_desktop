@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CircleDot, Plus, RefreshCw, Search } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,9 @@ import { useIssueSources, readLastCreateSource, rememberCreateSource, type Issue
 export function IssuesView({ onOpenAuthDialog }: { onOpenAuthDialog?: () => void }) {
   const { t } = useI18n();
   const sources = useIssueSources();
-  const available = [sources.repo, sources.task].filter((scope): scope is IssueSourceScope => !!scope);
+  // 必须 useMemo：外部变更轮询（约 10s）会让整棵树重渲染，新建数组会击穿
+  // activeScopes 的依赖并把「拉取效应」变成每轮询一次的定时刷新。
+  const available = useMemo(() => [sources.repo, sources.task].filter((scope): scope is IssueSourceScope => !!scope), [sources.repo, sources.task]);
   // 双空才引导连接；托管已登录但未配远程时给配置远程入口（任务来源可用则直接工作）。
   if (!available.length) {
     const auth = useCollaborationStore.getState().isAuthenticated;
@@ -43,6 +45,29 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
   const [pages, setPages] = useState<SourcePage[]>([]);
   const [selected, setSelected] = useState<SelectedIssue | null>(null), [creating, setCreating] = useState<CreateTarget>(null);
   const [loading, setLoading] = useState(true), [attempt, setAttempt] = useState(0);
+  // 列表列宽可拖拽（持久化）；与根组件的分栏一致使用指针捕获，拖拽中不写存储。
+  const [listWidth, setListWidth] = useState<number>(() => {
+    try {
+      const raw = Number(localStorage.getItem('auugit_issue_list_width'));
+      return Number.isFinite(raw) && raw >= 220 && raw <= 640 ? raw : 280;
+    } catch { return 280; }
+  });
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const beginResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragRef.current = { startX: event.clientX, startWidth: listWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    setListWidth(Math.min(640, Math.max(220, drag.startWidth + (event.clientX - drag.startX))));
+  };
+  const endResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    try { localStorage.setItem('auugit_issue_list_width', String(listWidth)); } catch { /* storage unavailable */ }
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* pointer already released */ }
+  };
   const requested = useIssueWorkflowStore(store => store.requestedIssue);
   const activeScopes = useMemo(() => filter === 'all' ? available : available.filter(scope => scope.source === filter), [available, filter]);
 
@@ -136,8 +161,8 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
         <input type="text" name="issue-assignees" autoComplete="off" spellCheck={false} aria-label={t('issues.assignees')} placeholder={t('issues.assignees')} className="issues-input" value={assignee} onChange={event => filterUpdate(() => setAssignee(event.target.value))} />
       </div>
     </header>
-    <div className="grid grid-cols-1 @[760px]:grid-cols-[280px_minmax(0,1fr)] flex-1 min-h-0">
-      <section aria-label={t('issues.list')} className={`${selected ? 'hidden @[760px]:flex' : 'flex'} flex-col min-h-0 border-r border-border`}>
+    <div className="grid grid-cols-1 @[760px]:grid-cols-[var(--issue-list-w)_6px_minmax(0,1fr)] flex-1 min-h-0" style={{ '--issue-list-w': `${listWidth}px` } as React.CSSProperties}>
+      <section aria-label={t('issues.list')} className={`${selected ? 'hidden @[760px]:flex' : 'flex'} flex-col min-h-0`}>
         <div className="flex-1 overflow-y-auto" role="list" data-keyboard-list aria-label={t('issues.list')}>
           {loading && <p role="status" className="issues-note">{t('common.loading')}</p>}
           {!loading && failures.map(page => <div key={`failure:${page.scope.key}`} role="alert" className="issues-note space-y-2"><p>{page.scope.source === 'repo' ? t('issues.sourceRepo') : t('issues.sourceTask')}: {page.error}</p><Button variant="outline" size="xs" onClick={refresh}>{t('remote.retry')}</Button></div>)}
@@ -149,6 +174,17 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
           {total > 1000 && <p>{t('issues.searchLimit')}</p>}
         </footer>
       </section>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('issues.resizeList')}
+        className="hidden @[760px]:flex items-center justify-center cursor-col-resize select-none border-r border-border hover:bg-accent/40"
+        onPointerDown={beginResize}
+        onPointerMove={moveResize}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+        onDoubleClick={() => { setListWidth(280); try { localStorage.setItem('auugit_issue_list_width', '280'); } catch { /* storage unavailable */ } }}
+      />
       <section aria-label={t('issues.detail')} className={`${selected ? 'flex' : 'hidden @[760px]:flex'} flex-col min-w-0 min-h-0 overflow-y-auto`}>
         {selected ? <><Button className="@[760px]:hidden shrink-0 m-2 self-start" variant="ghost" size="xs" onClick={() => setSelected(null)}><ArrowLeft className="h-3 w-3 mr-1" />{t('issues.back')}</Button><IssueDetail key={JSON.stringify([selected.scope.key, selected.number])} scope={selected.scope} number={selected.number} onChanged={refresh} /></> : <p className="m-auto p-6 text-xs text-muted-foreground">{t('issues.select')}</p>}
       </section>

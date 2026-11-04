@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
+import { openExternalUrl } from '@/utils/openExternal';
 import type { CollaborationIssue, IssueReference } from '@/services/collaboration/issueTypes';
 import { issueClientFor } from '@/services/integrations/taskService';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
@@ -35,7 +36,7 @@ export function RelatedIssues({ body, owner, repo }: { body: string | null; owne
     {issues.map(({ reference, issue, error }) => {
       const sameRepo = reference.owner.toLowerCase() === scope.owner?.toLowerCase() && reference.repo.toLowerCase() === scope.repo?.toLowerCase();
       return <div key={issueKey(reference)} className="rounded-lg border border-border p-2 space-y-1">
-        {sameRepo && issue ? <button className="text-primary text-left break-words" onClick={() => { useIssueWorkflowStore.getState().openIssue(reference); useRepoStore.getState().setActiveTab('issues'); }}>{issueLabel(reference)} · {issue.title}</button> : <a className="text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer">{issueLabel(reference)} ↗</a>}
+        {sameRepo && issue ? <button className="text-primary text-left break-words" onClick={() => { useIssueWorkflowStore.getState().openIssue(reference); useRepoStore.getState().setActiveTab('issues'); }}>{issueLabel(reference)} · {issue.title}</button> : <a className="text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer" onClick={event => { const url = issueUrl(reference); if (url) { event.preventDefault(); void openExternalUrl(url); } }}>{issueLabel(reference)} ↗</a>}
         {issue && <p className="text-muted-foreground">{t(issue.state === 'open' ? 'issues.open' : 'issues.closed')}</p>}
         {error && <p className="text-destructive">{error}</p>}
       </div>;

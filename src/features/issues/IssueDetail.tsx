@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, GitBranch, GitPullRequest, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
+import { openExternalUrl } from '@/utils/openExternal';
 import type { CollaborationIssueComment } from '@/services/collaboration/CollaborationService';
 import type { CollaborationIssue } from '@/services/collaboration/issueTypes';
 import { getHostingPlugin, getTaskPlugin } from '@/services/integrations/plugins';
@@ -102,7 +103,7 @@ export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: I
   return <div className="w-full p-4 sm:p-5 space-y-5 text-xs max-w-4xl mx-auto" data-issue-detail={number}>
     <div className="space-y-3">
       {loadError && <p role="alert" className="text-destructive">{loadError}</p>}
-      <div className="flex flex-wrap gap-2 items-center"><span className={`rounded-full border px-2 py-1 font-medium ${issue.state === 'open' ? 'text-git-added border-git-added/40' : 'text-git-branch border-git-branch/40'}`}>{t(issue.state === 'open' ? 'issues.open' : issue.state_reason === 'not_planned' ? 'issues.notPlanned' : 'issues.closed')}</span><span className="text-muted-foreground">{issue.identifier ?? `#${number}`} · {issue.user.login}</span><Button size="xs" variant="ghost" aria-label={t('issues.refresh')} disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-3 w-3" /></Button><a className="inline-flex items-center gap-1 text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer">{providerLabel ?? t('issues.viewOnPlatform')} <ExternalLink className="h-3 w-3" /></a></div>
+      <div className="flex flex-wrap gap-2 items-center"><span className={`rounded-full border px-2 py-1 font-medium ${issue.state === 'open' ? 'text-git-added border-git-added/40' : 'text-git-branch border-git-branch/40'}`}>{t(issue.state === 'open' ? 'issues.open' : issue.state_reason === 'not_planned' ? 'issues.notPlanned' : 'issues.closed')}</span><span className="text-muted-foreground">{issue.identifier ?? `#${number}`} · {issue.user.login}</span><Button size="xs" variant="ghost" aria-label={t('issues.refresh')} disabled={busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-3 w-3" /></Button><a className="inline-flex items-center gap-1 text-primary" href={issueUrl(reference)} target="_blank" rel="noreferrer" onClick={event => { if (issueUrl(reference)) { event.preventDefault(); void openExternalUrl(issueUrl(reference)); } }}>{providerLabel ?? t('issues.viewOnPlatform')} <ExternalLink className="h-3 w-3" /></a></div>
       <h1 className="text-lg font-semibold break-words select-text">{issue.title}</h1>
       <div className="flex flex-wrap gap-2">
         <Button size="xs" variant="outline" disabled={busy || !can('task-tracking:update-issue')} title={can('task-tracking:update-issue') ? undefined : t('connections.unavailableCapability')} onClick={() => setEditing(true)}><Pencil className="h-3 w-3 mr-1" />{t('issues.edit')}</Button>
