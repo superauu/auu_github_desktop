@@ -30,7 +30,7 @@ const ISSUE_FIELDS = `
   state { type name }
   creator { displayName name avatarUrl }
   labels { nodes { id name color } }
-  assignees { nodes { displayName name avatarUrl } }
+  assignee { displayName name avatarUrl }
   comments(first: 50) { nodes { id } }
 `;
 const stateReason = (type: string | null | undefined) =>
@@ -44,7 +44,8 @@ function issue(raw: any): CollaborationIssue {
     state: stateType === 'completed' || stateType === 'canceled' ? 'closed' : 'open',
     state_reason: stateReason(stateType), html_url: raw.url ?? '',
     user: person(raw.creator), labels: (raw.labels?.nodes ?? []).map((label: any) => ({ id: numericId(label.id), name: label.name, color: bareColor(label.color) })),
-    assignees: (raw.assignees?.nodes ?? []).map(person),
+    // Linear 是单负责人模型：契约侧仍用数组，最多一项。
+    assignees: raw.assignee ? [person(raw.assignee)] : [],
     comments: raw.comments?.nodes?.length ?? 0,
     created_at: raw.createdAt, updated_at: raw.updatedAt, closed_at: raw.completedAt ?? raw.canceledAt ?? null,
     locked: false,

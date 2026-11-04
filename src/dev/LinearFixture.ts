@@ -20,7 +20,7 @@ export async function prepareLinearFixture(_repository: RepositoryInfo) {
     state: { type: stateType, name: stateType === 'started' ? 'In Progress' : stateType === 'unstarted' ? 'Todo' : 'Done' },
     creator: person,
     labels: { nodes: [{ id: 'label-uuid-1', name: 'bug', color: '#ff0000' }] },
-    assignees: { nodes: [person] },
+    assignee: person,
     comments: { nodes: [] },
   });
   const issues = [issue('ENG-12', 12, 'Linear task without hosting account', 'started'), issue('ENG-13', 13, 'Finished Linear task', 'completed')];
