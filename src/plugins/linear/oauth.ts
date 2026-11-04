@@ -1,6 +1,7 @@
 /** Linear OAuth 2.0 + PKCE：开源桌面客户端免 client_secret 的浏览器授权流程。 */
 import { openExternalUrl } from '@/utils/openExternal';
 import { tNow } from '@/i18n';
+import { beginOAuthLoopback, cancelOAuthLoopback, waitOAuthLoopback } from '@/services/oauth/loopback';
 import { ProviderApiError } from '@/services/collaboration/client';
 import { providerHttpRequest } from '@/services/http/providerHttp';
 
@@ -10,6 +11,8 @@ const TOKEN_URL = 'https://api.linear.app/oauth/token';
 /** 与 Linear OAuth 应用登记的回跳地址保持一致（oauth_callback.rs 注释同步）。 */
 export const LOOPBACK_PORT = 53862;
 const REDIRECT_URI = `http://127.0.0.1:${LOOPBACK_PORT}/callback`;
+/** 完成页上的平台展示名。 */
+const PROVIDER_NAME = 'Linear';
 // comments:create 用于发表评论（Linear 后台的应用 scopes 也必须同步勾选，否则换来的令牌仍是只读）。
 const SCOPES = 'read,issues:create,comments:create';
 /** 等浏览器授权的上限：与 oauth_loopback_wait 的 MAX_WAIT_MS 一致取 10 分钟。 */
@@ -32,8 +35,6 @@ export interface LinearTokenSet {
 export let LINEAR_CLIENT_ID = '840ca5172c5aca527874e369544b060f';
 export function setLinearClientId(clientId: string): void { LINEAR_CLIENT_ID = clientId; }
 
-export interface OAuthCallbackResult { code: string | null; state: string | null; error: string | null }
-
 function base64url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -51,15 +52,6 @@ async function challenge(verifier: string): Promise<string> {
   return base64url(new Uint8Array(digest));
 }
 
-/** 桌面端 Rust 回跳监听；web 预览没有该命令，给出明确错误而不是静默挂起。 */
-async function invokeLoopback<T>(command: string, args: Record<string, unknown>): Promise<T> {
-  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
-    throw new Error(tNow('connections.errors.oauthDesktopOnly'));
-  }
-  const { invoke } = await import('@tauri-apps/api/core');
-  return invoke<T>(command, args);
-}
-
 export class LinearOAuthService {
   /**
    * 打开系统浏览器走授权，阻塞至回跳到达或超时。state 由本地生成并在此比对，
@@ -69,7 +61,7 @@ export class LinearOAuthService {
     if (!LINEAR_CLIENT_ID) throw new Error(tNow('connections.errors.oauthNotConfigured'));
     const verifier = randomVerifier();
     const state = randomVerifier();
-    const session = await invokeLoopback<{ id: string; port: number }>('oauth_loopback_begin', { port: LOOPBACK_PORT });
+    const session = await beginOAuthLoopback(LOOPBACK_PORT, PROVIDER_NAME);
     try {
       const url = new URL(AUTHORIZE_URL);
       url.searchParams.set('client_id', LINEAR_CLIENT_ID);
@@ -80,13 +72,13 @@ export class LinearOAuthService {
       url.searchParams.set('code_challenge', await challenge(verifier));
       url.searchParams.set('code_challenge_method', 'S256');
       await openExternalUrl(url.toString());
-      const callback = await invokeLoopback<OAuthCallbackResult>('oauth_loopback_wait', { id: session.id, timeoutMs: WAIT_TIMEOUT_MS });
+      const callback = await waitOAuthLoopback(session.id, WAIT_TIMEOUT_MS);
       if (callback.error) throw new ProviderApiError(400, `Linear: ${callback.error}`);
       if (!callback.code) throw new ProviderApiError(400, 'Linear OAuth callback missing code');
       if (callback.state !== state) throw new ProviderApiError(400, 'Linear OAuth state mismatch');
       return await this.exchangeCode(callback.code, verifier);
     } finally {
-      await invokeLoopback('oauth_loopback_cancel', { id: session.id }).catch(() => { /* 会话可能已被 wait 消费 */ });
+      await cancelOAuthLoopback(session.id);
     }
   }
 

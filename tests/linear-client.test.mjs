@@ -45,9 +45,9 @@ before(async () => {
   };
   // OAuth 回跳命令桩：begin 记录端口，open_external_url 捕获授权 URL 里的 state，
   // wait 按可配置脚本返回回调；不配置脚本时模拟用户取消（返回错误重定向）。
-  let session = null, authorizeUrl = null, waitScript = null;
+  let session = null, authorizeUrl = null, waitScript = null, beginArgs = null;
   api.linearOAuthService.__test = {
-    get authorizeUrl() { return authorizeUrl; }, get sessionId() { return session?.id; },
+    get authorizeUrl() { return authorizeUrl; }, get sessionId() { return session?.id; }, get beginArgs() { return beginArgs; },
     scriptWait(script) { waitScript = script; },
   };
   globalThis.window = { __TAURI_INTERNALS__: { async invoke(command, args) {
@@ -62,7 +62,7 @@ before(async () => {
       return { status: response.status, headers: headerMap, body: await response.text() };
     }
     if (command === 'cancel_provider_http_request') return null;
-    if (command === 'oauth_loopback_begin') { session = { id: 'loopback-test-1', port: args.port }; return session; }
+    if (command === 'oauth_loopback_begin') { beginArgs = args; session = { id: 'loopback-test-1', port: args.port }; return session; }
     if (command === 'open_external_url') { authorizeUrl = args.url; return null; }
     if (command === 'oauth_loopback_wait') {
       if (!waitScript) return { code: null, state: null, error: 'access_denied' };
@@ -148,6 +148,10 @@ test('oauth authorize runs the PKCE loopback flow and validates state', async ()
     assert.match(api.linearOAuthService.__test.authorizeUrl, /code_challenge_method=S256/);
     assert.match(api.linearOAuthService.__test.authorizeUrl, /redirect_uri=http%3A%2F%2F127.0.0.1%3A53862%2Fcallback/);
     assert.match(api.linearOAuthService.__test.authorizeUrl, /scope=read%2Cissues%3Acreate/);
+    // 通用回跳页需要平台展示名与界面语言：begin 必须把两者一起交给 Rust。
+    assert.equal(api.linearOAuthService.__test.beginArgs.provider, 'Linear');
+    assert.equal(api.linearOAuthService.__test.beginArgs.language, 'zh');
+    assert.equal(api.linearOAuthService.__test.beginArgs.port, 53862);
     // state 匹配 → 换令牌，form 表单携带 code_verifier 而非 client_secret。
     api.linearOAuthService.__test.scriptWait(url => {
       const state = new URL(url).searchParams.get('state');
