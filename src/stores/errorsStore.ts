@@ -78,6 +78,9 @@ interface ErrorsStoreState {
   }): Promise<PersistedConnection>;
   /** 重新测试：成功才更新域快照与健康态；失败只改健康态、保留旧快照（§4.4）。 */
   retestConnection(id: string): Promise<void>;
+  /** 启动自动校验：健康态只存内存，重启后对全部启用连接后台验证一次，
+   *  避免每次启动都停在「未验证」直到用户手动点刷新。 */
+  retestEnabled(): Promise<void>;
   /** 仓库上下文进入/切换时调用：计算 repoKey 并挂载该仓库的映射。 */
   loadRepoContext(originUrl: string | null | undefined, workspacePath: string): void;
   setScope(scope: ErrorsScope): void;
@@ -293,6 +296,11 @@ export const useErrorsStore = create<ErrorsStoreState>((set, get) => ({
     get().setConnectionDomains(connection.id, domains);
     get().setConnectionHealth(connection.id, 'connected');
     return { ...connection, domains };
+  },
+
+  async retestEnabled() {
+    const enabled = get().connections.filter((connection) => connection.enabled);
+    await Promise.allSettled(enabled.map((connection) => get().retestConnection(connection.id)));
   },
 
   async retestConnection(id) {
