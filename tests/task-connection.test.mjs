@@ -125,6 +125,19 @@ test('capability double-check routes task operations through the bound manifest'
   await api.useTaskStore.getState().removeConnection(connection.id);
 });
 
+test('reconnecting the same account upserts instead of stacking connections', async () => {
+  const state = api.useTaskStore.getState();
+  for (const leftover of api.useTaskStore.getState().connections) await api.useTaskStore.getState().removeConnection(leftover.id);
+  const first = await state.connectWithToken({ providerId: 'linear', displayName: 'First', token: 'lin_api_one' });
+  const second = await state.connectWithToken({ providerId: 'linear', displayName: 'Second', token: 'lin_api_two' });
+  assert.equal(second.id, first.id, '同一账号必须复用既有连接');
+  assert.equal(second.displayName, 'Second');
+  assert.equal(api.useTaskStore.getState().connections.length, 1);
+  // keyring 里是后一次的令牌。
+  assert.equal(JSON.parse(await api.getIntegrationToken(first.id)).accessToken, 'lin_api_two');
+  await api.useTaskStore.getState().removeConnection(first.id);
+});
+
 test('disabling the plugin clears connection domains and unbinds the channel', async () => {
   // 防御性清理：前序测试失败可能遗留连接，先清场再断言本测试的隔离语义。
   for (const leftover of api.useTaskStore.getState().connections) await api.useTaskStore.getState().removeConnection(leftover.id);

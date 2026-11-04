@@ -250,7 +250,8 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
       const plugin = getTaskPlugin(selectedManifest.id);
       if (!plugin?.oauth) throw new Error(t('connections.errors.oauthNotConfigured'));
       const tokenSet = await plugin.oauth.authorize();
-      await task.connectWithOAuth({ providerId: selectedManifest.id, displayName: form.displayName.trim() || selectedManifest.name, tokenSet });
+      // 显示名留空时由 store 以平台账号 login 兜底。
+      await task.connectWithOAuth({ providerId: selectedManifest.id, displayName: form.displayName.trim(), tokenSet });
       toast.success(t('errors.settings.saved'));
       dismissForm();
     } catch (error) {
@@ -270,7 +271,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
     setSaving(true);
     setFormError(null);
     try {
-      await task.connectWithToken({ providerId: selectedManifest.id, displayName: form.displayName.trim() || selectedManifest.name, token: form.token });
+      await task.connectWithToken({ providerId: selectedManifest.id, displayName: form.displayName.trim(), token: form.token });
       toast.success(t('errors.settings.saved'));
       dismissForm();
     } catch (error) {
@@ -337,6 +338,8 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
   /** 卡片：provider + 连接计数徽标，账号统一来自协作状态。 */
   const connectedCount = (manifest: ProviderManifest): number => {
     if (manifest.connectionKind === 'hosting-account') return hostingProfiles.filter(profile => profile.providerId === manifest.id).length;
+    // 独立任务连接在 taskStore（errors 通道只存 error-token 连接）。
+    if (manifest.connectionKind === 'task-account') return task.connections.filter((connection) => connection.providerId === manifest.id).length;
     return connections.filter((connection) => connection.providerId === manifest.id).length;
   };
 

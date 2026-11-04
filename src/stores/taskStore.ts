@@ -34,13 +34,15 @@ interface TaskStoreState {
   restored: boolean;
 
   restoreConnections(): Promise<void>;
-  addConnection(input: Pick<TaskConnection, 'providerId' | 'displayName'>): TaskConnection;
+  addConnection(input: Pick<TaskConnection, 'providerId' | 'displayName' | 'orgId'>): TaskConnection;
   updateConnection(id: string, patch: Partial<Omit<TaskConnection, 'id'>>): void;
   removeConnection(id: string): Promise<void>;
   /** PAT 路径：验证令牌（verifyToken 走 viewer 查询）后建立连接。 */
   connectWithToken(input: { providerId: string; displayName: string; token: string }): Promise<TaskConnection>;
   /** OAuth 路径：令牌已由浏览器授权取得，这里只负责落连接与凭证。 */
   connectWithOAuth(input: { providerId: string; displayName: string; tokenSet: AuxTokenSet }): Promise<TaskConnection>;
+  /** 同账号去重的连接落库入口：orgId 存账号标识（viewer id），重复连接更新既有令牌。 */
+  upsertConnection(input: { providerId: string; displayName: string; tokenJson: string; accountId: string }): Promise<TaskConnection>;
   /** 令牌过期（或即将过期）时刷新并原子回写 keyring；PAT 连接（无 oauthRefresh）原样返回。 */
   ensureFreshToken(id: string): Promise<string | null>;
   /** 重新验证：成功更新域快照与健康态；失败只改健康态、保留旧快照。 */
@@ -104,16 +106,39 @@ export const useTaskStore = create<TaskStoreState>((set, get) => ({
   restored: false,
 
   async restoreConnections() {
-    set({ connections: readPersisted(), restored: true });
+    const connections = readPersisted();
+    // 旧版本连接没有 orgId（账号标识）：验证令牌回填身份，随后按 (providerId, orgId)
+    // 去重——同账号多连接是「卡片未连接」误导下反复连接的产物，保留最后一条（令牌最新）。
+    const verified = await Promise.all(connections.map(async (connection) => {
+      if (connection.orgId || !connection.enabled) return connection;
+      const plugin = getTaskPlugin(connection.providerId);
+      const stored = parseTokenSet(await getIntegrationToken(connection.id));
+      if (!plugin || !stored) return connection;
+      try {
+        const user = await plugin.createClient({ token: stored.accessToken }).verifyToken(stored.accessToken);
+        return { ...connection, orgId: String(user.id) };
+      } catch {
+        return connection;
+      }
+    }));
+    const deduplicated = new Map<string, TaskConnection>();
+    for (const connection of verified) {
+      deduplicated.set(connection.orgId ? `${connection.providerId}:${connection.orgId}` : `${connection.providerId}:unverified:${connection.id}`, connection);
+    }
+    const deduped = [...deduplicated.values()];
+    const dropped = connections.filter((connection) => !deduped.some((item) => item.id === connection.id));
+    for (const connection of dropped) await deleteIntegrationToken(connection.id).catch(() => {});
+    if (dropped.length) persist(deduped);
+    set({ connections: deduped, restored: true });
     // 恢复即预热：过期令牌顺手刷新，首个 Issues 请求不至于先吃一次 401。
-    await Promise.allSettled(get().connections.filter(connection => connection.enabled).map(connection => get().ensureFreshToken(connection.id)));
+    await Promise.allSettled(deduped.filter((connection) => connection.enabled).map((connection) => get().ensureFreshToken(connection.id)));
   },
 
   addConnection(input) {
     const connection: TaskConnection = {
       id: newConnectionId(), providerId: input.providerId,
       displayName: input.displayName.trim() || input.providerId, enabled: true,
-      baseUrl: undefined, orgId: undefined, domains: [],
+      baseUrl: undefined, orgId: input.orgId, domains: [],
     };
     set({ connections: [...get().connections, connection] });
     persist(get().connections);
@@ -134,35 +159,54 @@ export const useTaskStore = create<TaskStoreState>((set, get) => ({
     persist(get().connections);
   },
 
-  async connectWithToken({ providerId, displayName, token }) {
-    const plugin = getTaskPlugin(providerId);
-    if (!plugin) throw new Error(`Unknown task plugin: ${providerId}`);
-    await plugin.createClient({ token }).verifyToken(token.trim());
-    const connection = get().addConnection({ providerId, displayName });
+  /**
+   * 连接落库的统一入口：先验证身份（verifyToken）再做**同账号去重**——
+   * orgId 存账号标识（viewer id），同一平台同一账号重复连接时更新既有连接
+   * 的令牌与显示名，而不是堆出第二条（用户会被「卡片未连接」误导连 N 次）。
+   * keyring 先写再改状态：写失败时既有令牌/状态原样保留。
+   */
+  async upsertConnection(input: { providerId: string; displayName: string; tokenJson: string; accountId: string }): Promise<TaskConnection> {
+    const existing = get().connections.find((connection) => connection.providerId === input.providerId && connection.orgId === input.accountId);
+    if (existing) {
+      await storeIntegrationToken(existing.id, input.tokenJson);
+      const domains = manifestDomains(input.providerId);
+      get().updateConnection(existing.id, { displayName: input.displayName, enabled: true });
+      get().setConnectionDomains(existing.id, domains);
+      get().setConnectionHealth(existing.id, 'connected');
+      return { ...get().connections.find((connection) => connection.id === existing.id)!, domains };
+    }
+    const connection = get().addConnection({ providerId: input.providerId, displayName: input.displayName, orgId: input.accountId });
     try {
-      await storeIntegrationToken(connection.id, JSON.stringify({ accessToken: token.trim(), expiresAt: Number.MAX_SAFE_INTEGER }));
+      await storeIntegrationToken(connection.id, input.tokenJson);
     } catch (cause) {
       await get().removeConnection(connection.id);
       throw cause;
     }
-    const domains = manifestDomains(providerId);
+    const domains = manifestDomains(input.providerId);
     get().setConnectionDomains(connection.id, domains);
     get().setConnectionHealth(connection.id, 'connected');
     return { ...connection, domains };
   },
 
+  async connectWithToken({ providerId, displayName, token }) {
+    const plugin = getTaskPlugin(providerId);
+    if (!plugin) throw new Error(`Unknown task plugin: ${providerId}`);
+    const user = await plugin.createClient({ token }).verifyToken(token.trim());
+    return get().upsertConnection({
+      providerId, displayName: displayName.trim() || user.login || providerId,
+      tokenJson: JSON.stringify({ accessToken: token.trim(), expiresAt: Number.MAX_SAFE_INTEGER }),
+      accountId: String(user.id),
+    });
+  },
+
   async connectWithOAuth({ providerId, displayName, tokenSet }) {
-    const connection = get().addConnection({ providerId, displayName });
-    try {
-      await storeIntegrationToken(connection.id, JSON.stringify(tokenSet));
-    } catch (cause) {
-      await get().removeConnection(connection.id);
-      throw cause;
-    }
-    const domains = manifestDomains(providerId);
-    get().setConnectionDomains(connection.id, domains);
-    get().setConnectionHealth(connection.id, 'connected');
-    return { ...connection, domains };
+    const plugin = getTaskPlugin(providerId);
+    if (!plugin) throw new Error(`Unknown task plugin: ${providerId}`);
+    const user = await plugin.createClient({ token: tokenSet.accessToken }).verifyToken(tokenSet.accessToken);
+    return get().upsertConnection({
+      providerId, displayName: displayName.trim() || user.login || providerId,
+      tokenJson: JSON.stringify(tokenSet), accountId: String(user.id),
+    });
   },
 
   async ensureFreshToken(id) {
