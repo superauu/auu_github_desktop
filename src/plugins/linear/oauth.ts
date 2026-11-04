@@ -10,7 +10,8 @@ const TOKEN_URL = 'https://api.linear.app/oauth/token';
 /** 与 Linear OAuth 应用登记的回跳地址保持一致（oauth_callback.rs 注释同步）。 */
 export const LOOPBACK_PORT = 53862;
 const REDIRECT_URI = `http://127.0.0.1:${LOOPBACK_PORT}/callback`;
-const SCOPES = 'read,issues:create';
+// comments:create 用于发表评论（Linear 后台的应用 scopes 也必须同步勾选，否则换来的令牌仍是只读）。
+const SCOPES = 'read,issues:create,comments:create';
 /** 等浏览器授权的上限：与 oauth_loopback_wait 的 MAX_WAIT_MS 一致取 10 分钟。 */
 const WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 

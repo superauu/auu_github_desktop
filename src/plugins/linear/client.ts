@@ -27,6 +27,7 @@ const bareColor = (color: string | null | undefined) => (color ?? '808080').repl
 
 const ISSUE_FIELDS = `
   id identifier number title description url createdAt updatedAt completedAt canceledAt
+  team { id key name }
   state { type name }
   creator { displayName name avatarUrl }
   labels { nodes { id name color } }
