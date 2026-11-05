@@ -42,7 +42,8 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
   });
 
   useEffect(() => {
-    if (!repo || !status) return;
+    // 没有已审核文件就没有校验工作：周期刷新到此为止，不再重建缓存批次或触发重渲。
+    if (!repo || !status || !candidates.length) return;
     let cancelled = false, cursor = 0;
     if (cache.current?.scope !== scope || cache.current.revision !== revision || cache.current.status !== status || cache.current.files !== fileSignature) {
       const keys = new Set(files.map(workingFileVersionKey));
@@ -52,7 +53,7 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
     const batch = cache.current;
     seedSelectedEvidence(batch);
     const missing = candidates.filter(file => !batch.snapshots.has(workingFileVersionKey(file)));
-    render(value => value + 1);
+    if (!missing.length) return;
     void Promise.all(Array.from({ length: Math.min(4, missing.length) }, async () => {
       while (!cancelled && cursor < missing.length) {
         const file = missing[cursor++], key = workingFileVersionKey(file);
@@ -74,20 +75,20 @@ export function useWorkingReviewFileList(repo: string, status: GitStatusResult |
     }
   }, [scope, status, revision, selectedKey, selectedSnapshot]);
 
+  // states 不依赖 revision：无变化的周期刷新不会重建 Map，文件列表因此不再整体重渲。
   const stateSnapshot = useMemo(() => ({ evidenceVersion, states: new Map(files.map(file => {
     const key = workingFileVersionKey(file), record = records[workingReviewKey(repo, branch, file.path)];
     if (file.status === 'conflicted' || !hasReview(record)) return [key, pending] as const;
     const batch = cache.current;
-    const fresh = batch?.scope === scope && batch.revision === revision && batch.status === status;
     // Periodic verification retains the last confirmed presentation until a new read completes.
     // Missing files, another branch/HEAD, and failed reads never inherit a green marker.
     const last = batch?.scope === scope ? batch.snapshots.has(key) ? batch.snapshots.get(key) : batch.previous.get(key) : undefined;
-    const snapshot = selectedKey === key && selectedSnapshot ? selectedSnapshot : fresh && batch.snapshots.has(key) ? batch.snapshots.get(key) : last;
+    const snapshot = selectedKey === key && selectedSnapshot ? selectedSnapshot : last;
     if (snapshot === undefined) return [key, { ...pending, kind: 'checking' } as WorkingFileReviewState] as const;
     if (!snapshot) return [key, { ...pending, failed: true }] as const;
     const result = workingReviewStatus(record, snapshot);
     return [key, { ...result, totalHunks: snapshot.hunks.length, kind: result.unresolved ? 'issues' : result.approved ? 'approved' : result.approvedHunks ? 'partial' : 'pending' } as WorkingFileReviewState] as const;
-  })) }), [files, records, repo, branch, scope, revision, status, selectedKey, selectedSnapshot, evidenceVersion]);
+  })) }), [files, records, repo, branch, scope, selectedKey, selectedSnapshot, evidenceVersion]);
   const states = stateSnapshot.states;
   const stateFor = useCallback((file: GitFileChange) => states.get(workingFileVersionKey(file)) ?? pending, [states]);
   const values = [...states.values()];
