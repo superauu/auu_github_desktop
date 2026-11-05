@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronsUp, ChevronsDown } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { Button } from './button';
@@ -17,8 +17,10 @@ export function highlightDiff(content: string, query: string) {
   parts.push(content.slice(offset)); return parts;
 }
 
-export function DiffTools({ query, onQueryChange, contents, targetId, onReload }: {
+export function DiffTools({ query, onQueryChange, contents, targetId, onReload, onPrevChange, onNextChange, changeCount = 0 }: {
   query: string; onQueryChange: (query: string) => void; contents: readonly string[]; targetId: string; onReload?: () => void;
+  /** 修改段跳转（概览标尺同款定位）：以视口中心为基准找上/下一处修改。 */
+  onPrevChange?: () => void; onNextChange?: () => void; changeCount?: number;
 }) {
   const { t } = useI18n();
   const wrap = useSettingsStore(state => state.diffWrapLines);
@@ -37,6 +39,10 @@ export function DiffTools({ query, onQueryChange, contents, targetId, onReload }
     {query && <span className="text-muted-foreground">{matches.length ? cursor + 1 : 0}/{matches.length}</span>}
     <Button variant="ghost" size="xs" disabled={!matches.length} aria-label={t('diff.previousMatch')} onClick={() => reveal(cursor - 1)}><ChevronUp className="h-3.5 w-3.5" /></Button>
     <Button variant="ghost" size="xs" disabled={!matches.length} aria-label={t('diff.nextMatch')} onClick={() => reveal(cursor + 1)}><ChevronDown className="h-3.5 w-3.5" /></Button>
+    {onPrevChange && onNextChange && <>
+      <Button variant="ghost" size="xs" disabled={!changeCount} aria-label={t('diff.prevChange')} title={t('diff.prevChange')} onClick={onPrevChange}><ChevronsUp className="h-3.5 w-3.5" /></Button>
+      <Button variant="ghost" size="xs" disabled={!changeCount} aria-label={t('diff.nextChange')} title={t('diff.nextChange')} onClick={onNextChange}><ChevronsDown className="h-3.5 w-3.5" /></Button>
+    </>}
     <label className="flex items-center gap-1"><input type="checkbox" checked={wrap} onChange={event => useSettingsStore.getState().setDiffWrapLines(event.target.checked)} />{t('diff.wrap')}</label>
     <label className="flex items-center gap-1" title={t('diff.ignoreHint')}><input type="checkbox" checked={ignore} onChange={event => { useSettingsStore.getState().setDiffIgnoreWhitespace(event.target.checked); onReload?.(); }} />{t('diff.ignoreWhitespace')}</label>
     {ignore && <p className="w-full text-muted-foreground">{t('diff.ignoreHint')}</p>}

@@ -1,9 +1,11 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 /** Window long lists, measuring wrapped rows while keeping normal text selection. */
-export function VirtualRows<T>({ items, renderRow, rowHeight = 24, threshold = 300, contentWidth = false }: {
+export function VirtualRows<T>({ items, renderRow, rowHeight = 24, threshold = 300, contentWidth = false, geometryRef }: {
   items: readonly T[]; renderRow: (item: T, index: number) => ReactNode;
   rowHeight?: number; threshold?: number; contentWidth?: boolean;
+  /** 接收累计行偏移表（长度 = items.length + 1），供概览标尺做像素级定位；传入即启用非虚拟模式的全量测高。 */
+  geometryRef?: RefObject<number[] | null>;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const port = useRef<HTMLElement | null>(null);
@@ -27,6 +29,12 @@ export function VirtualRows<T>({ items, renderRow, rowHeight = 24, threshold = 3
     while (low < high) { const middle = (low + high) >>> 1; if (offsets[middle + 1] < value) low = middle + 1; else high = middle; }
     return low;
   };
+  // 概览标尺自行消费偏移表（事件 + ref），不经过父组件 state，避免滚动测高期间放大重渲。
+  useLayoutEffect(() => {
+    if (!geometryRef) return;
+    geometryRef.current = offsets;
+    root.current?.dispatchEvent(new Event('auugit-geometry', { bubbles: true }));
+  }, [geometryRef, offsets]);
   const start = virtual ? Math.max(0, lowerBound(viewport.top) - 12) : 0;
   const end = virtual ? Math.min(items.length, lowerBound(viewport.top + viewport.height) + 13) : items.length;
 
@@ -71,7 +79,8 @@ export function VirtualRows<T>({ items, renderRow, rowHeight = 24, threshold = 3
   }, [start, end, revision]);
 
   useLayoutEffect(() => {
-    if (!virtual || !root.current) return;
+    // 非虚拟但需要几何信息时同样全量测高：offsets 必须与真实布局一致，标记才对得准。
+    if ((!virtual && !geometryRef) || !root.current) return;
     const observer = new ResizeObserver(entries => {
       let changed = false;
       let widest = 0;
@@ -87,7 +96,7 @@ export function VirtualRows<T>({ items, renderRow, rowHeight = 24, threshold = 3
     });
     root.current.querySelectorAll('[data-virtual-row-index]').forEach(element => observer.observe(element));
     return () => observer.disconnect();
-  }, [start, end, measured, virtual, contentWidth]);
+  }, [start, end, measured, virtual, contentWidth, geometryRef]);
 
   // Short lists also need a shared content width so row backgrounds cover horizontal overflow.
   return <div ref={root} data-virtual-count={items.length} style={virtual ? { position: 'relative', height: offsets[items.length], minWidth: '100%', width: contentWidth && width ? width : undefined, overflowAnchor: 'none' } : contentWidth ? { minWidth: '100%', width: 'max-content' } : undefined}>

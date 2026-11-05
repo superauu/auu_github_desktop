@@ -25,11 +25,12 @@ import { FilePath } from '@/components/ui/FilePath';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { moveListFocus } from '@/utils/listKeyboard';
 import { computeSplitRows } from '@/utils/diffRows';
+import { computeDiffMarkerRuns, computeSplitMarkerRuns, type DiffMarkerRun } from '@/utils/diffOverview';
 import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 import { diffContentSide } from '@/utils/codeScope';
 import { expandDiffWithFile } from '@/utils/fullFileDiff';
 import { useDiffFileContent } from './useDiffFileContent';
-import React, { useState, useMemo, useEffect, useRef, useId } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useId, useCallback } from 'react';
 import { DiffTools } from '@/components/ui/DiffTools';
 import { useGitActivity } from '@/hooks/useGitActivity';
 import {
@@ -547,6 +548,41 @@ export const WorkingChangesView: React.FC = () => {
     if (diffMode !== 'split' || displayLines.length === 0) return [];
     return computeSplitRows(displayLines);
   }, [diffMode, displayLines]);
+  // 概览标尺与「上/下一处修改」共用同一份修改段；偏移表由 VirtualRows 写入 ref。
+  const diffGeometryRef = useRef<number[] | null>(null);
+  const markerRuns = useMemo<readonly DiffMarkerRun[]>(() => (diffMode === 'split' ? computeSplitMarkerRuns(splitRows) : computeDiffMarkerRuns(displayLines)), [diffMode, splitRows, displayLines]);
+  const jumpToMarkerRun = useCallback((startIndex: number) => {
+    const port = document.getElementById(diffId);
+    port?.querySelector('[data-virtual-count]')?.dispatchEvent(new CustomEvent('auugit-focus-row', { detail: startIndex }));
+    port?.focus({ preventScroll: true });
+  }, [diffId]);
+  const goToChange = useCallback((direction: 1 | -1) => {
+    const offsets = diffGeometryRef.current;
+    const port = document.getElementById(diffId);
+    if (!offsets?.length || !port || !markerRuns.length) return;
+    // 以视口中心所在的修改段为基准，前进/后退一段并循环回绕；
+    // 直接比较 scrollTop 会在末段被最大滚动量钳制时来回打转。
+    const center = port.scrollTop + port.clientHeight / 2;
+    let current = -1;
+    for (let index = 0; index < markerRuns.length; index++) {
+      if (offsets[markerRuns[index].startIndex] <= center) current = index; else break;
+    }
+    jumpToMarkerRun(markerRuns[(current + direction + markerRuns.length) % markerRuns.length].startIndex);
+  }, [diffId, markerRuns, jumpToMarkerRun]);
+  // 进入/退出完整文件或完整文件下切换文件时，直接落到第一处修改，免去手动滚动查找。
+  const fullFileJump = useRef({ key: '', full: false });
+  useEffect(() => {
+    const key = `${activeFile?.path ?? ''}\u0000${!!activeFile?.staged}`;
+    const previous = fullFileJump.current;
+    const fullChanged = previous.full !== fullFileActive;
+    const fileChanged = previous.key !== key;
+    fullFileJump.current = { key, full: fullFileActive };
+    if (!fullChanged && !(fullFileActive && fileChanged)) return;
+    const index = displayLines.findIndex(line => line.type === 'add' || line.type === 'delete');
+    if (index < 0) return;
+    const frame = requestAnimationFrame(() => { jumpToMarkerRun(index); });
+    return () => cancelAnimationFrame(frame);
+  }, [fullFileActive, activeFile?.path, activeFile?.staged, displayLines, jumpToMarkerRun]);
   useEffect(() => { setLocatedHeader(undefined); }, [activeFile?.path, activeFile?.staged, fileDiffLines]);
   useEffect(() => {
     if (!locateTarget || activeFile?.path !== locateTarget.path || !!activeFile?.staged !== locateTarget.staged || fileDiffLoading) return;
@@ -1128,7 +1164,7 @@ export const WorkingChangesView: React.FC = () => {
         {/* Content Pane: Conflict Resolver / Blame / File History / Diff View */}
         {activeFile && activeFile.status !== 'conflicted' && contentMode === 'diff' && <WorkingReviewPanel review={workingReview} filtered={ignoreWhitespace} onNext={nextReviewFile ? goToNextReview : undefined} onLocate={issue => void locateIssue(activeFile.path, issue)} />}
         {activeFile?.status === 'modified' && !isImagePath(activeFile.path) && contentMode === 'diff' && diffMode === 'unified' && !ignoreWhitespace && !fullFileActive && <div className="workspace-divider px-3 py-1.5 border-b border-border flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">{t('flow.lineHint')} ({selectedLines.size})</span><Button variant="outline" size="xs" disabled={lineBusy || !selectedLines.size || !!pendingWrites} onClick={() => void applyLines()}>{t(activeFile.staged ? 'flow.unstageLines' : 'flow.stageLines')}</Button></div>}
-        {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} />}
+        {activeFile && !isImagePath(activeFile.path) && contentMode === 'diff' && !(activeFile.status === 'conflicted' && showResolver) && <DiffTools query={diffQuery} onQueryChange={setDiffQuery} contents={diffContents} targetId={diffId} onReload={() => void loadFileDiff(activeFile)} onPrevChange={() => goToChange(-1)} onNextChange={() => goToChange(1)} changeCount={markerRuns.length} />}
         {activeFile?.status === 'conflicted' && showResolver ? (
           <InteractiveConflictResolver
             filePath={activeFile.path}
@@ -1159,6 +1195,8 @@ export const WorkingChangesView: React.FC = () => {
             fullFile={fullFileActive}
             renderHunkActions={fullFileActive ? () => null : renderHunkActions}
             headerHunkIdx={headerHunkIdx}
+            markerRuns={markerRuns}
+            geometryRef={diffGeometryRef}
             ignoreWhitespace={ignoreWhitespace}
             selectedLines={selectedLines}
             lineBusy={lineBusy}

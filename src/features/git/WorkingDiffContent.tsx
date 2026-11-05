@@ -1,9 +1,10 @@
-import { useMemo, type Dispatch, type SetStateAction, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type RefObject } from 'react';
 import { DiffHunkHeader } from '@/components/ui/DiffHunkHeader';
 import { diffHunkStats } from '@/utils/diffHunkLabel';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { Button } from '@/components/ui/button';
 import { VirtualRows } from '@/components/ui/VirtualRows';
+import { DiffOverviewRuler } from '@/components/ui/DiffOverviewRuler';
 import { highlightDiff } from '@/components/ui/DiffTools';
 import { FileCode } from 'lucide-react';
 import { ImageDiffView } from './ImageDiffView';
@@ -11,6 +12,7 @@ import { isImagePath } from '@/services/git/ImageDiffService';
 import type { GitFileChange, GitStatusResult, RepositoryInfo } from '@/services/git/types';
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import type { computeSplitRows } from '@/utils/diffRows';
+import type { DiffMarkerRun } from '@/utils/diffOverview';
 import { useI18n } from '@/i18n';
 import { cn } from '@/utils/cn';
 import type { DiffContentSide } from '@/utils/codeScope';
@@ -29,14 +31,45 @@ interface WorkingDiffContentProps {
   fileLines?: string[] | null; contentSide?: DiffContentSide;
   /** 只读的完整文件视图：隐藏行选择与块级暂存入口。 */
   fullFile?: boolean;
+  /** 概览标尺的修改段（统一/分栏口径由调用方按当前模式算好）。 */
+  markerRuns: readonly DiffMarkerRun[];
+  /** VirtualRows 的行偏移表容器；标尺与「上/下一处修改」跳转共用。 */
+  geometryRef: RefObject<number[] | null>;
 }
 
-export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, currentRepo, activeFile, status, fileDiffLoading, fileDiffError, loadFileDiff, fileDiffLines, diffMode, splitRows, renderHunkActions, headerHunkIdx, ignoreWhitespace, selectedLines, lineBusy, pendingWrites, setSelectedLines, diffQuery, fileLines = null, contentSide = 'new', fullFile = false }: WorkingDiffContentProps) {
+export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, currentRepo, activeFile, status, fileDiffLoading, fileDiffError, loadFileDiff, fileDiffLines, diffMode, splitRows, renderHunkActions, headerHunkIdx, ignoreWhitespace, selectedLines, lineBusy, pendingWrites, setSelectedLines, diffQuery, fileLines = null, contentSide = 'new', fullFile = false, markerRuns, geometryRef }: WorkingDiffContentProps) {
   const { t } = useI18n();
   const stats = useMemo(() => diffHunkStats(fileDiffLines), [fileDiffLines]);
   const scopes = useHunkScopes(fileDiffLines, fileLines, contentSide);
+  const [diffPort, setDiffPort] = useState<HTMLDivElement | null>(null);
+  // 同一文件的差异内容被后台刷新替换时保持滚动位置：记录 scrollTop，等新内容提交后恢复。
+  const scrollMemory = useRef({ top: 0, path: '', staged: false, full: false, lines: fileDiffLines });
+  useEffect(() => {
+    if (!diffPort) return;
+    const onScroll = () => { scrollMemory.current.top = diffPort.scrollTop; };
+    diffPort.addEventListener('scroll', onScroll, { passive: true });
+    return () => diffPort.removeEventListener('scroll', onScroll);
+  }, [diffPort]);
+  useLayoutEffect(() => {
+    const memory = scrollMemory.current;
+    const path = activeFile?.path ?? '';
+    const staged = !!activeFile?.staged;
+    const sameView = memory.path === path && memory.staged === staged && memory.full === fullFile;
+    const linesChanged = memory.lines !== fileDiffLines;
+    // 换文件（或暂存态切换）不继承旧位置，避免旧文件的滚动值被恢复到新内容上。
+    if (memory.path !== path || memory.staged !== staged) memory.top = 0;
+    memory.path = path; memory.staged = staged; memory.full = fullFile; memory.lines = fileDiffLines;
+    if (!sameView || !linesChanged || !diffPort || memory.top <= 0) return;
+    const top = memory.top;
+    let frame2 = 0;
+    const frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => { diffPort.scrollTop = top; });
+    });
+    return () => { cancelAnimationFrame(frame1); cancelAnimationFrame(frame2); };
+  }, [diffPort, fileDiffLines, activeFile?.path, activeFile?.staged, fullFile]);
   return (
-          <div id={diffId} tabIndex={-1} data-text-context style={{ fontSize: diffFontSize }} className={cn("review-diff-viewport glass-editor flex-1 min-h-0 overflow-auto font-mono leading-relaxed text-foreground select-text", wrap && "diff-wrap")}>
+          <div className="relative flex-1 min-h-0">
+          <div ref={setDiffPort} id={diffId} tabIndex={-1} data-text-context style={{ fontSize: diffFontSize }} className={cn("review-diff-viewport glass-editor absolute inset-0 overflow-auto font-mono leading-relaxed text-foreground select-text", wrap && "diff-wrap")}>
             {currentRepo && activeFile && isImagePath(activeFile.path) ? <ImageDiffView key={`${activeFile.path}-${activeFile.staged}-${status?.headOid}`} repoPath={currentRepo.path} path={activeFile.path} beforePath={activeFile.oldPath} before={activeFile.status === 'untracked' || (activeFile.staged && activeFile.status === 'added') ? 'EMPTY' : activeFile.staged ? (/^[0-9a-f]{40,64}$/.test(status?.headOid || '') ? status!.headOid! : 'EMPTY') : 'INDEX'} after={activeFile.staged ? 'INDEX' : 'WORKTREE'} /> : fileDiffLoading ? <p role="status" className="p-6 text-muted-foreground">{t('common.loading')}</p> : fileDiffError ? <div role="alert" className="p-6 space-y-3"><ErrorNotice error={fileDiffError} /><Button variant="outline" onClick={() => activeFile && void loadFileDiff(activeFile)}>{t('composer.retry')}</Button></div> : fileDiffLines.length === 0 ? (
               <div className="py-24 text-center space-y-2 text-muted-foreground select-none">
                 <FileCode className="h-8 w-8 mx-auto text-muted-foreground/30" />
@@ -46,7 +79,7 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, 
               </div>
             ) : diffMode === 'split' ? (
               /* Split Two-Column View */
-              <VirtualRows items={splitRows} rowHeight={24} renderRow={(row, idx) => {
+              <VirtualRows items={splitRows} rowHeight={24} geometryRef={geometryRef} renderRow={(row, idx) => {
                   if (row.isHeader) {
                     return (
                       <div
@@ -112,7 +145,7 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, 
                 }} />
             ) : (
               /* Unified Single Column View */
-              <VirtualRows items={fileDiffLines} contentWidth={!wrap} rowHeight={24} renderRow={(line, idx) => {
+              <VirtualRows items={fileDiffLines} contentWidth={!wrap} rowHeight={24} geometryRef={geometryRef} renderRow={(line, idx) => {
                 if (line.type === 'header') {
                   return (
                     <div
@@ -157,6 +190,8 @@ export function WorkingDiffContent({ diffId, diffFontSize, wrap, locatedHeader, 
                 );
               }} />
             )}
+          </div>
+          <DiffOverviewRuler runs={markerRuns} geometryRef={geometryRef} port={diffPort} />
           </div>
   );
 }
