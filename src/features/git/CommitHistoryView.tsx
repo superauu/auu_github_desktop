@@ -405,7 +405,7 @@ export const CommitHistoryView: React.FC = () => {
         </div>
         {/* Search commit box */}
         <div className="flex items-center gap-2">
-          <select aria-label={t('flow.searchMode')} value={searchMode} onChange={e => { setRemoteResults(null); setSearchMode(e.target.value as 'metadata' | 'contents' | 'regex'); }} className="max-w-28 rounded border border-input bg-background p-1 text-xs"><option value="metadata">{t('flow.searchMetadata')}</option><option value="contents">{t('flow.searchContents')}</option><option value="regex">{t('flow.searchRegex')}</option></select><div className="relative w-52">
+          <select aria-label={t('flow.searchMode')} value={searchMode} onChange={e => { setRemoteResults(null); setSearchMode(e.target.value as 'metadata' | 'contents' | 'regex'); }} className="rounded border border-input bg-background p-1 text-xs"><option value="metadata">{t('flow.searchMetadata')}</option><option value="contents">{t('flow.searchContents')}</option><option value="regex">{t('flow.searchRegex')}</option></select><div className="relative w-52">
             <Search className="h-3 w-3 text-muted-foreground absolute left-2 top-2" />
             <Input
               value={searchQuery}
