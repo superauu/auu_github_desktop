@@ -4,6 +4,7 @@
     { "id": "gitlab", "kind": "hosting", "module": "./gitlab" },
     { "id": "gitea", "kind": "hosting", "module": "./gitea" },
     { "id": "sentry", "kind": "error", "module": "./sentry" },
-    { "id": "linear", "kind": "task", "module": "./linear" }
+    { "id": "linear", "kind": "task", "module": "./linear" },
+    { "id": "jenkins", "kind": "ci", "module": "./jenkins" }
   ]
 }

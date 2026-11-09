@@ -1,6 +1,7 @@
 import type { DeclarableCapability } from '@/services/integrations/registry';
 import type { CollaborationClient } from './client';
 export const OPERATION_DOMAINS = {
+  getWorkflowInputs: 'ciCd',
   setToken: 'auth',
   verifyToken: 'auth',
   getRepository: 'repository',
@@ -41,6 +42,7 @@ export const OPERATION_DOMAINS = {
 export type ClientDomain = Exclude<typeof OPERATION_DOMAINS[keyof typeof OPERATION_DOMAINS], 'auth'>;
 
 export const OPERATION_CAPABILITIES = {
+  getWorkflowInputs: 'ci-cd:dispatch',
   searchIssues: 'task-tracking:list-issues',
   getIssueLabels: 'task-tracking:list-issues',
   getIssueAssignees: 'task-tracking:list-issues',

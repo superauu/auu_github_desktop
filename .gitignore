@@ -51,3 +51,6 @@ src-tauri/gen/schemas/
 /test-results/
 /playwright-report/
 THIRD-PARTY-NOTICES*.md
+
+# Local Jenkins fixture credentials and verification reports
+/.local/jenkins/

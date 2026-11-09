@@ -87,10 +87,10 @@ test('plugin composition accepts independent task and ci kinds', async () => {
     const full = composePlugins(undefined, fixtureRoot).data;
     assert.match(full, /HOSTING_PLUGINS: readonly HostingPlugin\[\] = \[giteaPlugin\]/);
     assert.match(full, /TASK_PLUGINS: readonly AuxPlugin\[\] = \[jiraPlugin\]/);
-    assert.match(full, /CI_PLUGINS: readonly AuxPlugin\[\] = \[jenkinsPlugin\]/);
+    assert.match(full, /CI_PLUGINS: readonly CiPlugin\[\] = \[jenkinsPlugin\]/);
     const selective = composePlugins('jira', fixtureRoot).data;
     assert.match(selective, /TASK_PLUGINS: readonly AuxPlugin\[\] = \[jiraPlugin\]/);
-    assert.match(selective, /CI_PLUGINS: readonly AuxPlugin\[\] = \[\]/);
+    assert.match(selective, /CI_PLUGINS: readonly CiPlugin\[\] = \[\]/);
     assert.doesNotMatch(selective, /jenkinsPlugin|giteaPlugin/);
     assert.deepEqual(composePlugins('jenkins', fixtureRoot).nativeFeatures, []);
     assert.equal(pluginCatalog(fixtureRoot).map(plugin => plugin.kind).join(','), 'task,ci,hosting');

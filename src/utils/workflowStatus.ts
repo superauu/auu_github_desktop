@@ -2,6 +2,7 @@ export function workflowStatus(status: string, conclusion: string | null) {
   if (status === 'in_progress') return { key: 'actions.building', variant: 'warning' } as const;
   if (status !== 'completed') return { key: status === 'waiting' || status === 'action_required' ? 'ui.actions.waiting' : 'ui.actions.queued', variant: 'secondary' } as const;
   switch (conclusion) {
+    case 'unstable': return { key: 'ciDomain.unstable', variant: 'warning' } as const;
     case 'success': return { key: 'actions.passed', variant: 'success' } as const;
     case 'failure': case 'timed_out': case 'startup_failure': return { key: conclusion === 'timed_out' ? 'ui.actions.timedOut' : 'actions.failed', variant: 'destructive' } as const;
     case 'cancelled': return { key: 'ui.actions.cancelled', variant: 'secondary' } as const;

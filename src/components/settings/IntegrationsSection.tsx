@@ -16,6 +16,8 @@ import { ProviderApiError } from '@/services/collaboration/client';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { getHostingPlugin, subscribePlugins } from '@/services/integrations/plugins';
 import { cn } from '@/utils/cn';
+import { useCiStore } from '@/stores/ciStore';
+import { CiConnectionManager } from './CiConnectionManager';
 
 /**
  * 设置「集成」分区（PRD §7.4）：按域分组的平台连接管理。
@@ -120,6 +122,7 @@ const ConnectionRow: React.FC<{
 export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: string) => void; onOpenAccountsTab?: () => void }> = ({ onManageAccounts, onOpenAccountsTab }) => {
   const { t } = useI18n();
   const hostingProfiles = useCollaborationStore(state => state.profiles);
+  const ciConnections = useCiStore(state => state.connections);
   const activeProfileId = useCollaborationStore(state => state.activeProfileId);
   const { connections, restoreConnections, verifyConnection, completeConnection, retestConnection, updateConnection, removeConnection, getRuntime } =
     useErrorsStore(
@@ -343,6 +346,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
     if (manifest.connectionKind === 'hosting-account') return hostingProfiles.filter(profile => profile.providerId === manifest.id).length;
     // 独立任务连接在 taskStore（errors 通道只存 error-token 连接）。
     if (manifest.connectionKind === 'task-account') return task.connections.filter((connection) => connection.providerId === manifest.id).length;
+    if (manifest.connectionKind === 'ci-server') return ciConnections.filter(connection => connection.providerId === manifest.id).length;
     return connections.filter((connection) => connection.providerId === manifest.id).length;
   };
 
@@ -418,7 +422,8 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
                 onDelete={() => void deleteTaskConnection(connection)}
               />
             ))}
-            <Button
+            {manifest.connectionKind === 'ci-server' && <CiConnectionManager providerId={manifest.id} />}
+            {manifest.connectionKind !== 'ci-server' && <Button
               variant="ghost"
               size="xs"
               aria-label={t('errors.settings.addConnection')}
@@ -427,7 +432,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
             >
               <Plus className="h-3 w-3" />
               <span>{t('errors.settings.addConnection')}</span>
-            </Button>
+            </Button>}
           </div>
         )}
       </div>

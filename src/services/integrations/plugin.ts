@@ -1,6 +1,7 @@
 import type { ProviderClient } from '@/services/collaboration/client';
 import type { AuthenticationClient } from '@/services/collaboration/AuthenticationClient';
 import type { TaskTrackingClient } from '@/services/collaboration/TaskTrackingClient';
+import type { CiCdClient } from '@/services/collaboration/CiCdClient';
 import type { ProviderManifest } from './registry';
 import type { CredentialStorage } from './credentialStorage';
 export interface HostingPlugin {
@@ -25,10 +26,10 @@ export interface HostingPlugin {
   migrateAccounts?(): { id: string; label: string; server: string; user?: { login: string; name: string | null; avatarUrl: string } }[];
 }
 /**
- * 独立单域插件（task / ci 装配档）的装配契约。Linear 定型了 task 档：
+ * 独立任务插件（task 装配档）的装配契约。Linear 定型了 task 档：
  * 客户端工厂只收令牌（无 server——独立 SaaS 无自建实例），返回实现认证契约
  * 与所声明域方法的客户端；域能力仍由 manifest 声明、经能力双检网关执行。
- * 与 DOMAIN_REGISTRY「只声明实际实现的能力」同一纪律，ci 档接入时再收敛其词汇。
+ * 与 DOMAIN_REGISTRY「只声明实际实现的能力」同一纪律；独立 CI 采用下方 CiPlugin。
  */
 export interface AuxTokenSet { accessToken: string; refreshToken: string; expiresAt: number; scope?: string }
 export interface AuxPlugin {
@@ -40,4 +41,11 @@ export interface AuxPlugin {
   oauth?: { authorize(): Promise<AuxTokenSet> };
   /** 议题外链（覆盖 links.externalIssueUrl 的任务分支）；托管插件走 issuePath 拼接。 */
   issueUrl?(reference: import('@/services/collaboration/issueTypes').IssueReference): string;
+}
+
+/** Independent CI contributes only ci-cd; instance credentials and repository job mappings
+ * are independent of the Git remote's hosting account and the task-tracking channel. */
+export interface CiPlugin {
+  manifest: ProviderManifest;
+  createClient(credentials: { server: string; username: string; token: string; jobPaths: readonly string[] }): AuthenticationClient & Partial<CiCdClient>;
 }

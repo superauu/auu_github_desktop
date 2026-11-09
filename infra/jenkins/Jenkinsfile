@@ -1,0 +1,101 @@
+pipeline {
+    agent { label 'auugit-fixture' }
+    options {
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+        timeout(time: 15, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '40', artifactNumToKeepStr: '20'))
+    }
+    parameters {
+        choice(name: 'SCENARIO', choices: ['success', 'failure', 'unstable', 'long', 'log-heavy'], description: 'Simulated build outcome')
+        string(name: 'COMMIT_SHA', defaultValue: '', description: 'Correlation metadata only; no actual checkout')
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Simulated branch')
+        string(name: 'REPOSITORY_URL', defaultValue: '', description: 'Optional repository correlation metadata')
+        string(name: 'LONG_SECONDS', defaultValue: '120', description: 'Long scenario duration: 10-600 seconds')
+        string(name: 'LOG_LINES', defaultValue: '1000', description: 'Log-heavy scenario output: 1-10000 lines')
+    }
+    stages {
+        stage('Prepare') {
+            steps {
+                deleteDir()
+                script {
+                    if (!(params.SCENARIO in ['success', 'failure', 'unstable', 'long', 'log-heavy'])) error('Unknown SCENARIO')
+                    if (params.COMMIT_SHA && !(params.COMMIT_SHA ==~ /[a-fA-F0-9]{7,64}/)) error('COMMIT_SHA must be a Git SHA')
+                    if (!(params.BRANCH ==~ /[a-zA-Z0-9_.\/-]{1,160}/)) error('Invalid BRANCH')
+                    if (!(params.LONG_SECONDS ==~ /\d{1,3}/) || params.LONG_SECONDS.toInteger() < 10 || params.LONG_SECONDS.toInteger() > 600) error('LONG_SECONDS must be 10-600')
+                    if (!(params.LOG_LINES ==~ /\d{1,5}/) || params.LOG_LINES.toInteger() < 1 || params.LOG_LINES.toInteger() > 10000) error('LOG_LINES must be 1-10000')
+                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${params.SCENARIO}"
+                    currentBuild.description = "Mock CI | branch=${params.BRANCH} | sha=${params.COMMIT_SHA ?: 'unspecified'}"
+                }
+                echo "AUUGIT_FIXTURE scenario=${params.SCENARIO} branch=${params.BRANCH} sha=${params.COMMIT_SHA}"
+                echo 'UTF-8: 中文日志 / Jenkins → AuuGit / ✓'
+                echo 'This job simulates CI. No application source is checked out or built.'
+                sleep 1
+            }
+        }
+        stage('Build') {
+            steps {
+                echo 'Mock build started'
+                script {
+                    if (params.SCENARIO == 'log-heavy') {
+                        sh '''
+                            set +x
+                            i=1
+                            while [ "$i" -le "$LOG_LINES" ]; do
+                                printf '[mock-build] line %05d: AuuGit integration fixture 中文日志\n' "$i"
+                                i=$((i + 1))
+                            done
+                            printf '[mock-build] stderr sample\n' >&2
+                        '''
+                    } else if (params.SCENARIO == 'long') {
+                        echo "AUUGIT_LONG_STARTED seconds=${params.LONG_SECONDS}"
+                        int remaining = params.LONG_SECONDS.toInteger()
+                        while (remaining > 0) {
+                            int interval = Math.min(remaining, 2)
+                            sleep time: interval, unit: 'SECONDS'
+                            remaining -= interval
+                            echo "AUUGIT_HEARTBEAT remaining=${remaining}"
+                        }
+                    } else {
+                        sleep 2
+                    }
+                }
+                echo 'Mock build finished'
+            }
+        }
+        stage('Test') {
+            steps {
+                script {
+                    def failed = params.SCENARIO in ['failure', 'unstable']
+                    writeFile file: 'reports/junit.xml', text: """<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="auugit.mock" tests="2" failures="${failed ? 1 : 0}" time="0.1">
+  <testcase classname="auugit.mock" name="connection" time="0.05"/>
+  <testcase classname="auugit.mock" name="scenario" time="0.05">${failed ? '<failure message="Intentional simulated test failure">AuuGit fixture failure</failure>' : ''}</testcase>
+</testsuite>
+"""
+                    junit testResults: 'reports/junit.xml'
+                    if (params.SCENARIO == 'failure') error('AUUGIT_EXPECTED_FAILURE: intentional failure for integration testing')
+                }
+            }
+        }
+        stage('Package') {
+            steps {
+                writeFile file: 'artifacts/mock-package.txt', text: "AuuGit mock artifact; build=${env.BUILD_NUMBER}; scenario=${params.SCENARIO}\n"
+                echo 'Mock package ready; nothing is published'
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                def summary = [fixture: true, build: env.BUILD_NUMBER, scenario: params.SCENARIO,
+                    result: currentBuild.currentResult, branch: params.BRANCH,
+                    commitSha: params.COMMIT_SHA, repositoryUrl: params.REPOSITORY_URL,
+                    scmCheckout: false]
+                writeFile file: 'artifacts/build-info.json', text: groovy.json.JsonOutput.toJson(summary)
+            }
+            archiveArtifacts artifacts: 'artifacts/*,reports/*.xml', allowEmptyArchive: true
+            echo "AUUGIT_RESULT ${currentBuild.currentResult}"
+        }
+    }
+}

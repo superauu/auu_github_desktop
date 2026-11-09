@@ -1,5 +1,5 @@
 import { HOSTING_PLUGINS, ERROR_PLUGINS, TASK_PLUGINS, CI_PLUGINS } from '@/plugins';
-import type { HostingPlugin, AuxPlugin } from './plugin';
+import type { HostingPlugin, AuxPlugin, CiPlugin } from './plugin';
 import type { ProviderManifest } from './registry';
 const listeners = new Set<() => void>();
 const disabled = new Set<string>();
@@ -12,7 +12,7 @@ try { localStorage.removeItem('auu_git_disabled_plugins'); } catch { /* storage 
 // 各装配档的公共面只有 manifest（ERROR_PLUGINS 保持推断类型，勿收窄）。
 const allPlugins = (): readonly { manifest: ProviderManifest }[] => [...HOSTING_PLUGINS, ...ERROR_PLUGINS, ...TASK_PLUGINS, ...CI_PLUGINS];
 export const installedHostingPlugins = () => HOSTING_PLUGINS;
-/** 独立任务系统与独立 CI 的装配档；设置页连接表单与能力门控并轨属后续运行时改造。 */
+/** 独立任务系统与独立 CI 的装配档，各自拥有连接、凭证及 domain 绑定通道。 */
 export const installedTaskPlugins = () => TASK_PLUGINS;
 export const installedCiPlugins = () => CI_PLUGINS;
 export const enabledHostingPlugins = () => HOSTING_PLUGINS.filter(plugin => !disabled.has(plugin.manifest.id));
@@ -29,3 +29,4 @@ export function subscribePlugins(listener: () => void) { listeners.add(listener)
 export const installedExternalPlugins = () => [...HOSTING_PLUGINS, ...ERROR_PLUGINS, ...TASK_PLUGINS, ...CI_PLUGINS];
 export const getErrorPlugin = (id: string) => ERROR_PLUGINS.find(plugin => plugin.manifest.id === id && !disabled.has(id));
 export const getTaskPlugin = (id: string): AuxPlugin | null => TASK_PLUGINS.find(plugin => plugin.manifest.id === id && !disabled.has(id)) ?? null;
+export const getCiPlugin = (id: string): CiPlugin | null => CI_PLUGINS.find(plugin => plugin.manifest.id === id && !disabled.has(id)) ?? null;

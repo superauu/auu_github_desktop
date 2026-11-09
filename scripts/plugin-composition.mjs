@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-/** 装配档：hosting=托管多域平台，error=错误追踪；task/ci=独立任务系统与独立 CI（AuxPlugin 最小契约）。 */
+/** 装配档：hosting=托管多域平台，error=错误追踪；task=AuxPlugin，ci=CiPlugin 独立域契约。 */
 const PLUGIN_KINDS = ['hosting', 'error', 'task', 'ci'];
 export function pluginCatalog(root = defaultRoot) {
   const catalog = JSON.parse(fs.readFileSync(path.join(root, 'plugins.config.json'), 'utf8')).plugins;
@@ -28,9 +28,9 @@ export function composePlugins(profile, root = defaultRoot) {
   const symbol = plugin => `${plugin.id.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase())}Plugin`;
   const imports = plugins.map(plugin => `import { ${symbol(plugin)} } from '${plugin.module}';`).join('\n');
   const list = kind => plugins.filter(plugin => plugin.kind === kind).map(symbol).join(', ');
-  const data = `${header}${imports}\nimport type { HostingPlugin, AuxPlugin } from '@/services/integrations/plugin';\n`
+  const data = `${header}${imports}\nimport type { HostingPlugin, AuxPlugin, CiPlugin } from '@/services/integrations/plugin';\n`
     + `export const HOSTING_PLUGINS: readonly HostingPlugin[] = [${list('hosting')}];\nexport const ERROR_PLUGINS = [${list('error')}];\n`
-    + `export const TASK_PLUGINS: readonly AuxPlugin[] = [${list('task')}];\nexport const CI_PLUGINS: readonly AuxPlugin[] = [${list('ci')}];\n`;
+    + `export const TASK_PLUGINS: readonly AuxPlugin[] = [${list('task')}];\nexport const CI_PLUGINS: readonly CiPlugin[] = [${list('ci')}];\n`;
   const authViews = plugins.filter(plugin => plugin.authView).map(plugin => `${JSON.stringify(plugin.id)}: () => import('${plugin.authView}').then(module => ({ default: module.${plugin.authExport} }))`).join(', ');
   const ui = `${header}import type { ComponentType } from 'react';\ntype AuthView = () => Promise<{ default: ComponentType<{ open: boolean; onOpenChange(open: boolean): void }> }>;\nconst authViews: Record<string, AuthView> = { ${authViews} };\nexport const getPluginAuthView = (id: string): AuthView | undefined => authViews[id];\n`;
   return { data, ui, nativeFeatures: plugins.flatMap(plugin => plugin.nativeFeature ? [plugin.nativeFeature] : []) };

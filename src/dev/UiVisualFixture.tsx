@@ -156,5 +156,6 @@ if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
   if (new URLSearchParams(location.search).get('automation') === '1') await import('../../tests/visual/automation.css');
   prepare();
   if (new URLSearchParams(location.search).get('gitlab') === '1') await (await import('./GitLabFixture')).prepareGitLabFixture(repo);
+  if (new URLSearchParams(location.search).get('jenkins') === '1') await (await import('./JenkinsFixture')).prepareJenkinsFixture(repo);
   createRoot(document.getElementById('root')!).render(<Fixture />);
 }

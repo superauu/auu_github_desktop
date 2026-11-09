@@ -27,11 +27,13 @@ import { reviewEn } from './review';
 import { workingReviewEn } from './workingReview';
 import { crashReportingEn } from './crashReporting';
 import { errorsEn } from './errors';
+import { ciDomainEn } from './ciDomain';
 /**
  * English resource pack.
  * Keys map 1:1 with zh.ts.
  */
 export const en = {
+  ...ciDomainEn,
   ...overviewEn,
   ...diffHunkEn,
   ...hunkPlanEn,

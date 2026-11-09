@@ -33,6 +33,7 @@ export interface CollaborationWorkflow {
 
 export type WorkflowRunStatus = 'queued' | 'in_progress' | 'completed' | 'waiting';
 export type WorkflowRunConclusion =
+  | 'unstable'
   | 'success'
   | 'failure'
   | 'neutral'
@@ -73,7 +74,7 @@ export interface CollaborationWorkflowRun {
 export interface CollaborationJobStep {
   name: string;
   status: 'queued' | 'in_progress' | 'completed';
-  conclusion: 'success' | 'failure' | 'skipped' | null;
+  conclusion: 'success' | 'failure' | 'unstable' | 'neutral' | 'cancelled' | 'skipped' | null;
   number: number;
   started_at?: string;
   completed_at?: string;
@@ -84,7 +85,7 @@ export interface CollaborationJob {
   run_id: number;
   name: string;
   status: 'queued' | 'in_progress' | 'completed';
-  conclusion: 'success' | 'failure' | 'neutral' | 'cancelled' | 'skipped' | null;
+  conclusion: 'success' | 'failure' | 'unstable' | 'neutral' | 'cancelled' | 'skipped' | null;
   started_at: string;
   completed_at: string | null;
   steps: CollaborationJobStep[];

@@ -1,4 +1,10 @@
 import type { ProviderManifest } from '@/services/integrations/registry';
+export const JENKINS_PROVIDER: ProviderManifest = {
+  id: 'jenkins', name: 'Jenkins', primaryDomain: 'ci-cd', connectionKind: 'ci-server',
+  domains: [{ domain: 'ci-cd', capabilities: [
+    'ci-cd:list-pipelines', 'ci-cd:job-logs', 'ci-cd:dispatch', 'ci-cd:cancel',
+  ] }],
+};
 export const LINEAR_PROVIDER: ProviderManifest = {
   // 独立任务系统（首个 task 装配档）：无自建实例，Linear 只此一家，故无 server 概念。
   // Linear 无「关闭原因」语义（完成/取消即状态类型），不声明 close-state-reason。

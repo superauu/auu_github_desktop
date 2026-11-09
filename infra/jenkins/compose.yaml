@@ -1,0 +1,28 @@
+name: auugit-jenkins
+
+services:
+  jenkins:
+    build: .
+    image: auugit-jenkins-fixture:local
+    container_name: auugit-jenkins
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false -Xms256m -Xmx1024m"
+      AUUGIT_JENKINS_URL: "http://localhost:8080/"
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - ./init.groovy.d:/var/jenkins_home/init.groovy.d:ro
+      - ./Jenkinsfile:/opt/auugit-fixture/Jenkinsfile:ro
+      - ../../.local/jenkins:/run/auugit-local
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  jenkins-home:
+    name: auugit-jenkins-home

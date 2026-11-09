@@ -1,6 +1,9 @@
 import type { CollaborationWorkflow, CollaborationWorkflowRun, CollaborationJob, CollaborationCheckRun, JobLogsData, WorkflowDispatchParams, WorkflowYamlContent } from './types';
 import type { CollaborationCommitStatus } from './issueTypes';
+import type { WorkflowInput } from './WorkflowInputs';
 export interface CiCdClient {
+  /** Native parameter schemas, independent of workflow YAML (e.g. server-side Pipeline parameters). */
+  getWorkflowInputs?(owner: string, repo: string, workflowId: number | string, signal?: AbortSignal): Promise<WorkflowInput[]>;
   getWorkflowCheckRuns(owner: string, repo: string, sha: string): Promise<{ total_count: number; check_runs: CollaborationCheckRun[] }>;
   getWorkflowCommitStatuses(owner: string, repo: string, sha: string): Promise<{ total_count: number; statuses: CollaborationCommitStatus[] }>;
   getWorkflows(owner: string, repo: string): Promise<CollaborationWorkflow[]>;

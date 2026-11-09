@@ -40,12 +40,35 @@ import { PanelCount } from '@/components/ui/PanelCount';
 import { WorkspaceError, WorkspaceLoading } from '@/components/ui/WorkspaceNotice';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useCiStore } from '@/stores/ciStore';
+import { useRepoStore } from '@/stores/repoStore';
+import { getCiPlugin } from '@/services/integrations/plugins';
+import { CiDomainDashboardView } from './CiDomainDashboardView';
 
 interface ActionsDashboardViewProps {
   onOpenAuthDialog?: () => void;
 }
 
-export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
+export const ActionsDashboardView: React.FC<ActionsDashboardViewProps> = (props) => {
+  const { t } = useI18n();
+  const repoPath = useRepoStore(state => state.currentRepo?.path ?? '');
+  const { connections, bindings, sources, revision, setSource } = useCiStore(useShallow(state => ({ connections: state.connections, bindings: state.bindings, sources: state.sources, revision: state.revision, setSource: state.setSource })));
+  const mapped = (bindings[repoPath] ?? []).flatMap(binding => {
+    const connection = connections.find(item => item.id === binding.connectionId && item.enabled && item.domains.includes('ci-cd') && getCiPlugin(item.providerId));
+    return connection ? [{ connection, binding }] : [];
+  });
+  const selected = mapped.find(item => item.connection.id === sources[repoPath]);
+  if (!mapped.length) return <HostingActionsDashboardView {...props} />;
+  return <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+    <label className="app-toolbar gap-2 text-xs"><span>{t('ciDomain.source')}</span><select aria-label={t('ciDomain.source')} className="h-7 max-w-xs rounded border border-input bg-background px-2" value={selected?.connection.id ?? 'hosting'} onChange={event => setSource(repoPath, event.target.value)}>
+      <option value="hosting">{t('ciDomain.hosting')}</option>
+      {mapped.map(item => <option key={item.connection.id} value={item.connection.id}>{item.connection.displayName}</option>)}
+    </select></label>
+    {selected ? <CiDomainDashboardView key={`${repoPath}:${selected.connection.id}:${revision}`} connection={selected.connection} binding={selected.binding} /> : <HostingActionsDashboardView {...props} />}
+  </div>;
+};
+
+const HostingActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
   onOpenAuthDialog,
 }) => {
   const { actionsWorkflowsWidth, setActionsWorkflowsWidth } = useLayoutStore(useShallow(state => ({ actionsWorkflowsWidth: state.actionsWorkflowsWidth, setActionsWorkflowsWidth: state.setActionsWorkflowsWidth })));
