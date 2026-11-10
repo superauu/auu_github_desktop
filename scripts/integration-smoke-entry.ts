@@ -24,7 +24,14 @@ async function run() {
     useRepoStore.setState({ currentRepo: { id: 'native-smoke', name: 'Native smoke', path: '/__native_smoke__', currentBranch: 'topic', lastOpenedAt: 0,
       collaborationRemote: { name: 'origin', fetchUrl: `${server}/group/sub/project.git`, pushUrl: `${server}/group/sub/project.git` } } });
     cleanup = startIntegrationRuntime();
-    await store.getState().loadRepoData('group/sub', 'project');
+    // The runtime restores credentials and reloads repository data asynchronously.
+    // A second load here races that restore and may observe an invalidated request.
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      const state = store.getState();
+      if (state.repoDetails?.default_branch === 'main' && state.workflows.length === 1 && !state.isRefreshingActions) break;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
     assert(store.getState().repoDetails?.default_branch === 'main' && store.getState().workflows.length === 1, 'native-domain-runtime');
     const owner = 'group/sub', repo = 'project';
     assert((await collaborationService.getIssue(owner, repo, 12)).number === 12, 'issue-read');
