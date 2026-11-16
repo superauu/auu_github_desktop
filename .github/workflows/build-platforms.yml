@@ -59,7 +59,19 @@ jobs:
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Generate App Icons
-        run: npx tauri icon public/logo.svg
+        run: npx tauri icon docs/auu-git/auu-git-512.png
+
+      # docs/auu-git 下是按尺寸手工导出的版本（ico 含 20/32/40/128 等更多尺寸，
+      # 小尺寸渲染比 tauri 自动缩放更清晰），生成后原样覆盖回 bundle 目录。
+      - name: Apply Hand-Tuned Icon Exports
+        shell: bash
+        run: |
+          cp docs/auu-git/auu-git-32.png src-tauri/icons/32x32.png
+          cp docs/auu-git/auu-git-64.png src-tauri/icons/64x64.png
+          cp docs/auu-git/auu-git-128.png src-tauri/icons/128x128.png
+          cp docs/auu-git/auu-git-256.png src-tauri/icons/128x128@2x.png
+          cp docs/auu-git/auu-git-512.png src-tauri/icons/icon.png
+          cp docs/auu-git/auu-git.ico src-tauri/icons/icon.ico
 
       - name: Build Tauri Desktop App
         # --target 必须在 cargo 透传分隔符 -- 之前：否则只传给了 cargo（bundler 找不到
@@ -140,7 +152,19 @@ jobs:
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Generate App Icons
-        run: npx tauri icon public/logo.svg
+        run: npx tauri icon docs/auu-git/auu-git-512.png
+
+      # docs/auu-git 下是按尺寸手工导出的版本（ico 含 20/32/40/128 等更多尺寸，
+      # 小尺寸渲染比 tauri 自动缩放更清晰），生成后原样覆盖回 bundle 目录。
+      - name: Apply Hand-Tuned Icon Exports
+        shell: bash
+        run: |
+          cp docs/auu-git/auu-git-32.png src-tauri/icons/32x32.png
+          cp docs/auu-git/auu-git-64.png src-tauri/icons/64x64.png
+          cp docs/auu-git/auu-git-128.png src-tauri/icons/128x128.png
+          cp docs/auu-git/auu-git-256.png src-tauri/icons/128x128@2x.png
+          cp docs/auu-git/auu-git-512.png src-tauri/icons/icon.png
+          cp docs/auu-git/auu-git.ico src-tauri/icons/icon.ico
 
       - name: Build Tauri Desktop App
         run: npm run tauri -- build -- --locked

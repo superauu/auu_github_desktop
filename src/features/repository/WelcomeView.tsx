@@ -32,7 +32,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({
         {/* Hero Section */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center mb-1">
-            <img src="/logo.svg" alt="AuuGit" className="h-20 w-20" />
+            <img src="/auu-git-128.png" alt="AuuGit" className="h-20 w-20" />
           </div>
           <h1 className="font-display text-2xl font-bold uppercase tracking-[0.12em] text-foreground dark:text-glow-cyan">
             {t('welcome.title')}

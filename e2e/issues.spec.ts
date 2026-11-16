@@ -169,7 +169,7 @@ test('Markdown renders GFM safely in descriptions, comments and draft previews',
   await selectIssue(page);
   await page.getByRole('button', { name: '编辑 Issue', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  const markdown = '# Rendered heading\n\n**Bold text** and ~~removed~~ [guide](https://example.com/guide).\n\n- [x] Completed\n- [ ] Pending\n\n| Column | Value |\n| --- | --- |\n| Issue | 12 |\n\n```ts\nconst safe = true;\n```\n\n![Project logo](' + new URL('/logo.svg', page.url()).href + ')\n\n[unsafe](javascript:alert(1))\n\n<script>alert(1)</script>\n<img src="https://example.com/tracker" onerror="alert(1)">';
+  const markdown = '# Rendered heading\n\n**Bold text** and ~~removed~~ [guide](https://example.com/guide).\n\n- [x] Completed\n- [ ] Pending\n\n| Column | Value |\n| --- | --- |\n| Issue | 12 |\n\n```ts\nconst safe = true;\n```\n\n![Project logo](' + new URL('/auu-git-32.png', page.url()).href + ')\n\n[unsafe](javascript:alert(1))\n\n<script>alert(1)</script>\n<img src="https://example.com/tracker" onerror="alert(1)">';
   await dialog.getByLabel('描述（Markdown）', { exact: true }).fill(markdown);
   await dialog.getByRole('button', { name: '预览', exact: true }).click();
   await expect(dialog.getByRole('heading', { name: 'Rendered heading' })).toBeVisible();
