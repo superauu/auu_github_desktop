@@ -76,6 +76,34 @@ test('submodule subcommands are gated fail closed', () => {
   }
 });
 
+test('describe is gated to the distance-display shape', () => {
+  // 放行：详情面板「距 tag 距离」真实使用的形态（三开关 + 单 rev）。
+  const hash = 'a'.repeat(40);
+  for (const args of [
+    ['describe', '--tags', '--long', '--always', hash],
+    ['describe', '--always', '--tags', '--long', 'HEAD'],
+    ['describe', '--tags', '--long', '--always', 'HEAD~3'],
+    ['describe', hash],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：可变参选项（--match/--exclude）、--dirty、取值选项、多 rev 与未知选项。
+  for (const args of [
+    ['describe'],
+    ['describe', '--tags', '--long', '--always'],
+    ['describe', '--match', 'v*'],
+    ['describe', '--exclude', 'v*'],
+    ['describe', '--dirty'],
+    ['describe', '--candidates', '5', 'HEAD'],
+    ['describe', '--first-parent', 'HEAD'],
+    ['describe', hash, 'HEAD'],
+    ['describe', '--abbrev=4', 'HEAD'],
+    ['describe', '--output=evil', 'HEAD'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
 test('lfs subcommands are gated fail closed', () => {
   for (const args of [
     ['lfs', 'track'],

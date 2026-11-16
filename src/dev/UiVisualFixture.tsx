@@ -89,6 +89,8 @@ function prepare() {
   gitService.getRepoOperationState = async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false });
   gitService.getPushContext = async () => ({ branch: longBranch, remote: 'origin', targetBranch: longBranch, upstream: `origin/${longBranch}`, remotes: [], ahead: 0, behind: 0 });
   gitService.findCommits = async (_path, query) => commits.filter(commit => commit.subject.toLowerCase().includes(query.toLowerCase()));
+  // 详情面板会查「距 tag 距离」：tag 所在提交返回 +0，其余返回固定 +3，禁止触网。
+  gitService.getCommitDistance = async (_path, commitHash) => commitHash === hash(0) ? { tag: 'v9.8.7', distance: 0 } : { tag: 'v9.8.7', distance: 3 };
   // 差异视图会读整文件内容（块头所属方法 / 完整文件）；夹具默认无内容，禁止触网。
   gitService.readFileRevision = async () => '';
   useCollaborationStore.setState({ user: null, isAuthenticated: false, profiles: [], fetchCommitChecks: async () => [] });

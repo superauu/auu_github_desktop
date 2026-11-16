@@ -126,6 +126,12 @@ export interface GitTag {
   isAnnotated: boolean;
 }
 
+/** git describe --tags --long 的解析结果：提交距最近 tag 的距离。无 tag 覆盖时为 null。 */
+export interface CommitDistance {
+  tag: string;
+  distance: number;
+}
+
 export interface GitStash {
   index: number;
   message: string;
@@ -188,7 +194,8 @@ export interface IGitService {
   getCommitFiles(repoPath: string, commitHash: string): Promise<GitFileChange[]>;
   getCommitFileDiff(repoPath: string, commitHash: string, filePath: string): Promise<ParsedDiffLine[]>;
   blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]>;
-  getCommitsForFile(repoPath: string, filePath: string, limit?: number): Promise<GitCommit[]>;
+  getCommitsForFile(repoPath: string, filePath: string, limit?: number, options?: { fromHash?: string; page?: number }): Promise<GitCommit[]>;
+  getCommitDistance(repoPath: string, hash: string): Promise<CommitDistance | null>;
   createTag(repoPath: string, name: string, commitHash?: string, message?: string): Promise<void>;
   deleteTag(repoPath: string, name: string): Promise<void>;
   pushTag(repoPath: string, name: string, remote?: string): Promise<void>;

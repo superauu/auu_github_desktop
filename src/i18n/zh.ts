@@ -1147,6 +1147,8 @@ export const zh = {
   'rightPane.recomposeBtn': "使用此说明",
   'rightPane.authored': '提交于',
   'rightPane.parentLabel': '父提交:',
+  'rightPane.tagDistanceTitle': '距标签 {tag} {n} 个提交，点击定位到标签提交',
+  'rightPane.tagExactlyTitle': '该提交即标签 {tag}，点击定位',
   'rightPane.zeroFiles': '0 个文件变更',
   'rightPane.statAdded': '新增',
   'rightPane.statModified': '修改',

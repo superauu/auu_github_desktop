@@ -23,6 +23,7 @@ const COMMANDS: &[&str] = &[
     "checkout",
     "switch",
     "bisect",
+    "describe",
     "commit",
     "merge",
     "rebase",
@@ -732,8 +733,35 @@ pub fn submodule_add_source(args: &[String], index: usize) -> Option<String> {
     None
 }
 
-/// git lfs 子命令约束：`git lfs ...` 会执行 PATH 里的 git-lfs 外部二进制，策略只管
-/// argv。`push`（v1 不做上传面）、`migrate`（重写历史！）、`pointer`/`clean`/`smudge`
+/// git describe 约束：只放行「距 tag 距离」展示所需的最小形态——开关选项仅
+/// --tags/--long/--always（不取值），至多一个位置 rev（非选项形态）。--match/--exclude
+/// 可变参、--dirty、--candidates 等其余选项一律拒绝（fail closed）。rev 来自列表
+/// 数据的真实 hash，真实性由服务层保证；describe 本身只读。与 scripts/git-policy.ts
+/// 的 safeDescribe 一致。
+fn safe_describe(rest: &[String]) -> Result<(), String> {
+    let mut positionals = 0usize;
+    for argument in rest {
+        if argument == "--" {
+            break;
+        }
+        if argument.starts_with('-') {
+            if !matches!(argument.as_str(), "--tags" | "--long" | "--always") {
+                return Err(format!("Unsupported describe option: {argument}"));
+            }
+            continue;
+        }
+        positionals += 1;
+        if positionals > 1 {
+            return Err("Too many describe revisions".into());
+        }
+    }
+    if positionals != 1 {
+        return Err("Describe requires exactly one revision".into());
+    }
+    Ok(())
+}
+
+/// git lfs 子命令约束：`git lfs ...` 会执行 PATH 里的 git-lfs 外部二进制，策略只管/// argv。`push`（v1 不做上传面）、`migrate`（重写历史！）、`pointer`/`clean`/`smudge`
 /// （过滤驱动）、`update`/`logs`/`prune`/`dedup`/`lock`/`unlock` 与未列出的子命令
 /// （含裸 `git lfs`）一律拒绝（fail closed）。git-lfs 缺失时 git 自然报错，由前端捕获
 /// 展示。与 scripts/git-policy.ts 的 safeLfs 一致。
@@ -783,6 +811,9 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "bisect" {
         safe_bisect(&args[index + 1..])?;
+    }
+    if name == "describe" {
+        safe_describe(&args[index + 1..])?;
     }
     if name == "submodule" {
         safe_submodule(&args[index + 1..])?;
@@ -911,6 +942,34 @@ mod tests {
             vec!["bisect", "good", "-P", "rev"],
             vec!["bisect", "log", "--output=evil"],
             vec!["bisect", "reset", "-q", "--foo"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_describe_fail_closed() {
+        let hash = "a".repeat(40);
+        // 放行：详情面板「距 tag 距离」真实使用的形态（三开关 + 单 rev）。
+        for values in [
+            vec!["describe", "--tags", "--long", "--always", hash.as_str()],
+            vec!["describe", "--always", "--tags", "--long", "HEAD"],
+            vec!["describe", "--tags", "--long", "--always", "HEAD~3"],
+            vec!["describe", hash.as_str()],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：可变参选项（--match/--exclude）、--dirty、取值选项、多 rev 与未知选项。
+        for values in [
+            vec!["describe"],
+            vec!["describe", "--tags", "--long", "--always"],
+            vec!["describe", "--match", "v*"],
+            vec!["describe", "--exclude", "v*"],
+            vec!["describe", "--dirty"],
+            vec!["describe", "--candidates", "5", "HEAD"],
+            vec!["describe", "--first-parent", "HEAD"],
+            vec!["describe", hash.as_str(), "HEAD"],
+            vec!["describe", "--abbrev=4", "HEAD"],
+            vec!["describe", "--output=evil", "HEAD"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }

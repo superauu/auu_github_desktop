@@ -79,6 +79,9 @@ import { GitBlameLine, GitCommit, GitFileChange } from '@/services/git/types';
 const isDesktopRuntime = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const EMPTY_FILES: GitFileChange[] = [];
 
+// 文件历史每页条数（与历史页提交列表同页大小）
+const FILE_HISTORY_PAGE = 100;
+
 export const WorkingChangesView: React.FC = () => {
   // 只消费稳定 action：getState 取用，不订阅整店（布局 store 会在拖拽分栏时高频写入）。
   const setChangesFileListWidth = useLayoutStore.getState().setChangesFileListWidth;
@@ -130,6 +133,10 @@ export const WorkingChangesView: React.FC = () => {
   const [contentMode, setContentMode] = useState<'diff' | 'blame' | 'history'>('diff');
   const [blameLines, setBlameLines] = useState<GitBlameLine[]>([]);
   const [fileCommits, setFileCommits] = useState<GitCommit[]>([]);
+  const [fileCommitsExhausted, setFileCommitsExhausted] = useState(false);
+  const [fileCommitsLoadingMore, setFileCommitsLoadingMore] = useState(false);
+  const fileHistoryPage = useRef(0);
+  const fileHistoryGen = useRef(0);
   const [loadingFileData, setLoadingFileData] = useState(false);
 
   const stagedFiles = status?.staged || EMPTY_FILES;
@@ -286,6 +293,9 @@ export const WorkingChangesView: React.FC = () => {
     if (!repoPath || !activeFilePath || contentMode === 'diff') return;
     let cancelled = false;
     setLoadingFileData(true);
+    fileHistoryPage.current = 0;
+    fileHistoryGen.current++;
+    setFileCommitsExhausted(false);
     const loader =
       contentMode === 'blame'
         ? gitService.blameFile(repoPath, activeFilePath)
@@ -294,7 +304,11 @@ export const WorkingChangesView: React.FC = () => {
       .then((data) => {
         if (cancelled) return;
         if (contentMode === 'blame') setBlameLines(data as GitBlameLine[]);
-        else setFileCommits(data as GitCommit[]);
+        else {
+          const history = data as GitCommit[];
+          setFileCommits(history);
+          setFileCommitsExhausted(history.length < FILE_HISTORY_PAGE);
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -309,6 +323,26 @@ export const WorkingChangesView: React.FC = () => {
       cancelled = true;
     };
   }, [contentMode, activeFilePath, repoPath]);
+
+  // 文件历史「加载更早提交」：窗口递增分页（--follow 下 --skip 在路径过滤前的流上计数，
+  // 会错位），整窗替换展示列表；世代 ref 保证切文件/切模式后迟到的响应被丢弃。
+  const loadMoreFileCommits = async () => {
+    if (!repoPath || !activeFilePath || fileCommitsLoadingMore || fileCommitsExhausted) return;
+    const generation = fileHistoryGen.current;
+    const nextPage = fileHistoryPage.current + 1;
+    setFileCommitsLoadingMore(true);
+    try {
+      const next = await gitService.getCommitsForFile(repoPath, activeFilePath, FILE_HISTORY_PAGE, { page: nextPage });
+      if (fileHistoryGen.current !== generation || useRepoStore.getState().currentRepo?.path !== repoPath) return;
+      fileHistoryPage.current = nextPage;
+      setFileCommits(next);
+      if (next.length < (nextPage + 1) * FILE_HISTORY_PAGE) setFileCommitsExhausted(true);
+    } catch {
+      // 保持现状，用户可再次点击重试（页码未推进，取同一窗）
+    } finally {
+      if (fileHistoryGen.current === generation) setFileCommitsLoadingMore(false);
+    }
+  };
 
   const getStatusBadge = (statusType: string) => {
     switch (statusType) {
@@ -683,15 +717,31 @@ export const WorkingChangesView: React.FC = () => {
     );
   };
 
-  // 从 Blame / 文件历史跳转到提交详情（需在已加载的历史中）
+  // 从 Blame / 文件历史跳转到提交详情：已加载的提交直接定位；未加载的用 hash 直达
+  // （findCommits 对纯 hash 走 rev-parse+show）现取现跳，仍找不到才提示。
   const jumpToCommit = (hash: string) => {
     const commit = commits.find((c) => c.hash === hash || c.shortHash === hash);
-    if (!commit) {
+    if (commit) {
+      setSelectedCommit(commit);
+      setActiveTab('history');
+      return;
+    }
+    if (!repoPath) {
       toast.info(t('changes.commitNotLoaded'));
       return;
     }
-    setSelectedCommit(commit);
-    setActiveTab('history');
+    void gitService.findCommits(repoPath, hash)
+      .then((results) => {
+        if (useRepoStore.getState().currentRepo?.path !== repoPath) return;
+        const target = results[0];
+        if (!target) {
+          toast.info(t('changes.commitNotLoaded'));
+          return;
+        }
+        setSelectedCommit(target);
+        setActiveTab('history');
+      })
+      .catch(() => toast.info(t('changes.commitNotLoaded')));
   };
 
   const quickStash = async () => {
@@ -1173,7 +1223,8 @@ export const WorkingChangesView: React.FC = () => {
           />
         ) : contentMode !== 'diff' ? (
           <FileAttributionContent contentMode={contentMode} diffFontSize={diffFontSize} loadingFileData={loadingFileData}
-            blameLines={blameLines} fileCommits={fileCommits} jumpToCommit={jumpToCommit} />
+            blameLines={blameLines} fileCommits={fileCommits} jumpToCommit={jumpToCommit}
+            fileCommitsExhausted={fileCommitsExhausted} loadingMore={fileCommitsLoadingMore} onLoadMore={() => void loadMoreFileCommits()} />
         ) : (
           /* Diff Content View */
           <WorkingDiffContent

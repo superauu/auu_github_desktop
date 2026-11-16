@@ -3,9 +3,10 @@ import { useI18n } from '@/i18n';
 import { cn } from '@/utils/cn';
 import type { GitBlameLine, GitCommit } from '@/services/git/types';
 
-export function FileAttributionContent({ contentMode, diffFontSize, loadingFileData, blameLines, fileCommits, jumpToCommit }: {
+export function FileAttributionContent({ contentMode, diffFontSize, loadingFileData, blameLines, fileCommits, jumpToCommit, fileCommitsExhausted, loadingMore, onLoadMore }: {
   contentMode: 'blame' | 'history'; diffFontSize: number; loadingFileData: boolean;
   blameLines: GitBlameLine[]; fileCommits: GitCommit[]; jumpToCommit: (hash: string) => void;
+  fileCommitsExhausted?: boolean; loadingMore?: boolean; onLoadMore?: () => void;
 }) {
   const { t, lang } = useI18n();
   const blameTints = [
@@ -109,6 +110,24 @@ export function FileAttributionContent({ contentMode, diffFontSize, loadingFileD
                   </span>
                 </div>
               ))
+            )}
+            {!loadingFileData && fileCommits.length > 0 && !fileCommitsExhausted && onLoadMore && (
+              <div className="py-3 flex justify-center">
+                <button
+                  disabled={loadingMore}
+                  onClick={onLoadMore}
+                  className="px-3 py-1 rounded-md text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-border/60 transition-colors disabled:opacity-60"
+                >
+                  {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin inline-block" /> : t('history.loadMore')}
+                </button>
+              </div>
+            )}
+            {!loadingFileData && fileCommits.length > 0 && fileCommitsExhausted && (
+              <div className="py-3 flex justify-center">
+                <span className="text-[12px] text-muted-foreground/60">
+                  {t('history.allLoaded')}
+                </span>
+              </div>
             )}
           </div>
         );

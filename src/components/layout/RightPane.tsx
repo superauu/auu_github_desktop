@@ -3,13 +3,13 @@ import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Clock, CheckCircle2, Copy, FileCode, GitCommit, Layers, List, Network, X } from 'lucide-react';
+import { AlertCircle, Clock, CheckCircle2, Copy, FileCode, GitCommit, Layers, List, Network, Tag as TagIcon, X } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { checkStatus, type CiCheck } from '@/services/collaboration/checkStatus';
 import { gitService } from '@/services/git/GitService';
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
-import type { GitFileChange } from '@/services/git/types';
+import type { CommitDistance, GitFileChange } from '@/services/git/types';
 import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   const [lines, setLines] = useState<ParsedDiffLine[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
+  const [distance, setDistance] = useState<CommitDistance | null>(null);
   const request = useRef(0);
   const invalidatePreview = useCallback(() => { request.current++; }, []);
   const repoPath = currentRepo?.path;
@@ -74,6 +75,17 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
       void fetchChecks(commitHash).catch(() => {});
     }
   }, [repoPath, commitHash, activeTab, fetchChecks, integrationRevision, reload]);
+  useEffect(() => {
+    let cancelled = false;
+    setDistance(null);
+    // 距 tag 距离是展示性辅助信息：查询失败静默保持 null，不影响详情面板。
+    if (activeTab === 'history' && repoPath && commitHash) {
+      void gitService.getCommitDistance(repoPath, commitHash)
+        .then(result => { if (!cancelled) setDistance(result); })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [repoPath, commitHash, activeTab]);
 
   const inspect = async (file: GitFileChange) => {
     if (!currentRepo || !selectedCommit) return;
@@ -127,6 +139,11 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
             <div className="min-w-0"><p className="truncate" title={selectedCommit.author.email}>{selectedCommit.author.name}</p><p className="text-[12px] text-muted-foreground" title={selectedCommit.author.date}>{selectedCommit.author.relativeDate}</p></div>
           </div>
           {selectedCommit.parents.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.parentLabel')} <span className="font-mono">{selectedCommit.parents.map(hash => hash.slice(0, 7)).join(', ')}</span></p>}
+          {distance && <button type="button" data-tag-distance className="inline-flex w-fit items-center gap-1.5 rounded-full border border-git-tag/30 bg-git-tag/10 px-2 py-0.5 text-[12px] text-git-tag hover:bg-git-tag/20" title={distance.distance > 0 ? t('rightPane.tagDistanceTitle').replace('{tag}', distance.tag).replace('{n}', String(distance.distance)) : t('rightPane.tagExactlyTitle').replace('{tag}', distance.tag)} onClick={() => void useRepoStore.getState().selectAndLocateBranch(`refs/tags/${distance.tag}`)}>
+            <TagIcon className="h-3 w-3 shrink-0" />
+            <span className="font-mono">{distance.tag}</span>
+            {distance.distance > 0 && <span className="tabular-nums">+{distance.distance}</span>}
+          </button>}
         </div>
         <AiExplanationButton repoPath={currentRepo.path} scope={{ kind: 'commit', hash: selectedCommit.hash }} onOpenSettings={onOpenAiSettings} />
         <section className="border-t border-border pt-3 space-y-2">

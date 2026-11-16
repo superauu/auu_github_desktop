@@ -1,4 +1,4 @@
-const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
+const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
 const fixedOverrides = new Set(['core.quotepath=false', 'core.editor=true', 'rebase.updaterefs=false']);
 function safeOverride(value: string): boolean {
   if (fixedOverrides.has(value.toLowerCase())) return true;
@@ -306,6 +306,25 @@ function safeLfs(rest: string[]): void {
   }
 }
 
+// git describe 约束：只放行「距 tag 距离」展示所需的最小形态——开关选项仅
+// --tags/--long/--always（不取值），恰好一个位置 rev（非选项形态）。--match/--exclude
+// 可变参、--dirty、--candidates 等其余选项一律拒绝（fail closed）。rev 来自列表
+// 数据的真实 hash，真实性由服务层保证；describe 本身只读。与 src-tauri/src/git_policy.rs
+// 的 safe_describe 一致。
+function safeDescribe(rest: string[]): void {
+  let positionals = 0;
+  for (const argument of rest) {
+    if (argument === '--') break;
+    if (argument.startsWith('-')) {
+      if (!['--tags', '--long', '--always'].includes(argument)) throw new Error(`Unsupported describe option: ${argument}`);
+      continue;
+    }
+    positionals++;
+    if (positionals > 1) throw new Error('Too many describe revisions');
+  }
+  if (positionals !== 1) throw new Error('Describe requires exactly one revision');
+}
+
 export function validateGitArguments(args: string[]): { command: string; index: number } {
   let index = 0;
   while (index < args.length) {
@@ -347,6 +366,7 @@ export function validateGitArguments(args: string[]): { command: string; index: 
     }
   }
   if (command === 'bisect') safeBisect(args.slice(index + 1));
+  if (command === 'describe') safeDescribe(args.slice(index + 1));
   if (command === 'submodule') safeSubmodule(args.slice(index + 1));
   if (command === 'lfs') safeLfs(args.slice(index + 1));
   const blocked = ['--upload-pack', '--receive-pack', '--exec', '--ext-diff', '--textconv', '--template', '--separate-git-dir', '--unsafe-paths', '--output', '--config', '--config-env', '--strategy', '--contents', '--file'];

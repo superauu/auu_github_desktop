@@ -2,6 +2,7 @@ import { diagnoseRepository, probeRepoOperation } from './RepositoryDiagnostics'
 import {
   GitBlameLine,
   GitBranch,
+  CommitDistance,
   PushContext,
   PushOptions,
   PushResult,
@@ -670,14 +671,35 @@ export class GitService implements IGitService {
     }
   }
 
-  async getCommitsForFile(repoPath: string, filePath: string, limit: number = 100): Promise<GitCommit[]> {
+  /**
+   * 提交距最近 tag 的距离（describe --tags --long）。
+   * 输出形如 `v0.11.0-14-gabc123…`；无 tag 覆盖时 --always 退化为纯 hash，返回 null。
+   * 展示性辅助查询，失败一律静默为 null（详情面板不因它报错）。
+   */
+  async getCommitDistance(repoPath: string, hash: string): Promise<CommitDistance | null> {
+    try {
+      const res = await executeGit(['describe', '--tags', '--long', '--always', hash], repoPath);
+      const match = /^(.+)-(\d+)-g[0-9a-f]+$/i.exec(res.stdout.trim());
+      if (!match) return null;
+      return { tag: match[1], distance: Number(match[2]) };
+    } catch (err) {
+      console.warn('Describe warning:', err);
+      return null;
+    }
+  }
+
+  async getCommitsForFile(repoPath: string, filePath: string, limit: number = 100, options?: { fromHash?: string; page?: number }): Promise<GitCommit[]> {
     try {
       const format = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
-      // --follow 追踪重命名前的历史
-      const res = await executeGit(
-        ['log', '--follow', `-n`, String(limit), `--format=${format}`, '--', filePath],
-        repoPath
-      );
+      // --follow 追踪重命名前的历史。分页不用 --skip：follow 模式下 skip 在路径过滤
+      // 之前的提交流上计数，仓库里混有无关提交时会错位；改用窗口递增——取前
+      // (page+1)*limit 条整窗返回（-n 在 follow 下全局生效），由调用方切尾段。
+      // fromHash 把回看范围限定到该提交可达的历史。
+      const page = Math.max(0, options?.page ?? 0);
+      const args = ['log', '--follow', '-n', String((page + 1) * limit), `--format=${format}`];
+      if (options?.fromHash) args.push(options.fromHash);
+      args.push('--', filePath);
+      const res = await executeGit(args, repoPath);
       return parseGitLog(res.stdout);
     } catch (err) {
       console.warn('File history warning:', err);

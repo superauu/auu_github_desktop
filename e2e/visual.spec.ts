@@ -24,6 +24,9 @@ for (const scenario of cases) {
     // This title also appears in the inspector before the lazy history view is ready.
     await expect(page.locator('[data-commit-row]').first()).toBeVisible();
     await expect(page.locator('[data-commit-row]').first()).toContainText('Merge workspace review improvements');
+    // 距 tag 距离徽标是详情面板最后落定的异步片段：等它渲染再截图，避免基线竞态
+    // （夹具对每个提交都返回距离，徽标必然出现；元素缺失时超时放行以容忍未来布局变化）。
+    await page.locator('[data-tag-distance]').first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
     await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
     await page.mouse.move(-1, -1);
     await expect(page).toHaveScreenshot(`${scenario.name}.png`);

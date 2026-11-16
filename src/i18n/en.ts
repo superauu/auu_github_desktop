@@ -1131,6 +1131,8 @@ export const en = {
   'rightPane.recomposeBtn': "Reuse message",
   'rightPane.authored': 'authored',
   'rightPane.parentLabel': 'parent:',
+  'rightPane.tagDistanceTitle': '{n} commits after tag {tag}. Click to locate the tag commit',
+  'rightPane.tagExactlyTitle': 'This commit is tag {tag}. Click to locate',
   'rightPane.zeroFiles': '0 files changed',
   'rightPane.statAdded': 'added',
   'rightPane.statModified': 'modified',
