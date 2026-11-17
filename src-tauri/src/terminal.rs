@@ -74,13 +74,20 @@ pub fn linux_terminal_candidates(directory: &str) -> Vec<(&'static str, Vec<Stri
     ]
 }
 
-/// 在 PATH 上查找可执行文件（不要求可执行位检查：跨平台语义差异留给 spawn 失败兜底）。
+/// 在给定 PATH 值上查找可执行文件（纯函数，测试注入 PATH 不碰进程环境，避免
+/// 并行测试互相污染）。不要求可执行位检查：跨平台语义差异留给 spawn 失败兜底。
 #[cfg(target_os = "linux")]
-pub fn find_in_path(program: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
+fn find_in_path_var(path: Option<&std::ffi::OsStr>, program: &str) -> Option<PathBuf> {
+    let path = path?;
+    std::env::split_paths(path)
         .map(|directory| directory.join(program))
         .find(|candidate| candidate.is_file())
+}
+
+/// 在进程 PATH 上查找可执行文件。
+#[cfg(target_os = "linux")]
+pub fn find_in_path(program: &str) -> Option<PathBuf> {
+    find_in_path_var(std::env::var_os("PATH").as_deref(), program)
 }
 
 #[cfg(test)]
@@ -95,10 +102,14 @@ mod tests {
         assert_eq!(candidates.first().unwrap().0, "x-terminal-emulator");
         assert_eq!(candidates.last().unwrap().0, "xterm");
         for (program, arguments) in &candidates {
-            for argument in arguments {
-                // 目录要么独立成参，要么以 --flag=<dir> 连写；都不经过 shell 转义。
-                assert!(argument.contains("/repos/my work"), "{program}: {argument}");
+            if arguments.is_empty() {
+                continue; // x-terminal-emulator / xterm 无 flag，靠 current_dir 落位
             }
+            // 目录必须作为独立 argv 出现（--flag <dir> 或 --flag=<dir>），不经过 shell。
+            assert!(
+                arguments.iter().any(|argument| argument.contains("/repos/my work")),
+                "{program}: {arguments:?}",
+            );
         }
         let gnome = candidates.iter().find(|(program, _)| *program == "gnome-terminal").unwrap();
         assert_eq!(gnome.1, vec!["--working-directory=/repos/my work"]);
@@ -108,16 +119,16 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
-    fn find_in_path_locates_and_misses() {
-        let mut path = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).collect::<Vec<_>>();
+    fn find_in_path_var_locates_and_misses() {
         let unique = std::env::temp_dir().join(format!("auugit-terminal-probe-{}", std::process::id()));
         std::fs::create_dir_all(&unique).unwrap();
         let fake = unique.join("auugit-fake-terminal-xyz");
         std::fs::write(&fake, b"").unwrap();
-        path.insert(0, unique.clone());
-        std::env::set_var("PATH", std::env::join_paths(&path).unwrap());
-        assert!(find_in_path("auugit-fake-terminal-xyz").is_some());
-        assert!(find_in_path("auugit-missing-terminal-xyz").is_none());
+        // 纯函数注入 PATH 值：不改进程环境，不与其他并行测试互相干扰。
+        let path = std::env::join_paths([unique.clone()]).unwrap();
+        assert!(find_in_path_var(Some(std::ffi::OsStr::new(&path)), "auugit-fake-terminal-xyz").is_some());
+        assert!(find_in_path_var(Some(std::ffi::OsStr::new(&path)), "auugit-missing-terminal-xyz").is_none());
+        assert!(find_in_path_var(None, "auugit-fake-terminal-xyz").is_none());
         std::fs::remove_dir_all(&unique).ok();
     }
 
