@@ -27,6 +27,8 @@ import { reviewZh } from './review';
 import { workingReviewZh } from './workingReview';
 import { crashReportingZh } from './crashReporting';
 import { errorsZh } from './errors';
+import { codeSearchZh } from './codeSearch';
+import { patchZh } from './patch';
 import { ciDomainZh } from './ciDomain';
 /**
  * 中文资源包（基准语言）
@@ -1106,6 +1108,7 @@ export const zh = {
   'settings.ai.testFailed': 'AI 连接测试失败',
   'settings.ai.modelPlaceholder': '例如 deepseek-chat 或 gpt-4o-mini',
   'settings.shortcuts.cmdPalette': '打开全局命令搜索面板 (Command Palette)',
+  'settings.shortcuts.globalSearch': '全局代码搜索 (git grep)',
   'settings.shortcuts.push': '推送本地提交到远程 (Git Push)',
   'settings.shortcuts.pull': '拉取远程更新 (Git Pull)',
   'settings.shortcuts.fetch': '获取远程变更 (Git Fetch)',
@@ -1453,4 +1456,6 @@ export const zh = {
   ...workingReviewZh,
   ...crashReportingZh,
   ...errorsZh,
+  ...codeSearchZh,
+  ...patchZh,
 } as const;

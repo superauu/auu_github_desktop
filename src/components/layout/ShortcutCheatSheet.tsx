@@ -24,6 +24,7 @@ export const ShortcutCheatSheet: React.FC<ShortcutCheatSheetProps> = ({ open, on
       titleKey: 'cheatsheet.group.global',
       rows: [
         { combo: 'Ctrl + K', descKey: 'settings.shortcuts.cmdPalette' },
+        { combo: 'Ctrl + Shift + G', descKey: 'settings.shortcuts.globalSearch' },
         { combo: 'Ctrl + ,', descKey: 'settings.shortcuts.openSettings' },
         { combo: 'Ctrl + `', descKey: 'settings.shortcuts.toggleTerminal' },
         { combo: '?', descKey: 'settings.shortcuts.cheatSheet' },

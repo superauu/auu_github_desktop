@@ -27,6 +27,8 @@ import { reviewEn } from './review';
 import { workingReviewEn } from './workingReview';
 import { crashReportingEn } from './crashReporting';
 import { errorsEn } from './errors';
+import { codeSearchEn } from './codeSearch';
+import { patchEn } from './patch';
 import { ciDomainEn } from './ciDomain';
 /**
  * English resource pack.
@@ -1092,6 +1094,7 @@ export const en = {
   'settings.ai.testFailed': 'AI connection test failed',
   'settings.ai.modelPlaceholder': 'e.g. deepseek-chat or gpt-4o-mini',
   'settings.shortcuts.cmdPalette': 'Open global command palette',
+  'settings.shortcuts.globalSearch': 'Global code search (git grep)',
   'settings.shortcuts.push': 'Push local commits to remote (Git Push)',
   'settings.shortcuts.pull': 'Pull remote updates (Git Pull)',
   'settings.shortcuts.fetch': 'Fetch remote changes (Git Fetch)',
@@ -1437,6 +1440,8 @@ export const en = {
   ...workingReviewEn,
   ...crashReportingEn,
   ...errorsEn,
+  ...codeSearchEn,
+  ...patchEn,
 } as const;
 
 export type TranslationKey = keyof typeof en;

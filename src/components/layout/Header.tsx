@@ -10,6 +10,7 @@ import { Cloud as HostingCloud } from 'lucide-react';
 import {
   GitBranch as GitBranchIcon,
   RefreshCw,
+  FileSearch,
   Search,
   Settings as SettingsIcon,
   Sun,
@@ -98,6 +99,7 @@ interface HeaderProps {
   onToggleNavigation: () => void;
   onToggleInspector: () => void;
   onOpenCommandPalette?: () => void;
+  onOpenGlobalSearch?: () => void;
   onOpenSettings?: () => void;
   /** “管理账号”入口：直达设置的 托管账号分区（缺省回落 onOpenSettings）。 */
   onOpenAccountSettings?: () => void;
@@ -221,6 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
   windowChrome,
   navigationOverlay, inspectorOverlay, onToggleNavigation, onToggleInspector,
   onOpenCommandPalette,
+  onOpenGlobalSearch,
   onOpenSettings,
   onOpenAccountSettings,
   onOpenRepoDialog,
@@ -1214,6 +1217,7 @@ export const Header: React.FC<HeaderProps> = ({
             </DropdownMenu.Root>
           </div>}
           <div className="flex items-center gap-1 shrink-0 border-l border-border pl-2">
+            <Button variant="ghost" size="icon" aria-label={t('codeSearch.title')} title={t('codeSearch.title')} disabled={!currentRepo} onClick={onOpenGlobalSearch}><FileSearch className="h-4 w-4" /></Button>
             <Button variant="ghost" size="icon" aria-label={t('header.searchTooltip')} onClick={onOpenCommandPalette}><Search className="h-4 w-4" /></Button>
             <Button variant="ghost" disabled={!currentRepo || !['changes', 'history'].includes(activeTab)} aria-label={isRightPaneCollapsed || inspectorOverlay ? t('header.expandRightPane') : t('header.collapseRightPane')} onClick={onToggleInspector}>
               {isRightPaneCollapsed || inspectorOverlay ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}

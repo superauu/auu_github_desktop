@@ -40,10 +40,12 @@ const RepositoryDialog = lazy(() => import('@/features/repository/RepositoryDial
 const ConnectionDialog = lazy(() => import('@/components/integrations/ConnectionDialog').then(m => ({ default: m.ConnectionDialog })));
 const OperationHistoryDialog = lazy(() => import('./OperationHistoryDialog').then(m => ({ default: m.OperationHistoryDialog })));
 const RecoveryCenterDialog = lazy(() => import('@/features/git/RecoveryCenterDialog').then(m => ({ default: m.RecoveryCenterDialog })));
+const GlobalSearchDialog = lazy(() => import('@/features/search/GlobalSearchDialog').then(m => ({ default: m.GlobalSearchDialog })));
 
 export const AppLayout: React.FC = () => {
   const windowChrome = useWindowChrome();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'appearance' | 'ai' | 'git' | 'accounts' | 'integrations'>('appearance');
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -135,6 +137,13 @@ export const AppLayout: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setCommandPaletteOpen((v) => !v);
+        return;
+      }
+
+      // Ctrl+Shift+G 全局代码搜索：与命令面板同级（输入框内可呼出；Ctrl+Shift+F 已是 fetch）
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        setGlobalSearchOpen((v) => !v);
         return;
       }
 
@@ -262,6 +271,7 @@ export const AppLayout: React.FC = () => {
           onToggleNavigation={() => navigationOverlay ? setNavigationOpen(!navigationOpen) : toggleLeftSidebar()}
           onToggleInspector={() => inspectorOverlay ? setInspectorOpen(!inspectorOpen) : toggleRightPane()}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
           onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
           onOpenAccountSettings={() => { setSettingsTab('accounts'); setSettingsOpen(true); }}
           onOpenRepoDialog={() => handleOpenRepoDialog('open')}
@@ -332,7 +342,14 @@ export const AppLayout: React.FC = () => {
         onOpenSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true); }}
         onOpenRepoDialog={() => handleOpenRepoDialog('open')}
         onOpenConnection={() => setConnectionOpen(true)}
+        onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
       />
+
+      {globalSearchOpen && (
+        <ErrorBoundary><Suspense fallback={null}>
+          <GlobalSearchDialog open={globalSearchOpen} onOpenChange={setGlobalSearchOpen} />
+        </Suspense></ErrorBoundary>
+      )}
 
       {settingsOpen && (
         <ErrorBoundary><Suspense fallback={null}>

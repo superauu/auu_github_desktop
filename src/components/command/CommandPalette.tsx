@@ -16,6 +16,7 @@ import {
   Laptop,
   Settings,
   FolderGit2,
+  FileSearch,
   Workflow,
   Clock,
   FileCode2,
@@ -35,6 +36,7 @@ interface CommandPaletteProps {
   onOpenSettings?: () => void;
   onOpenRepoDialog?: () => void;
   onOpenConnection?: () => void;
+  onOpenGlobalSearch?: () => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -43,6 +45,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenSettings,
   onOpenRepoDialog,
   onOpenConnection,
+  onOpenGlobalSearch,
 }) => {
   const {
     setActiveTab,
@@ -159,6 +162,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <Workflow className="h-3.5 w-3.5 text-git-added" />
                 <span>{t('palette.actionsDash')}</span>
                 <span className="ml-auto text-[12px] font-mono text-muted-foreground">Alt 4</span>
+              </Command.Item>
+
+              <Command.Item
+                disabled={!currentRepo}
+                onSelect={() => {
+                  onOpenChange(false);
+                  onOpenGlobalSearch?.();
+                }}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
+              >
+                <FileSearch className="h-3.5 w-3.5 text-primary" />
+                <span>{t('codeSearch.title')}</span>
+                <span className="ml-auto text-[12px] font-mono text-muted-foreground">Ctrl Shift G</span>
               </Command.Item>
             </Command.Group>
 

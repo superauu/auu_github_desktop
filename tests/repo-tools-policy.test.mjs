@@ -104,6 +104,63 @@ test('describe is gated to the distance-display shape', () => {
   }
 });
 
+test('grep is gated to the code-search shape', () => {
+  // 放行：全局搜索浮层真实使用的形态（开关 + 模式 + -- pathspec）。
+  for (const args of [
+    ['grep', '-n', '--column', '-I', 'todo', '--', 'src/'],
+    ['grep', '-n', '-i', '-F', 'fixed string'],
+    ['grep', '-n', '-E', '-w', String.raw`\bfoo\d+`],
+    ['grep', '-n', '--column', '-I', 'pattern'],
+    ['grep', '-n', '--column', '-I', 'pattern', '--', 'src', 'docs/read me.md'],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：模式文件、pager/output 执行面、取值选项、表达式组合、多模式与裸调用。
+  for (const args of [
+    ['grep'],
+    ['grep', '-n', '-f', 'patterns.txt'],
+    ['grep', '--output=evil', 'x'],
+    ['grep', '-O', 'x'],
+    ['grep', '--open-files-in-pager', 'x'],
+    ['grep', '-A', '2', 'x'],
+    ['grep', '--and', 'a', 'b'],
+    ['grep', '-e', 'a', '-e', 'b'],
+    ['grep', '-m', '5', 'x'],
+    ['grep', 'a', 'b'],
+    ['grep', 'x', '--', '-leading-dash'],
+    ['grep', '--heading', 'x'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
+test('format-patch is gated to the stdout-export shape', () => {
+  const hash = 'a'.repeat(40);
+  // 放行：导出补丁的真实形态（-N + --stdout + 单 rev）。
+  for (const args of [
+    ['format-patch', '-1', '--stdout', hash],
+    ['format-patch', '--stdout', '-3', 'HEAD~2'],
+    ['format-patch', '-99', '--stdout', 'HEAD'],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：缺 --stdout（会向工作目录写文件）、越界 N、output-directory、cover-letter、多 rev。
+  for (const args of [
+    ['format-patch', '-1', hash],
+    ['format-patch', '--stdout', 'HEAD'],
+    ['format-patch', '-0', '--stdout', 'HEAD'],
+    ['format-patch', '-100', '--stdout', 'HEAD'],
+    ['format-patch', '-x', '--stdout', 'HEAD'],
+    ['format-patch', '-1', '--stdout', hash, 'HEAD~1'],
+    ['format-patch', '-1', '--output-directory=out', '--stdout', hash],
+    ['format-patch', '-1', '--cover-letter', '--stdout', hash],
+    ['format-patch', '-1', '--attach', '--stdout', hash],
+    ['format-patch'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
 test('lfs subcommands are gated fail closed', () => {
   for (const args of [
     ['lfs', 'track'],

@@ -24,6 +24,8 @@ const COMMANDS: &[&str] = &[
     "switch",
     "bisect",
     "describe",
+    "grep",
+    "format-patch",
     "commit",
     "merge",
     "rebase",
@@ -761,6 +763,85 @@ fn safe_describe(rest: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// git grep 约束：全局代码搜索只需「模式 + 开关 + pathspec」最小面。
+/// 开关仅 -i/-w/-F/-E/-I/-n/--column（均不取值）；-- 前的位置参数恰一个
+/// （pattern，非 dash），-- 后的 pathspec 逐个保持非 dash 字面放行。取值与
+/// 外部执行面选项（-f 模式文件、--output/-O/--open-files-in-pager pager 面、
+/// --and 表达式组合等）一律拒绝（fail closed）。与 scripts/git-policy.ts
+/// 的 safeGrep 一致。
+fn safe_grep(rest: &[String]) -> Result<(), String> {
+    const FLAGS: &[&str] = &["-i", "-w", "-F", "-E", "-I", "-n", "--column"];
+    let mut pattern: Option<&str> = None;
+    let mut separated = false;
+    for argument in rest {
+        if separated {
+            if argument.starts_with('-') {
+                return Err(format!("Unsupported grep pathspec: {argument}"));
+            }
+            continue;
+        }
+        match argument.as_str() {
+            "--" => separated = true,
+            value if value.starts_with('-') => {
+                if !FLAGS.contains(&value) {
+                    return Err(format!("Unsupported grep option: {value}"));
+                }
+            }
+            value => {
+                if pattern.is_some() {
+                    return Err("Too many grep patterns".into());
+                }
+                pattern = Some(value);
+            }
+        }
+    }
+    if pattern.is_none() {
+        return Err("Missing grep pattern".into());
+    }
+    Ok(())
+}
+
+/// git format-patch 约束：导出补丁的产物必须走 --stdout 回传前端（没有 --stdout 时
+/// format-patch 会向工作目录写文件，绝不能放行）。开关仅 `-<N>`（1-99 个提交）与
+/// --stdout，位置参数恰一个非 dash rev。--output-directory/--cover-letter/--attach
+/// 等其余选项一律拒绝（fail closed）。与 scripts/git-policy.ts 的 safeFormatPatch 一致。
+fn safe_format_patch(rest: &[String]) -> Result<(), String> {
+    let mut stdout = false;
+    let mut count = false;
+    let mut positionals = 0usize;
+    for argument in rest {
+        if argument == "--" {
+            break;
+        }
+        if argument == "--stdout" {
+            stdout = true;
+            continue;
+        }
+        if argument.starts_with('-') {
+            let digits = argument.strip_prefix('-').unwrap_or("");
+            let is_count = !digits.is_empty()
+                && digits.bytes().all(|byte| byte.is_ascii_digit())
+                && digits.parse::<u32>().map(|value| (1..=99).contains(&value)).unwrap_or(false);
+            if !is_count {
+                return Err(format!("Unsupported format-patch option: {argument}"));
+            }
+            count = true;
+            continue;
+        }
+        positionals += 1;
+        if positionals > 1 {
+            return Err("Too many format-patch revisions".into());
+        }
+    }
+    if !stdout {
+        return Err("format-patch requires --stdout".into());
+    }
+    if !count || positionals != 1 {
+        return Err("format-patch requires a commit count and exactly one revision".into());
+    }
+    Ok(())
+}
+
 /// git lfs 子命令约束：`git lfs ...` 会执行 PATH 里的 git-lfs 外部二进制，策略只管/// argv。`push`（v1 不做上传面）、`migrate`（重写历史！）、`pointer`/`clean`/`smudge`
 /// （过滤驱动）、`update`/`logs`/`prune`/`dedup`/`lock`/`unlock` 与未列出的子命令
 /// （含裸 `git lfs`）一律拒绝（fail closed）。git-lfs 缺失时 git 自然报错，由前端捕获
@@ -814,6 +895,12 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "describe" {
         safe_describe(&args[index + 1..])?;
+    }
+    if name == "grep" {
+        safe_grep(&args[index + 1..])?;
+    }
+    if name == "format-patch" {
+        safe_format_patch(&args[index + 1..])?;
     }
     if name == "submodule" {
         safe_submodule(&args[index + 1..])?;
@@ -970,6 +1057,64 @@ mod tests {
             vec!["describe", hash.as_str(), "HEAD"],
             vec!["describe", "--abbrev=4", "HEAD"],
             vec!["describe", "--output=evil", "HEAD"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_grep_fail_closed() {
+        // 放行：全局搜索浮层真实使用的形态（开关 + 模式 + -- pathspec）。
+        for values in [
+            vec!["grep", "-n", "--column", "-I", "todo", "--", "src/"],
+            vec!["grep", "-n", "-i", "-F", "fixed string"],
+            vec!["grep", "-n", "-E", "-w", r"\bfoo\d+"],
+            vec!["grep", "-n", "--column", "-I", "pattern"],
+            vec!["grep", "-n", "--column", "-I", "pattern", "--", "src", "docs/read me.md"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：模式文件、pager/output 执行面、取值选项、表达式组合、多模式与裸调用。
+        for values in [
+            vec!["grep"],
+            vec!["grep", "-n", "-f", "patterns.txt"],
+            vec!["grep", "--output=evil", "x"],
+            vec!["grep", "-O", "x"],
+            vec!["grep", "--open-files-in-pager", "x"],
+            vec!["grep", "-A", "2", "x"],
+            vec!["grep", "--and", "a", "b"],
+            vec!["grep", "-e", "a", "-e", "b"],
+            vec!["grep", "-m", "5", "x"],
+            vec!["grep", "a", "b"],
+            vec!["grep", "x", "--", "-leading-dash"],
+            vec!["grep", "--heading", "x"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_format_patch_fail_closed() {
+        let hash = "a".repeat(40);
+        // 放行：导出补丁的真实形态（-N + --stdout + 单 rev）。
+        for values in [
+            vec!["format-patch", "-1", "--stdout", hash.as_str()],
+            vec!["format-patch", "--stdout", "-3", "HEAD~2"],
+            vec!["format-patch", "-99", "--stdout", "HEAD"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：缺 --stdout（会向工作目录写文件）、越界 N、output-directory、
+        // cover-letter、多 rev 与裸调用。
+        for values in [
+            vec!["format-patch", "-1", hash.as_str()],
+            vec!["format-patch", "--stdout", "HEAD"],
+            vec!["format-patch", "-0", "--stdout", "HEAD"],
+            vec!["format-patch", "-100", "--stdout", "HEAD"],
+            vec!["format-patch", "-x", "--stdout", "HEAD"],
+            vec!["format-patch", "-1", "--stdout", hash.as_str(), "HEAD~1"],
+            vec!["format-patch", "-1", "--output-directory=out", "--stdout", hash.as_str()],
+            vec!["format-patch", "-1", "--cover-letter", "--stdout", hash.as_str()],
+            vec!["format-patch", "-1", "--attach", "--stdout", hash.as_str()],
+            vec!["format-patch"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }

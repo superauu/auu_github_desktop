@@ -1,4 +1,4 @@
-const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
+const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'grep', 'format-patch', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
 const fixedOverrides = new Set(['core.quotepath=false', 'core.editor=true', 'rebase.updaterefs=false']);
 function safeOverride(value: string): boolean {
   if (fixedOverrides.has(value.toLowerCase())) return true;
@@ -325,6 +325,54 @@ function safeDescribe(rest: string[]): void {
   if (positionals !== 1) throw new Error('Describe requires exactly one revision');
 }
 
+// git grep 约束：全局代码搜索只需「模式 + 开关 + pathspec」最小面。开关仅
+// -i/-w/-F/-E/-I/-n/--column（均不取值）；-- 前的位置参数恰一个（pattern，非 dash），
+// -- 后的 pathspec 逐个保持非 dash 字面放行。取值与外部执行面选项（-f 模式文件、
+// --output/-O/--open-files-in-pager pager 面、--and 表达式组合等）一律拒绝
+// （fail closed）。与 src-tauri/src/git_policy.rs safe_grep 一致。
+function safeGrep(rest: string[]): void {
+  const flags = new Set(['-i', '-w', '-F', '-E', '-I', '-n', '--column']);
+  let pattern: string | null = null;
+  let separated = false;
+  for (const argument of rest) {
+    if (separated) {
+      if (argument.startsWith('-')) throw new Error(`Unsupported grep pathspec: ${argument}`);
+      continue;
+    }
+    if (argument === '--') { separated = true; continue; }
+    if (argument.startsWith('-')) {
+      if (!flags.has(argument)) throw new Error(`Unsupported grep option: ${argument}`);
+      continue;
+    }
+    if (pattern !== null) throw new Error('Too many grep patterns');
+    pattern = argument;
+  }
+  if (pattern === null) throw new Error('Missing grep pattern');
+}
+
+// git format-patch 约束：导出补丁的产物必须走 --stdout 回传前端（没有 --stdout 时
+// format-patch 会向工作目录写文件，绝不能放行）。开关仅 `-<N>`（1-99 个提交）与
+// --stdout，位置参数恰一个非 dash rev。--output-directory/--cover-letter/--attach
+// 等其余选项一律拒绝（fail closed）。与 src-tauri/src/git_policy.rs safe_format_patch 一致。
+function safeFormatPatch(rest: string[]): void {
+  let stdout = false, count = false, positionals = 0;
+  for (const argument of rest) {
+    if (argument === '--') break;
+    if (argument === '--stdout') { stdout = true; continue; }
+    if (argument.startsWith('-')) {
+      const digits = argument.slice(1);
+      const isCount = argument.length >= 2 && /^\d+$/.test(digits) && Number(digits) >= 1 && Number(digits) <= 99;
+      if (!isCount) throw new Error(`Unsupported format-patch option: ${argument}`);
+      count = true;
+      continue;
+    }
+    positionals++;
+    if (positionals > 1) throw new Error('Too many format-patch revisions');
+  }
+  if (!stdout) throw new Error('format-patch requires --stdout');
+  if (!count || positionals !== 1) throw new Error('format-patch requires a commit count and exactly one revision');
+}
+
 export function validateGitArguments(args: string[]): { command: string; index: number } {
   let index = 0;
   while (index < args.length) {
@@ -367,6 +415,8 @@ export function validateGitArguments(args: string[]): { command: string; index: 
   }
   if (command === 'bisect') safeBisect(args.slice(index + 1));
   if (command === 'describe') safeDescribe(args.slice(index + 1));
+  if (command === 'grep') safeGrep(args.slice(index + 1));
+  if (command === 'format-patch') safeFormatPatch(args.slice(index + 1));
   if (command === 'submodule') safeSubmodule(args.slice(index + 1));
   if (command === 'lfs') safeLfs(args.slice(index + 1));
   const blocked = ['--upload-pack', '--receive-pack', '--exec', '--ext-diff', '--textconv', '--template', '--separate-git-dir', '--unsafe-paths', '--output', '--config', '--config-env', '--strategy', '--contents', '--file'];
