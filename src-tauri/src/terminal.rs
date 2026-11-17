@@ -1,3 +1,6 @@
+// PathBuf 仅 Windows（PowerShell 路径）与 Linux（PATH 探测）分支使用；macOS 分支
+// 只用 Command，导入必须按平台收窄，否则 macOS 的 clippy -D warnings 会报 unused。
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 use std::path::PathBuf;
 use std::process::Command;
 
