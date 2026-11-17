@@ -791,6 +791,10 @@ export class GitService implements IGitService {
     await executeGit(['remote', 'remove', name], repoPath);
   }
 
+  async renameRemote(repoPath: string, oldName: string, newName: string): Promise<void> {
+    await executeGit(['remote', 'rename', oldName, newName], repoPath);
+  }
+
   async setRemoteUrl(repoPath: string, name: string, url: string): Promise<void> {
     await executeGit(['remote', 'set-url', name, url], repoPath);
   }

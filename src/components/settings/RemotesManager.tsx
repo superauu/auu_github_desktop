@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, RefreshCw, Check, X } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Check, X, PenLine } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { gitService } from '@/services/git/GitService';
@@ -32,6 +32,8 @@ export const RemotesManager: React.FC = () => {
   const [newUrl, setNewUrl] = useState('');
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingUrl, setEditingUrl] = useState('');
+  const [renamingRemote, setRenamingRemote] = useState<string | null>(null);
+  const [renamingValue, setRenamingValue] = useState('');
 
   const repoPath = currentRepo?.path;
 
@@ -104,6 +106,28 @@ export const RemotesManager: React.FC = () => {
       await refreshAll();
     } catch (err: any) {
       toast.error(t('settings.remotes.urlSaveFailed'), err?.message);
+    }
+  };
+
+  const handleRename = async (oldName: string) => {
+    const newName = renamingValue.trim();
+    if (!newName || newName === oldName) {
+      setRenamingRemote(null);
+      return;
+    }
+    try {
+      await gitService.renameRemote(repoPath, oldName, newName);
+      // git remote rename 只同步 branch.*.remote，协作远程偏好（存名字）需手动迁移。
+      if (collaborationRemote === oldName) {
+        await gitService.setCollaborationRemote(repoPath, newName);
+        setCollaborationRemote(newName);
+      }
+      toast.success(t('settings.remotes.renamed').replace('{old}', oldName).replace('{new}', newName));
+      setRenamingRemote(null);
+      await load();
+      await refreshAll();
+    } catch (err: any) {
+      toast.error(t('settings.remotes.renameFailed'), err?.message);
     }
   };
 
@@ -209,7 +233,35 @@ export const RemotesManager: React.FC = () => {
               key={r.name}
               className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border border-border/60 bg-card/50 text-[12px] group"
             >
-              {editingName === r.name ? (
+              {renamingRemote === r.name ? (
+                <>
+                  <Input
+                    value={renamingValue}
+                    onChange={(e) => setRenamingValue(e.target.value)}
+                    aria-label={t('settings.remotes.rename')} placeholder={t('settings.remotes.namePlaceholder')}
+                    className="h-6 flex-1 text-[12px] font-mono"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => handleRename(r.name)}
+                    className="p-0 hover:text-git-added shrink-0"
+                    title={t('settings.remotes.renameSave')}
+                  >
+                    <Check className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setRenamingRemote(null)}
+                    className="p-0 text-muted-foreground hover:text-foreground shrink-0"
+                    title={t('common.cancel')}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </>
+              ) : editingName === r.name ? (
                 <>
                   <Input
                     value={editingUrl}
@@ -252,6 +304,18 @@ export const RemotesManager: React.FC = () => {
                         toast.success(t('remote.pruneDone'), r.name);
                       } catch (error: any) { toast.error(t('header.fetchFailed'), error?.message); }
                     }}><RefreshCw className="h-3 w-3" /></Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => {
+                        setRenamingRemote(r.name);
+                        setRenamingValue(r.name);
+                      }}
+                      className="p-0 text-muted-foreground hover:text-foreground"
+                      title={t('settings.remotes.rename')}
+                    >
+                      <PenLine className="h-3 w-3" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="xs"
