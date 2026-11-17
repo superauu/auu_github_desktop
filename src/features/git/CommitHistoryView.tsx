@@ -20,6 +20,7 @@ import {
   Check,
   Cloud,
   FileCode2,
+  FileDiff,
   Laptop,
   Copy,
   Cherry,
@@ -41,6 +42,7 @@ import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { GitCommit } from '@/services/git/types';
+import { patchService } from '@/services/git/PatchService';
 
 // 本地默认视图（与写侧默认值保持一致）：旧 localStorage 记录可能缺字段，
 // 这里做内联防御合并，不 import store 的新导出，避免与写侧 version/migrate 逻辑耦合。
@@ -282,6 +284,23 @@ export const CommitHistoryView: React.FC = () => {
     }
   };
 
+  // 导出补丁：format-patch --stdout 取回文本（策略禁止落盘形态），保存位置由用户在
+  // 系统对话框确认；桌面端以外没有文件对话框，静默忽略。
+  const exportCommitPatch = async (commit: GitCommit) => {
+    if (!repoPath) return;
+    try {
+      const patch = await patchService.exportCommitPatch(repoPath, commit.hash);
+      const repoName = useRepoStore.getState().currentRepo?.name || 'repo';
+      const name = `${repoName}-${commit.shortHash}.patch`;
+      const target = await patchService.pickPatchSavePath(name);
+      if (!target) return;
+      await patchService.writePatchFile(target, patch);
+      toast.success(t('patch.exportTip'), target);
+    } catch (err: any) {
+      toast.error(t('patch.exportFailed'), err?.message);
+    }
+  };
+
   const ctxMenuItems: ContextMenuItem[] = ctxMenu.commit
     ? [
         {
@@ -292,6 +311,12 @@ export const CommitHistoryView: React.FC = () => {
             navigator.clipboard.writeText(ctxMenu.commit!.hash);
             toast.success(t('history.copyHash'), ctxMenu.commit!.shortHash);
           },
+        },
+        {
+          id: 'export-patch',
+          label: t('patch.export'),
+          icon: <FileDiff className="h-3.5 w-3.5" />,
+          onClick: () => void exportCommitPatch(ctxMenu.commit!),
         },
         { id: 'sep-1', separator: true },
         {

@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-#[cfg(target_os = "windows")]
-use std::process::Command;
 use std::path::{Path, PathBuf, Component};
 use std::time::Duration;
 mod plugins;
@@ -21,6 +19,8 @@ mod git_policy;
 mod git_binary;
 mod external_tools;
 mod ssh_signing;
+mod patch_io;
+mod terminal;
 use file_io::{atomic_write, read_bytes, read_text, FILE_WRITES, MAX_FILE_BYTES};
 
 /// 去除 Windows canonicalize 返回的 \\?\ 前缀（含 UNC 形式）。
@@ -319,18 +319,7 @@ fn write_file_content(repo_path: String, file_path: String, content: String, exp
 fn open_terminal(repo_path: String) -> Result<(), String> {
     let directory = repository_access::require(&repo_path)?;
     if !directory.is_dir() { return Err("Repository directory is unavailable".into()); }
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        let powershell = PathBuf::from(std::env::var_os("SystemRoot").ok_or("Missing Windows directory")?)
-            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
-        Command::new(powershell).args(["-NoLogo", "-NoProfile", "-NoExit"])
-            .current_dir(normalize_display_path(&directory)).creation_flags(0x00000010)
-            .spawn().map_err(|error| format!("Unable to open terminal: {error}"))?;
-        Ok(())
-    }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = directory; Err("Opening an external terminal is currently supported on Windows only".into()) }
+    terminal::open_external_terminal(&normalize_display_path(&directory))
 }
 
 #[tauri::command(async)]
@@ -711,6 +700,10 @@ pub fn run() {
             oauth_callback::oauth_loopback_cancel,
             open_external_url,
             open_local_path,
+            patch_io::pick_patch_file,
+            patch_io::pick_patch_save_path,
+            patch_io::read_patch_file,
+            patch_io::write_patch_file,
             execute_git,
             open_terminal,
             repository_access::authorize_repository,

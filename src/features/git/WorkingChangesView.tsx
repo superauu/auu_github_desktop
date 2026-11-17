@@ -15,6 +15,7 @@ import { isImagePath } from '@/services/git/ImageDiffService';
 import { stageSelectedLines } from '@/services/git/LineStagingService';
 import { CommitSplitDialog } from './CommitSplitDialog';
 import { RepositoryToolsDialog } from './RepositoryToolsDialog';
+import { ApplyPatchDialog } from './ApplyPatchDialog';
 import { useShallow } from 'zustand/react/shallow';
 import { VirtualRows } from '@/components/ui/VirtualRows';
 import { DiffFontControl } from '@/components/ui/DiffFontControl';
@@ -54,6 +55,7 @@ import {
   Loader2,
   History,
   GitCompare,
+  FileDiff,
   GitMerge,
 } from 'lucide-react';
 import { ConflictBanner } from './ConflictBanner';
@@ -123,6 +125,7 @@ export const WorkingChangesView: React.FC = () => {
   const [lineBusy, setLineBusy] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
   const [repoToolsOpen, setRepoToolsOpen] = useState(false);
+  const [applyPatchOpen, setApplyPatchOpen] = useState(false);
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
   /** 完整文件视图：只读展开未变更的上下文（暂存操作仍回到「仅变更」）。 */
   const [fullFile, setFullFile] = useState(false);
@@ -759,6 +762,7 @@ export const WorkingChangesView: React.FC = () => {
       <ConflictBanner />
       {splitOpen && currentRepo && <CommitSplitDialog repoPath={currentRepo.path} onClose={() => setSplitOpen(false)} />}
       {repoToolsOpen && currentRepo && <RepositoryToolsDialog repoPath={currentRepo.path} onClose={() => setRepoToolsOpen(false)} />}
+      {applyPatchOpen && currentRepo && <ApplyPatchDialog repoPath={currentRepo.path} onClose={() => setApplyPatchOpen(false)} />}
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Changes File List Sub-panel */}
@@ -781,6 +785,7 @@ export const WorkingChangesView: React.FC = () => {
                     <DropdownMenu.Group>
                       <DropdownMenu.Item className="menu-item" onSelect={() => window.setTimeout(() => setIgnorePaths([]), 30)}><Shield className="size-3.5" />{t('ignore.manage')}</DropdownMenu.Item>
                       <DropdownMenu.Item className="menu-item" onSelect={() => window.setTimeout(() => setRepoToolsOpen(true), 30)}><Boxes className="size-3.5" />{t('repoTools.open')}</DropdownMenu.Item>
+                      <DropdownMenu.Item className="menu-item" disabled={!currentRepo} onSelect={() => window.setTimeout(() => setApplyPatchOpen(true), 30)}><FileDiff className="size-3.5" />{t('patch.apply')}</DropdownMenu.Item>
                       {totalChanges > 0 && <DropdownMenu.Item className="menu-item" onSelect={() => void quickStash()}><Archive className="size-3.5" />{t('changes.stash')}</DropdownMenu.Item>}
                     </DropdownMenu.Group>
                   </DropdownMenu.Content>
