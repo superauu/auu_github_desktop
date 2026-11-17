@@ -3,6 +3,7 @@ import {
   GitBlameLine,
   GitBranch,
   CommitDistance,
+  ShortlogEntry,
   PushContext,
   PushOptions,
   PushResult,
@@ -893,6 +894,71 @@ export class GitService implements IGitService {
 
   async diagnoseRepository(repoPath: string): Promise<RepoHealthDiagnosis> {
     return diagnoseRepository(repoPath, path => this.getStatus(path));
+  }
+
+  /** 当前分支贡献榜（shortlog -s -n --no-merges），按提交数降序。 */
+  async getShortlog(repoPath: string, limit = 20): Promise<ShortlogEntry[]> {
+    try {
+      const res = await executeGit(['shortlog', '-s', '-n', '--no-merges', 'HEAD'], repoPath);
+      const entries: ShortlogEntry[] = [];
+      for (const line of res.stdout.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const tab = trimmed.indexOf('\t');
+        if (tab <= 0) continue;
+        const commits = Number(trimmed.slice(0, tab).trim());
+        const name = trimmed.slice(tab + 1).trim();
+        if (name) entries.push({ name, commits: Number.isFinite(commits) ? commits : 0 });
+        if (entries.length >= limit) break;
+      }
+      return entries;
+    } catch (err) {
+      console.warn('Shortlog warning:', err);
+      return [];
+    }
+  }
+
+  /** 仓库对象统计（count-objects -vH），解析人类可读键值；失败返回 null。 */
+  async getRepoStats(repoPath: string): Promise<Record<string, string> | null> {
+    try {
+      const res = await executeGit(['count-objects', '-vH'], repoPath);
+      const stats: Record<string, string> = {};
+      for (const line of res.stdout.split(/\r?\n/)) {
+        const colon = line.indexOf(':');
+        if (colon <= 0) continue;
+        stats[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+      }
+      return stats;
+    } catch (err) {
+      console.warn('CountObjects warning:', err);
+      return null;
+    }
+  }
+
+  /** 提交备注（refs/notes/commits）；无备注返回 null（notes show 以退出码 1 表达）。 */
+  async getCommitNote(repoPath: string, hash: string): Promise<string | null> {
+    try {
+      const res = await executeGit(['notes', 'show', hash], repoPath);
+      return res.stdout.replace(/\r?\n$/, '');
+    } catch (error) {
+      if (error instanceof GitExecutionError && error.exitCode === 1) return null;
+      console.warn('Notes warning:', error);
+      return null;
+    }
+  }
+
+  /** 写提交备注；空串语义为删除（无备注时的 remove 以退出码 1 表达，静默成功）。 */
+  async setCommitNote(repoPath: string, hash: string, note: string): Promise<void> {
+    const trimmed = note.trim();
+    if (!trimmed) {
+      try {
+        await executeGit(['notes', 'remove', hash], repoPath);
+      } catch (error) {
+        if (!(error instanceof GitExecutionError && error.exitCode === 1)) throw error;
+      }
+      return;
+    }
+    await executeGit(['notes', 'add', '-f', '-m', trimmed, hash], repoPath);
   }
 
   async getRepoOperationState(repoPath: string, snapshot?: GitStatusResult): Promise<RepoOperationState> {

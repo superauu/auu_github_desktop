@@ -29,6 +29,7 @@ import { crashReportingEn } from './crashReporting';
 import { errorsEn } from './errors';
 import { codeSearchEn } from './codeSearch';
 import { patchEn } from './patch';
+import { repoStatsEn } from './repoStats';
 import { ciDomainEn } from './ciDomain';
 /**
  * English resource pack.
@@ -436,8 +437,11 @@ export const en = {
   "ignore.destination": "Save to",
   "ignore.shared": "Shared repository rules (.gitignore)",
   "ignore.local": "Only this local repository (.git/info/exclude)",
+  "ignore.global": "Global rules on this machine (core.excludesFile)",
   "ignore.sharedHint": "Commit .gitignore to share these rules with your team.",
   "ignore.localHint": "These rules stay in this repository’s local Git metadata.",
+  "ignore.globalHint": "Rules live in the global ignore file of your user directory.",
+  "ignore.globalWarning": "Global ignore rules affect every repository on this machine, not just this one.",
   "ignore.range": "Ignore scope",
   "ignore.mode.file": "Only selected files",
   "ignore.mode.typeHere": "Same file types in these directories",
@@ -1136,6 +1140,13 @@ export const en = {
   'rightPane.parentLabel': 'parent:',
   'rightPane.tagDistanceTitle': '{n} commits after tag {tag}. Click to locate the tag commit',
   'rightPane.tagExactlyTitle': 'This commit is tag {tag}. Click to locate',
+  'rightPane.noteTitle': 'Note',
+  'rightPane.noteAdd': 'Add note',
+  'rightPane.noteEdit': 'Edit note',
+  'rightPane.noteDelete': 'Delete note',
+  'rightPane.noteDeleteConfirm': 'Delete the note on this commit? Only the local notes ref is affected.',
+  'rightPane.noteSave': 'Save',
+  'rightPane.noteSaved': 'Note saved',
   'rightPane.zeroFiles': '0 files changed',
   'rightPane.statAdded': 'added',
   'rightPane.statModified': 'modified',
@@ -1442,6 +1453,7 @@ export const en = {
   ...errorsEn,
   ...codeSearchEn,
   ...patchEn,
+  ...repoStatsEn,
 } as const;
 
 export type TranslationKey = keyof typeof en;

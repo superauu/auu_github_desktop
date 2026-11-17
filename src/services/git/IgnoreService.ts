@@ -6,7 +6,7 @@ import { normalizeInvokeError } from './invokeError';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { authorizeGitBinary } from '@/services/fs/RepositoryAccess';
 
-export type IgnoreScope = 'shared' | 'local';
+export type IgnoreScope = 'shared' | 'local' | 'global';
 export type IgnoreMode = 'file' | 'typeHere' | 'typeTree' | 'typeAll' | 'directory' | 'custom';
 export interface IgnoreSnapshot { scope: IgnoreScope; content: string; exists?: boolean }
 export interface IgnorePreview { untracked: string[]; tracked: string[]; selectedNotIgnored: string[] }
@@ -91,10 +91,13 @@ export async function saveIgnoreFile(repoPath: string, snapshot: IgnoreSnapshot,
 }
 
 export async function previewIgnore(repoPath: string, scope: IgnoreScope, content: string, selected: string[] = []): Promise<IgnorePreview> {
-  const [untrackedResult, trackedResult, other, ignoreCase] = await Promise.all([
+  // 预览模拟 git 的实际叠加语义：当前编辑的 scope 用编辑内容，其余 scope 读盘（global
+  // scope 的预览同时叠加仓库 .gitignore 与 info/exclude）。
+  const otherScopes: IgnoreScope[] = scope === 'global' ? ['local', 'shared'] : [scope === 'shared' ? 'local' : 'shared'];
+  const [untrackedResult, trackedResult, otherSnapshots, ignoreCase] = await Promise.all([
     executeGit(['ls-files', '--others', '--exclude-standard', '-z'], repoPath),
     executeGit(['ls-files', '--cached', '-z'], repoPath),
-    readIgnoreFile(repoPath, scope === 'shared' ? 'local' : 'shared'),
+    Promise.all(otherScopes.map(other => readIgnoreFile(repoPath, other))),
     executeGit(['config', '--bool', '--get', 'core.ignorecase'], repoPath).then(result => result.stdout.trim() === 'true').catch(error => {
       if (error instanceof GitExecutionError && error.exitCode === 1) return false;
       throw error;
@@ -103,9 +106,9 @@ export async function previewIgnore(repoPath: string, scope: IgnoreScope, conten
   const untracked = untrackedResult.stdout.split('\0').filter(Boolean);
   const tracked = [...new Set(trackedResult.stdout.split('\0').filter(Boolean))];
   const all = [...new Set([...untracked, ...tracked, ...selected])];
-  const shared = scope === 'shared' ? content : other.content;
-  const local = scope === 'local' ? content : other.content;
-  const root = ignore({ ignorecase: ignoreCase }).add(local.replace(/^\uFEFF/, '')).add(shared.replace(/^\uFEFF/, ''));
+  const root = ignore({ ignorecase: ignoreCase });
+  root.add(content.replace(/^\uFEFF/, ''));
+  otherSnapshots.forEach(snapshot => root.add(snapshot.content.replace(/^\uFEFF/, '')));
   const directories = new Set<string>();
   all.forEach(path => {
     const parts = path.split('/');

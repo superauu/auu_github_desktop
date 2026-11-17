@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { confirmAction } from '@/stores/confirmStore';
 import { useWorkspaceLayout } from '@/hooks/useWorkspaceLayout';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Clock, CheckCircle2, Copy, FileCode, GitCommit, Layers, List, Network, Tag as TagIcon, X } from 'lucide-react';
+import { AlertCircle, Clock, CheckCircle2, Copy, FileCode, GitCommit, Layers, List, Network, StickyNote, Tag as TagIcon, X } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { checkStatus, type CiCheck } from '@/services/collaboration/checkStatus';
@@ -52,6 +52,10 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [distance, setDistance] = useState<CommitDistance | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteEditing, setNoteEditing] = useState(false);
+  const [noteBusy, setNoteBusy] = useState(false);
   const request = useRef(0);
   const invalidatePreview = useCallback(() => { request.current++; }, []);
   const repoPath = currentRepo?.path;
@@ -86,6 +90,37 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
     }
     return () => { cancelled = true; };
   }, [repoPath, commitHash, activeTab]);
+  useEffect(() => {
+    let cancelled = false;
+    setNote(null);
+    setNoteEditing(false);
+    // 提交备注是辅助信息：读取失败静默为无备注。
+    if (activeTab === 'history' && repoPath && commitHash) {
+      void gitService.getCommitNote(repoPath, commitHash)
+        .then(value => { if (!cancelled) setNote(value); })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [repoPath, commitHash, activeTab]);
+
+  // 提交备注保存：空串语义为删除；成功后本地状态同步，失败给出可读提示。
+  const saveNote = async (value: string) => {
+    if (!repoPath || !commitHash) return;
+    setNoteBusy(true);
+    try {
+      await gitService.setCommitNote(repoPath, commitHash, value);
+      if (useRepoStore.getState().currentRepo?.path !== repoPath || useRepoStore.getState().selectedCommit?.hash !== commitHash) return;
+      const trimmed = value.trim();
+      setNote(trimmed ? trimmed : null);
+      setNoteDraft('');
+      setNoteEditing(false);
+      toast.success(t('rightPane.noteSaved'));
+    } catch (error: any) {
+      toast.error(t('rightPane.operationFailed'), error?.message);
+    } finally {
+      setNoteBusy(false);
+    }
+  };
 
   const inspect = async (file: GitFileChange) => {
     if (!currentRepo || !selectedCommit) return;
@@ -166,6 +201,30 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
             const color = check.status === 'success' ? 'text-git-added' : check.status === 'failed' ? 'text-destructive' : 'text-muted-foreground';
             return <div key={check.id} className="flex items-start gap-2 py-1"><Icon className={`h-4 w-4 shrink-0 ${color}`} /><span className="min-w-0 wrap-break-word">{check.name} · {t(`ci.status.${check.status}`)}</span></div>;
           })}
+        </section>
+        <section className="border-t border-border pt-3 space-y-2">
+          <div className="flex items-center justify-between gap-2"><h3 className="text-[12px] text-muted-foreground">{t('rightPane.noteTitle')}</h3>
+            {note !== null && !noteEditing && <div className="flex gap-1">
+              <Button variant="ghost" size="icon-xs" aria-label={t('rightPane.noteEdit')} title={t('rightPane.noteEdit')} onClick={() => { setNoteDraft(note); setNoteEditing(true); }}><StickyNote className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="icon-xs" aria-label={t('rightPane.noteDelete')} title={t('rightPane.noteDelete')} onClick={async () => {
+                if (!await confirmAction({ title: t('rightPane.noteDelete'), description: t('rightPane.noteDeleteConfirm'), danger: true })) return;
+                await saveNote('');
+              }}><X className="h-3.5 w-3.5" /></Button>
+            </div>}
+          </div>
+          {noteEditing ? <>
+            <textarea aria-label={t('rightPane.noteTitle')} value={noteDraft} disabled={noteBusy}
+              onChange={event => setNoteDraft(event.target.value)}
+              className="w-full min-h-20 rounded-md border border-input bg-background px-3 py-2 text-xs font-mono select-text" />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="xs" disabled={noteBusy} onClick={() => { setNoteEditing(false); setNoteDraft(''); }}>{t('common.cancel')}</Button>
+              <Button size="xs" disabled={noteBusy} onClick={() => void saveNote(noteDraft)}>{t('rightPane.noteSave')}</Button>
+            </div>
+          </> : note ? (
+            <p className="select-text whitespace-pre-wrap wrap-break-word rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-[12px] leading-relaxed text-foreground/90">{note}</p>
+          ) : (
+            <Button variant="outline" size="xs" onClick={() => { setNoteDraft(''); setNoteEditing(true); }}>{t('rightPane.noteAdd')}</Button>
+          )}
         </section>
       </div> : <p className="text-muted-foreground">{t('composer.selectCommit')}</p>)}
     </div>

@@ -1,4 +1,4 @@
-const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'grep', 'format-patch', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
+const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'grep', 'format-patch', 'shortlog', 'count-objects', 'notes', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
 const fixedOverrides = new Set(['core.quotepath=false', 'core.editor=true', 'rebase.updaterefs=false']);
 function safeOverride(value: string): boolean {
   if (fixedOverrides.has(value.toLowerCase())) return true;
@@ -373,6 +373,69 @@ function safeFormatPatch(rest: string[]): void {
   if (!count || positionals !== 1) throw new Error('format-patch requires a commit count and exactly one revision');
 }
 
+// git shortlog 约束：统计面板的固定形态 `-s -n --no-merges <rev>`。不带 rev 的
+// shortlog 会读 stdin（挂起风险），rev 必填且非 dash；其余选项（-e 邮箱、-w 换行
+// 宽度、分组选项等）一律拒绝（fail closed）。只读。与 src-tauri/src/git_policy.rs
+// safe_shortlog 一致。
+function safeShortlog(rest: string[]): void {
+  const flags = new Set(['-s', '-n', '--no-merges']);
+  let positionals = 0;
+  for (const argument of rest) {
+    if (argument === '--') break;
+    if (argument.startsWith('-')) {
+      if (!flags.has(argument)) throw new Error(`Unsupported shortlog option: ${argument}`);
+      continue;
+    }
+    positionals++;
+    if (positionals > 1) throw new Error('Too many shortlog revisions');
+  }
+  if (positionals !== 1) throw new Error('shortlog requires exactly one revision');
+}
+
+// git count-objects 约束：仓库体积统计只放行固定形态 `-vH`（人类可读的详细键值）；
+// 裸调用与 gc 类参数（--gc 隐含维护写入）一律拒绝（fail closed）。只读。
+// 与 src-tauri/src/git_policy.rs safe_count_objects 一致。
+function safeCountObjects(rest: string[]): void {
+  if (rest.length === 1 && rest[0] === '-vH') return;
+  throw new Error('count-objects only supports the -vH reporting form');
+}
+
+// git notes 约束：提交备注的最小读写面——notes show <rev>、notes remove <rev> 与
+// notes add [-f] -m <message> <rev>（-f 覆盖编辑语义，-m 单段文本）。copy/append/
+// edit/merge/prune 与 -F/--stdin 等文件面选项一律拒绝（fail closed）。
+// 与 src-tauri/src/git_policy.rs safe_notes 一致。
+function safeNotes(rest: string[]): void {
+  const sub = rest[0];
+  if (!sub) throw new Error('Missing notes subcommand');
+  if (sub === 'show' || sub === 'remove') {
+    if (rest.length !== 2 || rest[1].startsWith('-')) throw new Error('notes show/remove take exactly one revision');
+    return;
+  }
+  if (sub === 'add') {
+    let message: string | null = null;
+    let positionals = 0;
+    for (let index = 1; index < rest.length; index++) {
+      const argument = rest[index];
+      if (argument === '--') break;
+      if (argument === '-f') continue;
+      if (argument === '-m') {
+        if (message !== null) throw new Error('Only one -m is allowed');
+        const value = rest[index + 1];
+        if (value === undefined) throw new Error('notes add -m requires a message');
+        message = value;
+        index++;
+        continue;
+      }
+      if (argument.startsWith('-')) throw new Error(`Unsupported notes option: ${argument}`);
+      positionals++;
+      if (positionals > 1) throw new Error('Too many notes revisions');
+    }
+    if (message === null || positionals !== 1) throw new Error('notes add requires -m <message> and exactly one revision');
+    return;
+  }
+  throw new Error(`Unsupported notes subcommand: ${sub}`);
+}
+
 export function validateGitArguments(args: string[]): { command: string; index: number } {
   let index = 0;
   while (index < args.length) {
@@ -417,6 +480,9 @@ export function validateGitArguments(args: string[]): { command: string; index: 
   if (command === 'describe') safeDescribe(args.slice(index + 1));
   if (command === 'grep') safeGrep(args.slice(index + 1));
   if (command === 'format-patch') safeFormatPatch(args.slice(index + 1));
+  if (command === 'shortlog') safeShortlog(args.slice(index + 1));
+  if (command === 'count-objects') safeCountObjects(args.slice(index + 1));
+  if (command === 'notes') safeNotes(args.slice(index + 1));
   if (command === 'submodule') safeSubmodule(args.slice(index + 1));
   if (command === 'lfs') safeLfs(args.slice(index + 1));
   const blocked = ['--upload-pack', '--receive-pack', '--exec', '--ext-diff', '--textconv', '--template', '--separate-git-dir', '--unsafe-paths', '--output', '--config', '--config-env', '--strategy', '--contents', '--file'];

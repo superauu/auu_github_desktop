@@ -267,6 +267,37 @@ export function gitApiPlugin(): Plugin {
                   child.on('error', reject);
                   child.on('close', code => code === 0 ? resolve(output.replace(/[\r\n]+$/, '')) : reject(new Error(error)));
                 });
+              } else if (data.scope === 'global') {
+                // 与 src-tauri 一致：路径来自 git config 或 XDG 默认计算（不接受前端传入）；
+                // 写入内容时才代写 core.excludesFile，纯读取无副作用。
+                const configured = await new Promise<string>((resolve) => {
+                  const child = spawn(data.gitBinary || 'git', ['config', '--global', '--get', 'core.excludesfile'], { cwd: data.repoPath, windowsHide: true });
+                  let output = '';
+                  child.stdout.on('data', chunk => { output += chunk; });
+                  child.on('error', () => resolve(''));
+                  child.on('close', code => resolve(code === 0 ? output.trim() : ''));
+                });
+                const expandHome = (value: string) => {
+                  const rest = value.startsWith('~/') ? value.slice(2) : value.startsWith('~\\') ? value.slice(2) : null;
+                  if (rest === null) return value;
+                  const home = process.env.HOME || process.env.USERPROFILE;
+                  return home ? path.join(home, rest) : value;
+                };
+                if (configured) resolved = expandHome(configured);
+                else {
+                  const home = process.env.HOME || process.env.USERPROFILE;
+                  if (!home) throw new Error('Unable to resolve the global ignore path');
+                  resolved = path.join(home, '.config', 'git', 'ignore');
+                  if (data.content !== undefined) {
+                    await new Promise<void>((resolve, reject) => {
+                      const child = spawn(data.gitBinary || 'git', ['config', '--global', 'core.excludesfile', resolved], { cwd: data.repoPath, windowsHide: true });
+                      let error = '';
+                      child.stderr.on('data', chunk => { error += chunk; });
+                      child.on('error', reject);
+                      child.on('close', code => code === 0 ? resolve() : reject(new Error(error)));
+                    });
+                  }
+                }
               } else throw new Error('Invalid ignore scope');
               let actual = '', exists = true;
               try { actual = await readText(resolved); }

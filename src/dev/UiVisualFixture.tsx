@@ -92,6 +92,9 @@ function prepare() {
   gitService.findCommits = async (_path, query) => commits.filter(commit => commit.subject.toLowerCase().includes(query.toLowerCase()));
   // 详情面板会查「距 tag 距离」：tag 所在提交返回 +0，其余返回固定 +3，禁止触网。
   gitService.getCommitDistance = async (_path, commitHash) => commitHash === hash(0) ? { tag: 'v9.8.7', distance: 0 } : { tag: 'v9.8.7', distance: 3 };
+  // 提交备注区块随详情渲染即读取：tag 提交给一条示例备注，其余无备注；写入桩吞掉。
+  gitService.getCommitNote = async (_path, commitHash) => commitHash === hash(0) ? 'Fixture note: reviewed during workspace UI checks.' : null;
+  gitService.setCommitNote = async () => {};
   // 全局代码搜索浮层：固定两条命中（分属两文件），供搜索交互与视觉用例使用，禁止触网。
   codeSearchService.grepRepo = async () => ({
     hits: [

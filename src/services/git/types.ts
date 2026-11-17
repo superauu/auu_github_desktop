@@ -132,6 +132,12 @@ export interface CommitDistance {
   distance: number;
 }
 
+/** 贡献榜一行（shortlog -s -n），提交数降序。 */
+export interface ShortlogEntry {
+  name: string;
+  commits: number;
+}
+
 export interface GitStash {
   index: number;
   message: string;

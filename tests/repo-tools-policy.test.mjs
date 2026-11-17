@@ -161,6 +161,64 @@ test('format-patch is gated to the stdout-export shape', () => {
   }
 });
 
+test('shortlog and count-objects are gated to the stats shapes', () => {
+  // 放行：统计面板真实使用的固定形态。
+  for (const args of [
+    ['shortlog', '-s', '-n', '--no-merges', 'HEAD'],
+    ['shortlog', '--no-merges', '-s', '-n', 'HEAD~10'],
+    ['count-objects', '-vH'],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：stdin 形态（挂起）、-e/-w 等未放行选项、多 rev、裸调用与维护写入。
+  for (const args of [
+    ['shortlog'],
+    ['shortlog', '-s', '-n'],
+    ['shortlog', '-sne', '--no-merges', 'HEAD'],
+    ['shortlog', '-s', '-n', '-w', 'HEAD'],
+    ['shortlog', '--email', '--no-merges', 'HEAD'],
+    ['shortlog', '-s', '-n', 'HEAD', 'main'],
+    ['count-objects'],
+    ['count-objects', '-v'],
+    ['count-objects', '-H'],
+    ['count-objects', '--gc'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
+test('notes is gated to the commit-note read/write surface', () => {
+  const hash = 'a'.repeat(40);
+  // 放行：提交备注的最小读写面。
+  for (const args of [
+    ['notes', 'show', hash],
+    ['notes', 'remove', 'HEAD'],
+    ['notes', 'add', '-f', '-m', 'note text', hash],
+    ['notes', 'add', '-m', '第一段备注', 'HEAD'],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：append/copy/edit/merge/prune、-F/--stdin 文件面、多 -m、缺 rev 与裸调用。
+  for (const args of [
+    ['notes'],
+    ['notes', 'show'],
+    ['notes', 'show', '--', 'HEAD'],
+    ['notes', 'append', '-m', 'x', 'HEAD'],
+    ['notes', 'copy', 'a', 'b'],
+    ['notes', 'edit', 'HEAD'],
+    ['notes', 'merge', 'ref'],
+    ['notes', 'prune'],
+    ['notes', 'add', '-F', 'file.txt', 'HEAD'],
+    ['notes', 'add', '--stdin', 'HEAD'],
+    ['notes', 'add', '-m', 'a', '-m', 'b', 'HEAD'],
+    ['notes', 'add', '-m', 'text'],
+    ['notes', 'remove', '-x', 'HEAD'],
+    ['notes', 'list'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
 test('lfs subcommands are gated fail closed', () => {
   for (const args of [
     ['lfs', 'track'],

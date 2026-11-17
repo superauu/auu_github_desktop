@@ -80,7 +80,7 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
         if (remaining.length) toast.warning(t('ignore.verifyWarning').replace('{n}', String(remaining.length)));
       } catch { toast.warning(t('ignore.verifyFailed')); }
       const before = snapshot;
-      useToastStore.getState().addToast({ type: 'success', title: t('ignore.saved'), description: scope === 'shared' ? '.gitignore' : '.git/info/exclude', duration: 15000,
+      useToastStore.getState().addToast({ type: 'success', title: t('ignore.saved'), description: scope === 'shared' ? '.gitignore' : scope === 'global' ? t('ignore.global') : '.git/info/exclude', duration: 15000,
         action: { label: t('ignore.undo'), onClick: async () => {
           try { await undoIgnore(repoPath, before, content); await refresh(); toast.success(t('ignore.undone')); }
           catch (error: any) { toast.error(t('ignore.undoFailed'), String(error.message || error)); }
@@ -102,10 +102,11 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
       {!managing && <p className="text-xs text-muted-foreground break-all">{paths.length === 1 ? paths[0] : t('ignore.selected').replace('{n}', String(paths.length))}</p>}
       <label className="block text-sm space-y-1"><span>{t('ignore.destination')}</span>
         <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={scope} disabled={busy} onChange={event => setScope(event.target.value as IgnoreScope)}>
-          <option value="shared">{t('ignore.shared')}</option><option value="local">{t('ignore.local')}</option>
+          <option value="shared">{t('ignore.shared')}</option><option value="local">{t('ignore.local')}</option><option value="global">{t('ignore.global')}</option>
         </select>
       </label>
-      <p className="text-xs text-muted-foreground">{t(scope === 'shared' ? 'ignore.sharedHint' : 'ignore.localHint')}</p>
+      <p className="text-xs text-muted-foreground">{t(scope === 'shared' ? 'ignore.sharedHint' : scope === 'global' ? 'ignore.globalHint' : 'ignore.localHint')}</p>
+      {scope === 'global' && <p role="note" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">{t('ignore.globalWarning')}</p>}
       {!managing && <label className="block text-sm space-y-1"><span>{t('ignore.range')}</span>
         <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={mode} disabled={busy} onChange={event => setMode(event.target.value as IgnoreMode)}>
           {availableModes.map(value => <option key={value} value={value}>{t('ignore.mode.' + value)}</option>)}

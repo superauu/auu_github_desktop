@@ -1,15 +1,17 @@
 import { useShallow } from 'zustand/react/shallow';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { 
-  Activity, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Info, 
-  RefreshCw, 
-  ShieldAlert, 
-  ShieldCheck, 
-  X, 
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Database,
+  Info,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  Users,
+  X,
   XCircle,
   Wrench
 } from 'lucide-react';
@@ -17,7 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { tNow, useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
-import type { RepoHealthDiagnosis } from '@/services/git/types';
+import { gitService } from '@/services/git/GitService';
+import type { RepoHealthDiagnosis, ShortlogEntry } from '@/services/git/types';
 
 interface HealthDiagnosisModalProps {
   open: boolean;
@@ -30,6 +33,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
 }) => {
   const { t } = useI18n();
   const { currentRepo, diagnoseRepository } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, diagnoseRepository: state.diagnoseRepository })));
+  const [tab, setTab] = useState<'health' | 'stats'>('health');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RepoHealthDiagnosis | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,9 +141,23 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
           </Button>
         </div>
 
+        {/* Tabs：健康诊断 / 仓库统计 */}
+        <div role="tablist" aria-label={t('diag.title')} className="flex items-center gap-1 shrink-0 border-b border-border pb-2">
+          {(['health', 'stats'] as const).map(key => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={`h-7 px-2.5 rounded-md text-xs inline-flex items-center gap-1.5 transition-colors ${tab === key ? 'bg-primary/10 text-primary border border-primary/25' : 'text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent'}`}>
+              {key === 'health' ? <ShieldCheck className="h-3.5 w-3.5" /> : <Database className="h-3.5 w-3.5" />}
+              {t(key === 'health' ? 'diag.tab.health' : 'diag.tab.stats')}
+            </button>
+          ))}
+        </div>
+
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {loading ? (
+          {tab === 'stats' ? (
+            <RepositoryStatsPanel active={tab === 'stats'} />
+          ) : loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
               <RefreshCw className="h-8 w-8 animate-spin text-primary" />
               <div className="text-xs">{t('diag.running')}</div>
@@ -223,18 +241,20 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
           ) : null}
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer Actions（统计 tab 自带加载态，重扫按钮仅健康诊断需要） */}
         <div className="flex items-center justify-between pt-3 border-t border-border shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={runDiagnosis}
-            disabled={loading || !currentRepo}
-            className="h-8 text-xs gap-1.5"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>{t('diag.rescan')}</span>
-          </Button>
+          {tab === 'health' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={runDiagnosis}
+              disabled={loading || !currentRepo}
+              className="h-8 text-xs gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>{t('diag.rescan')}</span>
+            </Button>
+          )}
 
           <Button
             size="sm"
@@ -246,5 +266,91 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
         </div>
       </div>
     </ModalSurface>
+  );
+};
+
+/** 仓库统计：对象库四项指标 + 当前分支贡献榜 Top 20。激活时按需加载，世代 ref 防竞态。 */
+const RepositoryStatsPanel: React.FC<{ active: boolean }> = ({ active }) => {
+  const { t } = useI18n();
+  const repoPath = useRepoStore(state => state.currentRepo?.path);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<Record<string, string> | null>(null);
+  const [contributors, setContributors] = useState<ShortlogEntry[]>([]);
+  const generation = useRef(0);
+
+  useEffect(() => {
+    if (!active || !repoPath) return;
+    const id = ++generation.current;
+    setLoading(true);
+    setError(null);
+    Promise.all([gitService.getRepoStats(repoPath), gitService.getShortlog(repoPath)])
+      .then(([objectStats, shortlog]) => {
+        if (id !== generation.current || useRepoStore.getState().currentRepo?.path !== repoPath) return;
+        setStats(objectStats);
+        setContributors(shortlog);
+      })
+      .catch(() => {
+        if (id === generation.current) setError(tNow('diag.stats.failed'));
+      })
+      .finally(() => {
+        if (id === generation.current) setLoading(false);
+      });
+  }, [active, repoPath]);
+
+  if (!active) return null;
+  const maxCommits = contributors[0]?.commits ?? 0;
+  const card = (label: string, value?: string) => (
+    <div key={label} className="p-3 rounded-xl border border-border/60 bg-card/60">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-semibold font-mono tabular-nums text-foreground truncate" title={value}>{value ?? '—'}</div>
+    </div>
+  );
+  return (
+    <div data-repo-stats className="space-y-4">
+      {loading ? (
+        <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+          <div className="text-xs">{t('diag.stats.loading')}</div>
+        </div>
+      ) : error ? (
+        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-500 text-xs">{error}</div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <div className="text-[12px] font-medium text-muted-foreground px-1 flex items-center gap-1.5">
+              <Database className="h-3.5 w-3.5" />{t('diag.stats.objectsTitle')}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {card(t('diag.stats.looseObjects'), stats?.['count'])}
+              {card(t('diag.stats.looseSize'), stats?.['size'])}
+              {card(t('diag.stats.packedObjects'), stats?.['in-pack'])}
+              {card(t('diag.stats.packedSize'), stats?.['size-pack'])}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="text-[12px] font-medium text-muted-foreground px-1 flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" />{t('diag.stats.contributorsTitle')}
+            </div>
+            {contributors.length === 0 ? (
+              <p className="px-1 text-[12px] text-muted-foreground">{t('diag.stats.none')}</p>
+            ) : (
+              <div className="space-y-1">
+                {contributors.map((entry, index) => (
+                  <div key={entry.name} className="px-1 py-1 flex items-center gap-2">
+                    <span className="w-6 text-right text-[11px] font-mono text-muted-foreground tabular-nums shrink-0">{index + 1}</span>
+                    <span className="text-xs text-foreground truncate min-w-0 flex-1" title={entry.name}>{entry.name}</span>
+                    <span className="shrink-0 h-1.5 rounded-full bg-primary/20 overflow-hidden w-24" aria-hidden>
+                      <span className="block h-full rounded-full bg-primary/70" style={{ width: `${maxCommits > 0 ? Math.max(6, Math.round((entry.commits / maxCommits) * 100)) : 0}%` }} />
+                    </span>
+                    <span className="w-20 text-right text-[11px] text-muted-foreground tabular-nums shrink-0">{t('diag.stats.commits').replace('{n}', String(entry.commits))}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 };

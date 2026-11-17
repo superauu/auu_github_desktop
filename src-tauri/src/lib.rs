@@ -211,6 +211,26 @@ async fn execute_git(args: Vec<String>, mut cwd: String, git_binary: Option<Stri
 
 /// 仓库内相对路径解析 + 授权：拒 `..`/绝对路径/`.git` 组件，最终路径必须落在
 /// 授权仓库内。external_tools 的 launch 与本文件的读写命令共用同一套边界。
+/// 展开 git config 值里的 `~/` 前缀（core.excludesfile 常见存法）；
+/// 无 HOME 可用或非波浪号值原样返回。
+fn expand_home(value: &Path) -> PathBuf {
+    let Some(text) = value.to_str() else { return value.to_path_buf(); };
+    let Some(rest) = text.strip_prefix("~/").or_else(|| text.strip_prefix("~\\")) else {
+        return value.to_path_buf();
+    };
+    let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) else {
+        return value.to_path_buf();
+    };
+    PathBuf::from(home).join(rest)
+}
+
+/// 全局忽略文件的 XDG 默认路径：`$HOME/.config/git/ignore`（git 在未配置
+/// core.excludesfile 时的实际读取位置，Windows 同样遵循）。
+fn default_global_ignore_path() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
+    Some(PathBuf::from(home).join(".config").join("git").join("ignore"))
+}
+
 pub(crate) fn repo_file(repo_path: String, file_path: String) -> Result<PathBuf, String> {
     let relative = Path::new(&file_path);
     if file_path.is_empty() || relative.components().any(|part| match part {
@@ -276,7 +296,7 @@ fn read_git_image(repo_path: String, file_path: String, revision: String, git_bi
     Ok(Some(format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(bytes))))
 }
 
-// Only these two Git-owned destinations are exposed, including linked worktree excludes.
+// Only these Git-owned destinations are exposed, including linked worktree excludes.
 #[tauri::command(async)]
 fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, content: Option<String>, expected_content: Option<String>, remove: Option<bool>) -> Result<serde_json::Value, String> {
     repository_access::require(&repo_path)?;
@@ -287,6 +307,26 @@ fn ignore_file(repo_path: String, scope: String, git_binary: Option<String>, con
             let result = run_git(vec!["rev-parse".into(), "--path-format=absolute".into(), "--git-path".into(), "info/exclude".into()], repo_path, git_binary, None)?;
             if result.exit_code != 0 { return Err(result.stderr); }
             PathBuf::from(result.stdout.trim_end_matches(['\r', '\n']))
+        }
+        // 全局忽略：core.excludesFile 指向的文件；未配置时落在用户 XDG 默认路径
+        // （写入内容时才代写该配置，纯读取不产生副作用）。路径必须来自 git config
+        // 或该默认计算，不接受前端传入——防止把任意路径走私成本命令的写目标。
+        "global" => {
+            let configured = run_git(vec!["config".into(), "--global".into(), "--get".into(), "core.excludesfile".into()], repo_path.clone(), git_binary.clone(), None)?;
+            let configured_path = if configured.exit_code == 0 {
+                let value = configured.stdout.trim().to_string();
+                if value.is_empty() { None } else { Some(expand_home(Path::new(&value))) }
+            } else { None };
+            if let Some(path) = configured_path.filter(|path| !path.as_os_str().is_empty()) {
+                path
+            } else {
+                let default_path = default_global_ignore_path().ok_or("Unable to resolve the global ignore path")?;
+                if content.is_some() {
+                    let write = run_git(vec!["config".into(), "--global".into(), "core.excludesfile".into(), default_path.to_string_lossy().into_owned()], repo_path, git_binary, None)?;
+                    if write.exit_code != 0 { return Err(write.stderr); }
+                }
+                default_path
+            }
         }
         _ => return Err("Invalid ignore scope".into()),
     };
@@ -748,6 +788,32 @@ fn restart_application(app: tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expand_home_resolves_tilde_values_against_the_user_profile() {
+        let saved_home = std::env::var("HOME").ok();
+        let saved_profile = std::env::var("USERPROFILE").ok();
+        std::env::remove_var("HOME");
+        std::env::set_var("USERPROFILE", r"C:\Users\fixture");
+        assert_eq!(expand_home(Path::new("~/.config/git/ignore")), PathBuf::from(r"C:\Users\fixture").join(".config/git/ignore"));
+        // 非 ~/ 值原样保留；无 HOME/USERPROFILE 时也不惊慌。
+        assert_eq!(expand_home(Path::new(r"D:\repos\global-ignore")), PathBuf::from(r"D:\repos\global-ignore"));
+        std::env::remove_var("USERPROFILE");
+        assert_eq!(expand_home(Path::new("~/.config/git/ignore")), PathBuf::from("~/.config/git/ignore"));
+        if let Some(value) = saved_profile { std::env::set_var("USERPROFILE", value); }
+        if let Some(value) = saved_home { std::env::set_var("HOME", value); }
+        // XDG 默认路径同样能在剥离环境变量后保持 None（不 panic）。
+        let saved_home2 = std::env::var("HOME").ok();
+        let saved_profile2 = std::env::var("USERPROFILE").ok();
+        std::env::remove_var("HOME");
+        std::env::remove_var("USERPROFILE");
+        assert!(default_global_ignore_path().is_none());
+        std::env::set_var("USERPROFILE", r"C:\Users\fixture");
+        assert_eq!(default_global_ignore_path().unwrap(), PathBuf::from(r"C:\Users\fixture").join(".config").join("git").join("ignore"));
+        std::env::remove_var("USERPROFILE");
+        if let Some(value) = saved_profile2 { std::env::set_var("USERPROFILE", value); }
+        if let Some(value) = saved_home2 { std::env::set_var("HOME", value); }
+    }
 
     #[test]
     fn crash_events_are_dropped_while_disabled_and_scrubbed_when_enabled() {

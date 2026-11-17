@@ -26,6 +26,9 @@ const COMMANDS: &[&str] = &[
     "describe",
     "grep",
     "format-patch",
+    "shortlog",
+    "count-objects",
+    "notes",
     "commit",
     "merge",
     "rebase",
@@ -842,6 +845,99 @@ fn safe_format_patch(rest: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// git shortlog 约束：统计面板的固定形态 `-s -n --no-merges <rev>`。不带 rev 的
+/// shortlog 会读 stdin（挂起风险），rev 必填且非 dash；其余选项（-e 邮箱、-w 换行
+/// 宽度、分组选项等）一律拒绝（fail closed）。只读。与 scripts/git-policy.ts 的
+/// safeShortlog 一致。
+fn safe_shortlog(rest: &[String]) -> Result<(), String> {
+    const FLAGS: &[&str] = &["-s", "-n", "--no-merges"];
+    let mut positionals = 0usize;
+    for argument in rest {
+        if argument == "--" {
+            break;
+        }
+        if argument.starts_with('-') {
+            if !FLAGS.contains(&argument.as_str()) {
+                return Err(format!("Unsupported shortlog option: {argument}"));
+            }
+            continue;
+        }
+        positionals += 1;
+        if positionals > 1 {
+            return Err("Too many shortlog revisions".into());
+        }
+    }
+    if positionals != 1 {
+        return Err("shortlog requires exactly one revision".into());
+    }
+    Ok(())
+}
+
+/// git count-objects 约束：仓库体积统计只放行固定形态 `-vH`（人类可读的详细键值）；
+/// 裸调用与 gc 类参数（--gc 隐含维护写入）一律拒绝（fail closed）。只读。
+fn safe_count_objects(rest: &[String]) -> Result<(), String> {
+    if rest.len() == 1 && rest[0] == "-vH" {
+        return Ok(());
+    }
+    Err("count-objects only supports the -vH reporting form".into())
+}
+
+/// git notes 约束：提交备注的最小读写面——`notes show <rev>`、`notes remove <rev>`
+/// 与 `notes add [-f] -m <message> <rev>`（-f 覆盖编辑语义，-m 单段文本）。
+/// copy/append/edit/merge/prune 与 -F/--stdin 等文件面选项一律拒绝（fail closed）。
+/// 与 scripts/git-policy.ts 的 safeNotes 一致。
+fn safe_notes(rest: &[String]) -> Result<(), String> {
+    let Some(sub) = rest.first() else {
+        return Err("Missing notes subcommand".into());
+    };
+    match sub.as_str() {
+        "show" | "remove" => {
+            if rest.len() != 2 || rest[1].starts_with('-') {
+                return Err("notes show/remove take exactly one revision".into());
+            }
+        }
+        "add" => {
+            let mut message: Option<&str> = None;
+            let mut positionals = 0usize;
+            let mut index = 1;
+            while index < rest.len() {
+                let argument = &rest[index];
+                if argument == "--" {
+                    break;
+                }
+                match argument.as_str() {
+                    "-f" => {}
+                    "-m" => {
+                        if message.is_some() {
+                            return Err("Only one -m is allowed".into());
+                        }
+                        let Some(value) = rest.get(index + 1) else {
+                            return Err("notes add -m requires a message".into());
+                        };
+                        message = Some(value);
+                        index += 1;
+                    }
+                    value if value.starts_with('-') => {
+                        return Err(format!("Unsupported notes option: {value}"));
+                    }
+                    _ => {
+                        positionals += 1;
+                        if positionals > 1 {
+                            return Err("Too many notes revisions".into());
+                        }
+                    }
+                }
+                index += 1;
+            }
+            if message.is_none() || positionals != 1 {
+                return Err("notes add requires -m <message> and exactly one revision".into());
+            }
+        }
+        _ => return Err(format!("Unsupported notes subcommand: {sub}")),
+    }
+    Ok(())
+}
+
 /// git lfs 子命令约束：`git lfs ...` 会执行 PATH 里的 git-lfs 外部二进制，策略只管/// argv。`push`（v1 不做上传面）、`migrate`（重写历史！）、`pointer`/`clean`/`smudge`
 /// （过滤驱动）、`update`/`logs`/`prune`/`dedup`/`lock`/`unlock` 与未列出的子命令
 /// （含裸 `git lfs`）一律拒绝（fail closed）。git-lfs 缺失时 git 自然报错，由前端捕获
@@ -901,6 +997,15 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "format-patch" {
         safe_format_patch(&args[index + 1..])?;
+    }
+    if name == "shortlog" {
+        safe_shortlog(&args[index + 1..])?;
+    }
+    if name == "count-objects" {
+        safe_count_objects(&args[index + 1..])?;
+    }
+    if name == "notes" {
+        safe_notes(&args[index + 1..])?;
     }
     if name == "submodule" {
         safe_submodule(&args[index + 1..])?;
@@ -1115,6 +1220,64 @@ mod tests {
             vec!["format-patch", "-1", "--cover-letter", "--stdout", hash.as_str()],
             vec!["format-patch", "-1", "--attach", "--stdout", hash.as_str()],
             vec!["format-patch"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_shortlog_and_count_objects_fail_closed() {
+        // 放行：统计面板真实使用的固定形态。
+        for values in [
+            vec!["shortlog", "-s", "-n", "--no-merges", "HEAD"],
+            vec!["shortlog", "--no-merges", "-s", "-n", "HEAD~10"],
+            vec!["count-objects", "-vH"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：stdin 形态（挂起）、-e/-w 等未放行选项、多 rev、裸调用与维护写入。
+        for values in [
+            vec!["shortlog"],
+            vec!["shortlog", "-s", "-n"],
+            vec!["shortlog", "-sne", "--no-merges", "HEAD"],
+            vec!["shortlog", "-s", "-n", "-w", "HEAD"],
+            vec!["shortlog", "--email", "--no-merges", "HEAD"],
+            vec!["shortlog", "-s", "-n", "HEAD", "main"],
+            vec!["count-objects"],
+            vec!["count-objects", "-v"],
+            vec!["count-objects", "-H"],
+            vec!["count-objects", "--gc"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_notes_fail_closed() {
+        let hash = "a".repeat(40);
+        // 放行：提交备注的最小读写面。
+        for values in [
+            vec!["notes", "show", hash.as_str()],
+            vec!["notes", "remove", "HEAD"],
+            vec!["notes", "add", "-f", "-m", "note text", hash.as_str()],
+            vec!["notes", "add", "-m", "第一段备注", "HEAD"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：append/copy/edit/merge/prune、-F/--stdin 文件面、多 -m、缺 rev 与裸调用。
+        for values in [
+            vec!["notes"],
+            vec!["notes", "show"],
+            vec!["notes", "show", "--", "HEAD"],
+            vec!["notes", "append", "-m", "x", "HEAD"],
+            vec!["notes", "copy", "a", "b"],
+            vec!["notes", "edit", "HEAD"],
+            vec!["notes", "merge", "ref"],
+            vec!["notes", "prune"],
+            vec!["notes", "add", "-F", "file.txt", "HEAD"],
+            vec!["notes", "add", "--stdin", "HEAD"],
+            vec!["notes", "add", "-m", "a", "-m", "b", "HEAD"],
+            vec!["notes", "add", "-m", "text"],
+            vec!["notes", "remove", "-x", "HEAD"],
+            vec!["notes", "list"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }

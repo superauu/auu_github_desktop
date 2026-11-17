@@ -29,6 +29,7 @@ import { crashReportingZh } from './crashReporting';
 import { errorsZh } from './errors';
 import { codeSearchZh } from './codeSearch';
 import { patchZh } from './patch';
+import { repoStatsZh } from './repoStats';
 import { ciDomainZh } from './ciDomain';
 /**
  * 中文资源包（基准语言）
@@ -436,8 +437,11 @@ export const zh = {
   "ignore.destination": "保存位置",
   "ignore.shared": "仓库共享规则（.gitignore）",
   "ignore.local": "仅本机此仓库（.git/info/exclude）",
+  "ignore.global": "本机全局规则（core.excludesFile）",
   "ignore.sharedHint": "规则随 .gitignore 提交后可与团队共享。",
   "ignore.localHint": "规则只保存在此仓库的本机 Git 配置中。",
+  "ignore.globalHint": "规则保存在本机用户目录的全局忽略文件中。",
+  "ignore.globalWarning": "全局忽略规则影响本机所有仓库，而不只是当前仓库。",
   "ignore.range": "忽略范围",
   "ignore.mode.file": "仅所选文件",
   "ignore.mode.typeHere": "所在目录下的同类型文件",
@@ -1152,6 +1156,13 @@ export const zh = {
   'rightPane.parentLabel': '父提交:',
   'rightPane.tagDistanceTitle': '距标签 {tag} {n} 个提交，点击定位到标签提交',
   'rightPane.tagExactlyTitle': '该提交即标签 {tag}，点击定位',
+  'rightPane.noteTitle': '备注',
+  'rightPane.noteAdd': '添加备注',
+  'rightPane.noteEdit': '编辑备注',
+  'rightPane.noteDelete': '删除备注',
+  'rightPane.noteDeleteConfirm': '删除此提交的备注？此操作只影响本机 notes 引用。',
+  'rightPane.noteSave': '保存',
+  'rightPane.noteSaved': '备注已保存',
   'rightPane.zeroFiles': '0 个文件变更',
   'rightPane.statAdded': '新增',
   'rightPane.statModified': '修改',
@@ -1458,4 +1469,5 @@ export const zh = {
   ...errorsZh,
   ...codeSearchZh,
   ...patchZh,
+  ...repoStatsZh,
 } as const;
