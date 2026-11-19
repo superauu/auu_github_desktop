@@ -192,12 +192,14 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     : amend ? t('composer.amendPush') : scope.stageAll ? t('rightPane.stageAllCommitPush') : t('rightPane.commitPush');
   const runAiPlan = (mode: AiPlanMode) => {
     setAiPlanMode(mode); writeActionPref(AI_PLAN_PREF, mode); setAiMenuOpen(false); setCommitMenuOpen(false);
+    // 切换默认方式无条件限制（条件不满足也能预先记住）；仅执行动作本身受条件约束
     if (!currentRepo || !status) return;
     if (mode === 'staged') useHunkPlanDialogStore.getState().open(currentRepo.path, status.currentBranch);
-    else setBatchContext({ path: currentRepo.path, branch: status.currentBranch });
+    else if (status.staged.length + status.unstaged.length + status.untracked.length) setBatchContext({ path: currentRepo.path, branch: status.currentBranch });
   };
   const runCommit = (mode: CommitMode) => {
     setCommitMode(mode); writeActionPref(COMMIT_MODE_PREF, mode); setCommitMenuOpen(false); setAiMenuOpen(false);
+    // submit 自带条件守卫：条件不满足时这里只完成「切换并记住默认方式」，不执行
     void submit(mode === 'commitPush');
   };
   return <div className="h-full min-h-0 flex flex-col text-[13px] overflow-y-auto" onKeyDown={(event) => {
@@ -257,18 +259,18 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
           {aiPlanMode === 'staged' ? <ListTree className="h-4 w-4 text-muted-foreground" /> : <Sparkles className="h-4 w-4 text-muted-foreground" />}
           <span className="truncate">{aiPlanLabel(aiPlanMode)}</span>
         </Button>
-        <Button variant="outline" className="h-10 w-8 shrink-0 rounded-l-none px-0" disabled={hunkPlanDisabled} aria-label={t('composer.chooseAiPlan')} aria-expanded={aiMenuOpen} onClick={() => { setAiMenuOpen(!aiMenuOpen); setCommitMenuOpen(false); }}>
+        <Button variant="outline" className="h-10 w-8 shrink-0 rounded-l-none px-0" aria-label={t('composer.chooseAiPlan')} aria-expanded={aiMenuOpen} onClick={() => { setAiMenuOpen(!aiMenuOpen); setCommitMenuOpen(false); }}>
           <ChevronDown className="h-4 w-4" />
         </Button>
         {aiMenuOpen && <>
           <div className="fixed inset-0 z-20" aria-hidden="true" onClick={() => setAiMenuOpen(false)} />
           <div role="menu" aria-label={t('composer.chooseAiPlan')} className="absolute bottom-full left-0 right-0 z-30 mb-1 rounded-lg border border-border bg-popover p-1 shadow-xl">
-            <button role="menuitemradio" aria-checked={aiPlanMode === 'staged'} disabled={hunkPlanDisabled} onClick={() => runAiPlan('staged')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+            <button role="menuitemradio" aria-checked={aiPlanMode === 'staged'} onClick={() => runAiPlan('staged')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
               <ListTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               {t('hunkPlan.button')}
               <Check className={aiPlanMode === 'staged' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
             </button>
-            <button role="menuitemradio" aria-checked={aiPlanMode === 'all'} disabled={batchDisabled} onClick={() => runAiPlan('all')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+            <button role="menuitemradio" aria-checked={aiPlanMode === 'all'} onClick={() => runAiPlan('all')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
               <Sparkles className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               {t('batch.button')}
               <Check className={aiPlanMode === 'all' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
@@ -282,18 +284,18 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : commitMode === 'commitPush' ? <Send className="h-4 w-4" /> : <Check className="h-4 w-4" />}
           <span className="truncate">{commitModeLabel(commitMode)}{scope.files.length ? ` (${scope.files.length})` : ''}</span>
         </Button>
-        <Button disabled={disabled} variant="outline" className="h-10 w-8 shrink-0 rounded-l-none px-0" aria-label={t('composer.chooseCommitAction')} aria-expanded={commitMenuOpen} onClick={() => { setCommitMenuOpen(!commitMenuOpen); setAiMenuOpen(false); }}>
+        <Button variant="outline" className="h-10 w-8 shrink-0 rounded-l-none px-0" aria-label={t('composer.chooseCommitAction')} aria-expanded={commitMenuOpen} onClick={() => { setCommitMenuOpen(!commitMenuOpen); setAiMenuOpen(false); }}>
           <ChevronDown className="h-4 w-4" />
         </Button>
         {commitMenuOpen && <>
           <div className="fixed inset-0 z-20" aria-hidden="true" onClick={() => setCommitMenuOpen(false)} />
           <div role="menu" aria-label={t('composer.chooseCommitAction')} className="absolute bottom-full left-0 right-0 z-30 mb-1 rounded-lg border border-border bg-popover p-1 shadow-xl">
-            <button role="menuitemradio" aria-checked={commitMode === 'commit'} disabled={disabled} onClick={() => runCommit('commit')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+            <button role="menuitemradio" aria-checked={commitMode === 'commit'} onClick={() => runCommit('commit')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
               <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               {commitModeLabel('commit')}
               <Check className={commitMode === 'commit' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
             </button>
-            <button role="menuitemradio" aria-checked={commitMode === 'commitPush'} disabled={disabled} onClick={() => runCommit('commitPush')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+            <button role="menuitemradio" aria-checked={commitMode === 'commitPush'} onClick={() => runCommit('commitPush')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
               <Send className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               {commitModeLabel('commitPush')}
               <Check className={commitMode === 'commitPush' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
