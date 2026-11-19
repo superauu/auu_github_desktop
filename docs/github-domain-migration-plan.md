@@ -142,7 +142,7 @@ GitLab 行内讨论使用 before/after 路径与 `base_sha/head_sha/start_sha`�
 | 1 | 共享 HTTP 传输 | 浏览器和 Rust 均不跟随重定向；校验 URL/头部；默认 30 秒超时；响应按流限制为 32 MiB；原生请求有 ID、取消命令及取消抢先到达的处理。真实本地 HTTP 服务覆盖敏感自定义头、重定向、响应上限与连接取消。 |
 | 2 | 自建实例路径前缀 | 统一规范化服务器地址；API、Issue/MR 链接、关联解析与 fork 来源支持 `/gitlab` 等前缀；HTTP 按完整实例与最长前缀绑定；同主机多个实例的 SSH 身份不能唯一确定时拒绝自动绑定。浏览器分别覆盖根路径与前缀。 |
 | 3 | 桌面原生链路 | GitLab-only 构建实际 Windows 桌面可执行文件；隐藏 WebView 使用真实 IPC、Rust HTTP 和独立系统凭据槽完成 15 项验收。服务端为本地模拟 GitLab，令牌为随机合成数据，测试结束删除测试凭据。 |
-| 4 | 统一装配和 CI | `plugins.config.json` 统一描述插件模块、认证 UI 和原生 feature；生成并校验装配文件；CI 增加 GitLab-only、无插件构建、无 GitHub 原生测试/Clippy 及原生链路验收。远端 CI 尚未执行。 |
+| 4 | 统一装配和 CI | `plugins.config.json` 统一描述插件模块、认证 UI 和原生 feature；生成并校验装配文件；CI 增加 GitLab-only、无插件构建、无 GitHub 原生测试/Clippy 及原生链路验收。远端 CI 当时未执行，自 2026-10 起已在 `.github/workflows/ci.yml` 常态运行（GitLab-only / 无插件构建、`--no-default-features` 测试与 Clippy、原生链路验收）。 |
 | 5 | 分域接口、状态和 UI | 客户端拆为认证、仓库、任务、代码托管、CI 接口；插件只实现实际贡献的可选域及方法。公共网关同时检查方法和能力声明；协作 Store 提取 PR/CI slice，保留统一身份与上下文失效机制。导航、连接入口和写操作按能力展示或禁用。 |
 | 6 | 清理旧兼容层 | 移除旧平台 Service、Store 别名、重复视图及废弃导入。测试显式选择适配器，公共生产层的架构测试不再给兼容路径放行。历史用户数据迁移继续保留。 |
 
@@ -154,7 +154,7 @@ GitLab 行内讨论使用 before/after 路径与 `base_sha/head_sha/start_sha`�
 4. 共享传输使用 `providerHttpRequest` 或 `providerFetch`；取消信号必须继续传递至宿主服务。不要自行跟随认证 API 重定向或在日志中输出令牌。自建服务器地址统一调用 `normalizeServerUrl`，路径前缀不能混入项目 namespace。
 5. 加入插件隔离、实际能力和必要平台语义测试，验证禁用/不装配该插件后其他域及本地 Git 继续工作。
 
-**独立任务与 CI 装配档（2026-11-04 扩展）**：`task` / `ci` kind 生成 `TASK_PLUGINS` / `CI_PLUGINS`，最小契约是 `AuxPlugin`（manifest；凭证形态与客户端接口随首个插件落地收敛，不预造词汇）。manifest `connectionKind` 相应预留 `task-account`（站点+令牌）与 `ci-server`（用户令牌+作业映射）。当前边界：设置页连接表单仍只接线 `hosting-account` / `error-token`，能力门控（`useCollaborationCapabilities`）仍只统计托管账号连接——独立连接并入门控、仓库↔作业映射与 SHA 级关联键属于后续运行时改造；`installedExternalPlugins` 已含 task/ci 装配档，`PROVIDER_REGISTRY` 与设置页会在首个插件出现时看到它，届时必须先补齐连接形态的 UI 分支。
+**独立任务与 CI 装配档（2026-11-04 扩展）**：`task` / `ci` kind 生成 `TASK_PLUGINS` / `CI_PLUGINS`，最小契约是 `AuxPlugin`（manifest；凭证形态与客户端接口随首个插件落地收敛，不预造词汇）。manifest `connectionKind` 相应预留 `task-account`（站点+令牌）与 `ci-server`（用户令牌+作业映射）。（2026-11-20 回写）上述"当前边界"已由后续落地兑现：Linear 以 `task-account` 连接并入能力门控（`task-tracking:*` = 托管并集 ∪ 任务连接 manifest），Jenkins 以 `ci-server` 连接落地设置页连接表单与仓库↔作业映射（见 Linear/Jenkins 小节）。剩余缺口：独立 CI 的 SHA 级关联键（commit-checks 能力，Jenkins 刻意未声明）。
 
 **Linear 插件（2026-11-04，首个 task 装配档落地）**：`src/plugins/linear` —— GraphQL 客户端（api.linear.app，providerHttp 传输）+ PKCE OAuth（Rust 通用回跳命令 `oauth_loopback_begin/wait/cancel`，见 `src-tauri/src/oauth_callback.rs`，固定端口 53862，PKCE(S256) 免 client_secret）+ 个人 API Key 兜底。契约定型：`AuxPlugin = { manifest, createClient({ token }), oauthRefresh?, oauth?, issueUrl? }`。连接通道：`taskStore`（连接切片仿 errorsStore，令牌 JSON 存 `integration_token:<connectionId>` keyring 条目，OAuth 轮转刷新先落盘再继续）+ `taskService`（第二条客户端绑定通道，双检网关同 CollaborationService，401 刷新重试并同步 setToken）。能力并轨：`task-tracking:*` 能力 = 托管并集 ∪ 任务连接 manifest；`useIssueCapabilities` 对任务引用收敛到该连接的 manifest。引用语义：`IssueReference.identifier`（ENG-123）承载展示键与外链（`linear.app/issue/ENG-12`），任务引用显式携带 providerId/server 不套托管绑定落款；PR 关联指令对任务引用为 `Refs ENG-123`（无 Closes 语义），分支名 `issue/ENG-12-…`；分支↔任务关联按任务连接存在性校验。Issues 页双来源：`useIssueSource` 统一作用域（repo/task），双来源可用时显示切换器，任务作用域 owner='all' 占位。已知限制：Linear 无时间线实体（getIssueTimeline 空）、createIssue 用默认团队（无团队选择器）、正文中的 Linear URL/identifier 解析未接入（RelatedIssues 跨源解析后续轮）、真实 Linear 联调待 OAuth 应用注册（client_id 空值时 authorize 给引导文案，PAT 路径可先行）。
 
