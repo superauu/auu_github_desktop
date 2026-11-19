@@ -360,6 +360,17 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 <div
                   onClick={highlighted ? () => scrollToBlock(target) : undefined}
                   title={highlighted ? t('conflictBase.clickHint') : undefined}
+                  {...(highlighted ? {
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-label': t('conflictBase.clickHint'),
+                    onKeyDown: (event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        scrollToBlock(target);
+                      }
+                    },
+                  } : {})}
                   className={cn(
                     'px-3 whitespace-pre font-mono leading-relaxed select-text',
                     side === 'base' && (highlighted ? 'bg-rose-500/15 text-foreground cursor-pointer' : 'text-muted-foreground/80'),
@@ -425,7 +436,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
       }
       if (stagesLoading || !compareData) {
         return (
-          <div className="px-2 py-2 text-[11px] text-muted-foreground flex items-center gap-1.5 select-none">
+          <div role="status" aria-label={t('conflictBase.loading')} className="px-2 py-2 text-[11px] text-muted-foreground flex items-center gap-1.5 select-none">
             <RotateCcw className="h-3 w-3 animate-spin" />
             <span>{t('conflictBase.loading')}</span>
           </div>
@@ -480,7 +491,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center h-full p-8 text-muted-foreground gap-3">
+      <div role="status" aria-label={t('resolver.analyzing')} className="flex-1 flex flex-col items-center justify-center h-full p-8 text-muted-foreground gap-3">
         <RotateCcw className="h-6 w-6 animate-spin text-primary" />
         <div className="text-xs">{t('resolver.analyzing')}</div>
       </div>
@@ -543,6 +554,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 disabled={activeBlockIndex <= 0}
                 className="p-1 rounded hover:bg-accent disabled:opacity-30 text-muted-foreground hover:text-foreground"
                 title={t('resolver.prevConflict')}
+                aria-label={t('resolver.prevConflict')}
               >
                 <ChevronUp className="h-3 w-3" />
               </button>
@@ -551,6 +563,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 disabled={activeBlockIndex >= blocks.length - 1}
                 className="p-1 rounded hover:bg-accent disabled:opacity-30 text-muted-foreground hover:text-foreground"
                 title={t('resolver.nextConflict')}
+                aria-label={t('resolver.nextConflict')}
               >
                 <ChevronDown className="h-3 w-3" />
               </button>
@@ -648,6 +661,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
               className="text-muted-foreground hover:text-foreground"
               onClick={onClose}
               title={t('resolver.closeTitle')}
+              aria-label={t('resolver.closeTitle')}
             >
               <X className="h-3.5 w-3.5" />
             </Button>
@@ -692,9 +706,9 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
               )}
             </div>
             {stagesError ? (
-              <div className="px-3 py-3 text-[11px] text-destructive">{t('conflictBase.loadFailed')}: {stagesError}</div>
+              <div role="alert" className="px-3 py-3 text-[11px] text-destructive">{t('conflictBase.loadFailed')}: {stagesError}</div>
             ) : !compareData ? (
-              <div className="px-3 py-4 text-[11px] text-muted-foreground flex items-center gap-2 select-none">
+              <div role="status" aria-label={t('conflictBase.loading')} className="px-3 py-4 text-[11px] text-muted-foreground flex items-center gap-2 select-none">
                 <RotateCcw className="h-3 w-3 animate-spin" />
                 <span>{t('conflictBase.loading')}</span>
               </div>
@@ -811,6 +825,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       <button
                         onClick={() => handleResolveBlock(block.index, 'current')}
                         className="hover:underline text-[10px] opacity-80 hover:opacity-100"
+                        aria-label={`${t('resolver.takeSegment')} (${block.currentBranchName})`}
                       >
                         {t('resolver.takeSegment')}
                       </button>
@@ -842,6 +857,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                       <button
                         onClick={() => handleResolveBlock(block.index, 'incoming')}
                         className="hover:underline text-[10px] opacity-80 hover:opacity-100"
+                        aria-label={`${t('resolver.takeSegment')} (${block.incomingBranchName})`}
                       >
                         {t('resolver.takeSegment')}
                       </button>
