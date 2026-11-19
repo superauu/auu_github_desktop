@@ -126,6 +126,10 @@ test('gitea service maps pulls and combined commit statuses', async () => {
         { id: 4, context: 'ci/lint', state: 'failure', target_url: 'https://ci.example.com/4', created_at: 't4' },
       ] });
     }
+    if (url.pathname === '/api/v1/repos/org/repo/actions/runs/42/cancel') {
+      assert.equal(init.method, 'POST');
+      return new Response(null, { status: 204 });
+    }
     throw new Error(`unexpected fetch ${url.pathname}`);
   };
 
@@ -136,6 +140,7 @@ test('gitea service maps pulls and combined commit statuses', async () => {
   assert.ok(pulls[1].merged_at); assert.equal(pulls[1].state, 'closed');
   const pipelines = await service.getCommitChecks('org', 'repo', 'feat');
   assert.deepEqual(pipelines.map((pipeline) => [pipeline.name, pipeline.conclusion]), [['ci/build', 'success'], ['ci/lint', 'failure']]);
+  await service.cancelWorkflowRun('org', 'repo', 42);
 });
 
 test('gitlab service paginates beyond the first page and stops on a partial page', async () => {

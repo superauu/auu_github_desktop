@@ -272,8 +272,22 @@ export class GiteaClient {
     }
   }
 
-  async cancelWorkflowRun(): Promise<void> {
-    throw new Error('Cancelling runs is unavailable through the Gitea REST API');
+  async cancelWorkflowRun(
+    owner: string,
+    repo: string,
+    runId: number
+  ): Promise<void> {
+    const res = await this.fetch(
+      `${this.server}/api/v1/repos/${owner}/${repo}/actions/runs/${runId}/cancel`,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        signal: AbortSignal.timeout(20_000),
+      }
+    );
+    if (!res.ok) {
+      throw new Error(tNow('err.ghCancel').replace('{s}', String(res.status)));
+    }
   }
 
   async getJobLogs(
