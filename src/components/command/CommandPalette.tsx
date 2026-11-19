@@ -137,7 +137,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 }}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md hover:bg-accent cursor-pointer text-xs"
               >
-                <CircleDot className="h-3.5 w-3.5 text-git-added" /><span>{t('issues.nav')}</span><span className="ml-auto text-[12px] font-mono text-muted-foreground">Alt 6</span>
+                <CircleDot className="h-3.5 w-3.5 text-git-added" /><span>{t('issues.nav')}</span><span className="ml-auto text-[12px] font-mono text-muted-foreground">Alt 5</span>
               </Command.Item>
 
               <Command.Item
