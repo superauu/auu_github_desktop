@@ -559,11 +559,11 @@ export const Header: React.FC<HeaderProps> = ({
                   className={cn(
                     'h-6 w-6 rounded-md flex items-center justify-center transition-colors shrink-0',
                     activeTab === 'overview'
-                      ? 'text-primary bg-accent/60'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+                      ? 'text-primary bg-primary/15'
+                      : 'text-primary/70 hover:text-primary hover:bg-accent/60'
                   )}
                 >
-                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  <LayoutDashboard className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">{t('overview.title')}</TooltipContent>
