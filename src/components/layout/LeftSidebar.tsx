@@ -696,9 +696,9 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
           {inDrawer && <Button variant="ghost" size="icon-sm" className="" aria-label={t('common.close')} onClick={onNavigate}><X className="h-3.5 w-3.5" /></Button>}
         </div>
       </div>
-      {/* Top Primary Navigation (Changes, History, PRs, Actions) */}
+      {/* Top Primary Navigation (Changes, History, PRs, Actions)。
+          多仓库总览不在其中：它是跨仓库的全局功能，入口在顶部 Header 品牌区（LayoutDashboard 图标）。 */}
       <div className="glass-primary-nav flex flex-col gap-0.5 p-2 border-b border-border/60">
-        <button aria-current={activeTab === 'overview' ? 'page' : undefined} onClick={() => { setActiveTab('overview'); onNavigate?.(); }} className={cn('w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-medium transition-colors', activeTab === 'overview' ? 'bg-accent text-accent-foreground shadow-2xs font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50')}><Folder className="h-3.5 w-3.5" />{t('overview.title')}</button>
         <button
           aria-current={activeTab === 'changes' ? 'page' : undefined}
           onClick={() => { setActiveTab('changes'); onNavigate?.(); }}

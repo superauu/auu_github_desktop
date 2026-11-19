@@ -16,6 +16,7 @@ import {
   Sun,
   Moon,
   FolderGit2,
+  LayoutDashboard,
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
@@ -252,10 +253,11 @@ export const Header: React.FC<HeaderProps> = ({
     stashPush,
     stashPop,
     activeTab,
+    setActiveTab,
     stashes,
     branches,
     checkoutBranch,
-  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo, openTabs: state.openTabs, closeTab: state.closeTab, switchTab: state.switchTab, fetchRemote: state.fetchRemote, refreshAll: state.refreshAll, pull: state.pull, undoLastCommit: state.undoLastCommit, redoStack: state.redoStack, redoLastCommit: state.redoLastCommit, stashPush: state.stashPush, stashPop: state.stashPop, activeTab: state.activeTab, stashes: state.stashes, branches: state.branches, checkoutBranch: state.checkoutBranch })));
+  } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, isLeftSidebarCollapsed: state.isLeftSidebarCollapsed, isRightPaneCollapsed: state.isRightPaneCollapsed, recentRepos: state.recentRepos, setCurrentRepo: state.setCurrentRepo, openTabs: state.openTabs, closeTab: state.closeTab, switchTab: state.switchTab, fetchRemote: state.fetchRemote, refreshAll: state.refreshAll, pull: state.pull, undoLastCommit: state.undoLastCommit, redoStack: state.redoStack, redoLastCommit: state.redoLastCommit, stashPush: state.stashPush, stashPop: state.stashPop, activeTab: state.activeTab, setActiveTab: state.setActiveTab, stashes: state.stashes, branches: state.branches, checkoutBranch: state.checkoutBranch })));
   // 只订阅 commits 数组的长度布尔值，避免整个提交历史数组变化都触发 Header 重渲染
   const canUndo = useRepoStore(state => state.commits.length > 0);
 
@@ -545,6 +547,27 @@ export const Header: React.FC<HeaderProps> = ({
                 AuuGit
               </span>
             </div>
+
+            {/* 多仓库总览：跨仓库的全局功能，不依附于任何单个仓库，
+                因此入口放在品牌区（分隔线左侧的全局区），而不是仓库侧边栏。 */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => { setActiveTab('overview'); }}
+                  aria-label={t('overview.title')}
+                  aria-current={activeTab === 'overview' ? 'page' : undefined}
+                  className={cn(
+                    'h-6 w-6 rounded-md flex items-center justify-center transition-colors shrink-0',
+                    activeTab === 'overview'
+                      ? 'text-primary bg-accent/60'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+                  )}
+                >
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t('overview.title')}</TooltipContent>
+            </Tooltip>
 
             {/* Vertical divider */}
             <div className="h-4 w-px bg-border/60 mx-1 shrink-0" />
