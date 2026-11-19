@@ -97,6 +97,8 @@ export const en = {
   'composer.hideFiles': "Hide included files",
   'composer.title': "Commit title",
   'composer.titlePlaceholder': "Describe this change briefly",
+  'composer.chooseAiPlan': "Choose AI plan action",
+  'composer.chooseCommitAction': "Choose commit action",
   'composer.body': "Description (optional)",
   'composer.bodyPlaceholder': "Explain why this change is needed",
   'composer.generate': "Generate message",

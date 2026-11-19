@@ -3,7 +3,7 @@ import { watchPushedCommit } from '@/services/git/PushChecks';
 import { useShallow } from 'zustand/react/shallow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceSessionStore, draftKey, EMPTY_DRAFT } from '@/stores/workspaceSessionStore';
-import { Check, FileText, ListTree, Loader2, Send, Settings, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, FileText, ListTree, Loader2, Send, Settings, Sparkles } from 'lucide-react';
 import { useRepoStore } from '@/stores/repoStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { confirmAction } from '@/stores/confirmStore';
@@ -24,6 +24,19 @@ import { issueCommitDraft, toIssueContext } from '@/services/ai/issueContext';
 import { appendCommitTrailer } from '@/services/errors/fixFlow';
 import { useErrorsStore } from '@/stores/errorsStore';
 import { useHunkPlanDialogStore } from '@/stores/hunkPlanDialogStore';
+
+/** 提交动作区分组：AI 规划（暂存/全部）与提交（提交/提交并推送）各自合并为一个 split button。 */
+type AiPlanMode = 'staged' | 'all';
+type CommitMode = 'commit' | 'commitPush';
+const AI_PLAN_PREF = 'auugit.composer.aiPlan';
+const COMMIT_MODE_PREF = 'auugit.composer.commit';
+// split button 默认面记忆「上次使用」的方式；node 单测环境无 window/localStorage，静默回落默认值
+const readActionPref = (key: string): string | null => {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+};
+const writeActionPref = (key: string, value: string): void => {
+  try { window.localStorage.setItem(key, value); } catch { /* 无 localStorage 的环境忽略 */ }
+};
 
 export function useComposerDraft(repoPath?: string, branch?: string) {
   const [busy, setBusy] = useState(false);
@@ -56,6 +69,11 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
   const taskKey = currentTask.reference ? issueKey(currentTask.reference) : '';
   const [batchContext, setBatchContext] = useState<{ path: string; branch: string } | null>(null);
   const hunkContext = useHunkPlanDialogStore(state => state.context);
+  // 两个 split button 的默认面：上次使用的方式（localStorage 全局记忆）
+  const [aiPlanMode, setAiPlanMode] = useState<AiPlanMode>(() => readActionPref(AI_PLAN_PREF) === 'all' ? 'all' : 'staged');
+  const [commitMode, setCommitMode] = useState<CommitMode>(() => readActionPref(COMMIT_MODE_PREF) === 'commitPush' ? 'commitPush' : 'commit');
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   useEffect(() => { setBatchContext(null); }, [currentRepo?.path, status?.currentBranch]);
   const generation = useRef(0);
   const draft = useRef('');
@@ -166,8 +184,24 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
 
   const disabled = busy || generating || !title.trim() || (!scope.files.length && !amend);
   const actionLabel = amend ? t('rightPane.commitAmend') : scope.stageAll ? t('rightPane.stageAllCommit') : t('rightPane.commit');
+  // ===== split button：默认面 + 下拉记忆 =====
+  const hunkPlanDisabled = busy || generating || amend || !currentRepo || !status;
+  const batchDisabled = hunkPlanDisabled || !(status ? status.staged.length + status.unstaged.length + status.untracked.length : 0);
+  const aiPlanLabel = (mode: AiPlanMode) => mode === 'staged' ? t('hunkPlan.button') : t('batch.button');
+  const commitModeLabel = (mode: CommitMode) => mode === 'commit' ? actionLabel
+    : amend ? t('composer.amendPush') : scope.stageAll ? t('rightPane.stageAllCommitPush') : t('rightPane.commitPush');
+  const runAiPlan = (mode: AiPlanMode) => {
+    setAiPlanMode(mode); writeActionPref(AI_PLAN_PREF, mode); setAiMenuOpen(false); setCommitMenuOpen(false);
+    if (!currentRepo || !status) return;
+    if (mode === 'staged') useHunkPlanDialogStore.getState().open(currentRepo.path, status.currentBranch);
+    else setBatchContext({ path: currentRepo.path, branch: status.currentBranch });
+  };
+  const runCommit = (mode: CommitMode) => {
+    setCommitMode(mode); writeActionPref(COMMIT_MODE_PREF, mode); setCommitMenuOpen(false); setAiMenuOpen(false);
+    void submit(mode === 'commitPush');
+  };
   return <div className="h-full min-h-0 flex flex-col text-[13px] overflow-y-auto" onKeyDown={(event) => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !batchContext && !hunkContext && !disabled) { event.preventDefault(); void submit(); }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !preview && !batchContext && !hunkContext && !disabled) { event.preventDefault(); void submit(commitMode === 'commitPush'); }
   }}>
     <section className="mx-4 mt-4 shrink-0 rounded-lg border border-border bg-muted/30 p-3 space-y-1" aria-label={t('composer.scope')}>
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -215,10 +249,58 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     </div>}
     </div>
     <div className="commit-actions sticky bottom-0 z-10 mt-auto space-y-2 border-t border-border bg-card/95 backdrop-blur-sm p-4">
-      <Button variant="outline" className="w-full h-10" disabled={busy || generating || amend || !currentRepo || !status} title={t('hunkPlan.scope')} onClick={() => currentRepo && status && useHunkPlanDialogStore.getState().open(currentRepo.path, status.currentBranch)}><ListTree className="h-4 w-4 text-muted-foreground" />{t('hunkPlan.button')}</Button>
-      <Button variant="outline" className="w-full h-10" disabled={busy || generating || amend || !currentRepo || !status || !(status.staged.length + status.unstaged.length + status.untracked.length)} title={t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => currentRepo && status && setBatchContext({ path: currentRepo.path, branch: status.currentBranch })}><Sparkles className="h-4 w-4 text-muted-foreground" />{t('batch.button')}</Button>
-      <Button disabled={disabled} className="w-full h-10 font-semibold" onClick={() => void submit()}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="truncate">{actionLabel}{scope.files.length ? ` (${scope.files.length})` : ''}</span></Button>
-      <Button disabled={disabled} variant="outline" className="w-full h-10" onClick={() => void submit(true)}><Send className="h-4 w-4" />{t(amend ? 'composer.amendPush' : scope.stageAll ? 'rightPane.stageAllCommitPush' : 'rightPane.commitPush')}</Button>
+      {/* AI 规划 split button：主按钮执行上次使用的方式，下拉切换方式（选中即执行并记住）。
+          注意：working-review 单测按「w-full h-10 + font-semibold」定位提交主按钮，
+          此处主按钮不得带 font-semibold，避免成为第一个匹配。 */}
+      <div className="relative flex w-full">
+        <Button variant="outline" className="w-full h-10 rounded-r-none border-r-0" disabled={aiPlanMode === 'staged' ? hunkPlanDisabled : batchDisabled} title={aiPlanMode === 'staged' ? t('hunkPlan.scope') : t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => runAiPlan(aiPlanMode)}>
+          {aiPlanMode === 'staged' ? <ListTree className="h-4 w-4 text-muted-foreground" /> : <Sparkles className="h-4 w-4 text-muted-foreground" />}
+          <span className="truncate">{aiPlanLabel(aiPlanMode)}</span>
+        </Button>
+        <Button variant="outline" className="h-10 w-8 shrink-0 rounded-l-none px-0" disabled={hunkPlanDisabled} aria-label={t('composer.chooseAiPlan')} aria-expanded={aiMenuOpen} onClick={() => { setAiMenuOpen(!aiMenuOpen); setCommitMenuOpen(false); }}>
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+        {aiMenuOpen && <>
+          <div className="fixed inset-0 z-20" aria-hidden="true" onClick={() => setAiMenuOpen(false)} />
+          <div role="menu" aria-label={t('composer.chooseAiPlan')} className="absolute bottom-full left-0 right-0 z-30 mb-1 rounded-lg border border-border bg-popover p-1 shadow-xl">
+            <button role="menuitemradio" aria-checked={aiPlanMode === 'staged'} disabled={hunkPlanDisabled} onClick={() => runAiPlan('staged')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+              <ListTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              {t('hunkPlan.button')}
+              <Check className={aiPlanMode === 'staged' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
+            </button>
+            <button role="menuitemradio" aria-checked={aiPlanMode === 'all'} disabled={batchDisabled} onClick={() => runAiPlan('all')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              {t('batch.button')}
+              <Check className={aiPlanMode === 'all' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
+            </button>
+          </div>
+        </>}
+      </div>
+      {/* 提交 split button：默认面为上次使用的方式（提交 / 提交并推送），Ctrl+Enter 跟随当前默认面 */}
+      <div className="relative flex w-full">
+        <Button disabled={disabled} className="w-full h-10 font-semibold rounded-r-none border-r-0" onClick={() => runCommit(commitMode)}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : commitMode === 'commitPush' ? <Send className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+          <span className="truncate">{commitModeLabel(commitMode)}{scope.files.length ? ` (${scope.files.length})` : ''}</span>
+        </Button>
+        <Button disabled={disabled} variant="outline" className="h-10 w-8 shrink-0 rounded-l-none px-0" aria-label={t('composer.chooseCommitAction')} aria-expanded={commitMenuOpen} onClick={() => { setCommitMenuOpen(!commitMenuOpen); setAiMenuOpen(false); }}>
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+        {commitMenuOpen && <>
+          <div className="fixed inset-0 z-20" aria-hidden="true" onClick={() => setCommitMenuOpen(false)} />
+          <div role="menu" aria-label={t('composer.chooseCommitAction')} className="absolute bottom-full left-0 right-0 z-30 mb-1 rounded-lg border border-border bg-popover p-1 shadow-xl">
+            <button role="menuitemradio" aria-checked={commitMode === 'commit'} disabled={disabled} onClick={() => runCommit('commit')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+              <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              {commitModeLabel('commit')}
+              <Check className={commitMode === 'commit' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
+            </button>
+            <button role="menuitemradio" aria-checked={commitMode === 'commitPush'} disabled={disabled} onClick={() => runCommit('commitPush')} className="w-full text-left px-2 py-1.5 text-xs rounded-md flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none">
+              <Send className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              {commitModeLabel('commitPush')}
+              <Check className={commitMode === 'commitPush' ? 'h-3.5 w-3.5 shrink-0 ml-auto text-primary' : 'h-3.5 w-3.5 shrink-0 ml-auto opacity-0'} />
+            </button>
+          </div>
+        </>}
+      </div>
       <p className="text-[12px] text-muted-foreground text-center">Ctrl / ⌘ + Enter</p>
     </div>
     {preview && <ModalSurface label={t('composer.preview')} onDismiss={() => setPreview(null)} className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-6">

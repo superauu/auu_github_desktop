@@ -97,6 +97,8 @@ export const zh = {
   'composer.hideFiles': "收起文件清单",
   'composer.title': "提交标题",
   'composer.titlePlaceholder': "简明描述本次改动",
+  'composer.chooseAiPlan': "选择 AI 计划方式",
+  'composer.chooseCommitAction': "选择提交方式",
   'composer.body': "详细说明（可选）",
   'composer.bodyPlaceholder': "说明改动原因和需要注意的事项",
   'composer.generate': "生成提交说明",

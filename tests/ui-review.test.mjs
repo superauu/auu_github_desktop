@@ -270,6 +270,8 @@ test('dismissing an inspector error preserves the commit draft and commit action
     await act(async () => renderer.root.findByProps({ id: 'commit-title' }).props.onChange({ target: { value: 'Keep this draft' } }));
     assert.equal(renderer.root.findAllByProps({ role: 'alert' }).length, 1);
     assert.match(JSON.stringify(renderer.toJSON()), /提交变更/);
+    // 提交与推送合并为 split button：「提交并推送」在下拉菜单里，展开后断言仍在
+    await act(async () => renderer.root.findAllByType('button').find(button => button.props['aria-label'] === '选择提交方式').props.onClick());
     assert.match(JSON.stringify(renderer.toJSON()), /提交并推送/);
     await act(async () => renderer.root.findByProps({ 'aria-label': '关闭错误提示' }).props.onClick());
     assert.equal(store.getState().errorMessage, null);

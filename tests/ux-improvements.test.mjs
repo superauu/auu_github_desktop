@@ -148,7 +148,11 @@ test('Commit and Push reports a preference warning alongside push success withou
   try {
     await act(async () => { renderer = create(React.createElement(app.CommitComposer, { draftState, onOpenAiSettings: noop })); });
     await act(async () => {
-      renderer.root.findAllByType('button').find(button => button.props.className.includes('glass-button-outline') && button.children.includes('提交并推送')).props.onClick();
+      // 提交方式已合并为 split button：先展开下拉，再点「提交并推送」菜单项（选中即执行并记忆）
+      renderer.root.findAllByType('button').find(button => button.props['aria-label'] === '选择提交方式').props.onClick();
+    });
+    await act(async () => {
+      renderer.root.findAllByType('button').find(button => button.children.includes('提交并推送')).props.onClick();
       await Promise.resolve();
       app.useRemoteDialogStore.getState().settle({ remote: 'origin', branch: 'main', targetBranch: 'main', setUpstream: false, rememberRemote: true });
     });
