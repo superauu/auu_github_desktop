@@ -60,6 +60,8 @@ test('Git arguments reject execution overrides, abbreviations and configuration 
     ['init', '-c', 'core.sshCommand=bad'],
     ['merge', '-s', 'custom', 'HEAD'], ['merge', '-nscustom', 'HEAD'],
     ['merge', '--strategy=custom', 'HEAD'], ['rebase', '--str=custom', 'HEAD'],
+    // --strategy-option 与 -X 都是策略面：merge 一律拒绝，rebase 的 -X 保持显式放行。
+    ['merge', '--strategy-option=ours', 'HEAD'], ['merge', '-X', 'ours', 'HEAD'], ['merge', '-Xours', 'HEAD'],
     // 跳检走私：log 的 -m 是开关不取值，后面的 blocked 选项必须仍然被检查；
     // 取值 flag 的值本身（commit -m / merge -m）也必须过全部选项检查。
     ['log', '-m', '--format=x', '-m', '--output=' + path.join(outside, 'evil'), '-1'],
@@ -88,7 +90,7 @@ test('Git arguments reject execution overrides, abbreviations and configuration 
     ['bisect', 'bad', '--term-good=x'], ['bisect', 'log', '--output=evil'],
   ];
   for (const args of rejected) assert.throws(() => app.validateGitArguments(args), undefined, JSON.stringify(args));
-  for (const args of [['clone', '-qbbranch-with-c', '--', 'url', 'target'], ['clone', '--', '-c-url', 'target'], ['clone', '--', 'https://example.invalid/repo.git', 'target'], ['cherry-pick', '-s', 'HEAD'], ['merge', '--signoff', '--end-of-options', 'main'], ['init', '-b', 'main'], ['init', '.'], ['worktree', 'add', '-b', 'review', '--', 'dest', 'main']]) assert.doesNotThrow(() => app.validateGitArguments(args));
+  for (const args of [['clone', '-qbbranch-with-c', '--', 'url', 'target'], ['clone', '--', '-c-url', 'target'], ['clone', '--', 'https://example.invalid/repo.git', 'target'], ['cherry-pick', '-s', 'HEAD'], ['merge', '--signoff', '--end-of-options', 'main'], ['rebase', '-X', 'ours', 'HEAD'], ['init', '-b', 'main'], ['init', '.'], ['worktree', 'add', '-b', 'review', '--', 'dest', 'main']]) assert.doesNotThrow(() => app.validateGitArguments(args));
   for (const args of [
     ['-c', 'core.quotepath=false', 'status', '-z'],
     ['commit', '-m', 'hello world'], ['commit', '-m', '-- high priority'],

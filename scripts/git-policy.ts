@@ -10,7 +10,7 @@ function safeOverride(value: string): boolean {
 // 各命令的短选项声明：[消耗下一个参数, 一律禁止]。白名单只收录前端真实用到的
 // (命令, flag)，与 src-tauri/src/git_policy.rs short_option 逐条一致，未声明的一律不取值（fail closed）。
 const shortOptions: Record<string, [string, string]> = {
-  clone: ['boju', ''], init: ['b', ''], merge: ['m', 'F'], rebase: ['XCS', ''],
+  clone: ['boju', ''], init: ['b', ''], merge: ['m', 'FX'], rebase: ['XCS', ''],
   commit: ['m', 'FtcC'], tag: ['m', 'Ft'], stash: ['m', ''], 'update-ref': ['m', ''],
   'hash-object': ['', 'w'],
 };
@@ -497,7 +497,8 @@ export function validateGitArguments(args: string[]): { command: string; index: 
       if (shortOption(command, argument)) skipValue = true;
     }
     const option = argument.split('=')[0];
-    if ((option.startsWith('--') && option.length > 2 && blocked.some((value) => value.startsWith(option))) ||
+    // 双向覆盖：既堵缩写（--strat → --strategy），也堵扩展（--strategy-option → --strategy）。
+    if ((option.startsWith('--') && option.length > 2 && blocked.some((value) => value.startsWith(option) || option.startsWith(value))) ||
         (command === 'rebase' && argument.startsWith('-x')) ||
         (['clone', 'init'].includes(command) && argument.startsWith('-c')) ||
         (['merge', 'rebase'].includes(command) && argument.startsWith('-s')) ||

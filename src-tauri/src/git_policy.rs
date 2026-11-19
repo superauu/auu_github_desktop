@@ -188,7 +188,7 @@ fn short_option(name: &str, argument: &str) -> Result<bool, String> {
     let (value_flags, blocked_flags) = match name {
         "clone" => ("boju", ""),
         "init" => ("b", ""),
-        "merge" => ("m", "F"),
+        "merge" => ("m", "FX"),
         "rebase" => ("XCS", ""),
         "commit" => ("m", "FtcC"),
         "tag" => ("m", "Ft"),
@@ -1046,7 +1046,10 @@ pub fn validate(args: &[String]) -> Result<(), String> {
         ];
         if (option.starts_with("--")
             && option.len() > 2
-            && blocked.iter().any(|blocked| blocked.starts_with(option)))
+            && blocked.iter().any(|blocked| {
+                // 双向覆盖：既堵缩写（--strat → --strategy），也堵扩展（--strategy-option → --strategy）。
+                blocked.starts_with(option) || option.starts_with(blocked)
+            }))
             || (name == "rebase" && argument.starts_with("-x"))
             || (matches!(name, "clone" | "init") && argument.starts_with("-c"))
             || (matches!(name, "merge" | "rebase") && argument.starts_with("-s"))
@@ -1581,6 +1584,9 @@ mod tests {
             vec!["merge", "-scustom", "HEAD"],
             vec!["merge", "-nsfoobar", "HEAD"],
             vec!["merge", "--strategy=custom", "HEAD"],
+            vec!["merge", "--strategy-option=ours", "HEAD"],
+            vec!["merge", "-X", "ours", "HEAD"],
+            vec!["merge", "-Xours", "HEAD"],
             vec!["rebase", "--str=custom", "HEAD"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
@@ -1649,6 +1655,7 @@ mod tests {
             vec!["commit", "-m", "hello world"],
             vec!["commit", "-m", "-- high priority"],
             vec!["merge", "--signoff", "--end-of-options", "main"],
+            vec!["rebase", "-X", "ours", "HEAD"],
             vec!["tag", "-a", "v1", "-m", "release", hash_a.as_str()],
             vec!["stash", "push", "-u", "-m", "wip"],
             vec![
