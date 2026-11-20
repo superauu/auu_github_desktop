@@ -660,6 +660,12 @@ export class GitService implements IGitService {
     return parseDiffOutput(res.stdout);
   }
 
+  /** Ref 间单文件 diff（base...head 三点对称差），供分支比较视图逐文件取内容 */
+  async getRefFileDiff(repoPath: string, base: string, head: string, filePath: string, ignoreWhitespace = false): Promise<ParsedDiffLine[]> {
+    const res = await executeGit(['--literal-pathspecs', 'diff', '--no-color', '--no-ext-diff', '--no-textconv', ...(ignoreWhitespace ? ['-w'] : []), `${base}...${head}`, '--', filePath], repoPath);
+    return parseDiffOutput(res.stdout);
+  }
+
 
   async blameFile(repoPath: string, filePath: string): Promise<GitBlameLine[]> {
     try {

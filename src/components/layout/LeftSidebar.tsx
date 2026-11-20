@@ -22,6 +22,7 @@ import {
   GitPullRequest,
   CircleDot,
   Archive,
+  GitCompare,
   GitMerge,
   UploadCloud,
   ArrowDownToLine,
@@ -54,6 +55,7 @@ import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
 import { StashPreviewModal } from '@/features/git/StashPreviewModal';
 import { MergeBranchModal } from '@/features/git/MergeBranchModal';
+import { BranchCompareModal } from '@/features/git/BranchCompareModal';
 import { RebaseBranchModal } from '@/features/git/RebaseBranchModal';
 import { HealthDiagnosisModal } from '@/features/git/HealthDiagnosisModal';
 import { DragDropActionModal } from '@/features/git/DragDropActionModal';
@@ -135,6 +137,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
   const [mergeTargetBranch, setMergeTargetBranch] = useState<string | undefined>(undefined);
   const [rebaseModalOpen, setRebaseModalOpen] = useState(false);
   const [rebaseUpstreamBranch, setRebaseUpstreamBranch] = useState<string | undefined>(undefined);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareHeadBranch, setCompareHeadBranch] = useState('');
 
   // Stash dialog state
   const [newStashOpen, setNewStashOpen] = useState(false);
@@ -264,6 +268,16 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         onClick: () => {
           setRebaseUpstreamBranch(branch.name);
           setRebaseModalOpen(true);
+        },
+      },
+      {
+        id: 'compare-current',
+        label: t('sidebar.compareWithCurrent'),
+        icon: <GitCompare className="h-3.5 w-3.5 text-primary" />,
+        disabled: isCurrent,
+        onClick: () => {
+          setCompareHeadBranch(branch.name);
+          setCompareOpen(true);
         },
       },
       { separator: true, id: 'sep-1' },
@@ -1641,6 +1655,16 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         onOpenChange={setRebaseModalOpen}
         upstreamBranch={rebaseUpstreamBranch}
       />
+      {currentRepo && (
+        <BranchCompareModal
+          open={compareOpen}
+          onClose={() => setCompareOpen(false)}
+          repoPath={currentRepo.path}
+          branches={branches}
+          initialBase={branches.find((b) => b.isCurrent)?.name || currentRepo.currentBranch || ''}
+          initialHead={compareHeadBranch}
+        />
+      )}
       <HealthDiagnosisModal
         open={healthModalOpen}
         onOpenChange={setHealthModalOpen}

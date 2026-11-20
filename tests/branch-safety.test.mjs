@@ -449,3 +449,23 @@ test('deleting a symbolic recovery ref never deletes its target branch', async (
   assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), head);
   assert.equal((await app.branchSafetyService.list(repo)).length, 0);
 });
+
+test('branch compare reads per-file diffs between two refs in both directions', async () => {
+  const repo = await fixture();
+  await change(repo, 'a.txt', 'base\nshared\n', 'add shared');
+  git(repo, 'checkout', '-b', 'feature');
+  await change(repo, 'a.txt', 'base\nshared\nfeature\n', 'feature line');
+  git(repo, 'checkout', 'main');
+  await change(repo, 'b.txt', 'main only\n', 'main file');
+
+  // 三点对称差：main...feature 只含 feature 侧改动。
+  const { files } = await app.gitService.getBranchDiff(repo, 'main', 'feature');
+  assert.deepEqual(files.map(f => f.path), ['a.txt']);
+
+  const featureLines = await app.gitService.getRefFileDiff(repo, 'main', 'feature', 'a.txt');
+  assert.ok(featureLines.some(line => line.type === 'add' && line.content === '+feature'));
+  assert.ok(!featureLines.some(line => line.content.includes('main only')));
+
+  const mainLines = await app.gitService.getRefFileDiff(repo, 'feature', 'main', 'b.txt');
+  assert.ok(mainLines.some(line => line.type === 'add' && line.content === '+main only'));
+});
