@@ -91,12 +91,16 @@ export class GitService implements IGitService {
     await executeGit(['init', '-b', 'main'], normalizedPath);
   }
 
-  async cloneRepository(url: string, targetPath: string, branch?: string): Promise<void> {
+  async cloneRepository(url: string, targetPath: string, branch?: string, depth?: number): Promise<void> {
     const normalizedTarget = targetPath.trim().replace(/\\/g, '/');
     await authorizeRepository(normalizedTarget);
     const args = ['clone'];
     if (branch) {
       args.push('-b', branch);
+    }
+    if (depth !== undefined) {
+      if (!Number.isSafeInteger(depth) || depth < 1 || depth > 10000) throw new Error(tNow('repo.invalidDepth'));
+      args.push('--depth', String(depth));
     }
     args.push('--', url.trim(), normalizedTarget);
     // 克隆目标是绝对路径，工作目录使用当前目录即可（浏览器环境没有 process 对象）

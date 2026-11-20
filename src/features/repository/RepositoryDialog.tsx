@@ -47,6 +47,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const [cloneUrl, setCloneUrl] = useState('');
   const [cloneTargetPath, setCloneTargetPath] = useState('');
   const [branchName, setBranchName] = useState('');
+  const [cloneDepth, setCloneDepth] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPicking, setIsPicking] = useState(false);
@@ -139,7 +140,8 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
       await gitService.cloneRepository(
         cloneUrl.trim(),
         cloneTargetPath.trim(),
-        branchName.trim() || undefined
+        branchName.trim() || undefined,
+        cloneDepth.trim() ? Number(cloneDepth.trim()) : undefined
       );
       const repoInfo = await gitService.openRepository(cloneTargetPath.trim());
       if (!await setCurrentRepo(repoInfo)) return;
@@ -477,6 +479,20 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
                 placeholder="main"
                 className="font-mono text-xs"
               />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1">
+                {t('repo.cloneDepth')}
+              </label>
+              <Input
+                value={cloneDepth}
+                onChange={(e) => setCloneDepth(e.target.value.replace(/[^\d]/g, ''))}
+                placeholder={t('repo.cloneDepthHint')}
+                className="font-mono text-xs"
+                inputMode="numeric"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">{t('repo.cloneDepthDesc')}</p>
             </div>
 
             <Button

@@ -168,3 +168,22 @@ test('stashBranch restores the stash onto a new branch and drops the original en
   // 非法分支名拒绝。
   await assert.rejects(() => service.stashBranch(repository, '-evil', 0));
 });
+
+test('cloneRepository supports shallow depth and rejects invalid depths', async () => {
+  const { repository: source } = await makeRepo('clone-source');
+  for (let index = 1; index <= 4; index++) {
+    await fs.writeFile(path.join(source, 'f.txt'), `v${index}\n`);
+    execFileSync('git', ['add', '--', 'f.txt'], { cwd: source, windowsHide: true, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', `c${index}`], { cwd: source, windowsHide: true, stdio: 'ignore' });
+  }
+  const service = app.gitService;
+  // 浅克隆 depth=1：目标仓库只有 1 个提交（本地路径克隆会忽略 --depth，必须走 file:// 形态）。
+  const shallow = path.join(temporary, 'shallow-clone');
+  await service.cloneRepository('file:///' + source.replaceAll('\\', '/'), shallow, undefined, 1);
+  const count = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: shallow, windowsHide: true, encoding: 'utf8' }).trim();
+  assert.equal(count, '1', 'shallow clone should carry a single commit');
+  // 非法深度拒绝：0 / 非整数 / 超上限。
+  await assert.rejects(() => service.cloneRepository(source, path.join(temporary, 'bad-0'), undefined, 0), /深度|depth/i);
+  await assert.rejects(() => service.cloneRepository(source, path.join(temporary, 'bad-f'), undefined, 1.5), /深度|depth/i);
+  await assert.rejects(() => service.cloneRepository(source, path.join(temporary, 'bad-big'), undefined, 20000), /深度|depth/i);
+});
