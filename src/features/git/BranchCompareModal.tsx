@@ -107,6 +107,9 @@ export function BranchCompareModal({ open, onClose, repoPath, branches, initialB
   const swap = () => { setBase(head); setHead(base); };
   const selectClass = 'h-7 rounded-md border border-border bg-secondary/60 px-2 text-xs font-mono max-w-[200px] truncate';
 
+  // ModalSurface 是常开 Radix Dialog：关闭态必须整组件不挂载（与其他弹窗的条件挂载惯例一致）。
+  if (!open) return null;
+
   return (
     <ModalSurface label={t('branchCompare.title')} onDismiss={onClose} className="fixed inset-0 z-60 bg-black/45 flex items-center justify-center p-6">
       <div className="w-full h-[90vh] max-w-[1600px] flex flex-col rounded-xl border border-border bg-background shadow-2xl overflow-hidden">
