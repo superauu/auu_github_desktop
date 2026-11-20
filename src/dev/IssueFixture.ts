@@ -51,7 +51,7 @@ export function prepareIssueFixture(repository: RepositoryInfo) {
     issues[5].labels = [];
     issues[5].assignees = [];
   }
-  const comments = new Map<number, { id: number; user: typeof user; body: string; created_at: string; updated_at: string }[]>();
+  const comments = new Map<number | string, { id: number; user: typeof user; body: string; created_at: string; updated_at: string }[]>();
   const prs: CollaborationPullRequest[] = [];
   const writes: { kind: string; data: unknown }[] = [];
   const record = (kind: string, data: unknown) => { writes.push({ kind, data }); document.documentElement.dataset.issueFixtureWrites = JSON.stringify(writes); };
@@ -78,7 +78,7 @@ export function prepareIssueFixture(repository: RepositoryInfo) {
     if (data.state) { target.state = data.state; target.closed_at = data.state === 'closed' ? stamp : null; }
     if (data.state_reason) target.state_reason = data.state_reason;
   };
-  collaborationService.createIssue = async (_owner, _repo, data) => { const created = issue(Math.max(...issues.map(item => item.number)) + 1, data.title); apply(created, data); issues.unshift(created); record('create-issue', data); return clone(created); };
+  collaborationService.createIssue = async (_owner, _repo, data) => { const created = issue(Math.max(...issues.map(item => Number(item.number))) + 1, data.title); apply(created, data); issues.unshift(created); record('create-issue', data); return clone(created); };
   collaborationService.updateIssue = async (_owner, _repo, number, data) => { const target = issues.find(item => item.number === number)!; apply(target, data); record('update-issue', { number, ...data }); return clone(target); };
   collaborationService.getIssueComments = async (_owner, _repo, number) => clone(comments.get(number) || []);
   collaborationService.createIssueComment = async (_owner, _repo, number, body) => { const entry = { id: writes.length + 1, body, user, created_at: stamp, updated_at: stamp }; comments.set(number, [...(comments.get(number) || []), entry]); record('comment', { number, body }); return clone(entry); };

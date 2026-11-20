@@ -17,7 +17,7 @@ export interface HostingPlugin {
   credentials: CredentialStorage;
   createClient(server: string, token: string | null): ProviderClient;
   pullRef?(number: number): string;
-  issuePath?(number: number): string;
+  issuePath?(number: import('@/services/collaboration/issueTypes').IssueNumber): string;
   pullPath?(number: number): string;
   checkPath?(sha: string): string;
   legacyRepositoryRemote?(repo: unknown): import('@/services/git/types').GitRemote | undefined;

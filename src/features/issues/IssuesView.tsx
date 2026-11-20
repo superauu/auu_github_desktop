@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ModalSurface } from '@/components/ui/ModalSurface';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import './IssuesView.css';
-import type { IssueListOptions } from '@/services/collaboration/issueTypes';
+import type { IssueListOptions, IssueNumber } from '@/services/collaboration/issueTypes';
 import { usesTaskProvider } from '@/services/integrations/taskService';
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useIssueWorkflowStore } from '@/stores/issueWorkflowStore';
@@ -39,7 +39,7 @@ export function IssuesView({ onOpenAuthDialog }: { onOpenAuthDialog?: () => void
   return <IssueWorkspace available={available} />;
 }
 
-type SelectedIssue = { scope: IssueSourceScope; number: number };
+type SelectedIssue = { scope: IssueSourceScope; number: IssueNumber };
 type CreateTarget = 'pick' | IssueSourceScope | null;
 
 function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {

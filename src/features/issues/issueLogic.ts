@@ -1,5 +1,6 @@
 import { externalIssueUrl, scopeIssueReference, isCurrentPlatformUrl, currentPlatformPath } from '@/services/integrations/links';
 import { getTaskPlugin } from '@/services/integrations/plugins';
+import { isValidIssueNumber } from '@/services/collaboration/issueTypes';
 import type { CollaborationIssue, IssueReference, IssueTimelineEvent } from '@/services/collaboration/issueTypes';
 
 export const issueKey = (reference: IssueReference) => { const issue = scopeIssueReference(reference); return `${issue.providerId && issue.server ? `${issue.providerId}:${issue.server}:` : ''}${issue.owner}/${issue.repo}#${issue.number}`; };
@@ -23,7 +24,7 @@ export function issueReferences(body: string | null, owner: string, repo: string
       const segments = parts[1].split('/'); targetRepo = segments.pop()!; targetOwner = segments.join('/'); number = Number(parts[2]);
     } else if (match[1]) { const segments = match[1].split('/'); targetRepo = segments.pop()!; targetOwner = segments.join('/'); }
     const issue = scopeIssueReference({ owner: targetOwner, repo: targetRepo, number });
-    if (Number.isSafeInteger(issue.number) && issue.number > 0) references.set(issueKey(issue), issue);
+    if (isValidIssueNumber(issue.number)) references.set(issueKey(issue), issue);
     if (references.size >= 20) break;
   }
   return [...references.values()];

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { openExternalUrl } from '@/utils/openExternal';
 import type { CollaborationIssueComment } from '@/services/collaboration/CollaborationService';
-import type { CollaborationIssue } from '@/services/collaboration/issueTypes';
+import type { CollaborationIssue, IssueNumber } from '@/services/collaboration/issueTypes';
 import { getHostingPlugin, getTaskPlugin } from '@/services/integrations/plugins';
 import { issueClientFor } from '@/services/integrations/taskService';
 import { useRepoStore } from '@/stores/repoStore';
@@ -24,7 +24,7 @@ import { confirmAction } from '@/stores/confirmStore';
 import { Markdown, MarkdownField } from '@/components/ui/Markdown';
 
 /** 详情页：桌面式全宽布局（吸顶标题栏 + 主内容/属性双栏），不再是网页式居中窄栏。 */
-export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: IssueSourceScope; number: number; onChanged: () => void }) {
+export function IssueDetail({ scope: scopeProp, number, onChanged }: { scope?: IssueSourceScope; number: IssueNumber; onChanged: () => void }) {
   const { t, lang } = useI18n();
   // scope 可省略（独立挂载/测试场景）：回落到仓库作用域。
   const fallback = useFallbackIssueScope();

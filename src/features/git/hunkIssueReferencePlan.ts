@@ -1,4 +1,5 @@
 import type { HunkCommitGroup } from '@/services/git/HunkCommitService';
+import { isValidIssueNumber } from '@/services/collaboration/issueTypes';
 import type { IssueReference } from '@/services/collaboration/issueTypes';
 import { tNow } from '@/i18n';
 
@@ -21,7 +22,7 @@ function proseLines(body: string) {
 
 /** Preserve prose and assignments; only add explicit, fully qualified references. */
 export function proposeHunkIssueReferences(groups: HunkCommitGroup[], selected: string[], issue: IssueReference) {
-  if (!/^[\w.-]+$/.test(issue.owner) || !/^[\w.-]+$/.test(issue.repo) || !Number.isSafeInteger(issue.number) || issue.number <= 0
+  if (!/^[\w.-]+$/.test(issue.owner) || !/^[\w.-]+$/.test(issue.repo) || !isValidIssueNumber(issue.number)
     || !selected.length || new Set(selected).size !== selected.length || selected.some(id => !groups.some(group => group.id === id))) throw new Error(tNow('hunkIssue.invalid'));
   const line = `Refs ${issue.owner}/${issue.repo}#${issue.number}`;
   const changed: string[] = [];

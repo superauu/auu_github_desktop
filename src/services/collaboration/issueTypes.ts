@@ -1,4 +1,8 @@
-export interface IssueReference { owner: string; repo: string; number: number; providerId?: string; server?: string;
+/** Issue 编号：GitHub/GitLab/Gitea 为数字；Gitee 为随机字符串（如 IKWTPH），API 路径同样用它。 */
+export type IssueNumber = number | string;
+/** 数字编号须为正整数；字符串编号须为平台返回的紧凑标识（无空白）。 */
+export const isValidIssueNumber = (number: IssueNumber) => typeof number === 'number' ? Number.isSafeInteger(number) && number > 0 : /^[\w.-]+$/.test(number.trim());
+export interface IssueReference { owner: string; repo: string; number: IssueNumber; providerId?: string; server?: string;
   /** 平台展示键（ENG-123）：任务引用的 URL 与提交引用以它为键，托引用可省略。 */
   identifier?: string }
 export interface IssueDraftContext extends IssueReference { title: string; body: string }
@@ -6,8 +10,8 @@ export interface CollaborationCommitStatus { id: number; context: string; state:
 export interface CollaborationLabel { id: number; name: string; color: string; description?: string | null }
 export interface IssueUser { login: string; avatar_url?: string }
 export interface CollaborationIssue {
-  id: number; number: number; title: string; body: string | null;
-  /** 平台展示键（Linear 的 ENG-123 等）；托管平台留空，UI 优先显示它。 */
+  id: number; number: IssueNumber; title: string; body: string | null;
+  /** 平台展示键（ENG-123 等）；托管平台留空，UI 优先显示它。 */
   identifier?: string;
   state: 'open' | 'closed'; state_reason?: 'completed' | 'not_planned' | 'reopened' | null;
   html_url: string; user: IssueUser; labels: CollaborationLabel[]; assignees: IssueUser[];
@@ -21,5 +25,5 @@ export interface IssueSearchResult { items: CollaborationIssue[]; total_count: n
 export interface IssueInput { title: string; body: string; labels: string[]; assignees: string[] }
 export interface IssueTimelineEvent {
   event: string;
-  source?: { issue?: { number: number; title: string; state: 'open' | 'closed'; html_url: string; pull_request?: { merged_at?: string | null } } };
+  source?: { issue?: { number: IssueNumber; title: string; state: 'open' | 'closed'; html_url: string; pull_request?: { merged_at?: string | null } } };
 }
