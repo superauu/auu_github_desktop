@@ -20,7 +20,7 @@ import {
 } from './types';
 import { executeGit, executeGitTransaction, GitExecutionError } from './GitExecutor';
 import { normalizeInvokeError } from './invokeError';
-import { parseWorktrees } from './worktrees';
+import { parseWorktrees, sameWorktreePath } from './worktrees';
 import {
   parseDiffOutput,
   ParsedDiffLine,
@@ -188,6 +188,29 @@ export class GitService implements IGitService {
     }
     args.push('--', path, branch);
     await executeGit(args, repoPath);
+  }
+
+  /**
+   * 删除已注册的链接 worktree。防线在调用层：路径必须已在 `worktree list` 注册
+   * （防任意目录删除）、不得是主工作树、越出授权根时走 authorizeRepository 确认
+   * （与 createWorktree 同构）。纯策略层不校验 remove 目标——注册态只有调用方知道。
+   */
+  async removeWorktree(repoPath: string, treePath: string): Promise<void> {
+    if (!treePath.trim() || /[\0\r\n]/.test(treePath) || !/^(?:[a-z]:[/\\]|[/\\])/i.test(treePath)) throw new Error(tNow('worktree.invalidPath'));
+    const trees = await this.getWorktrees(repoPath);
+    const registered = trees.find(tree => sameWorktreePath(tree.path, treePath));
+    if (!registered) throw new Error(tNow('worktree.notRegistered'));
+    if (registered.bare) throw new Error(tNow('worktree.bareRemove'));
+    const main = trees[0];
+    if (main && sameWorktreePath(main.path, treePath)) throw new Error(tNow('worktree.mainRemove'));
+    if (registered.locked) throw new Error(tNow('worktree.lockedRemove'));
+    await authorizeRepository(treePath);
+    await executeGit(['worktree', 'remove', treePath], repoPath);
+  }
+
+  /** 清理失联 worktree 的管理数据（目录已删但 .git/worktrees 残留的 prunable 条目）。 */
+  async pruneWorktrees(repoPath: string): Promise<void> {
+    await executeGit(['worktree', 'prune'], repoPath);
   }
 
   async getBranchCommitHash(repoPath: string, branchName: string): Promise<string | null> {

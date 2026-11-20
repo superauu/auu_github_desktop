@@ -74,3 +74,36 @@ test('discardChanges deletes untracked files via clean -f and still restores tra
   await fs.access(path.join(repository, 'keep.txt'));
   await fs.rm(path.join(repository, 'keep.txt'));
 });
+
+test('removeWorktree deletes registered linked worktrees and refuses unregistered, main and locked targets', async () => {
+  const { repository } = await makeRepo('wt-main');
+  const service = app.gitService;
+  const linked = path.join(temporary, 'wt-remove-linked');
+  await service.createWorktree(repository, linked, 'main', 'wt-feature');
+  let trees = await service.getWorktrees(repository);
+  assert.equal(trees.length, 2);
+  // 主工作树拒绝删除。
+  await assert.rejects(() => service.removeWorktree(repository, trees[0].path), /主工作树|main working tree/i);
+  // 未注册路径拒绝删除（防任意目录删除）。
+  await assert.rejects(() => service.removeWorktree(repository, path.join(temporary, 'not-a-worktree')), /注册|registered/i);
+  // 正常删除链接 worktree。
+  await service.removeWorktree(repository, linked);
+  trees = await service.getWorktrees(repository);
+  assert.equal(trees.length, 1);
+  await assert.rejects(() => fs.access(path.join(linked, '.git')));
+  // 锁定态拒绝删除，解锁后可删；失联条目走 prune。
+  const locked = path.join(temporary, 'wt-remove-locked');
+  await service.createWorktree(repository, locked, 'main', 'wt-locked');
+  execFileSync('git', ['worktree', 'lock', locked], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  await assert.rejects(() => service.removeWorktree(repository, locked), /锁定|locked/i);
+  execFileSync('git', ['worktree', 'unlock', locked], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  await fs.rm(locked, { recursive: true, force: true }); // 模拟外部删除目录 → prunable
+  trees = await service.getWorktrees(repository);
+  assert.ok(trees.find(tree => tree.prunable), 'deleted directory should surface as prunable');
+  // 失联条目走 prune 清理（UI 对 prunable 行提供清理按钮）。
+  await service.pruneWorktrees(repository);
+  trees = await service.getWorktrees(repository);
+  assert.ok(!trees.find(tree => samePath(tree.path, locked)), 'prune should clear stale entries');
+});
+
+const samePath = (left, right) => left.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase() === right.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
