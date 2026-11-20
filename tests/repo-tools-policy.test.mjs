@@ -187,6 +187,35 @@ test('shortlog and count-objects are gated to the stats shapes', () => {
   }
 });
 
+test('clean is gated to the single-file force delete form', () => {
+  // 放行：未跟踪文件删除的真实调用形态（-f 单旗 + 可选 -- + 字面 pathspec）。
+  for (const args of [
+    ['clean', '-f', '--', 'src/tmp.txt'],
+    ['clean', '-f', '--', 'a b.txt'],
+    ['clean', '--force', 'loose.txt'],
+    ['clean', '-f', '--', 'dir/file.txt', 'other.txt'],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：目录面 -d、忽略文件面 -x/-X、交互 -i、干跑 -n、排除 -e、缺 -f、裸调用与未知选项。
+  for (const args of [
+    ['clean'],
+    ['clean', '--', 'a.txt'],
+    ['clean', '-d', '-f', '--', 'dir'],
+    ['clean', '-fdx', '--', 'a.txt'],
+    ['clean', '-x', '--', 'a.txt'],
+    ['clean', '-X', '--', 'a.txt'],
+    ['clean', '-i'],
+    ['clean', '-n', '--', 'a.txt'],
+    ['clean', '-e', 'pattern', '-f', '--', 'a.txt'],
+    ['clean', '-q', '-f', '--', 'a.txt'],
+    ['clean', '--dry-run', '--', 'a.txt'],
+    ['clean', '-f', 'extra', '-x', '--', 'a.txt'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
 test('notes is gated to the commit-note read/write surface', () => {
   const hash = 'a'.repeat(40);
   // 放行：提交备注的最小读写面。

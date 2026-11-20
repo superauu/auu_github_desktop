@@ -376,9 +376,14 @@ export class GitService implements IGitService {
     await this.unstageFiles(repoPath, status.staged.map(file => file.path));
   }
 
-  async discardChanges(repoPath: string, filePath: string): Promise<void> {
+  async discardChanges(repoPath: string, filePath: string, isUntracked = false): Promise<void> {
     // For tracked modified files, restore. --literal-pathspecs keeps glob
     // metacharacters in repository paths from widening the pathspec.
+    if (isUntracked) {
+      // 未跟踪文件不在 HEAD 里，restore/checkout 无从恢复——只能 clean -f 删除（不可恢复）。
+      await executeGit(['--literal-pathspecs', 'clean', '-f', '--', filePath], repoPath);
+      return;
+    }
     try {
       await executeGit(['--literal-pathspecs', 'restore', '--', filePath], repoPath);
     } catch {

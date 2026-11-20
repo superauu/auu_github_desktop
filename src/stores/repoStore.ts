@@ -116,7 +116,7 @@ export interface RepoState {
   discardHunk: (filePath: string, hunk: ParsedDiffLine[]) => Promise<void>;
   stageAll: () => Promise<void>;
   unstageAll: () => Promise<void>;
-  discardChanges: (filePath: string) => Promise<void>;
+  discardChanges: (filePath: string, isUntracked?: boolean) => Promise<void>;
   commit: (message: string, amend?: boolean) => Promise<void>;
   createBranch: (name: string, startPoint?: string, checkout?: boolean) => Promise<void>;
   deleteBranch: (name: string, force?: boolean) => Promise<void>;
@@ -761,12 +761,12 @@ export const useRepoStore = create<RepoState>((set, get) => {
       }
     },
 
-    discardChanges: async (filePath: string) => {
+    discardChanges: async (filePath: string, isUntracked = false) => {
       const set = scopedSet();
       const { currentRepo } = get();
       if (!currentRepo) return;
       try {
-        await gitService.discardChanges(currentRepo.path, filePath);
+        await gitService.discardChanges(currentRepo.path, filePath, isUntracked);
         await get().refreshStatus();
       } catch (err: any) {
         set({ errorMessage: err.message });

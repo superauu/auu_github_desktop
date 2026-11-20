@@ -400,6 +400,23 @@ function safeCountObjects(rest: string[]): void {
   throw new Error('count-objects only supports the -vH reporting form');
 }
 
+// git clean 约束：未跟踪文件删除只放行强制删除窄形态 `-f|--force [--] [pathspec…]`。
+// 目录面 -d、忽略文件面 -x/-X、交互 -i、排除模式 -e、干跑 -n 等一律拒绝（fail closed）；
+// -- 之后的 pathspec 不校验（调用方以 --literal-pathspecs 传入字面路径）。
+// 与 src-tauri/src/git_policy.rs safe_clean 一致。
+function safeClean(rest: string[]): void {
+  let separator = false;
+  let force = false;
+  for (const argument of rest) {
+    if (separator) continue;
+    if (argument === '--') { separator = true; continue; }
+    if ((argument === '-f' || argument === '--force') && !force) { force = true; continue; }
+    if (!argument.startsWith('-')) continue;
+    throw new Error('clean only supports the force form: clean -f [--] <pathspec>');
+  }
+  if (!force) throw new Error('clean requires -f or --force');
+}
+
 // git notes 约束：提交备注的最小读写面——notes show <rev>、notes remove <rev> 与
 // notes add [-f] -m <message> <rev>（-f 覆盖编辑语义，-m 单段文本）。copy/append/
 // edit/merge/prune 与 -F/--stdin 等文件面选项一律拒绝（fail closed）。
@@ -479,6 +496,7 @@ export function validateGitArguments(args: string[]): { command: string; index: 
   if (command === 'bisect') safeBisect(args.slice(index + 1));
   if (command === 'describe') safeDescribe(args.slice(index + 1));
   if (command === 'grep') safeGrep(args.slice(index + 1));
+  if (command === 'clean') safeClean(args.slice(index + 1));
   if (command === 'format-patch') safeFormatPatch(args.slice(index + 1));
   if (command === 'shortlog') safeShortlog(args.slice(index + 1));
   if (command === 'count-objects') safeCountObjects(args.slice(index + 1));

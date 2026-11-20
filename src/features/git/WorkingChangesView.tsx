@@ -397,12 +397,12 @@ export const WorkingChangesView: React.FC = () => {
     if (useRepoStore.getState().currentRepo?.path === path) await useRepoStore.getState().refreshStatus();
   };
 
-  const handleDiscard = async (path: string) => {
-    if (!await confirmAction({ title: t('changes.discardTitle'), description: t('composer.discardWarning'), detail: path })) return;
+  const handleDiscard = async (path: string, isUntracked = false) => {
+    if (!await confirmAction({ title: t(isUntracked ? 'changes.deleteFileTitle' : 'changes.discardTitle'), description: t(isUntracked ? 'changes.deleteFileWarning' : 'composer.discardWarning'), detail: path })) return;
     runGitAction(
-      () => discardChanges(path),
-      `${t('changes.discarded')}: ${path}`,
-      `${t('changes.discardFailed')}: ${path}`
+      () => discardChanges(path, isUntracked),
+      `${t(isUntracked ? 'changes.deletedFile' : 'changes.discarded')}: ${path}`,
+      `${t(isUntracked ? 'changes.deleteFileFailed' : 'changes.discardFailed')}: ${path}`
     );
   };
 
@@ -515,7 +515,9 @@ export const WorkingChangesView: React.FC = () => {
     ];
     if (file.staged) return [action('unstage', 'changes.unstageTitle', <Minus aria-hidden="true" className="size-3" />, () => unstageFile(file.path), 'changes.unstagedToast', 'changes.unstageFailed')];
     return [
-      ...(file.status === 'untracked' ? [] : [{ id: 'discard', label: t('changes.discardTitle'), icon: <RotateCcw aria-hidden="true" className="size-3" />, danger: true, disabled: listBusy, onClick: () => void handleDiscard(file.path) }]),
+      ...(file.status === 'untracked'
+        ? [{ id: 'delete-untracked', label: t('changes.deleteFileTitle'), icon: <RotateCcw aria-hidden="true" className="size-3" />, danger: true, disabled: listBusy, onClick: () => void handleDiscard(file.path, true) }]
+        : [{ id: 'discard', label: t('changes.discardTitle'), icon: <RotateCcw aria-hidden="true" className="size-3" />, danger: true, disabled: listBusy, onClick: () => void handleDiscard(file.path) }]),
       action('stage', file.status === 'untracked' ? 'changes.trackStageTitle' : 'changes.stageTitle', <Plus aria-hidden="true" className="size-3" />, () => stageFile(file.path), file.status === 'untracked' ? 'changes.tracked' : 'changes.stagedToast', file.status === 'untracked' ? 'changes.trackedFailed' : 'changes.stageFailed'),
     ];
   };

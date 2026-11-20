@@ -882,6 +882,30 @@ fn safe_count_objects(rest: &[String]) -> Result<(), String> {
     Err("count-objects only supports the -vH reporting form".into())
 }
 
+/// git clean 约束：未跟踪文件删除只放行强制删除窄形态 `-f|--force [--] [pathspec…]`。
+/// 目录面 -d、忽略文件面 -x/-X、交互 -i、排除模式 -e、干跑 -n 等一律拒绝（fail closed）；
+/// -- 之后的 pathspec 不校验（调用方以 --literal-pathspecs 传入字面路径）。
+/// 与 scripts/git-policy.ts safe_clean 一致。
+fn safe_clean(rest: &[String]) -> Result<(), String> {
+    let mut separator = false;
+    let mut force = false;
+    for argument in rest {
+        if separator {
+            continue;
+        }
+        match argument.as_str() {
+            "--" => separator = true,
+            "-f" | "--force" if !force => force = true,
+            value if !value.starts_with('-') => {}
+            _ => return Err("clean only supports the force form: clean -f [--] <pathspec>".into()),
+        }
+    }
+    if !force {
+        return Err("clean requires -f or --force".into());
+    }
+    Ok(())
+}
+
 /// git notes 约束：提交备注的最小读写面——`notes show <rev>`、`notes remove <rev>`
 /// 与 `notes add [-f] -m <message> <rev>`（-f 覆盖编辑语义，-m 单段文本）。
 /// copy/append/edit/merge/prune 与 -F/--stdin 等文件面选项一律拒绝（fail closed）。
@@ -985,6 +1009,9 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "config" && !safe_config(&args[index + 1..]) {
         return Err("Unsupported Git configuration access".into());
+    }
+    if name == "clean" {
+        safe_clean(&args[index + 1..])?;
     }
     if name == "bisect" {
         safe_bisect(&args[index + 1..])?;
@@ -1249,6 +1276,35 @@ mod tests {
             vec!["count-objects", "-v"],
             vec!["count-objects", "-H"],
             vec!["count-objects", "--gc"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_clean_fail_closed() {
+        // 放行：未跟踪文件删除的真实调用形态（-f 单旗 + 可选 -- + 字面 pathspec）。
+        for values in [
+            vec!["clean", "-f", "--", "src/tmp.txt"],
+            vec!["clean", "-f", "--", "a b.txt"],
+            vec!["clean", "--force", "loose.txt"],
+            vec!["clean", "-f", "--", "dir/file.txt", "other.txt"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：目录面 -d、忽略文件面 -x/-X、交互 -i、干跑 -n、排除 -e、缺 -f、裸调用与未知选项。
+        for values in [
+            vec!["clean"],
+            vec!["clean", "--", "a.txt"],
+            vec!["clean", "-d", "-f", "--", "dir"],
+            vec!["clean", "-fdx", "--", "a.txt"],
+            vec!["clean", "-x", "--", "a.txt"],
+            vec!["clean", "-X", "--", "a.txt"],
+            vec!["clean", "-i"],
+            vec!["clean", "-n", "--", "a.txt"],
+            vec!["clean", "-e", "pattern", "-f", "--", "a.txt"],
+            vec!["clean", "-q", "-f", "--", "a.txt"],
+            vec!["clean", "--dry-run", "--", "a.txt"],
+            vec!["clean", "-f", "extra", "-x", "--", "a.txt"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }
