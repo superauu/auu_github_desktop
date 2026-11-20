@@ -93,7 +93,7 @@ export const branchSafetyService = {
       files: changed.stdout.split('\0').filter(Boolean), conflicts, conflictCheck };
   },
 
-  async execute(preview: BranchPreview, action: BranchAction, options?: { noFf?: boolean; message?: string }): Promise<void> {
+  async execute(preview: BranchPreview, action: BranchAction, options?: { noFf?: boolean; squash?: boolean; message?: string }): Promise<void> {
     return executeGitTransaction(preview.repoPath, async git => {
       const { repoPath, sourceRef, targetRef, sourceHash, targetHash } = preview;
       await requireClean(repoPath, git);
@@ -106,7 +106,11 @@ export const branchSafetyService = {
       await git(['switch', '--no-guess', branch]);
       if (await resolve(git, 'HEAD') !== before) throw new Error(tNow('safety.stale'));
       await savePoint(git, branch, before, action === 'merge' ? 'merge' : 'rebase');
-      await git(action === 'merge' ? ['merge', options?.noFf ? '--no-ff' : '--ff', '--no-edit', ...(options?.message?.trim() ? ['-m', options.message.trim()] : []), sourceHash]
+      await git(action === 'merge'
+        ? options?.squash
+          // squash 不产生合并提交：改动进暂存区，由用户自行提交（-m 成为预填提交说明）。
+          ? ['merge', '--squash', ...(options?.message?.trim() ? ['-m', options.message.trim()] : []), sourceHash]
+          : ['merge', options?.noFf ? '--no-ff' : '--ff', '--no-edit', ...(options?.message?.trim() ? ['-m', options.message.trim()] : []), sourceHash]
         : ['-c', 'rebase.updateRefs=false', 'rebase', action === 'rebase-source' ? targetHash : sourceHash]);
     });
   },

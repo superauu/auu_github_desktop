@@ -68,8 +68,9 @@ export const CommitHistoryView: React.FC = () => {
     revertCommit,
     cherryPickCommit,
     softResetCommit,
+    mixedResetCommit,
     hardResetCommit,
-  } = useRepoStore(useShallow(state => ({ commits: state.commits, selectedCommit: state.selectedCommit, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, scrollToCommitHash: state.scrollToCommitHash, isLoading: state.isLoading, commitsLoadedAll: state.commitsLoadedAll, loadMoreCommits: state.loadMoreCommits, revertCommit: state.revertCommit, cherryPickCommit: state.cherryPickCommit, softResetCommit: state.softResetCommit, hardResetCommit: state.hardResetCommit })));
+  } = useRepoStore(useShallow(state => ({ commits: state.commits, selectedCommit: state.selectedCommit, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, status: state.status, branches: state.branches, selectedBranch: state.selectedBranch, selectAndLocateBranch: state.selectAndLocateBranch, scrollToCommitHash: state.scrollToCommitHash, isLoading: state.isLoading, commitsLoadedAll: state.commitsLoadedAll, loadMoreCommits: state.loadMoreCommits, revertCommit: state.revertCommit, cherryPickCommit: state.cherryPickCommit, softResetCommit: state.softResetCommit, mixedResetCommit: state.mixedResetCommit, hardResetCommit: state.hardResetCommit })));
 
   const repoPath = useRepoStore(state => state.currentRepo?.path) || '';
   const savedViewRaw = useWorkspaceSessionStore(state => state.historyViews[repoPath]);
@@ -350,6 +351,19 @@ export const CommitHistoryView: React.FC = () => {
             if (!await confirmAction({ title: t('history.ctx.resetSoft'), description: t('history.resetSoftConfirm').replace('{h}', ctxMenu.commit!.shortHash), detail: ctxMenu.commit!.subject })) return;
             runCommitAction(
               () => softResetCommit(ctxMenu.commit!.hash),
+              t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
+              t('history.resetFailed')
+            );
+          },
+        },
+        {
+          id: 'reset-mixed',
+          label: t('history.ctx.resetMixed'),
+          icon: <ArrowDownToLine className="h-3.5 w-3.5" />,
+          onClick: async () => {
+            if (!await confirmAction({ title: t('history.ctx.resetMixed'), description: t('history.resetMixedConfirm').replace('{h}', ctxMenu.commit!.shortHash), detail: ctxMenu.commit!.subject })) return;
+            runCommitAction(
+              () => mixedResetCommit(ctxMenu.commit!.hash),
               t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
               t('history.resetFailed')
             );

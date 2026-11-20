@@ -53,6 +53,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ContextMenu, ContextMenuItem } from '@/components/ui/ContextMenu';
 import { CreateBranchModal } from '@/features/git/CreateBranchModal';
+import { StashBranchModal } from '@/features/git/StashBranchModal';
 import { StashPreviewModal } from '@/features/git/StashPreviewModal';
 import { MergeBranchModal } from '@/features/git/MergeBranchModal';
 import { BranchCompareModal } from '@/features/git/BranchCompareModal';
@@ -133,6 +134,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
   // Modal dialog states
   const [createBranchModalOpen, setCreateBranchModalOpen] = useState(false);
+  const [stashBranchStash, setStashBranchStash] = useState<any>(null);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [mergeTargetBranch, setMergeTargetBranch] = useState<string | undefined>(undefined);
   const [rebaseModalOpen, setRebaseModalOpen] = useState(false);
@@ -549,6 +551,12 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
             toast.error(t('sidebar.ctx.stashApplyFailed'), err?.message);
           }
         },
+      },
+      {
+        id: 'stash-branch',
+        label: t('sidebar.ctx.stashBranch'),
+        icon: <GitBranchIcon className="h-3.5 w-3.5 text-primary" />,
+        onClick: () => setStashBranchStash(stash),
       },
       {
         id: 'pop-stash',
@@ -1645,6 +1653,7 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
         onOpenChange={setCreateBranchModalOpen}
         defaultBaseBranch={createBranchBase}
       />
+      <StashBranchModal stash={stashBranchStash} onClose={() => setStashBranchStash(null)} />
       <MergeBranchModal
         open={mergeModalOpen}
         onOpenChange={setMergeModalOpen}

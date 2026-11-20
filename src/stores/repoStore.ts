@@ -135,10 +135,12 @@ export interface RepoState {
   // Stash & Revert
   stashPush: (message?: string, includeUntracked?: boolean) => Promise<void>;
   stashPop: (index?: number) => Promise<void>;
+  stashBranch: (branchName: string, index?: number) => Promise<void>;
   stashApply: (index?: number) => Promise<void>;
   stashDrop: (index?: number) => Promise<void>;
   revertCommit: (hash: string) => Promise<void>;
   softResetCommit: (hash: string) => Promise<void>;
+  mixedResetCommit: (hash: string) => Promise<void>;
   cherryPickCommit: (hash: string) => Promise<void>;
   hardResetCommit: (hash: string) => Promise<void>;
   undoLastCommit: () => Promise<void>;

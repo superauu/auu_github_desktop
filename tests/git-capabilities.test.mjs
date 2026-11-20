@@ -22,7 +22,7 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 before(async () => {
   temporary = await fs.mkdtemp(path.join(root, '.test-tmp-git-capabilities-'));
   const bundle = path.join(temporary, 'helpers.cjs');
-  await build({ stdin: { contents: `export { gitService } from './src/services/git/GitService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export { gitService } from './src/services/git/GitService'; export { branchSafetyService } from './src/services/git/BranchSafetyService';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
   server = await createServer({ configFile: path.join(root, 'vite.config.ts'), server: { host: '127.0.0.1', port: 0, strictPort: false, watch: null } });
   await server.listen();
@@ -107,3 +107,65 @@ test('removeWorktree deletes registered linked worktrees and refuses unregistere
 });
 
 const samePath = (left, right) => left.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase() === right.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
+
+test('merge --squash stages source changes without creating a merge commit', async () => {
+  const { repository, git } = await makeRepo('squash');
+  const service = app.gitService;
+  git('checkout', '-b', 'feat');
+  await fs.writeFile(path.join(repository, 'feat.txt'), 'feature\n');
+  git('add', '--', 'feat.txt');
+  git('commit', '-m', 'feature work');
+  const featHash = git('rev-parse', 'HEAD').trim();
+  git('checkout', 'main');
+  const mainHashBefore = git('rev-parse', 'HEAD').trim();
+  await fs.writeFile(path.join(repository, 'base.txt'), 'base\nmore\n');
+  git('add', '--', 'base.txt');
+  git('commit', '-m', 'main moved');
+  // 走与 UI 相同的安全服务路径（预览 + 执行），squash 语义在此层落地。
+  const preview = await app.branchSafetyService.preview(repository, { name: 'feat', isRemote: false, isCurrent: false }, { name: 'main', isRemote: false, isCurrent: false });
+  await app.branchSafetyService.execute(preview, 'merge', { squash: true });
+  // HEAD 不动（无合并提交），改动全部在暂存区。
+  assert.equal(git('rev-parse', 'HEAD').trim() !== mainHashBefore, true, 'main advanced with its own commit');
+  const staged = git('status', '--porcelain', '-z');
+  assert.ok(staged.includes('feat.txt'), 'squashed change should be staged');
+  assert.equal(git('log', '--oneline', 'main').split('\n').some(line => line.includes('feature work')), false, 'no squash commit until user commits');
+  void featHash;
+});
+
+test('mixedResetCommit moves HEAD and index back while keeping worktree changes unstaged', async () => {
+  const { repository, git } = await makeRepo('mixed');
+  const service = app.gitService;
+  git('checkout', '-b', 'topic');
+  await fs.writeFile(path.join(repository, 'one.txt'), 'one\n');
+  git('add', '--', 'one.txt');
+  git('commit', '-m', 'one');
+  const oneHash = git('rev-parse', 'HEAD').trim();
+  await fs.writeFile(path.join(repository, 'two.txt'), 'two\n');
+  git('add', '--', 'two.txt');
+  git('commit', '-m', 'two');
+  const baseHash = git('rev-parse', 'main').trim();
+  await service.mixedResetCommit(repository, baseHash);
+  assert.equal(git('rev-parse', 'HEAD').trim(), baseHash, 'HEAD moved to base');
+  // 工作区文件都在，改动为未暂存。
+  const status = git('status', '--porcelain');
+  assert.ok(status.split('\n').filter(Boolean).every(line => line.startsWith(' D') || line.startsWith('??') || line.startsWith(' M')), 'changes must be unstaged: ' + status);
+  assert.ok(await fs.access(path.join(repository, 'one.txt')).then(() => true, () => false), 'worktree file kept');
+  assert.ok(await fs.access(path.join(repository, 'two.txt')).then(() => true, () => false), 'worktree file kept');
+  void oneHash;
+});
+
+test('stashBranch restores the stash onto a new branch and drops the original entry', async () => {
+  const { repository, git } = await makeRepo('stash-branch');
+  const service = app.gitService;
+  await fs.writeFile(path.join(repository, 'wip.txt'), 'wip content\n');
+  await service.stashPush(repository, 'wip note');
+  const stashes = await service.getStashes(repository);
+  assert.equal(stashes.length, 1);
+  await service.stashBranch(repository, 'from-stash', stashes[0].index);
+  // git stash branch 标准语义：新分支上恢复工作区并 drop 原贮藏（内容已转移到新分支）。
+  assert.ok(await fs.access(path.join(repository, 'wip.txt')).then(() => true, () => false), 'stash content restored on new branch');
+  assert.equal((await service.getStashes(repository)).length, 0, 'original stash dropped by stash branch');
+  assert.equal(git('branch', '--show-current').trim(), 'from-stash');
+  // 非法分支名拒绝。
+  await assert.rejects(() => service.stashBranch(repository, '-evil', 0));
+});

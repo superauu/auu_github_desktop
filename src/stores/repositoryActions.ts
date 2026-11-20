@@ -3,7 +3,7 @@ import type { StoreApi } from 'zustand';
 import type { RepoState } from './repoStore';
 import { gitService } from '@/services/git/GitService';
 
-type Actions = Pick<RepoState, 'createTag' | 'deleteTag' | 'pushTag' | 'pushAllTags' | 'deleteRemoteTag' | 'mergeBranch' | 'abortMerge' | 'rebaseBranch' | 'rebaseContinue' | 'rebaseAbort' | 'stashPush' | 'stashPop' | 'stashApply' | 'stashDrop' | 'revertCommit' | 'softResetCommit' | 'cherryPickCommit' | 'hardResetCommit'>;
+type Actions = Pick<RepoState, 'createTag' | 'deleteTag' | 'pushTag' | 'pushAllTags' | 'deleteRemoteTag' | 'mergeBranch' | 'abortMerge' | 'rebaseBranch' | 'rebaseContinue' | 'rebaseAbort' | 'stashPush' | 'stashPop' | 'stashApply' | 'stashDrop' | 'stashBranch' | 'revertCommit' | 'softResetCommit' | 'mixedResetCommit' | 'cherryPickCommit' | 'hardResetCommit'>;
 
 /** Keep repository-scoped publication guards when moving actions out of the store. */
 export function createRepositoryActions(get: () => RepoState, scopedSet: () => StoreApi<RepoState>['setState']): Actions {
@@ -168,6 +168,19 @@ export function createRepositoryActions(get: () => RepoState, scopedSet: () => S
       }
     },
 
+    stashBranch: async (branchName: string, index: number = 0) => {
+      const set = scopedSet();
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.stashBranch(currentRepo.path, branchName, index);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
     stashApply: async (index: number = 0) => {
       const set = scopedSet();
       const { currentRepo } = get();
@@ -213,6 +226,19 @@ export function createRepositoryActions(get: () => RepoState, scopedSet: () => S
       if (!currentRepo) return;
       try {
         await gitService.softResetCommit(currentRepo.path, hash);
+        await get().refreshAll();
+      } catch (err: any) {
+        set({ errorMessage: err.message });
+        throw err;
+      }
+    },
+
+    mixedResetCommit: async (hash: string) => {
+      const set = scopedSet();
+      const { currentRepo } = get();
+      if (!currentRepo) return;
+      try {
+        await gitService.mixedResetCommit(currentRepo.path, hash);
         await get().refreshAll();
       } catch (err: any) {
         set({ errorMessage: err.message });

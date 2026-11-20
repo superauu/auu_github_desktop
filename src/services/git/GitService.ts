@@ -332,6 +332,13 @@ export class GitService implements IGitService {
     await executeGit(['stash', 'apply', `stash@{${index}}`], repoPath);
   }
 
+  /** 从贮藏建分支：在新分支上恢复该贮藏；git 标准语义为成功即 drop 原贮藏（内容已转移到新分支）。 */
+  async stashBranch(repoPath: string, branchName: string, index: number = 0): Promise<void> {
+    if (!branchName.trim() || branchName.startsWith('-')) throw new Error(tNow('worktree.invalidBranch'));
+    await executeGit(['check-ref-format', `refs/heads/${branchName}`], repoPath);
+    await executeGit(['stash', 'branch', '--end-of-options', branchName.trim(), `stash@{${index}}`], repoPath);
+  }
+
   async stashDrop(repoPath: string, index: number = 0): Promise<void> {
     await executeGit(['stash', 'drop', `stash@{${index}}`], repoPath);
   }
@@ -363,6 +370,11 @@ export class GitService implements IGitService {
 
   async softResetCommit(repoPath: string, hash: string): Promise<void> {
     await executeGit(['reset', '--soft', await this.resolveCommitHash(repoPath, hash)], repoPath);
+  }
+
+  /** 混合重置：HEAD 与暂存区移到目标提交，工作区保留——目标之后的改动全部回到未暂存态。 */
+  async mixedResetCommit(repoPath: string, hash: string): Promise<void> {
+    await executeGit(['reset', await this.resolveCommitHash(repoPath, hash)], repoPath);
   }
 
   async stageFile(repoPath: string, filePath: string): Promise<void> {
