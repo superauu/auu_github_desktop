@@ -162,14 +162,14 @@ export class GiteeClient {
     const files = await this.pages<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${pullNumber}/files`);
     return {
       files: files.map(raw => {
-        const patchInfo = raw.patch ?? {};
+        const patchIsObject = raw.patch !== null && typeof raw.patch === 'object'; const patchInfo = (patchIsObject ? raw.patch : {}) ?? {};
         const renamed = !!patchInfo.renamed_file && patchInfo.old_path !== patchInfo.new_path;
         return {
           sha: raw.sha ?? '', filename: patchInfo.new_path ?? raw.filename, previous_filename: renamed ? patchInfo.old_path : undefined,
           status: patchInfo.deleted_file || raw.status === 'deleted' ? 'removed' : patchInfo.new_file || raw.status === 'added' ? 'added' : renamed ? 'renamed' : 'modified',
           additions: Number(raw.additions ?? 0) || 0, deletions: Number(raw.deletions ?? 0) || 0,
            changes: (Number(raw.additions ?? 0) || 0) + (Number(raw.deletions ?? 0) || 0),
-          patch: typeof patchInfo.diff === 'string' ? patchInfo.diff : undefined,
+          patch: patchIsObject ? (typeof patchInfo.diff === 'string' ? patchInfo.diff : undefined) : (typeof raw.patch === 'string' ? raw.patch : undefined),
         };
       }),
       truncated: files.length >= 300,
