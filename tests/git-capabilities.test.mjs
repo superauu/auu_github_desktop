@@ -188,6 +188,22 @@ test('cloneRepository supports shallow depth and rejects invalid depths', async 
   await assert.rejects(() => service.cloneRepository(source, path.join(temporary, 'bad-big'), undefined, 20000), /深度|depth/i);
 });
 
+test('listRemoteBranches lists refs/heads names from a local mirror', async () => {
+  const { repository } = await makeRepo('ls-remote-src');
+  const service = app.gitService;
+  // 两个分支 + 一个 tag：只应列出 refs/heads/*。
+  execFileSync('git', ['checkout', '-b', 'feature'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['checkout', 'main'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['tag', 'v1'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  const mirror = path.join(temporary, 'ls-remote-mirror.git');
+  execFileSync('git', ['clone', '--bare', '--', repository, mirror], { cwd: temporary, windowsHide: true, stdio: 'ignore' });
+  const branches = await service.listRemoteBranches('file:///' + mirror.replaceAll('\\', '/'));
+  assert.deepEqual(branches.sort(), ['feature', 'main'], 'only refs/heads names, tags excluded');
+  // 非法 URL 拒绝。
+  await assert.rejects(() => service.listRemoteBranches('-evil'));
+  await assert.rejects(() => service.listRemoteBranches(''));
+});
+
 test('runGc packs objects and runFsck reports a healthy object store', async () => {
   const { repository, git } = await makeRepo('maintenance');
   // 制造松散对象：多次小提交。

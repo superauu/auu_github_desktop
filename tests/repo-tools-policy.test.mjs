@@ -216,6 +216,24 @@ test('clean is gated to the single-file force delete form', () => {
   }
 });
 
+test('ls-remote is allowed as a bare network read', () => {
+  // 放行：clone 预览的真实形态（URL 为裸位置参数，服务端自行过滤 refs/heads/）。
+  for (const args of [
+    ['ls-remote', 'https://git.example.com/team/project.git'],
+    ['ls-remote', 'file:///e/repo/mirror.git'],
+    ['ls-remote', 'origin'],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：--upload-pack 等走私面（通用封锁清单仍生效）。
+  for (const args of [
+    ['ls-remote', '--upload-pack=evil', 'origin'],
+    ['ls-remote', '--exec=evil', 'origin'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
 test('gc and fsck are gated to the bare maintenance forms', () => {
   // 放行：健康诊断/统计面板的裸调用形态。
   for (const args of [['gc'], ['fsck']]) {

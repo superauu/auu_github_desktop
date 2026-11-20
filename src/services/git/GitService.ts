@@ -398,6 +398,21 @@ export class GitService implements IGitService {
     }
   }
 
+  /**
+   * 列出远端分支（克隆前预览）：`ls-remote <url>` 不带 --heads（传输候选解析按裸位置参数
+   * 处理 URL），服务端过滤 refs/heads/ 前缀返回分支名。本地路径目标的授权由传输层处理。
+   */
+  async listRemoteBranches(url: string, cwd = '.'): Promise<string[]> {
+    const trimmed = url.trim();
+    if (!trimmed || trimmed.startsWith('-')) throw new Error(tNow('repo.invalidRemoteUrl'));
+    const res = await executeGit(['ls-remote', trimmed], cwd);
+    return res.stdout.split('\n')
+      .map(line => line.split('\t')[1] ?? '')
+      .filter(ref => ref.startsWith('refs/heads/'))
+      .map(ref => ref.slice('refs/heads/'.length))
+      .filter(Boolean);
+  }
+
   async stageFile(repoPath: string, filePath: string): Promise<void> {
     await this.stageFiles(repoPath, [filePath]);
   }

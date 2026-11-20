@@ -3,6 +3,7 @@ import { ModalSurface } from '@/components/ui/ModalSurface';
 import React, { useEffect, useState } from 'react';
 import {
   FolderOpen,
+  GitBranch,
   GitFork,
   FolderPlus,
   X,
@@ -48,6 +49,8 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const [cloneTargetPath, setCloneTargetPath] = useState('');
   const [branchName, setBranchName] = useState('');
   const [cloneDepth, setCloneDepth] = useState('');
+  const [remoteBranches, setRemoteBranches] = useState<string[]>([]);
+  const [isListingBranches, setIsListingBranches] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPicking, setIsPicking] = useState(false);
@@ -124,6 +127,22 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   };
 
   // 3. Clone Remote Repository
+  // 克隆前预览远端分支：ls-remote 列出 refs/heads/*，填入 datalist 供分支输入联想。
+  const handleListRemoteBranches = async () => {
+    if (!cloneUrl.trim() || isListingBranches) return;
+    setIsListingBranches(true);
+    try {
+      const branches = await gitService.listRemoteBranches(cloneUrl.trim());
+      setRemoteBranches(branches);
+      if (branches.length === 0) toast.info(t('repo.listRemoteEmpty'));
+      else toast.success(t('repo.listRemoteDone').replace('{n}', String(branches.length)));
+    } catch (err: any) {
+      setRemoteBranches([]);
+      toast.error(t('repo.listRemoteFailed'), err?.message || t('repo.listRemoteFailed'));
+    } finally {
+      setIsListingBranches(false);
+    }
+  };
   const handleClone = async () => {
     if (!cloneUrl.trim()) {
       toast.warning(t('repo.needUrl'));
@@ -470,15 +489,30 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
             )}
 
             <div>
-              <label className="text-xs font-medium text-foreground block mb-1">
-                {t('repo.cloneBranch')}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-foreground">
+                  {t('repo.cloneBranch')}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleListRemoteBranches()}
+                  disabled={!cloneUrl.trim() || isListingBranches}
+                  className="text-[12px] text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:hover:no-underline"
+                >
+                  <GitBranch className="h-3 w-3" />
+                  <span>{isListingBranches ? t('repo.listingBranches') : t('repo.listRemoteBranches')}</span>
+                </button>
+              </div>
               <Input
                 value={branchName}
                 onChange={(e) => setBranchName(e.target.value)}
                 placeholder="main"
                 className="font-mono text-xs"
+                list="remote-branch-options"
               />
+              <datalist id="remote-branch-options">
+                {remoteBranches.map((branch) => <option key={branch} value={branch} />)}
+              </datalist>
             </div>
 
             <div>

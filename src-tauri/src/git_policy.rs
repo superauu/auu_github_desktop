@@ -30,6 +30,7 @@ const COMMANDS: &[&str] = &[
     "count-objects",
     "gc",
     "fsck",
+    "ls-remote",
     "notes",
     "commit",
     "merge",

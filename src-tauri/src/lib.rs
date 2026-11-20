@@ -45,7 +45,7 @@ fn normalize_display_path(p: &std::path::Path) -> String {
 fn transport_grant(args: &[String], cwd: &str, git_binary: Option<&str>) -> Option<&'static str> {
     let index = git_policy::command_index(args).ok()?;
     let command = args[index].as_str();
-    if !matches!(command, "push" | "fetch" | "pull") {
+    if !matches!(command, "push" | "fetch" | "pull" | "ls-remote") {
         return None;
     }
     let urls = match git_policy::transport_candidates(&args[index + 1..])? {

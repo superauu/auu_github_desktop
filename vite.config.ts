@@ -192,7 +192,7 @@ export function gitApiPlugin(): Plugin {
                   data.gitProtocols = 'https:http:ssh:git:file';
                 }
               }
-              if (command === 'push' || command === 'fetch' || command === 'pull') {
+              if (command === 'push' || command === 'fetch' || command === 'pull' || command === 'ls-remote') {
                 // 与 src-tauri/src/lib.rs 一致：远程目标与 clone 源同构，解析为授权根内的本地路径时
                 // 放行本地传输。解析会跑只读 git 子进程（remote get-url / rev-parse @{u}），
                 // 失败即不放行（fail closed），由 git 自然报传输错误。

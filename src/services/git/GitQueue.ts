@@ -75,6 +75,8 @@ export const getGitCommand = (args: string[]) => commandArgs(args)[0] || 'transa
 export function isReadOnlyGitCommand(args: string[]): boolean {
   const [command, ...options] = commandArgs(args);
   if (command === 'check-ref-format') return true;
+  // ls-remote 是纯网络读（不锁本地对象库），允许与写并发；本地路径目标的授权由后端传输层处理。
+  if (command === 'ls-remote') return true;
   if (command === 'symbolic-ref') return options.filter(option => !option.startsWith('-')).length === 1 && !options.some(option => ['-d', '--delete'].includes(option));
   if (command === 'worktree') return options[0] === 'list';
   // 与 src-tauri/src/git_policy.rs 的 COMMANDS 白名单保持同步：仅列 Rust 侧放行的只读命令。
