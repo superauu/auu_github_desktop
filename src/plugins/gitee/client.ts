@@ -133,9 +133,14 @@ export class GiteeClient {
     return this.pages<CollaborationLabel>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/labels`);
   }
 
-  /** 仓库可指派负责人端点未在官方 v5 spec 确认，首版返回空；写路径仍可用 updateIssue 的 assignee 用户名 */
-  async getIssueAssignees(_owner: string, _repo: string): Promise<IssueUser[]> {
-    return [];
+  /**
+   * 公开 v5 无成员列表路由（collaborators / members / assignees 实测均 HTML 404，2026-11-21），
+   * 退化为仓库所有者单人候选——owner 必然可指派（updateIssue 的 assignee 写路径真机验证过）。
+   */
+  async getIssueAssignees(owner: string, repo: string): Promise<IssueUser[]> {
+    const details = await this.request<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
+    const raw = details.owner ?? details.creator;
+    return raw?.login ? [{ login: raw.login, avatar_url: raw.avatar_url ?? '' }] : [];
   }
 
   // ---------- Pull Requests（code-hosting 域） ----------
@@ -148,9 +153,17 @@ export class GiteeClient {
     return normalizePull(await this.request<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}`));
   }
 
-  /** Gitee 的评审只有"通过"语义（POST review），无列出评审记录的公开端点——首版返回空数组降级 */
-  async getPullRequestReviews(_owner: string, _repo: string, _pullNumber: number): Promise<CollaborationPullRequestReview[]> {
-    return [];
+  /**
+   * 评审记录读取：公开 v5 无列出审查记录的端点（GET pulls/{n}/reviews 与 /review 实测均 HTML 404，
+   * 且 POST review 的批准不落在 testers / 评论里）。可读的近似信号是 PR 详情的 testers[].accept
+   * ——指定测试工程师的「测试通过」标记（真机对照实验：POST review 不翻转，POST test 翻转）。
+   * 映射为 APPROVED 记录；createPullRequestReview 的 APPROVE 同步走 test 端点保证读写闭环。
+   */
+  async getPullRequestReviews(owner: string, repo: string, pullNumber: number): Promise<CollaborationPullRequestReview[]> {
+    const detail = await this.request<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${pullNumber}`);
+    return (detail.testers ?? [])
+      .filter((tester: any) => tester.accept === true && tester.login)
+      .map((tester: any) => ({ id: tester.id, user: { login: tester.login, avatar_url: tester.avatar_url ?? '' }, state: 'APPROVED' as const, body: '', submitted_at: null }));
   }
 
   /**
@@ -195,7 +208,9 @@ export class GiteeClient {
 
   /**
    * 提交评审：Gitee 无 request_changes（manifest 未声明，前端不会发）；
-   * APPROVE 走 POST review；行内评论先逐条落到 PR comments，再提交审查通过。
+   * APPROVE 走 POST review 并 best-effort 同步 POST test（公开 v5 里 review 批准无处可读，
+   * testers[].accept 才是可读的「通过」标记；非测试工程师时 test 会 403，忽略不阻塞批准）；
+   * 行内评论先逐条落到 PR comments，再提交审查通过。
    */
   async createPullRequestReview(owner: string, repo: string, number: number, params: CreateReviewParams): Promise<CollaborationPullRequestReview> {
     if (params.event === 'REQUEST_CHANGES') throw new Error('Gitee does not support request-changes reviews');
@@ -206,6 +221,9 @@ export class GiteeClient {
     }
     if (params.event === 'APPROVE') {
       await this.request<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}/review`, 'POST', params.body ? { body: params.body } : {});
+      try {
+        await this.request<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}/test`, 'POST');
+      } catch { /* 批准已落地；test 端点仅当前用户是指定测试工程师时可用 */ }
     } else if (params.body) {
       await this.request<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}/comments`, 'POST', { body: params.body });
     }

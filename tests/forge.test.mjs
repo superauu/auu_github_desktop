@@ -260,3 +260,37 @@ test('gitee issue updates go through the owner-level path with repo in the body'
   assert.equal(patch.body.repo, 'proj');
   assert.equal(patch.body.state, 'closed');
 });
+
+test('gitee review state reads testers.accept and approve also flips the test gate; assignees degrade to repo owner', async () => {
+  const service = new app.GiteeClient('https://gitee.com', 'gitee-pat');
+  originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    assert.equal(url.searchParams.get('access_token'), 'gitee-pat');
+    calls.push({ path: url.pathname, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : null });
+    const json = body => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+    // 真机对照实验（2026-11-21）：POST review 不翻转 testers[].accept，POST test 翻转——accept 是公开 v5 唯一可读的「通过」标记
+    if (url.pathname === '/api/v5/repos/team/proj/pulls/3') return json({
+      number: 3, state: 'open', can_merge_check: true,
+      testers: [
+        { id: 11, login: 'amy', avatar_url: 'a', accept: true },
+        { id: 12, login: 'bob', avatar_url: 'b', accept: false },
+      ],
+    });
+    if (url.pathname === '/api/v5/repos/team/proj/pulls/3/review') return new Response(null, { status: 204 });
+    if (url.pathname === '/api/v5/repos/team/proj/pulls/3/test') return new Response(null, { status: 204 });
+    if (url.pathname === '/api/v5/repos/team/proj') return json({ owner: { login: 'team', avatar_url: 'o' }, creator: { login: 'ignored' } });
+    throw new Error(`unexpected fetch ${url.pathname}`);
+  };
+
+  const reviews = await service.getPullRequestReviews('team', 'proj', 3);
+  assert.deepEqual(reviews.map(review => [review.user.login, review.state]), [['amy', 'APPROVED']]);
+
+  await service.createPullRequestReview('team', 'proj', 3, { event: 'APPROVE' });
+  const posted = calls.filter(call => call.method === 'POST');
+  assert.deepEqual(posted.map(call => call.path), ['/api/v5/repos/team/proj/pulls/3/review', '/api/v5/repos/team/proj/pulls/3/test']);
+
+  const assignees = await service.getIssueAssignees('team', 'proj');
+  assert.deepEqual(assignees, [{ login: 'team', avatar_url: 'o' }]);
+});
