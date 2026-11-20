@@ -46,7 +46,7 @@ before(async () => {
       contents: [
         `export { bindCollaborationClient as bindFixtureClient } from './src/services/collaboration/CollaborationService'; export { GitHubService as FixtureGitHubClient } from './src/plugins/github/client'; `,
         `export { GitHubApiError } from './src/plugins/github/client'; export { collaborationService, PR_FILES_SOFT_LIMIT } from './src/services/collaboration/CollaborationService';`,
-        `export { parsePatch, mergeTimeline, validateReviewSubmission, resolveReviewCapability, isAuthDeniedError } from './src/features/pr/prReviewLogic';`,
+        `export { parsePatch, mergeTimeline, validateReviewSubmission, resolveReviewCapability, isAuthDeniedError, sumPullStats } from './src/features/pr/prReviewLogic';`,
         `export { useCollaborationStore } from './src/stores/collaborationStore'; export { PullRequestDetailModal } from './src/features/pr/PullRequestDetailModal';`,
         `export { useToastStore } from './src/stores/toastStore';`,
       ].join('\n'),
@@ -268,6 +268,16 @@ test('parsePatch classifies file headers, hunks, add/del/context and no-newline 
   assert.deepEqual(lines[9], { type: 'add', text: 'tail add', oldLine: null, newLine: 11 });
   assert.deepEqual(app.parsePatch(''), []);
   assert.deepEqual(app.parsePatch('Binary files differ'), [{ type: 'meta', text: 'Binary files differ', oldLine: null, newLine: null }]);
+});
+
+test('sumPullStats aggregates list-fallback stats from files (GitLab 列表缺增删字段的回退)', () => {
+  const files = [
+    { additions: 12, deletions: 3 },
+    { additions: 0, deletions: 40 },
+    { additions: undefined, deletions: undefined }, // 二进制文件等无数字条目按 0 计
+  ];
+  assert.deepEqual(app.sumPullStats(files), { additions: 12, deletions: 43, files: 3 });
+  assert.deepEqual(app.sumPullStats([]), { additions: 0, deletions: 0, files: 0 });
 });
 
 // ---------------------------------------------------------------------------

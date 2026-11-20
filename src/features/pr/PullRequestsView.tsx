@@ -46,6 +46,7 @@ import { PanelCount } from '@/components/ui/PanelCount';
 import { WorkspaceError, WorkspaceLoading } from '@/components/ui/WorkspaceNotice';
 import { ErrorNotice } from '@/components/ui/ErrorNotice';
 import { htmlToPlainText } from '@/utils/htmlText';
+import { sumPullStats, type PullListStats } from './prReviewLogic';
 
 export const PullRequestsView: React.FC = () => {
   const providerId = useActiveProviderId();
@@ -99,6 +100,10 @@ export const PullRequestsView: React.FC = () => {
 
   const activePR = filteredPRs.find(pr => pr.id === selectedPR?.id) || filteredPRs[0] || null;
   const activePRNumber = activePR?.number, activePRHead = activePR?.head.sha;
+  // 列表对象缺增删统计的平台（如 GitLab 列表/详情 API 均不带）：选中后拉一次 files 求和回退。
+  // GitHub/Gitea/Gitee 列表自带（或透传）这些字段，该回退只在缺失时触发。
+  const [listStatFallback, setListStatFallback] = useState<PullListStats | null>(null);
+  const hasNativeStats = activePR?.additions !== undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +129,18 @@ export const PullRequestsView: React.FC = () => {
     }
     return () => { cancelled = true; };
   }, [activePRNumber, activePRHead, currentOwner, currentRepoName]);
+
+  // 改动统计回退：列表缺统计字段时按 files 聚合（网关对未声明 pull-request-detail 的插件同步抛错，先按能力位门控）
+  useEffect(() => {
+    let cancelled = false;
+    setListStatFallback(null);
+    if (!hasNativeStats && activePRNumber !== undefined && currentOwner && currentRepoName && hasCollaborationOperation('getPullRequestFiles')) {
+      void collaborationService.getPullRequestFiles(currentOwner, currentRepoName, activePRNumber).then((result) => {
+        if (!cancelled) setListStatFallback(sumPullStats(result.files));
+      }).catch(() => { if (!cancelled) setListStatFallback(null); });
+    }
+    return () => { cancelled = true; };
+  }, [activePRNumber, currentOwner, currentRepoName, hasNativeStats]);
 
   const handleCheckoutPR = async () => {
     if (!activePR) return;
@@ -524,9 +541,9 @@ export const PullRequestsView: React.FC = () => {
                         {t('pr.diffStats')}
                       </div>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="text-git-added font-semibold">+{activePR.additions || 0}</span>
-                        <span className="text-git-deleted font-semibold">-{activePR.deletions || 0}</span>
-                        <span className="text-muted-foreground">({activePR.changed_files || 0} {t('pr.filesCount')})</span>
+                        <span className="text-git-added font-semibold">+{activePR.additions ?? listStatFallback?.additions ?? 0}</span>
+                        <span className="text-git-deleted font-semibold">-{activePR.deletions ?? listStatFallback?.deletions ?? 0}</span>
+                        <span className="text-muted-foreground">({activePR.changed_files ?? listStatFallback?.files ?? 0} {t('pr.filesCount')})</span>
                       </div>
                     </div>
 

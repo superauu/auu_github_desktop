@@ -160,3 +160,14 @@ export function isAuthDeniedError(err: unknown): boolean {
   const message = (err as { message?: string } | null)?.message || '';
   return /http (401|403)|bad credentials|forbidden|not authorized|resource not accessible/i.test(message);
 }
+
+/** 列表对象增删统计的求和回退：列表 API 不带 additions/deletions 的平台（如 GitLab）用 files 结果聚合 */
+export interface PullListStats { additions: number; deletions: number; files: number; }
+
+export function sumPullStats(files: readonly { additions?: number; deletions?: number }[]): PullListStats {
+  return {
+    additions: files.reduce((sum, f) => sum + (f.additions ?? 0), 0),
+    deletions: files.reduce((sum, f) => sum + (f.deletions ?? 0), 0),
+    files: files.length,
+  };
+}
