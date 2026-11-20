@@ -206,9 +206,9 @@ export class GitLabClient implements CollaborationClient {
       started_at: raw.started_at, completed_at: raw.finished_at, steps: [], html_url: raw.web_url };
   }
   async getRunJobs(owner: string, repo: string, id: number) {
-    // 真机联调核实（2026-11-20 gitlab.com）：`pipelines/:id/jobs` 已返回 404，
-    // 项目级 `/jobs?pipeline_id=` 是现行可用形态。
-    return (await this.pages(`${this.project(owner, repo)}/jobs`, { pipeline_id: String(id), include_retried: 'false' })).map(raw => this.job(raw));
+    // 真机联调（2026-11-20 gitlab.com）：本端点正常；流水线无 job 时会返回 404，
+    // 调用方须把 404 视为"暂无任务"而非报错。项目级 /jobs 不支持 pipeline_id 过滤，不可替代。
+    return (await this.pages(`${this.project(owner, repo)}/pipelines/${id}/jobs`, { include_retried: 'false' })).map(raw => this.job(raw));
   }
   async getJob(owner: string, repo: string, id: number) { return this.job(await this.request(`${this.project(owner, repo)}/jobs/${id}`)); }
   async getJobLogs(owner: string, repo: string, id: number) { return { jobId: id, jobName: `Job #${id}`, rawLogs: await this.text(`${this.project(owner, repo)}/jobs/${id}/trace`) }; }
