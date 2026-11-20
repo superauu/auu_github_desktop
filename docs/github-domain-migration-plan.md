@@ -223,3 +223,25 @@ npm run test:integrations:native
 测试项目与本地 clone（`.test-gitlab-ui`，含仓库级一次性凭证助手）保留，供身份验证完成后补验 CI job 级功能；补验完成后删除测试仓库并提醒 revoke PAT。
 
 **（2026-11-20 补验后收尾）**CI job 级补验全部通过后：gitlab.com 测试项目已删除、本地 clone 与仓库级凭证助手已清理；联调用 PAT 提醒持有人 revoke。遗留已知项：MR 详情右侧「代码改动统计」对 GitLab 显示 +0 -0（GitLab 列表 API 不含 additions/deletions 字段，GitHub 有——展示层平台差异，待专项修）。
+
+## Gitee 插件联调记录（2026-11-20，gitee.com 云端）
+
+Gitee（码云）作为第七个插件接入：PR（code-hosting）+ Issue（task-tracking）双域、PAT 认证（access_token query 参数，官方文档形态）。Gitee Go 流水线走 `go-api.gitee.com` 未公开契约的独立通道（仅官方 CLI 源码可参照、日志端点未确认），**不声明 ci-cd 域**；评审平台语义只有「通过 + 重置」（无 request_changes）、Issue 无「不计划处理」态，均如实降级。测试仓库 `superauu/auugit-e2e-test`（私有，验完即删），写操作均在 Gitee 侧经 REST API 二次核实：
+
+| 域 | 项 | 结果 |
+|---|---|---|
+| 连接 | 设置页平台下拉新增 Gitee；默认地址 `https://gitee.com` 由插件 defaultServer 驱动；PAT 校验入库 | 通过 |
+| PR | 列表（编号/分支/作者/状态）、详情（合并方式 普通/压缩/变基 = merge/squash/rebase 全部生效、检出、网页查看） | 通过 |
+| PR | 变更文件与 diff 渲染 | 通过（经修复后；见下方契约更正） |
+| PR | 对话评论（COMMENT 事件）、批准（APPROVE → POST review） | 通过（评论/批准均在 Gitee 服务端核实） |
+| PR | 合并（squash；Gitee 语义：先 POST test 测试通过，再 PUT merge） | 通过（服务端 merged=true，PR state=merged） |
+| Issue | 列表、详情、评论、关闭、重开 | 通过（**编号为随机字符串如 IKWTPH**，应用契约已放宽 `CollaborationIssue.number: number \| string`，正整数校验抽共享 `isValidIssueNumber`） |
+| 传输 | clone、push（PAT https） | 通过 |
+
+**真机实测推翻官方 spec 的契约差异（实现以实测为准）**：① PR files 的 `patch` 是对象 `{ diff, new_path, old_path, renamed_file, deleted_file }`（GitLab 形）而非字符串，增删行数是字符串数字，非变更文件 `status` 为 null；② Issue 编号是随机字符串（无自增数字可用，数字 `id` 不能当路径参数，404）；③ `/repos/{owner}/{repo}/issues` 列表无确认的 `q` 搜索参数（本地过滤）；④ Issue 更新走 owner 级路径 `PATCH /repos/{owner}/issues/{n}`（body 带 repo）。
+
+**联调中修复的应用缺陷**：① PR 视图 useEffect 直接调 `getCommitChecks`——能力网关对未声明 CI 的插件**同步抛错**，`.then().catch()` 链接不上导致整页进错误边界；已按能力位门控（`hasCollaborationOperation`，同 ciSlice 模式），这对任何不带 CI 的未来托管插件都是正确行为。② 首版 files 映射按官方 spec 写成字符串 patch，真机渲染崩溃，已按实测契约重映射并保留字符串回退。
+
+**首版边界（如实降级，非缺陷）**：评审记录列表与仓库可指派人列表两个读端点在官方 v5 契约未确认，返回空数组；Issue 时间线返回空（operate_logs 结构未确认，同 Linear MVP 限制注释）；PR 对话评论与行内评论共用同一列表端点，按 position 分流。
+
+测试仓库与本地 clone 已在联调完成后删除；联调 PAT 提醒持有人 revoke。
