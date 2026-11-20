@@ -4,7 +4,7 @@ import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
-  { ignores: ['node_modules/**', 'dist/**', 'src-tauri/**', '.test-tmp-*/**', '.test-safety-*/**', 'test-results/**', 'playwright-report/**'] },
+  { ignores: ['node_modules/**', 'dist/**', 'src-tauri/**', '.test-tmp-*/**', '.test-safety-*/**', '.test-gitee-ui/**', '.test-*/**', 'test-results/**', 'playwright-report/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // React 19 hooks 静态防线：rules-of-hooks 抓条件/循环内 hook（真 bug 类，当前零违规）。

@@ -203,9 +203,10 @@ test('gitee service authenticates via access_token param and maps v5 pulls, comm
       { id: 1, body: '对话评论', user: { login: 'bob' }, created_at: 't3' },
       { id: 2, body: '行内评论', path: 'src/a.ts', position: 4, user: { login: 'amy' }, created_at: 't4' },
     ]);
+    // 真机实测契约:patch 是对象 { diff, ... }、增删是字符串数字、非变更文件 status 为 null。
     if (url.pathname === '/api/v5/repos/team/proj/pulls/3/files') return json([
-      { filename: 'src/a.ts', status: 'added', additions: 5, deletions: 0, patch: '+line' },
-      { filename: 'src/b.ts', status: 'deleted', additions: 0, deletions: 2, patch: '-line' },
+      { filename: 'src/a.ts', status: 'added', additions: '5', deletions: '0', patch: { diff: '@@ -0,0 +1,5 @@\n+line', new_path: 'src/a.ts', old_path: 'src/a.ts', new_file: true, renamed_file: false, deleted_file: false } },
+      { filename: 'src/b.ts', status: 'deleted', additions: '0', deletions: '2', patch: { diff: '@@ -1,2 +0,0 @@\n-line', new_path: 'src/b.ts', old_path: 'src/b.ts', new_file: false, renamed_file: false, deleted_file: true } },
     ]);
     if (url.pathname === '/api/v5/repos/team/proj/pulls/3/merge') return new Response(null, { status: 204 });
     throw new Error(`unexpected fetch ${url.pathname}`);
