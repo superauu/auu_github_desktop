@@ -168,7 +168,7 @@ test('Gitea adapts native review anchors, textual diffs, string workflow IDs and
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input)); assert.equal(url.origin, 'https://forge.example');
     assert.equal(new Headers(init.headers).get('authorization'), 'token forge-pat'); paths.push(url.pathname);
-    if (init.method === 'POST') { requests.push(JSON.parse(init.body)); return json({ id: 1, state: 'COMMENT', user: { login: 'alice' } }); }
+    if (init.method === 'POST') { requests.push(init.body ? JSON.parse(init.body) : null); return json({ id: 1, state: 'COMMENT', user: { login: 'alice' } }); }
     const route = url.pathname.replace('/api/v1/repos/team/project', '');
     if (route === '/pulls/7/files') return json([{ filename: 'new name.ts', previous_filename: 'old name.ts', status: 'renamed' }]);
     if (route === '/pulls/7.diff') return new Response('diff --git a/old name.ts b/new name.ts\n--- a/old name.ts\n+++ b/new name.ts\n@@ -1 +1 @@\n-old\n+new\n');
@@ -187,8 +187,10 @@ test('Gitea adapts native review anchors, textual diffs, string workflow IDs and
   await client.createPullRequestReview('team', 'project', 7, { event: 'COMMENT', comments: [{ path: 'a.ts', side: 'LEFT', line: 3, body: 'Fix' }] });
   assert.equal(requests[0].comments[0].old_position, 3);
   assert.deepEqual((await client.getWorkflowRuns('team', 'project', 'test.yml')).map(run => run.id), [1]);
-  await assert.rejects(client.cancelWorkflowRun('team', 'project', 1), /unavailable/);
-  assert.ok(!paths.some(path => path.includes('/cancel') || path.includes('/workflows/test.yml/runs')));
+  // 取消走真实端点（老版 Gitea 无此端点时由 err.ghCancel 报 404）。
+  await client.cancelWorkflowRun('team', 'project', 1);
+  assert.ok(paths.includes('/api/v1/repos/team/project/actions/runs/1/cancel'));
+  assert.ok(!paths.some(path => path.includes('/workflows/test.yml/runs')));
 });
 
 test('production domain features do not import platform-specific services or stores', async () => {
