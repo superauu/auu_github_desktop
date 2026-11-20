@@ -1251,6 +1251,7 @@ export const en = {
   'history.ctx.cherryPick': 'Cherry-pick this commit',
   'history.ctx.revert': 'Revert this commit',
   'history.ctx.resetSoft': 'Soft reset to this commit (keep changes)',
+  'history.ctx.resetMixed': 'Mixed reset to this commit (unstage changes)',
   'history.ctx.resetHard': 'Hard reset to this commit (discard changes)',
   'history.cherryPicked': 'Cherry-picked {h} onto current branch',
   'history.cherryPickFailed': 'Cherry-pick failed',

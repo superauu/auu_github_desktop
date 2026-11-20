@@ -1267,6 +1267,7 @@ export const zh = {
   'history.ctx.cherryPick': '择取此提交 (Cherry-pick)',
   'history.ctx.revert': '还原此提交 (Revert)',
   'history.ctx.resetSoft': '软重置到此提交（保留改动）',
+  'history.ctx.resetMixed': '混合重置到此提交（改动退回未暂存）',
   'history.ctx.resetHard': '硬重置到此提交（丢弃改动）',
   'history.cherryPicked': '已择取提交 {h} 到当前分支',
   'history.cherryPickFailed': 'Cherry-pick 失败',
