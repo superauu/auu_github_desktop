@@ -73,3 +73,19 @@ export const GITEA_PROVIDER: ProviderManifest = {
     ] },
   ],
 };
+
+// Gitee（码云）：v5 API 仅覆盖托管与 Issue；Gitee Go 流水线走未公开契约的独立通道，不声明 ci-cd。
+// 评审模型无 request_changes（只有通过+重置）；Issue 无"不计划处理"态，均不声明对应能力。
+export const GITEE_PROVIDER: ProviderManifest = {
+  id: 'gitee', name: 'Gitee', primaryDomain: 'code-hosting', connectionKind: 'hosting-account',
+  domains: [
+    { domain: 'code-hosting', capabilities: [
+      'code-hosting:list-pull-requests', 'code-hosting:pull-request-detail', 'code-hosting:create-pull-request',
+      'code-hosting:merge-pull-request', 'code-hosting:close-pull-request', 'code-hosting:review-pull-request',
+    ] },
+    { domain: 'task-tracking', capabilities: [
+      'task-tracking:list-issues', 'task-tracking:issue-detail', 'task-tracking:create-issue',
+      'task-tracking:update-issue', 'task-tracking:comment',
+    ] },
+  ],
+};

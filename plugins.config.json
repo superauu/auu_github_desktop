@@ -3,6 +3,7 @@
     { "id": "github", "kind": "hosting", "module": "./github", "authView": "./github/AuthDialog", "authExport": "GitHubAuthDialog", "nativeFeature": "plugin-github" },
     { "id": "gitlab", "kind": "hosting", "module": "./gitlab" },
     { "id": "gitea", "kind": "hosting", "module": "./gitea" },
+    { "id": "gitee", "kind": "hosting", "module": "./gitee" },
     { "id": "sentry", "kind": "error", "module": "./sentry" },
     { "id": "linear", "kind": "task", "module": "./linear" },
     { "id": "jenkins", "kind": "ci", "module": "./jenkins" }

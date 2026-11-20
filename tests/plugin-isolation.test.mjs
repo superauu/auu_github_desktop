@@ -125,7 +125,7 @@ test('removing the GitHub plugin from composition builds and runs GitLab without
   const isolated = await bundle('gitlab-only', [{ name: 'gitlab-only', setup(builder) {
     builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: `import { gitlabPlugin } from './gitlab'; export const HOSTING_PLUGINS = [gitlabPlugin]; export const ERROR_PLUGINS = []; export const TASK_PLUGINS = []; export const CI_PLUGINS = [];`, loader: 'ts' }));
   } }]);
-  assert.ok(isolated.inputs.every(name => !/plugins[\\/](github|gitea|sentry)[\\/]/.test(name)), 'The isolated API bundle must not contain other platform implementations');
+  assert.ok(isolated.inputs.every(name => !/plugins[\\/](github|gitea|gitee|sentry)[\\/]/.test(name)), 'The isolated API bundle must not contain other platform implementations');
   const api = isolated.api; gitlabFixture();
   api.useCollaborationStore.getState().selectProvider('gitlab', 'https://gitlab.example');
   await api.useCollaborationStore.getState().login('gitlab-pat');
@@ -137,7 +137,7 @@ test('removing the GitHub plugin from composition builds and runs GitLab without
       builder.onLoad({ filter: /src[\\/]plugins[\\/]index\.ts$/ }, () => ({ contents: `import { gitlabPlugin } from './gitlab'; export const HOSTING_PLUGINS = [gitlabPlugin]; export const ERROR_PLUGINS = []; export const TASK_PLUGINS = []; export const CI_PLUGINS = [];`, loader: 'ts' }));
       builder.onLoad({ filter: /src[\\/]plugins[\\/]ui\.ts$/ }, () => ({ contents: `export const getPluginAuthView = () => undefined;`, loader: 'ts' }));
     } }] });
-  assert.ok(Object.keys(ui.metafile.inputs).every(name => !/plugins[\\/](github|gitea|sentry)[\\/]/.test(name)), 'The complete app UI must also build without other platform implementations');
+  assert.ok(Object.keys(ui.metafile.inputs).every(name => !/plugins[\\/](github|gitea|gitee|sentry)[\\/]/.test(name)), 'The complete app UI must also build without other platform implementations');
 });
 
 test('disabling the active plugin invalidates repository data and never falls back to another service', async () => {
@@ -198,7 +198,7 @@ test('production domain features do not import platform-specific services or sto
   for (const file of files.map(name => name.replaceAll('\\', '/'))) {
     if (!/\.tsx?$/.test(file) || /^(plugins|dev)\//.test(file)) continue;
     const source = await fs.readFile(path.join(root, 'src', file), 'utf8');
-    assert.doesNotMatch(source, /(?:from\s*|import\s*\()\s*['"][^'"]*(?:services\/(?:github|gitlab|gitea)\/|stores\/githubStore|plugins\/(?:github|gitlab|gitea)\/)/, file);
+    assert.doesNotMatch(source, /(?:from\s*|import\s*\()\s*['"][^'"]*(?:services\/(?:github|gitlab|gitea|gitee)\/|stores\/githubStore|plugins\/(?:github|gitlab|gitea|gitee)\/)/, file);
   }
 });
 

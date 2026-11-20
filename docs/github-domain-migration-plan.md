@@ -79,16 +79,16 @@ GitHub / GitLab / Gitea / Sentry 适配器
 
 ## 第五阶段：尊重平台语义
 
-| 功能 | GitHub | GitLab | Gitea / Forgejo |
-|---|---|---|---|
-| Issue CRUD/评论/关联 | 插件实现 | 插件实现，支持多级分组 | 插件实现 |
-| PR/MR 创建/关闭/合并/差异 | 插件实现 | MR API、diffs 和 SHA 合并校验 | 原生 merge API，文本 diff 映射 |
-| 评审 | 评论、批准、请求修改 | 评论、行内讨论、批准 | 原生 review 事件与行号映射 |
-| 合并方式 | merge/squash/rebase | merge/squash；rebase/fast-forward 遵循项目设置 | merge/squash/rebase |
-| CI 源码与手动运行 | Actions YAML | 项目 CI 配置、typed inputs/variables | Actions 兼容配置 |
-| CI 重跑 | 支持 | pipeline retry | 支持 |
-| CI 取消 | 支持 | pipeline cancel | 不声明不存在的 REST 能力，界面禁用该操作 |
-| 实时日志 | 未结束任务保留等待状态 | 运行中 trace 可读 | 按平台日志 API 可用性展示 |
+| 功能 | GitHub | GitLab | Gitea / Forgejo | Gitee |
+|---|---|---|---|---|
+| Issue CRUD/评论/关联 | 插件实现 | 插件实现，支持多级分组 | 插件实现 | 插件实现；更新走 owner 级路径，state 含"进行中"，负责人单个 |
+| PR/MR 创建/关闭/合并/差异 | 插件实现 | MR API、diffs 和 SHA 合并校验 | 原生 merge API，文本 diff 映射 | 插件实现；files 直接返回增删统计与 patch，diff 上限 300 |
+| 评审 | 评论、批准、请求修改 | 评论、行内讨论、批准 | 原生 review 事件与行号映射 | 批准+行内评论（resolve 标记）；无"请求修改"，能力位降级 |
+| 合并方式 | merge/squash/rebase | merge/squash；rebase/fast-forward 遵循项目设置 | merge/squash/rebase | merge/squash/rebase（PUT merge） |
+| CI 源码与手动运行 | Actions YAML | 项目 CI 配置、typed inputs/variables | Actions 兼容配置 | 不声明（Gitee Go 走未公开契约的独立通道） |
+| CI 重跑 | 支持 | pipeline retry | 支持 | 不声明 |
+| CI 取消 | 支持 | pipeline cancel | 不声明不存在的 REST 能力，界面禁用该操作 | 不声明 |
+| 实时日志 | 未结束任务保留等待状态 | 运行中 trace 可读 | 按平台日志 API 可用性展示 | 不声明 |
 
 这些差异由平台 API、版本和权限决定，不应变成 GitHub 专有的应用功能。读取失败、403、未实现能力都必须明确反馈；不能伪造评审、合并或流水线成功。
 

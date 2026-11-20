@@ -1,9 +1,11 @@
-// 多平台托管（GitLab/Gitea）测试：
+// 多平台托管（GitLab/Gitea/Gitee）测试：
 // 1. parseForgeRemote：已知域名自动识别 kind、嵌套分组、scp/端口/.git 形态、
 //    Windows 盘符与无点主机拒绝；
 // 2. GitLabService：PAT 头、MR state 映射（opened/closed/locked→merged 语义）、
 //    discussions 里 system note 过滤、pipeline 状态映射（fake fetch）；
-// 3. GiteaService：token 头、PR merged 字段优先、combined status → 流水线映射。
+// 3. GiteaService：token 头、PR merged 字段优先、combined status → 流水线映射；
+// 4. GiteeService：access_token query 参数、v5 snake_case 映射、PUT 合并、
+//    Issue owner 级更新路径、PR 对话/行内评论按 position 分流。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -16,7 +18,7 @@ let temporary, app, originalFetch;
 before(async () => {
   temporary = await fs.mkdtemp(path.join(root, '.test-tmp-forge-'));
   const bundle = path.join(temporary, 'helpers.cjs');
-  await build({ stdin: { contents: `export { parseForgeRemote } from './src/services/integrations/remoteIdentity'; export { GitLabClient } from './src/plugins/gitlab/client'; export { GiteaClient } from './src/plugins/gitea/client';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
+  await build({ stdin: { contents: `export { parseForgeRemote } from './src/services/integrations/remoteIdentity'; export { GitLabClient } from './src/plugins/gitlab/client'; export { GiteaClient } from './src/plugins/gitea/client'; export { GiteeClient } from './src/plugins/gitee/client';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile: bundle, alias: { '@': path.join(root, 'src') }, logLevel: 'silent' });
   app = createRequire(import.meta.url)(bundle);
 });
 after(async () => {
@@ -181,4 +183,79 @@ test('all hosting plugins share one store and stale PR queries cannot replace th
     assert.equal(store.getState().pullRequests[0].title,'B');
     bindCollaborationClient(null);store.getState().clearRepo();
   } finally {if(path.dirname(temp)===root&&path.basename(temp).startsWith('.test-tmp-forge-store-'))await fs.rm(temp,{recursive:true,force:true,maxRetries:5});}
+});
+
+test('gitee service authenticates via access_token param and maps v5 pulls, comments and merge semantics', async () => {
+  const service = new app.GiteeClient('https://gitee.com', 'gitee-pat');
+  originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    assert.equal(url.origin, 'https://gitee.com');
+    assert.equal(url.searchParams.get('access_token'), 'gitee-pat');
+    calls.push({ path: url.pathname, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : null });
+    const json = body => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+    if (url.pathname === '/api/v5/user') return json({ login: 'gitee-user', name: 'Gitee 用户', avatar_url: 'a' });
+    if (url.pathname === '/api/v5/repos/team/proj/pulls') return json([
+      { number: 3, title: '功能', state: 'open', head: { ref: 'feat' }, base: { ref: 'main' }, user: { login: 'amy' }, html_url: 'w3', created_at: 't1', updated_at: 't2' },
+    ]);
+    if (url.pathname === '/api/v5/repos/team/proj/pulls/3/comments') return json([
+      { id: 1, body: '对话评论', user: { login: 'bob' }, created_at: 't3' },
+      { id: 2, body: '行内评论', path: 'src/a.ts', position: 4, user: { login: 'amy' }, created_at: 't4' },
+    ]);
+    if (url.pathname === '/api/v5/repos/team/proj/pulls/3/files') return json([
+      { filename: 'src/a.ts', status: 'added', additions: 5, deletions: 0, patch: '+line' },
+      { filename: 'src/b.ts', status: 'deleted', additions: 0, deletions: 2, patch: '-line' },
+    ]);
+    if (url.pathname === '/api/v5/repos/team/proj/pulls/3/merge') return new Response(null, { status: 204 });
+    throw new Error(`unexpected fetch ${url.pathname}`);
+  };
+
+  const user = await service.verifyToken('gitee-pat');
+  assert.equal(user.login, 'gitee-user');
+  assert.equal(user.name, 'Gitee 用户');
+
+  const pulls = await service.getPullRequests('team', 'proj', 'open');
+  assert.equal(pulls[0].number, 3);
+  assert.equal(pulls[0].draft, false);
+
+  // 对话区/行内评论按 position 分流
+  const issueComments = await service.getPullRequestIssueComments('team', 'proj', 3);
+  assert.deepEqual(issueComments.map(comment => comment.body), ['对话评论']);
+  const reviewComments = await service.getPullRequestReviewComments('team', 'proj', 3);
+  assert.deepEqual(reviewComments.map(comment => [comment.path, comment.side, comment.line]), [['src/a.ts', 'RIGHT', 4]]);
+
+  const files = await service.getPullRequestFiles('team', 'proj', 3);
+  assert.deepEqual(files.files.map(file => [file.filename, file.status, file.additions, file.deletions]), [['src/a.ts', 'added', 5, 0], ['src/b.ts', 'removed', 0, 2]]);
+
+  await service.mergePullRequest('team', 'proj', 3, { mergeMethod: 'squash' });
+  const merge = calls.find(call => call.path === '/api/v5/repos/team/proj/pulls/3/merge');
+  assert.equal(merge.method, 'PUT');
+  assert.equal(merge.body.merge_method, 'squash');
+});
+
+test('gitee issue updates go through the owner-level path with repo in the body', async () => {
+  const service = new app.GiteeClient('https://gitee.com', 'gitee-pat');
+  originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    assert.equal(url.searchParams.get('access_token'), 'gitee-pat');
+    calls.push({ path: url.pathname, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : null });
+    const json = body => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
+    if (url.pathname === '/api/v5/repos/team/proj/issues') return json([{ number: '7', title: '缺陷', state: 'open' }]);
+    if (url.pathname === '/api/v5/repos/team/proj/issues/7') return json({ number: '7', title: '缺陷', state: 'open' });
+    if (url.pathname === '/api/v5/repos/team/issues/7') return json({ number: '7', title: '缺陷', state: 'closed' });
+    if (url.pathname === '/api/v5/repos/team/proj/issues/7/comments') return json([]);
+    throw new Error(`unexpected fetch ${url.pathname}`);
+  };
+
+  const issues = await service.searchIssues('team', 'proj', { state: 'open', query: '', label: '', assignee: '', page: 1 });
+  assert.equal(issues.items[0].number, '7');
+
+  await service.updateIssue('team', 'proj', 7, { state: 'closed' });
+  const patch = calls.find(call => call.method === 'PATCH');
+  assert.equal(patch.path, '/api/v5/repos/team/issues/7');
+  assert.equal(patch.body.repo, 'proj');
+  assert.equal(patch.body.state, 'closed');
 });

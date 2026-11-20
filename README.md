@@ -28,8 +28,9 @@ AI 用于解释变更、生成说明和提供建议；应用不内置自主编�
 | 提交详情工具 | 距最近标签的提交距离（点击定位标签）、文件历史与 blame 跳转、提交备注（git notes）、本机全局忽略规则（core.excludesFile）。 |
 | GitHub Pull Requests | 查看、创建、审查和合并 PR，生成 PR 描述。 |
 | GitHub Issues | 搜索和筛选 Issue，创建编辑、管理标签与负责人、发表评论、关闭与重开；从 Issue 创建本地分支、创建关联 PR，并在 Issue 与 PR 之间跳转。 |
+| GitLab / Gitea / Gitee 托管 | 连接访问令牌（PAT 存系统凭据链）后，在同一页面查看合并请求与 Issue：审查（批准+行内评论）、合并（GitLab/Gitea/Gitee 支持 squash，Gitea/Gitee 另支持 rebase）、Issue 评论与关闭；Gitee 的 CI（Gitee Go）暂不接入。 |
 | Linear 任务来源 | 连接 Linear（浏览器授权或 API Key）后，Issues 页把任务与仓库 Issue 合并成一个可筛选列表，支持新建、编辑、评论与关闭；ENG-123 引用贯通分支名、外链与 PR 关联，无需仓库托管账号。 |
-| 错误追踪集成 | 连接 Sentry（Token 存系统凭据链），在客户端内筛选浏览错误、跳转堆栈本地文件、创建修复分支并附加引用 trailer、AI 生成补丁、回写状态；GitLab / Gitea 仓库的合并请求也在统一页面查看。 |
+| 错误追踪集成 | 连接 Sentry（Token 存系统凭据链），在客户端内筛选浏览错误、跳转堆栈本地文件、创建修复分支并附加引用 trailer、AI 生成补丁、回写状态；GitLab / Gitea / Gitee 仓库的合并请求也在统一页面查看。 |
 | GitHub Actions | 查看工作流、运行记录、Jobs 和步骤，获取已完成任务的日志，触发、重跑或取消运行。 |
 | Jenkins 独立 CI | 在集成设置中连接实例并映射当前仓库的 Job，在 CI/CD 页切换来源，查看构建状态、阶段和增量日志，按 Job 参数触发构建，并取消排队或运行中的构建。[接入说明](docs/jenkins-integration.md)。 |
 | AI 辅助 | 生成提交说明，解释提交和分支差异，诊断 Git 错误，建议文件分组和冲突解决内容。 |
@@ -187,7 +188,7 @@ scripts/         发布版本校验
 
 - **本机存储**：仓库内容、提交前审核意见、最近操作记录、界面偏好仅保存在本机，不会上传到任何服务器；应用不含遥测或使用统计。
 - **崩溃报告**：默认关闭，可在设置中开启。开启后，应用出错时仅上传错误堆栈、应用版本与系统类型（本地路径已替换），不包含仓库内容或个人信息。
-- **凭据**：GitHub、GitLab、Gitea 的访问令牌保存在操作系统的原生凭据库（Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service），不落明文文件。
+- **凭据**：GitHub、GitLab、Gitea、Gitee 的访问令牌保存在操作系统的原生凭据库（Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service），不落明文文件。
 - **AI 功能**：默认关闭；开启后由你自行配置模型端点与密钥。AI 请求从本地应用直连你配置的服务商，不经过任何中间服务器——开发者无法看到你的代码、提示词或对话。发送哪些内容（如提交说明生成时包含的差异片段）由功能触发时决定，服务商侧的隐私处理取决于该服务商的条款。
 - **自动更新**：启动后访问 GitHub Releases 获取更新清单（`latest.json`），不回传任何本机信息。
 

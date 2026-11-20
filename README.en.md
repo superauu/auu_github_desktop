@@ -24,8 +24,9 @@ Recent operations persist locally across sessions, keeping up to 100 entries for
 | History search | Search commit metadata or added and removed code. |
 | GitHub Pull Requests | Browse, create, review, and merge PRs, and draft PR descriptions. |
 | GitHub Issues | Search and filter issues, create and edit, assign labels and people, comment, close and reopen; create local branches and linked PRs, then navigate between issues and PRs. |
+| GitLab / Gitea / Gitee hosting | Connect an access token (PAT kept in the OS keychain) to view merge requests and issues in the same pages: review (approve + inline comments), merge (GitLab/Gitea/Gitee support squash; Gitea/Gitee add rebase), issue commenting and closing. Gitee's CI (Gitee Go) is not integrated yet. |
 | Linear task source | Connect Linear (browser authorization or API key) to merge task issues with repository issues in one filterable inbox, with create, edit, comment and close; ENG-123 references flow into branch names, external links and PR links — no hosting account required. |
-| Error tracking integration | Connect Sentry (token kept in the OS keychain) to browse issues with filters, jump stack frames to local files, create fix branches with reference trailers, generate AI patches, and write status back; merge requests from GitLab / Gitea repositories are surfaced in the same unified page. |
+| Error tracking integration | Connect Sentry (token kept in the OS keychain) to browse issues with filters, jump stack frames to local files, create fix branches with reference trailers, generate AI patches, and write status back; merge requests from GitLab / Gitea / Gitee repositories are surfaced in the same unified page. |
 | GitHub Actions | Inspect workflows, runs, jobs, and steps; retrieve completed job logs; dispatch, rerun, or cancel runs. |
 | Independent Jenkins CI | Connect an instance and map Jobs to the current repository in integration settings. Switch CI sources, inspect build status, stages and progressive logs, trigger parameterized builds, and cancel queued or running builds. [Setup guide](docs/jenkins-integration.md). |
 | AI assistance | Draft commit messages, explain commits and branch differences, diagnose Git errors, and suggest file groups or conflict resolutions. |
@@ -180,7 +181,7 @@ A manual workflow run produces Actions artifacts. The current workflow publishes
 
 - **Local storage**: repository contents, pre-commit review notes, recent operation history, and UI preferences stay on this machine and are never uploaded anywhere; the app contains no telemetry or usage analytics.
 - **Crash reports**: off by default, optional in Settings. When enabled, crashes upload only the error stack, app version, and OS type (local paths are replaced) — never repository contents or personal data.
-- **Credentials**: GitHub, GitLab, and Gitea access tokens are stored in the operating system's native credential store (Windows Credential Manager / macOS Keychain / Linux Secret Service), never in plaintext files.
+- **Credentials**: GitHub, GitLab, Gitea, and Gitee access tokens are stored in the operating system's native credential store (Windows Credential Manager / macOS Keychain / Linux Secret Service), never in plaintext files.
 - **AI features**: disabled by default; when enabled, you configure the model endpoint and key yourself. AI requests go directly from the local app to the provider you configured, with no intermediary server — the developer cannot see your code, prompts, or conversations. What gets sent (such as diff snippets included in commit message generation) is decided at the moment a feature runs; privacy handling on the provider side depends on that provider's terms.
 - **Auto-update**: the app fetches the update manifest (`latest.json`) from GitHub Releases after startup and sends nothing back.
 

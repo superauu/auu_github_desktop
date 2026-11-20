@@ -1,8 +1,10 @@
-/// 多平台托管（GitLab / Gitea）的凭据条目名：与 GitHub 同构的 "<service>_token[:<profileId>]"
+/// 多平台托管（GitLab / Gitea / Gitee）的凭据条目名：与 GitHub 同构的 "<service>_token[:<profileId>]"
 /// 槽位；service 白名单外一律拒绝（fail closed）。GitHub 沿用既有条目（见上），不迁移。
 fn forge_service(service: &str) -> Result<&'static str, String> {
     match service {
-        "gitlab" | "gitea" => Ok(if service == "gitlab" { "gitlab" } else { "gitea" }),
+        "gitlab" => Ok("gitlab"),
+        "gitea" => Ok("gitea"),
+        "gitee" => Ok("gitee"),
         _ => Err("Unsupported forge service".into()),
     }
 }
@@ -48,10 +50,11 @@ mod tests {
     use super::*;
     #[test]
     fn forge_token_entries_isolate_services_and_profiles_fail_closed() {
-        // GitLab / Gitea 与 GitHub 同构的槽位命名；profileId 规则一致。
+        // GitLab / Gitea / Gitee 与 GitHub 同构的槽位命名；profileId 规则一致。
         assert_eq!(forge_service("gitlab").unwrap(), "gitlab");
         assert_eq!(forge_service("gitea").unwrap(), "gitea");
-        for service in ["gitlab", "gitea"] {
+        assert_eq!(forge_service("gitee").unwrap(), "gitee");
+        for service in ["gitlab", "gitea", "gitee"] {
             assert!(forge_token_entry(service, None).is_ok());
             assert!(forge_token_entry(service, Some("default")).is_ok());
         }

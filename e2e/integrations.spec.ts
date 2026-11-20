@@ -36,7 +36,7 @@ test('hosting plugins share connection management and workspace entries follow c
   await expect(settings.getByRole('checkbox', { name: /启用插件/ })).toHaveCount(0);
   await settings.getByRole('button', { name: '选择要连接的平台: GitLab', exact: true }).click();
   await settings.getByRole('button', { name: '添加连接', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('combobox').locator('option')).toHaveText(['GitHub', 'GitLab', 'Gitea / Forgejo']);
+  await expect(page.getByRole('dialog').getByRole('combobox').locator('option')).toHaveText(['GitHub', 'GitLab', 'Gitea / Forgejo', 'Gitee']);
   await expect(page.locator('html')).toHaveAttribute('data-ui-fixture-network-attempts', '[]');
   expect(errors).toEqual([]);
 });
