@@ -205,7 +205,11 @@ export class GitLabClient implements CollaborationClient {
       conclusion: state.conclusion === 'success' ? 'success' : state.conclusion === 'failure' ? 'failure' : state.conclusion === 'cancelled' ? 'cancelled' : state.conclusion === 'skipped' ? 'skipped' : null,
       started_at: raw.started_at, completed_at: raw.finished_at, steps: [], html_url: raw.web_url };
   }
-  async getRunJobs(owner: string, repo: string, id: number) { return (await this.pages(`${this.project(owner, repo)}/pipelines/${id}/jobs`, { include_retried: 'false' })).map(raw => this.job(raw)); }
+  async getRunJobs(owner: string, repo: string, id: number) {
+    // 真机联调核实（2026-11-20 gitlab.com）：`pipelines/:id/jobs` 已返回 404，
+    // 项目级 `/jobs?pipeline_id=` 是现行可用形态。
+    return (await this.pages(`${this.project(owner, repo)}/jobs`, { pipeline_id: String(id), include_retried: 'false' })).map(raw => this.job(raw));
+  }
   async getJob(owner: string, repo: string, id: number) { return this.job(await this.request(`${this.project(owner, repo)}/jobs/${id}`)); }
   async getJobLogs(owner: string, repo: string, id: number) { return { jobId: id, jobName: `Job #${id}`, rawLogs: await this.text(`${this.project(owner, repo)}/jobs/${id}/trace`) }; }
   async getWorkflowYaml(owner: string, repo: string, path: string, ref = 'HEAD', signal?: AbortSignal) {
