@@ -216,6 +216,31 @@ test('clean is gated to the single-file force delete form', () => {
   }
 });
 
+test('archive is gated to the fixed format form', () => {
+  const hash = 'a'.repeat(40);
+  // 放行：归档导出的唯一形态（--format=zip|tar.gz + 单 tree-ish；落盘由 Rust 命令直写）。
+  for (const args of [
+    ['archive', '--format=zip', hash],
+    ['archive', '--format=tar.gz', 'v1.0.0'],
+    ['archive', '--format=zip', 'HEAD'],
+  ]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：自定义落盘 -o/--output、其他格式、缺参多参、旗形 tree-ish、压缩等级。
+  for (const args of [
+    ['archive', '--format=zip', '-o', '/tmp/x.zip', 'HEAD'],
+    ['archive', '--output=/tmp/x.zip', 'HEAD'],
+    ['archive', '--format=tar', 'HEAD'],
+    ['archive', '--format=tgz', 'HEAD'],
+    ['archive', 'HEAD'],
+    ['archive', '--format=zip'],
+    ['archive', '--format=zip', 'HEAD', 'extra'],
+    ['archive', '--format=zip', '-HEAD'],
+    ['archive', '-0', 'HEAD'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
 test('ls-remote is allowed as a bare network read', () => {
   // 放行：clone 预览的真实形态（URL 为裸位置参数，服务端自行过滤 refs/heads/）。
   for (const args of [

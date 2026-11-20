@@ -21,6 +21,7 @@ import {
   Cloud,
   FileCode2,
   FileDiff,
+  FileArchive,
   Laptop,
   Copy,
   Cherry,
@@ -43,6 +44,7 @@ import { toast } from '@/stores/toastStore';
 import { cn } from '@/utils/cn';
 import { GitCommit } from '@/services/git/types';
 import { patchService } from '@/services/git/PatchService';
+import { archiveService } from '@/services/git/ArchiveService';
 
 // 本地默认视图（与写侧默认值保持一致）：旧 localStorage 记录可能缺字段，
 // 这里做内联防御合并，不 import store 的新导出，避免与写侧 version/migrate 逻辑耦合。
@@ -302,6 +304,21 @@ export const CommitHistoryView: React.FC = () => {
     }
   };
 
+  // 导出归档：zip 快照经 Rust 侧 git archive 直写（二进制不过前端通道），保存对话框确认。
+  const exportCommitArchive = async (commit: GitCommit) => {
+    if (!repoPath) return;
+    try {
+      const repoName = useRepoStore.getState().currentRepo?.name || 'repo';
+      const name = `${repoName}-${commit.shortHash}.zip`;
+      const target = await archiveService.pickArchiveSavePath(name);
+      if (!target) return;
+      await archiveService.exportArchive(repoPath, commit.hash, 'zip', target);
+      toast.success(t('archive.exportTip'), target);
+    } catch (err: any) {
+      toast.error(t('archive.exportFailed'), err?.message);
+    }
+  };
+
   const ctxMenuItems: ContextMenuItem[] = ctxMenu.commit
     ? [
         {
@@ -318,6 +335,12 @@ export const CommitHistoryView: React.FC = () => {
           label: t('patch.export'),
           icon: <FileDiff className="h-3.5 w-3.5" />,
           onClick: () => void exportCommitPatch(ctxMenu.commit!),
+        },
+        {
+          id: 'export-archive',
+          label: t('archive.export'),
+          icon: <FileArchive className="h-3.5 w-3.5" />,
+          onClick: () => void exportCommitArchive(ctxMenu.commit!),
         },
         { id: 'sep-1', separator: true },
         {

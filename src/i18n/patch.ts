@@ -1,5 +1,8 @@
 export const patchZh = {
   'patch.export': '导出补丁',
+  'archive.export': '导出归档 (zip)',
+  'archive.exportTip': '归档已导出',
+  'archive.exportFailed': '归档导出失败',
   'patch.exportTip': '已保存补丁文件',
   'patch.exportFailed': '导出补丁失败',
   'patch.apply': '应用补丁文件',
@@ -24,6 +27,9 @@ export const patchZh = {
 
 export const patchEn = {
   'patch.export': 'Export patch',
+  'archive.export': 'Export archive (zip)',
+  'archive.exportTip': 'Archive exported',
+  'archive.exportFailed': 'Archive export failed',
   'patch.exportTip': 'Patch file saved',
   'patch.exportFailed': 'Failed to export patch',
   'patch.apply': 'Apply patch file',

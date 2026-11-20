@@ -1,4 +1,4 @@
-const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'grep', 'format-patch', 'shortlog', 'count-objects', 'gc', 'fsck', 'ls-remote', 'notes', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
+const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'grep', 'format-patch', 'shortlog', 'count-objects', 'gc', 'fsck', 'ls-remote', 'archive', 'notes', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
 const fixedOverrides = new Set(['core.quotepath=false', 'core.editor=true', 'rebase.updaterefs=false']);
 function safeOverride(value: string): boolean {
   if (fixedOverrides.has(value.toLowerCase())) return true;
@@ -415,6 +415,16 @@ function safeFsck(rest: string[]): void {
   throw new Error('fsck only supports the bare form');
 }
 
+// git archive 约束：归档导出只放行 --format=<zip|tar.gz> <tree-ish> 两参形态。落盘目标由
+// 前端保存对话框决定、Rust 侧直写（不经本白名单）；-o/--output 自定义落盘与压缩等级等
+// 一切其余形态拒绝（fail closed）。与 src-tauri/src/git_policy.rs safe_archive 一致。
+function safeArchive(rest: string[]): void {
+  if (rest.length !== 2) throw new Error('archive requires exactly --format=<zip|tar.gz> and a tree-ish');
+  const format = rest[0].startsWith('--format=') ? rest[0].slice('--format='.length) : null;
+  if (!format || (format !== 'zip' && format !== 'tar.gz')) throw new Error('archive only supports the zip and tar.gz formats');
+  if (rest[1].startsWith('-')) throw new Error('archive tree-ish must not look like an option');
+}
+
 // git clean 约束：未跟踪文件删除只放行强制删除窄形态 `-f|--force [--] [pathspec…]`。
 // 目录面 -d、忽略文件面 -x/-X、交互 -i、排除模式 -e、干跑 -n 等一律拒绝（fail closed）；
 // -- 之后的 pathspec 不校验（调用方以 --literal-pathspecs 传入字面路径）。
@@ -517,6 +527,7 @@ export function validateGitArguments(args: string[]): { command: string; index: 
   if (command === 'count-objects') safeCountObjects(args.slice(index + 1));
   if (command === 'gc') safeGc(args.slice(index + 1));
   if (command === 'fsck') safeFsck(args.slice(index + 1));
+  if (command === 'archive') safeArchive(args.slice(index + 1));
   if (command === 'notes') safeNotes(args.slice(index + 1));
   if (command === 'submodule') safeSubmodule(args.slice(index + 1));
   if (command === 'lfs') safeLfs(args.slice(index + 1));

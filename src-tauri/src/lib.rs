@@ -20,6 +20,7 @@ mod git_binary;
 mod external_tools;
 mod ssh_signing;
 mod patch_io;
+mod archive_io;
 mod terminal;
 use file_io::{atomic_write, read_bytes, read_text, FILE_WRITES, MAX_FILE_BYTES};
 
@@ -744,6 +745,8 @@ pub fn run() {
             patch_io::pick_patch_save_path,
             patch_io::read_patch_file,
             patch_io::write_patch_file,
+            archive_io::pick_archive_save_path,
+            archive_io::export_archive,
             execute_git,
             open_terminal,
             repository_access::authorize_repository,

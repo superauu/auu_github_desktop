@@ -31,6 +31,7 @@ const COMMANDS: &[&str] = &[
     "gc",
     "fsck",
     "ls-remote",
+    "archive",
     "notes",
     "commit",
     "merge",
@@ -1024,6 +1025,26 @@ fn safe_fsck(rest: &[String]) -> Result<(), String> {
     Err("fsck only supports the bare form".into())
 }
 
+/// git archive 约束：归档导出只放行 `--format=<zip|tar.gz> <tree-ish>` 两参形态。
+/// 落盘目标由前端保存对话框决定、Rust 侧直写（不经本白名单）；-o/--output 自定义落盘
+/// 与 -0..-9/-0..-9 压缩等级等一切其余形态拒绝（fail closed）。
+/// 与 scripts/git-policy.ts safe_archive 一致。
+fn safe_archive(rest: &[String]) -> Result<(), String> {
+    if rest.len() != 2 {
+        return Err("archive requires exactly --format=<zip|tar.gz> and a tree-ish".into());
+    }
+    let format = rest[0]
+        .strip_prefix("--format=")
+        .ok_or("archive requires the --format=<zip|tar.gz> form")?;
+    if !matches!(format, "zip" | "tar.gz") {
+        return Err("archive only supports the zip and tar.gz formats".into());
+    }
+    if rest[1].starts_with('-') {
+        return Err("archive tree-ish must not look like an option".into());
+    }
+    Ok(())
+}
+
 pub fn validate(args: &[String]) -> Result<(), String> {
     let index = command_index(args)?;
     let name = args[index].as_str();
@@ -1059,6 +1080,9 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "fsck" {
         safe_fsck(&args[index + 1..])?;
+    }
+    if name == "archive" {
+        safe_archive(&args[index + 1..])?;
     }
     if name == "notes" {
         safe_notes(&args[index + 1..])?;
@@ -1300,6 +1324,33 @@ mod tests {
             vec!["fsck", "--no-dangling"],
             vec!["fsck", "--connectivity-only"],
             vec!["fsck", "HEAD"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_archive_fail_closed() {
+        // 放行：归档导出的唯一形态（--format=zip|tar.gz + 单 tree-ish；落盘由 Rust 命令直写）。
+        let hash = "a".repeat(40);
+        for values in [
+            vec!["archive", "--format=zip", hash.as_str()],
+            vec!["archive", "--format=tar.gz", "v1.0.0"],
+            vec!["archive", "--format=zip", "HEAD"],
+        ] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：自定义落盘 -o/--output、其他格式、缺参多参、旗形 tree-ish、压缩等级。
+        for values in [
+            vec!["archive", "--format=zip", "-o", "/tmp/x.zip", "HEAD"],
+            vec!["archive", "--output=/tmp/x.zip", "HEAD"],
+            vec!["archive", "--format=tar", "HEAD"],
+            vec!["archive", "--format=tgz", "HEAD"],
+            vec!["archive", "HEAD"],
+            vec!["archive", "--format=zip"],
+            vec!["archive", "--format=zip", "HEAD", "extra"],
+            vec!["archive", "--format=zip", "-HEAD"],
+            vec!["archive", "-0", "HEAD"],
+            vec!["archive", "--format=zip=evil", "HEAD"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }
