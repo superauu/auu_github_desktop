@@ -215,9 +215,11 @@ npm run test:integrations:native
 | Issue | 评论写入、关闭为已完成、重新打开 | 通过（评论/关闭/重开均在服务端核实 state 与 notes） |
 | CI | 工作流列表、YAML 源码查看（远端 .gitlab-ci.yml）、运行记录（3 条流水线 ref/状态/sha）、重跑/全部重跑按钮 | 通过 |
 | CI | 手动运行（dispatch）参数表单与提交 | 提交链路通过：真实到达 GitLab API 并如实呈现服务端错误（GitLab 400 "Identity verification is required in order to run CI jobs"——gitlab.com 对新账号的强制身份验证，需账号持有人完成验证后补验触发成功路径） |
-| CI | Job 级（阶段任务/日志/重跑/取消） | **被外部条件阻塞**：新账号未完成身份验证时流水线在调度前失败、服务端 job 记录为 0（REST `/pipelines/:id/jobs` 在 gitlab.com 现行返回 404，GraphQL 与 commit statuses 均确认 0 job——非应用缺陷）。待身份验证完成后补验 |
+| CI | Job 级（阶段任务/日志/重跑/取消） | （2026-11-20 补验通过）账号完成身份验证（邮箱+信用卡/手机）后流水线正常创建 job：阶段任务面板填充、失败 job 日志真实加载（runner 原始输出）、重跑失败在服务端产生新 job、取消运行使流水线进入 canceling 且 job 标记 canceled、手动运行派发创建新流水线。注：①取消与合并一样有确认弹窗；②应用只提供整流水线派发/重跑，不支持对单个 manual job 的 play 触发（产品边界，非缺陷）；③曾误判 `/pipelines/:id/jobs` 404 为端点失效而改用项目级 `/jobs`——复测证实原端点正常（404 只发生在流水线无 job 时，如调度前失败），已撤回更换并加固 404→空列表容错 |
 | 传输 | clone、push（PAT https）、应用内 fetch --all、应用内 拉取 | 通过（拉取后本地 main 与远端一致；无凭据时 fetch 以退出码 128 失败且「最近操作」给出完整诊断信息——预期防护，非缺陷） |
 
 **发现记录（不阻塞）**：① MR 详情右侧「代码改动统计」显示 +0 -0 (0 文件)，而评审详情文件清单有正确统计——展示层小问题，后续修；② web 预览模式的连接令牌存内存，刷新后需重新连接（桌面端钥匙串无此问题）；③ git 传输依赖系统 GCM 凭据，应用内 fetch 在无凭据时按设计拒绝交互并给出诊断。
 
 测试项目与本地 clone（`.test-gitlab-ui`，含仓库级一次性凭证助手）保留，供身份验证完成后补验 CI job 级功能；补验完成后删除测试仓库并提醒 revoke PAT。
+
+**（2026-11-20 补验后收尾）**CI job 级补验全部通过后：gitlab.com 测试项目已删除、本地 clone 与仓库级凭证助手已清理；联调用 PAT 提醒持有人 revoke。遗留已知项：MR 详情右侧「代码改动统计」对 GitLab 显示 +0 -0（GitLab 列表 API 不含 additions/deletions 字段，GitHub 有——展示层平台差异，待专项修）。
