@@ -4,7 +4,7 @@ import { tNow } from '@/i18n';
 import type { CollaborationIssue, CollaborationLabel, IssueInput, IssueListOptions, IssueSearchResult, IssueTimelineEvent, IssueUser } from '@/services/collaboration/issueTypes';
 import type { CollaborationPullRequest, CollaborationRepoDetails, CollaborationUser } from '@/services/collaboration/types';
 import { ProviderApiError } from '@/services/collaboration/client';
-import type { CreateReviewParams, CollaborationPullRequestFile, CollaborationPullRequestFilesResult, CollaborationPullRequestReview, CollaborationReviewComment, CollaborationIssueComment } from '@/services/collaboration/reviewTypes';
+import type { CreateReviewParams, CollaborationPullRequestFilesResult, CollaborationPullRequestReview, CollaborationReviewComment, CollaborationIssueComment } from '@/services/collaboration/reviewTypes';
 
 /** 上限保护：巨型仓库的列表接口不能无限翻页拖垮 UI */
 const DEFAULT_MAX_PAGES = 10;
@@ -153,10 +153,27 @@ export class GiteeClient {
     return [];
   }
 
-  /** PR 变更文件：v5 直接返回 additions/deletions/patch，超过 300 条 diff 由平台截断 */
+  /**
+   * PR 变更文件：真机实测（2026-11-20）与官方 spec 不符——patch 是对象 { diff, new_path, old_path,
+   * renamed_file, deleted_file }（GitLab 形）而非字符串；additions/deletions 是字符串数字；
+   * status 非变更文件时为 null。映射为应用契约：patch 取 diff 文本、增删转数字、null 态归 modified。
+   */
   async getPullRequestFiles(owner: string, repo: string, pullNumber: number): Promise<CollaborationPullRequestFilesResult> {
-    const files = await this.pages<CollaborationPullRequestFile>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${pullNumber}/files`);
-    return { files: files.map(file => ({ ...file, status: (file.status as string) === 'deleted' ? 'removed' : file.status, additions: file.additions ?? 0, deletions: file.deletions ?? 0 })), truncated: files.length >= 300 };
+    const files = await this.pages<any>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${pullNumber}/files`);
+    return {
+      files: files.map(raw => {
+        const patchInfo = raw.patch ?? {};
+        const renamed = !!patchInfo.renamed_file && patchInfo.old_path !== patchInfo.new_path;
+        return {
+          sha: raw.sha ?? '', filename: patchInfo.new_path ?? raw.filename, previous_filename: renamed ? patchInfo.old_path : undefined,
+          status: patchInfo.deleted_file || raw.status === 'deleted' ? 'removed' : patchInfo.new_file || raw.status === 'added' ? 'added' : renamed ? 'renamed' : 'modified',
+          additions: Number(raw.additions ?? 0) || 0, deletions: Number(raw.deletions ?? 0) || 0,
+           changes: (Number(raw.additions ?? 0) || 0) + (Number(raw.deletions ?? 0) || 0),
+          patch: typeof patchInfo.diff === 'string' ? patchInfo.diff : undefined,
+        };
+      }),
+      truncated: files.length >= 300,
+    };
   }
 
   /** Gitee 的 PR 评论都在同一列表：带 position 的是行内评论，不带的是对话区评论 */
