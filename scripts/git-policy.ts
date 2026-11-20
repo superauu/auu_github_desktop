@@ -1,4 +1,4 @@
-const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'grep', 'format-patch', 'shortlog', 'count-objects', 'notes', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
+const commands = new Set(['--version', 'status', 'rev-parse', 'log', 'show', 'diff', 'blame', 'branch', 'tag', 'stash', 'remote', 'fetch', 'pull', 'push', 'clone', 'init', 'add', 'rm', 'restore', 'checkout', 'switch', 'bisect', 'describe', 'grep', 'format-patch', 'shortlog', 'count-objects', 'gc', 'fsck', 'notes', 'commit', 'merge', 'rebase', 'revert', 'cherry-pick', 'reset', 'clean', 'apply', 'check-ref-format', 'check-ignore', 'for-each-ref', 'show-ref', 'update-ref', 'symbolic-ref', 'rev-list', 'merge-tree', 'reflog', 'ls-files', 'ls-tree', 'hash-object', 'write-tree', 'cat-file', 'worktree', 'submodule', 'lfs', 'config']);
 const fixedOverrides = new Set(['core.quotepath=false', 'core.editor=true', 'rebase.updaterefs=false']);
 function safeOverride(value: string): boolean {
   if (fixedOverrides.has(value.toLowerCase())) return true;
@@ -400,6 +400,21 @@ function safeCountObjects(rest: string[]): void {
   throw new Error('count-objects only supports the -vH reporting form');
 }
 
+// git gc 约束：仓库维护只放行裸调用（默认安全参数由 git 决定）；--aggressive 重写
+// 打包策略、--prune=now 越过宽限期删对象、--auto 语义依赖调用场景，一律不放行（fail closed）。
+// 与 src-tauri/src/git_policy.rs safe_gc 一致。
+function safeGc(rest: string[]): void {
+  if (rest.length === 0) return;
+  throw new Error('gc only supports the bare form');
+}
+
+// git fsck 约束：完整性检查只放行裸调用（报告含 dangling 提示，退出码非 0 视为损坏）。
+// 与 src-tauri/src/git_policy.rs safe_fsck 一致。
+function safeFsck(rest: string[]): void {
+  if (rest.length === 0) return;
+  throw new Error('fsck only supports the bare form');
+}
+
 // git clean 约束：未跟踪文件删除只放行强制删除窄形态 `-f|--force [--] [pathspec…]`。
 // 目录面 -d、忽略文件面 -x/-X、交互 -i、排除模式 -e、干跑 -n 等一律拒绝（fail closed）；
 // -- 之后的 pathspec 不校验（调用方以 --literal-pathspecs 传入字面路径）。
@@ -500,6 +515,8 @@ export function validateGitArguments(args: string[]): { command: string; index: 
   if (command === 'format-patch') safeFormatPatch(args.slice(index + 1));
   if (command === 'shortlog') safeShortlog(args.slice(index + 1));
   if (command === 'count-objects') safeCountObjects(args.slice(index + 1));
+  if (command === 'gc') safeGc(args.slice(index + 1));
+  if (command === 'fsck') safeFsck(args.slice(index + 1));
   if (command === 'notes') safeNotes(args.slice(index + 1));
   if (command === 'submodule') safeSubmodule(args.slice(index + 1));
   if (command === 'lfs') safeLfs(args.slice(index + 1));

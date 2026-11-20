@@ -381,6 +381,23 @@ export class GitService implements IGitService {
     await executeGit(['reset', await this.resolveCommitHash(repoPath, hash)], repoPath);
   }
 
+  /** 仓库维护：gc 打包松散对象（策略只放行裸调用）。返回 git 的输出文本。 */
+  async runGc(repoPath: string): Promise<string> {
+    const res = await executeGit(['gc'], repoPath);
+    return res.stdout || res.stderr;
+  }
+
+  /** 完整性检查：fsck 裸调用；损坏时 git 以非零退出，错误里带报告文本。 */
+  async runFsck(repoPath: string): Promise<{ corrupted: boolean; output: string }> {
+    try {
+      const res = await executeGit(['fsck'], repoPath);
+      return { corrupted: false, output: res.stdout || res.stderr };
+    } catch (error) {
+      if (error instanceof GitExecutionError) return { corrupted: true, output: `${error.stdout}\n${error.stderr}`.trim() };
+      throw error;
+    }
+  }
+
   async stageFile(repoPath: string, filePath: string): Promise<void> {
     await this.stageFiles(repoPath, [filePath]);
   }

@@ -28,6 +28,8 @@ const COMMANDS: &[&str] = &[
     "format-patch",
     "shortlog",
     "count-objects",
+    "gc",
+    "fsck",
     "notes",
     "commit",
     "merge",
@@ -1001,6 +1003,26 @@ fn safe_lfs(rest: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// git gc 约束：仓库维护只放行裸调用（默认安全参数由 git 决定）；--aggressive 重写
+/// 打包策略、--prune=now 越过宽限期删对象、--auto 语义依赖调用场景，一律不放行（fail closed）。
+/// 与 scripts/git-policy.ts safe_gc 一致。
+fn safe_gc(rest: &[String]) -> Result<(), String> {
+    if rest.is_empty() {
+        return Ok(());
+    }
+    Err("gc only supports the bare form".into())
+}
+
+/// git fsck 约束：完整性检查只放行裸调用（报告含 dangling 提示，退出码非 0 视为损坏）。
+/// --strict/--no-dangling/--connectivity-only 等形态按需再议（fail closed）。
+/// 与 scripts/git-policy.ts safe_fsck 一致。
+fn safe_fsck(rest: &[String]) -> Result<(), String> {
+    if rest.is_empty() {
+        return Ok(());
+    }
+    Err("fsck only supports the bare form".into())
+}
+
 pub fn validate(args: &[String]) -> Result<(), String> {
     let index = command_index(args)?;
     let name = args[index].as_str();
@@ -1030,6 +1052,12 @@ pub fn validate(args: &[String]) -> Result<(), String> {
     }
     if name == "count-objects" {
         safe_count_objects(&args[index + 1..])?;
+    }
+    if name == "gc" {
+        safe_gc(&args[index + 1..])?;
+    }
+    if name == "fsck" {
+        safe_fsck(&args[index + 1..])?;
     }
     if name == "notes" {
         safe_notes(&args[index + 1..])?;
@@ -1250,6 +1278,27 @@ mod tests {
             vec!["format-patch", "-1", "--cover-letter", "--stdout", hash.as_str()],
             vec!["format-patch", "-1", "--attach", "--stdout", hash.as_str()],
             vec!["format-patch"],
+        ] {
+            assert!(validate(&args(&values)).is_err(), "{values:?}");
+        }
+    }
+    #[test]
+    fn gates_gc_and_fsck_fail_closed() {
+        // 放行：健康诊断/统计面板的裸调用形态。
+        for values in [vec!["gc"], vec!["fsck"]] {
+            assert!(validate(&args(&values)).is_ok(), "{values:?}");
+        }
+        // 拒绝：--aggressive 重写打包、--prune=now 越过宽限期、fsck --strict 等未放行形态。
+        for values in [
+            vec!["gc", "--aggressive"],
+            vec!["gc", "--prune=now"],
+            vec!["gc", "--auto"],
+            vec!["gc", "--quiet"],
+            vec!["gc", "--no-detach"],
+            vec!["fsck", "--strict"],
+            vec!["fsck", "--no-dangling"],
+            vec!["fsck", "--connectivity-only"],
+            vec!["fsck", "HEAD"],
         ] {
             assert!(validate(&args(&values)).is_err(), "{values:?}");
         }

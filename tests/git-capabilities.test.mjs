@@ -187,3 +187,24 @@ test('cloneRepository supports shallow depth and rejects invalid depths', async 
   await assert.rejects(() => service.cloneRepository(source, path.join(temporary, 'bad-f'), undefined, 1.5), /深度|depth/i);
   await assert.rejects(() => service.cloneRepository(source, path.join(temporary, 'bad-big'), undefined, 20000), /深度|depth/i);
 });
+
+test('runGc packs objects and runFsck reports a healthy object store', async () => {
+  const { repository, git } = await makeRepo('maintenance');
+  // 制造松散对象：多次小提交。
+  for (let index = 1; index <= 5; index++) {
+    await fs.writeFile(path.join(repository, `f${index}.txt`), `content ${index}\n`);
+    git('add', '--', `f${index}.txt`);
+    git('commit', '-m', `c${index}`);
+  }
+  const service = app.gitService;
+  const statsBefore = await service.getRepoStats(repository);
+  const looseBefore = Number(statsBefore['count'] || '0');
+  await service.runGc(repository);
+  const statsAfter = await service.getRepoStats(repository);
+  // gc 后松散对象应归零（全部打包）。
+  assert.equal(Number(statsAfter['count'] || '0'), 0, 'loose objects packed by gc');
+  assert.ok(looseBefore > 0, 'fixture should have loose objects before gc');
+  // 健康对象库：fsck 无损坏。
+  const fsck = await service.runFsck(repository);
+  assert.equal(fsck.corrupted, false, 'healthy repo passes fsck');
+});

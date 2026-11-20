@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Database,
   Info,
+  Loader2,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
@@ -20,6 +21,8 @@ import { Badge } from '@/components/ui/badge';
 import { tNow, useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
 import { gitService } from '@/services/git/GitService';
+import { toast } from '@/stores/toastStore';
+import { confirmAction } from '@/stores/confirmStore';
 import type { RepoHealthDiagnosis, ShortlogEntry } from '@/services/git/types';
 
 interface HealthDiagnosisModalProps {
@@ -37,6 +40,8 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RepoHealthDiagnosis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fsckBusy, setFsckBusy] = useState(false);
+  const [fsckResult, setFsckResult] = useState<{ corrupted: boolean; output: string } | null>(null);
 
   const repoPath = currentRepo?.path;
   const request = useRef(0);
@@ -59,10 +64,24 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
   }, [open, repoPath, diagnoseRepository]);
 
   useEffect(() => {
-    setReport(null); setError(null); setLoading(false);
+    setReport(null); setError(null); setLoading(false); setFsckResult(null);
     void runDiagnosis();
     return invalidate;
   }, [runDiagnosis, invalidate]);
+
+  const runFsck = async () => {
+    if (!repoPath || fsckBusy) return;
+    setFsckBusy(true); setFsckResult(null);
+    try {
+      const result = await gitService.runFsck(repoPath);
+      setFsckResult(result);
+      if (!result.corrupted) toast.success(t('diag.fsck.clean'));
+    } catch (err: any) {
+      toast.error(t('diag.fsck.failed'), String(err?.message || err));
+    } finally {
+      setFsckBusy(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -237,23 +256,45 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
                   ))}
                 </div>
               </div>
+
+              {fsckResult && (
+                <div className={`p-4 rounded-xl border text-xs space-y-2 ${fsckResult.corrupted ? 'border-rose-500/30 bg-rose-500/10 text-rose-500' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500'}`}>
+                  <div className="font-semibold flex items-center gap-2">
+                    {fsckResult.corrupted ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                    <span>{fsckResult.corrupted ? t('diag.fsck.corrupted') : t('diag.fsck.cleanDesc')}</span>
+                  </div>
+                  {fsckResult.output && <pre className="text-[11px] font-mono whitespace-pre-wrap break-all select-text max-h-40 overflow-auto">{fsckResult.output}</pre>}
+                </div>
+              )}
             </>
           ) : null}
         </div>
 
-        {/* Footer Actions（统计 tab 自带加载态，重扫按钮仅健康诊断需要） */}
+        {/* Footer Actions（统计 tab 自带加载态，重扫与完整性检查按钮仅健康诊断需要） */}
         <div className="flex items-center justify-between pt-3 border-t border-border shrink-0">
           {tab === 'health' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={runDiagnosis}
-              disabled={loading || !currentRepo}
-              className="h-8 text-xs gap-1.5"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>{t('diag.rescan')}</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={runDiagnosis}
+                disabled={loading || !currentRepo}
+                className="h-8 text-xs gap-1.5"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>{t('diag.rescan')}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void runFsck()}
+                disabled={fsckBusy || loading || !currentRepo}
+                className="h-8 text-xs gap-1.5"
+              >
+                {fsckBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                <span>{fsckBusy ? t('diag.fsck.running') : t('diag.fsck.run')}</span>
+              </Button>
+            </div>
           )}
 
           <Button
@@ -269,7 +310,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
   );
 };
 
-/** 仓库统计：对象库四项指标 + 当前分支贡献榜 Top 20。激活时按需加载，世代 ref 防竞态。 */
+/** 仓库统计：对象库四项指标 + 当前分支贡献榜 Top 20 + gc 维护动作。激活时按需加载，世代 ref 防竞态。 */
 const RepositoryStatsPanel: React.FC<{ active: boolean }> = ({ active }) => {
   const { t } = useI18n();
   const repoPath = useRepoStore(state => state.currentRepo?.path);
@@ -277,11 +318,11 @@ const RepositoryStatsPanel: React.FC<{ active: boolean }> = ({ active }) => {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Record<string, string> | null>(null);
   const [contributors, setContributors] = useState<ShortlogEntry[]>([]);
+  const [gcBusy, setGcBusy] = useState(false);
   const generation = useRef(0);
 
-  useEffect(() => {
-    if (!active || !repoPath) return;
-    const id = ++generation.current;
+  const loadStats = useCallback((id: number) => {
+    if (!repoPath) return;
     setLoading(true);
     setError(null);
     Promise.all([gitService.getRepoStats(repoPath), gitService.getShortlog(repoPath)])
@@ -296,7 +337,27 @@ const RepositoryStatsPanel: React.FC<{ active: boolean }> = ({ active }) => {
       .finally(() => {
         if (id === generation.current) setLoading(false);
       });
-  }, [active, repoPath]);
+  }, [repoPath]);
+
+  useEffect(() => {
+    if (!active || !repoPath) return;
+    loadStats(++generation.current);
+  }, [active, repoPath, loadStats]);
+
+  const runGc = async () => {
+    if (!repoPath || gcBusy) return;
+    if (!await confirmAction({ title: t('diag.gc.title'), description: t('diag.gc.confirm'), detail: repoPath })) return;
+    setGcBusy(true);
+    try {
+      await gitService.runGc(repoPath);
+      toast.success(t('diag.gc.done'));
+      loadStats(generation.current);
+    } catch (err: any) {
+      toast.error(t('diag.gc.failed'), String(err?.message || err));
+    } finally {
+      setGcBusy(false);
+    }
+  };
 
   if (!active) return null;
   const maxCommits = contributors[0]?.commits ?? 0;
@@ -327,6 +388,13 @@ const RepositoryStatsPanel: React.FC<{ active: boolean }> = ({ active }) => {
               {card(t('diag.stats.packedObjects'), stats?.['in-pack'])}
               {card(t('diag.stats.packedSize'), stats?.['size-pack'])}
             </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/60 px-3 py-2.5">
+            <div className="min-w-0 text-[12px] text-muted-foreground leading-relaxed">{t('diag.gc.hint')}</div>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 shrink-0" disabled={gcBusy || loading} onClick={() => void runGc()}>
+              {gcBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+              <span>{gcBusy ? t('diag.gc.running') : t('diag.gc.run')}</span>
+            </Button>
           </div>
           <div className="space-y-2">
             <div className="text-[12px] font-medium text-muted-foreground px-1 flex items-center gap-1.5">

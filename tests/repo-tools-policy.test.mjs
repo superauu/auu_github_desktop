@@ -216,6 +216,27 @@ test('clean is gated to the single-file force delete form', () => {
   }
 });
 
+test('gc and fsck are gated to the bare maintenance forms', () => {
+  // 放行：健康诊断/统计面板的裸调用形态。
+  for (const args of [['gc'], ['fsck']]) {
+    assert.doesNotThrow(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+  // 拒绝：--aggressive 重写打包、--prune=now 越过宽限期、fsck --strict 等未放行形态。
+  for (const args of [
+    ['gc', '--aggressive'],
+    ['gc', '--prune=now'],
+    ['gc', '--auto'],
+    ['gc', '--quiet'],
+    ['gc', '--no-detach'],
+    ['fsck', '--strict'],
+    ['fsck', '--no-dangling'],
+    ['fsck', '--connectivity-only'],
+    ['fsck', 'HEAD'],
+  ]) {
+    assert.throws(() => app.validateGitArguments(args), JSON.stringify(args));
+  }
+});
+
 test('notes is gated to the commit-note read/write surface', () => {
   const hash = 'a'.repeat(40);
   // 放行：提交备注的最小读写面。
