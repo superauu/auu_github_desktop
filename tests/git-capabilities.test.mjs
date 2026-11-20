@@ -110,7 +110,6 @@ const samePath = (left, right) => left.replaceAll('\\', '/').replace(/\/$/, '').
 
 test('merge --squash stages source changes without creating a merge commit', async () => {
   const { repository, git } = await makeRepo('squash');
-  const service = app.gitService;
   git('checkout', '-b', 'feat');
   await fs.writeFile(path.join(repository, 'feat.txt'), 'feature\n');
   git('add', '--', 'feat.txt');
