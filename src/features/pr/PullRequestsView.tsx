@@ -28,7 +28,7 @@ import {
 import { useCollaborationStore } from '@/stores/collaborationStore';
 import { useI18n } from '@/i18n';
 import { useRepoStore } from '@/stores/repoStore';
-import { collaborationService } from '@/services/collaboration/CollaborationService';
+import { collaborationService, hasCollaborationOperation } from '@/services/collaboration/CollaborationService';
 import type { CollaborationPullRequest } from '@/services/collaboration/types';
 import { CreatePullRequestModal } from './CreatePullRequestModal';
 import { PullRequestDetailModal } from './PullRequestDetailModal';
@@ -113,11 +113,14 @@ export const PullRequestsView: React.FC = () => {
         const states = [...latest.values()];
         setRealReviewStatus(states.includes('CHANGES_REQUESTED') ? 'CHANGES_REQUESTED' : states.includes('APPROVED') ? 'APPROVED' : 'PENDING');
       }).catch(() => { if (!cancelled) setRealReviewStatus('PENDING'); });
-      void collaborationService.getCommitChecks(currentOwner, currentRepoName, activePRHead).then((checks) => {
-        if (cancelled) return;
-        setRealChecks({ total: checks.length, success: checks.filter((check) => check.conclusion === 'success').length,
-          failure: checks.filter((check) => check.status === 'completed' && check.conclusion !== 'success' && check.conclusion !== 'neutral').length });
-      }).catch(() => { if (!cancelled) setRealChecks(null); });
+      // 能力网关对未声明的方法同步抛错（useEffect 里 .then 链接不上 catch），先按能力位跳过。
+      if (hasCollaborationOperation('getCommitChecks')) {
+        void collaborationService.getCommitChecks(currentOwner, currentRepoName, activePRHead).then((checks) => {
+          if (cancelled) return;
+          setRealChecks({ total: checks.length, success: checks.filter((check) => check.conclusion === 'success').length,
+            failure: checks.filter((check) => check.status === 'completed' && check.conclusion !== 'success' && check.conclusion !== 'neutral').length });
+        }).catch(() => { if (!cancelled) setRealChecks(null); });
+      } else if (!cancelled) setRealChecks(null);
     }
     return () => { cancelled = true; };
   }, [activePRNumber, activePRHead, currentOwner, currentRepoName]);
