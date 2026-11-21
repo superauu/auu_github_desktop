@@ -218,22 +218,33 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           ls -la artifacts
-          # Windows 作业创建 release（含 latest.json）；它可能比平台作业慢，轮询等待。
+          # 等 Windows 构建「整体完成」后再合并：release 可能因重打 tag 等场景早于 Windows
+          # 收尾就存在，而 Windows 作业的最后一步会用单平台 latest.json --clobber 覆盖发布物
+          # （v0.14.0 实测踩掉过早合并的四平台清单）。轮询等待同一 tag 触发的 Windows run
+          # 进入 completed，再做签名合并——合并完成后不再有并发写入方。
           for i in $(seq 1 60); do
-            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              echo "Release $TAG found after $i checks"
-              # 下载 Windows 上传的单平台 latest.json，把 mac/linux 签名合并进去再覆盖上传；
-              # release 上暂时没有 latest.json（Windows 作业异常）时仅告警，产物照常挂载。
-              if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'latest.json' --dir . --clobber; then
-                node scripts/merge-latest-manifest.mjs --manifest latest.json --artifacts artifacts --tag "$TAG" --repo "$GITHUB_REPOSITORY"
-                gh release upload "$TAG" artifacts/* latest.json --repo "$GITHUB_REPOSITORY" --clobber
+            RUN_INFO=$(gh run list --workflow build-windows.yml --commit "$GITHUB_SHA" --json status,conclusion --limit 1 2>/dev/null || true)
+            if echo "$RUN_INFO" | grep -q '"status":"completed"'; then
+              echo "Windows run completed after $i checks: $RUN_INFO"
+              if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                echo "Release $TAG found"
+                # 下载 Windows 上传的单平台 latest.json，把 mac/linux 签名合并进去再覆盖上传；
+                # release 上暂时没有 latest.json（Windows 作业异常）时仅告警，产物照常挂载。
+                if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'latest.json' --dir . --clobber; then
+                  node scripts/merge-latest-manifest.mjs --manifest latest.json --artifacts artifacts --tag "$TAG" --repo "$GITHUB_REPOSITORY"
+                  gh release upload "$TAG" artifacts/* latest.json --repo "$GITHUB_REPOSITORY" --clobber
+                else
+                  echo "::warning::latest.json not found on release $TAG; attaching platform artifacts without manifest merge"
+                  gh release upload "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+                fi
+                exit 0
               else
-                echo "::warning::latest.json not found on release $TAG; attaching platform artifacts without manifest merge"
+                echo "::warning::Release $TAG not found even though Windows run completed; attaching platform artifacts without manifest merge"
                 gh release upload "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+                exit 0
               fi
-              exit 0
             fi
             sleep 60
           done
-          echo "::error::Release $TAG did not appear within 60 minutes; platform artifacts not attached."
+          echo "::error::Windows run did not complete within 60 minutes; platform artifacts not attached."
           exit 1
