@@ -25,7 +25,24 @@ const MAX_CONCURRENT_GIT: u32 = 8;
 /// 进程退出后输出管道的宽限期：hook 派生的驻留子进程继承管道导致永不 EOF。
 const OUTPUT_GRACE: Duration = Duration::from_secs(2);
 
-static ACTIVE: Mutex<u32> = Mutex::new(0);
+/// 全局并发闸的状态：活跃进程数 + 两档等待者计数。
+/// 优先级语义：传输类（push/fetch/pull/clone/ls-remote/lfs push·pull）等待时，
+/// 背景类（状态轮询/快照/读写等）不再进入空槽——防止状态类碎片洪泛饿死用户显式的
+/// 传输动作（repo_snapshot 专项）；传输类等待者排空后背景类自然恢复入槽。
+#[derive(Default)]
+struct GateState {
+    active: u32,
+    waiting_high: u32,
+    waiting_low: u32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum GatePriority {
+    Transport,
+    Background,
+}
+
+static GATE: Mutex<GateState> = Mutex::new(GateState { active: 0, waiting_high: 0, waiting_low: 0 });
 static IDLE: Condvar = Condvar::new();
 
 /// 中毒自动恢复的锁获取：持锁线程 panic 后静态锁永久中毒会让全部后续命令失败，
@@ -35,25 +52,68 @@ pub(crate) fn lock_or_recover<T>(lock: &Mutex<T>) -> std::sync::MutexGuard<'_, T
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+/// 有空槽且（自己是传输类或没有传输类等待者）时方可入槽——纯函数便于单测锁定语义。
+fn can_enter(state: &GateState, priority: GatePriority) -> bool {
+    if state.active >= MAX_CONCURRENT_GIT {
+        return false;
+    }
+    !(state.waiting_high > 0 && priority == GatePriority::Background)
+}
+
+/// 传输类优先的判定：剥掉全局选项（TS 侧所有调用都带 -c core.quotepath=false 前缀，
+/// 只看首参会把传输误归背景类）后按子命令归类。
+fn gate_priority(args: &[String]) -> GatePriority {
+    let mut index = 0;
+    while matches!(
+        args.get(index).map(String::as_str),
+        Some("-c") | Some("-C") | Some("--git-dir") | Some("--work-tree") | Some("--namespace") | Some("--config-env")
+    ) {
+        index += 2;
+    }
+    while matches!(
+        args.get(index).map(String::as_str),
+        Some("--literal-pathspecs") | Some("--no-pager") | Some("--no-optional-locks") | Some("--paginate")
+    ) {
+        index += 1;
+    }
+    match args.get(index).map(String::as_str) {
+        Some("push") | Some("fetch") | Some("pull") | Some("clone") | Some("ls-remote") => GatePriority::Transport,
+        Some("lfs") => match args.get(index + 1).map(String::as_str) {
+            Some("push") | Some("pull") => GatePriority::Transport,
+            _ => GatePriority::Background,
+        },
+        _ => GatePriority::Background,
+    }
+}
+
 /// 全局并发闸：限制同时运行的 Git 子进程数，防止 IPC 洪泛耗尽资源。
 struct GitSlot;
 
 impl Drop for GitSlot {
     fn drop(&mut self) {
-        let mut active = lock_or_recover(&ACTIVE);
-        *active -= 1;
-        IDLE.notify_one();
+        let mut state = lock_or_recover(&GATE);
+        state.active -= 1;
+        // notify_all：被唤醒者要按优先级重新自检资格（低优先级可能需继续等待）。
+        IDLE.notify_all();
     }
 }
 
-fn acquire_slot() -> GitSlot {
-    let mut active = lock_or_recover(&ACTIVE);
-    while *active >= MAX_CONCURRENT_GIT {
-        active = IDLE
-            .wait(active)
+fn acquire_slot(priority: GatePriority) -> GitSlot {
+    let mut state = lock_or_recover(&GATE);
+    match priority {
+        GatePriority::Transport => state.waiting_high += 1,
+        GatePriority::Background => state.waiting_low += 1,
+    }
+    while !can_enter(&state, priority) {
+        state = IDLE
+            .wait(state)
             .unwrap_or_else(|poisoned| poisoned.into_inner());
     }
-    *active += 1;
+    match priority {
+        GatePriority::Transport => state.waiting_high -= 1,
+        GatePriority::Background => state.waiting_low -= 1,
+    }
+    state.active += 1;
     GitSlot
 }
 
@@ -169,7 +229,7 @@ pub(crate) fn run_git_bytes_index(
     if stdin.as_ref().is_some_and(|content| content.len() > MAX_STDIN_BYTES) {
         return Err("Git input exceeds 8 MiB".into());
     }
-    let _slot = acquire_slot();
+    let _slot = acquire_slot(gate_priority(&args));
     let binary = crate::git_binary::resolve(git_binary.as_deref())?;
     let mut command = Command::new(&binary);
     if let Some(index) = index { command.env("GIT_INDEX_FILE", index); }
@@ -304,6 +364,36 @@ pub(crate) fn run_git_protocols(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gate_classifies_transport_commands_through_global_prefixes() {
+        // TS 侧全部调用带 -c core.quotepath=false 前缀，分类必须剥掉全局选项。
+        let transport_args = vec!["-c".to_string(), "core.quotepath=false".to_string(), "push".to_string()];
+        assert_eq!(gate_priority(&transport_args), GatePriority::Transport);
+        assert_eq!(gate_priority(&["fetch".to_string()]), GatePriority::Transport);
+        assert_eq!(gate_priority(&["ls-remote".to_string()]), GatePriority::Transport);
+        assert_eq!(gate_priority(&["lfs".to_string(), "push".to_string()]), GatePriority::Transport);
+        assert_eq!(gate_priority(&["lfs".to_string(), "status".to_string()]), GatePriority::Background);
+        assert_eq!(gate_priority(&["status".to_string()]), GatePriority::Background);
+        assert_eq!(gate_priority(&["-c".to_string(), "core.quotepath=false".to_string(), "--literal-pathspecs".to_string(), "log".to_string()]), GatePriority::Background);
+    }
+
+    #[test]
+    fn gate_admits_background_only_when_no_transport_is_waiting() {
+        // 有空槽但传输类在等待：背景类不得插队（防饿死语义的核心不变量）。
+        let idle = GateState { active: 0, waiting_high: 0, waiting_low: 0 };
+        assert!(can_enter(&idle, GatePriority::Transport));
+        assert!(can_enter(&idle, GatePriority::Background));
+
+        let waiting = GateState { active: MAX_CONCURRENT_GIT - 1, waiting_high: 1, waiting_low: 3 };
+        assert!(can_enter(&waiting, GatePriority::Transport), "transport must enter while slots remain");
+        assert!(!can_enter(&waiting, GatePriority::Background), "background must not jump the transport queue");
+
+        // 槽满：两档都不得进入。
+        let full = GateState { active: MAX_CONCURRENT_GIT, waiting_high: 0, waiting_low: 0 };
+        assert!(!can_enter(&full, GatePriority::Transport));
+        assert!(!can_enter(&full, GatePriority::Background));
+    }
 
     #[test]
     fn timeouts_are_tiered_by_command_shape() {
