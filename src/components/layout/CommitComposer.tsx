@@ -255,7 +255,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
           注意：working-review 单测按「w-full h-10 + font-semibold」定位提交主按钮，
           此处主按钮不得带 font-semibold，避免成为第一个匹配。 */}
       <div className="relative flex w-full">
-        <Button variant="outline" className="w-full h-10 rounded-r-none border-r-0" disabled={aiPlanMode === 'staged' ? hunkPlanDisabled : batchDisabled} title={aiPlanMode === 'staged' ? t('hunkPlan.scope') : t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => runAiPlan(aiPlanMode)}>
+        <Button variant="outline" className="min-w-0 w-full h-10 rounded-r-none border-r-0" disabled={aiPlanMode === 'staged' ? hunkPlanDisabled : batchDisabled} title={aiPlanMode === 'staged' ? t('hunkPlan.scope') : t(amend ? 'batch.noAmend' : 'batch.scope')} onClick={() => runAiPlan(aiPlanMode)}>
           {aiPlanMode === 'staged' ? <ListTree className="h-4 w-4 text-muted-foreground" /> : <Sparkles className="h-4 w-4 text-muted-foreground" />}
           <span className="truncate">{aiPlanLabel(aiPlanMode)}</span>
         </Button>
@@ -280,7 +280,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
       </div>
       {/* 提交 split button：默认面为上次使用的方式（提交 / 提交并推送），Ctrl+Enter 跟随当前默认面 */}
       <div className="relative flex w-full">
-        <Button disabled={disabled} className="w-full h-10 font-semibold rounded-r-none border-r-0" onClick={() => runCommit(commitMode)}>
+        <Button disabled={disabled} className="min-w-0 w-full h-10 font-semibold rounded-r-none border-r-0" onClick={() => runCommit(commitMode)}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : commitMode === 'commitPush' ? <Send className="h-4 w-4" /> : <Check className="h-4 w-4" />}
           <span className="truncate">{commitModeLabel(commitMode)}{scope.files.length ? ` (${scope.files.length})` : ''}</span>
         </Button>
