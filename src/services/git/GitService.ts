@@ -1,4 +1,4 @@
-import { diagnoseRepository, probeRepoOperation } from './RepositoryDiagnostics';
+import { diagnoseRepository, operationTypeFromStates, probeRepoOperation } from './RepositoryDiagnostics';
 import {
   GitBlameLine,
   GitBranch,
@@ -38,6 +38,7 @@ import { tNow, LocalizedError } from '@/i18n';
 import { selectCollaborationRemote } from '@/services/integrations/repositoryBinding';
 import { DiffCache } from './DiffCache';
 import { authorizeRepository } from '@/services/fs/RepositoryAccess';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 /**
  * Null device used by `diff --no-index` comparisons against untracked files.
@@ -46,6 +47,78 @@ import { authorizeRepository } from '@/services/fs/RepositoryAccess';
  * another git repository (path prefix handling mangles it).
  */
 const NULL_DEVICE = '/dev/null';
+
+// ---------- repo_snapshot 聚合快照（双通道：桌面 Tauri 命令 / dev 桥端点） ----------
+
+export interface RepositorySnapshotInclude {
+  status?: boolean;
+  refs?: boolean;
+  worktrees?: boolean;
+  remotes?: boolean;
+  stash?: boolean;
+  commitsLimit?: number;
+  operationPaths?: boolean;
+  preference?: boolean;
+}
+
+interface RawRepositorySnapshot {
+  status?: string;
+  refs?: string;
+  worktrees?: string;
+  remotes?: string;
+  stash?: string;
+  commits?: string;
+  operationStates?: boolean[];
+  preference?: string;
+}
+
+/** 安静轮询快照（解析后）：轮询 tick 一次 IPC 拿全 tick 所需。 */
+export interface PollSnapshot {
+  status: GitStatusResult;
+  fingerprint: string;
+  binding: { name: string; fetchUrl: string; pushUrl: string } | null;
+  operationState: RepoOperationState;
+}
+
+/** 全量刷新快照（解析后）：refreshAll 一次 IPC 拿全部数据面。 */
+export interface FullSnapshot extends PollSnapshot {
+  branches: GitBranch[];
+  tags: GitTag[];
+  stashes: GitStash[];
+  commits: GitCommit[];
+}
+
+/** `remote -v` 输出 → 远端列表（fetch/push 多值 pushUrl 保留换行拼接）。 */
+function parseRemotesOutput(stdout: string): { name: string; fetchUrl: string; pushUrl: string }[] {
+  const map = new Map<string, { name: string; fetchUrl: string; pushUrl: string }>();
+  for (const line of stdout.split(/\r?\n/)) {
+    const m = line.match(/^(\S+)\t(.+) \((fetch|push)\)$/);
+    if (!m) continue;
+    const entry = map.get(m[1]) || { name: m[1], fetchUrl: '', pushUrl: '' };
+    if (m[3] === 'fetch') entry.fetchUrl ||= m[2];
+    else entry.pushUrl = entry.pushUrl ? `${entry.pushUrl}\n${m[2]}` : m[2];
+    map.set(m[1], entry);
+  }
+  return [...map.values()];
+}
+
+/** `-z --get-regexp` 输出 → 协作偏好（两条 config --get 的合一形态，键名大小写不敏感）。 */
+function parsePreferenceOutput(stdout: string): string {
+  const entries = stdout.split('\0').filter(Boolean).map(entry => {
+    const split = entry.indexOf('\n');
+    return split >= 0 ? { key: entry.slice(0, split), value: entry.slice(split + 1) } : { key: entry, value: '' };
+  });
+  const find = (name: string) => entries.find(item => item.key.toLowerCase() === name)?.value.trim();
+  return find('auugit.collaborationremote') || find('auugit.githubremote') || 'auto';
+}
+
+/** `stash list --format` 输出 → 贮藏列表。 */
+function parseStashOutput(stdout: string): GitStash[] {
+  return stdout.split(/\r?\n/).filter(Boolean).map((line, index) => {
+    const parts = line.split('\x1f');
+    return { index, message: parts[1] || 'WIP on stash', branch: parts[0] || 'stash', date: parts[2] || '', hash: parts[3] || '' };
+  });
+}
 
 export class GitService implements IGitService {
   private readonly diffCache = new DiffCache();
@@ -130,6 +203,72 @@ export class GitService implements IGitService {
     return parseRefsSnapshot(res.stdout);
   }
 
+  /** 原始聚合快照：桌面走 Tauri 命令（一次 IPC），web 走 dev 桥同构端点。 */
+  async getRepositorySnapshot(repoPath: string, include: RepositorySnapshotInclude): Promise<RawRepositorySnapshot> {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      try {
+        return await invoke<RawRepositorySnapshot>('git_repository_snapshot', {
+          repoPath, gitBinary: useSettingsStore.getState().gitCliPath?.trim() || 'git', include,
+        });
+      } catch (error) {
+        throw normalizeInvokeError(error, 'Unable to read repository snapshot');
+      }
+    }
+    const res = await fetch('/api/git-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-AuuGit-Request': '1' },
+      body: JSON.stringify({ repoPath, gitBinary: useSettingsStore.getState().gitCliPath?.trim() || 'git', include }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    return await res.json();
+  }
+
+  /** 安静轮询快照：status + refs 指纹 + 协作绑定 + 操作态，5 条 git 一次 IPC（原 6 进程 5 IPC）。 */
+  async getPollSnapshot(repoPath: string): Promise<PollSnapshot> {
+    const raw = await this.getRepositorySnapshot(repoPath, { status: true, refs: true, remotes: true, operationPaths: true, preference: true });
+    const status = parsePorcelainV2(raw.status ?? '');
+    const refs = parseRefsSnapshot(raw.refs ?? '');
+    const preference = parsePreferenceOutput(raw.preference ?? '');
+    const binding = selectCollaborationRemote(parseRemotesOutput(raw.remotes ?? ''), preference) ?? null;
+    const conflictedFiles = status.unstaged.filter(file => file.status === 'conflicted').map(file => file.path);
+    const states = raw.operationStates ?? [false, false, false, false];
+    return { status, fingerprint: refs.fingerprint, binding, operationState: { type: operationTypeFromStates(states), conflictedFiles, inConflict: conflictedFiles.length > 0, isAllResolved: false } };
+  }
+
+  /** 全量刷新快照：安静快照内容 + 分支(标注)/标签/stash/提交，8 条 git 一次 IPC（原 11+ 进程 8+ IPC）。 */
+  async getFullSnapshot(repoPath: string, commitsLimit: number): Promise<FullSnapshot> {
+    const raw = await this.getRepositorySnapshot(repoPath, { status: true, refs: true, worktrees: true, remotes: true, stash: true, commitsLimit, operationPaths: true, preference: true });
+    const status = parsePorcelainV2(raw.status ?? '');
+    const refs = parseRefsSnapshot(raw.refs ?? '');
+    const remotes = parseRemotesOutput(raw.remotes ?? '');
+    const preference = parsePreferenceOutput(raw.preference ?? '');
+    const worktrees = parseWorktrees(raw.worktrees ?? '');
+    const sortedRemotes = [...remotes].sort((a, b) => b.name.length - a.name.length);
+    const branches = refs.branches.map(branch => {
+      const remote = branch.isRemote ? sortedRemotes.find(item => branch.name.startsWith(`${item.name}/`)) : undefined;
+      return {
+        ...branch,
+        isCurrent: !branch.isRemote && branch.name === status.currentBranch,
+        remoteName: remote?.name,
+        remoteBranch: remote ? branch.name.slice(remote.name.length + 1) : undefined,
+        worktreePath: branch.isRemote ? undefined : worktrees.find(tree => tree.branch === `refs/heads/${branch.name}`)?.path,
+      };
+    });
+    const conflictedFiles = status.unstaged.filter(file => file.status === 'conflicted').map(file => file.path);
+    const states = raw.operationStates ?? [false, false, false, false];
+    return {
+      status,
+      fingerprint: refs.fingerprint,
+      branches,
+      tags: refs.tags,
+      stashes: parseStashOutput(raw.stash ?? ''),
+      commits: raw.commits !== undefined ? parseGitLog(raw.commits) : [],
+      binding: selectCollaborationRemote(remotes, preference) ?? null,
+      operationState: { type: operationTypeFromStates(states), conflictedFiles, inConflict: conflictedFiles.length > 0, isAllResolved: false },
+    };
+  }
+
   async getOriginUrl(repoPath: string): Promise<string | undefined> {
     try { return (await executeGit(['remote', 'get-url', 'origin'], repoPath)).stdout.trim() || undefined; }
     catch { return undefined; }
@@ -148,12 +287,7 @@ export class GitService implements IGitService {
   async getCollaborationRemotePreference(repoPath: string): Promise<string> {
     try {
       const res = await executeGit(['config', '--local', '-z', '--get-regexp', '^auugit\\.(collaboration|github)'], repoPath);
-      const entries = res.stdout.split('\0').filter(Boolean).map(entry => {
-        const split = entry.indexOf('\n');
-        return split >= 0 ? { key: entry.slice(0, split), value: entry.slice(split + 1) } : { key: entry, value: '' };
-      });
-      const find = (name: string) => entries.find(item => item.key.toLowerCase() === name)?.value.trim();
-      return find('auugit.collaborationremote') || find('auugit.githubremote') || 'auto';
+      return parsePreferenceOutput(res.stdout);
     } catch (error) {
       if (error instanceof GitExecutionError && error.exitCode === 1) return 'auto';
       throw error;

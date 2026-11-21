@@ -252,3 +252,36 @@ test('getRefsSnapshot matches the split fingerprint/branches/tags paths', async 
   // 协作偏好的 config 合一形态（两条 --get → 一条 --get-regexp）。
   assert.equal(await service.getCollaborationRemotePreference(repository), 'auto');
 });
+
+test('aggregate snapshots match the independent data-plane paths (dev 桥全链路)', async () => {
+  const { repository } = await makeRepo('snapshot-agg');
+  const service = app.gitService;
+  execFileSync('git', ['checkout', '-b', 'feat'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['checkout', 'main'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  await fs.writeFile(path.join(repository, 'base.txt'), 'wip\n');
+  execFileSync('git', ['stash', 'push', '-m', 'snapshot stash'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  await fs.writeFile(path.join(repository, 'wip.txt'), 'wip\n');
+  await fs.writeFile(path.join(repository, 'base.txt'), 'v2\n');
+  execFileSync('git', ['add', '--', 'base.txt'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-m', 'second commit'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  // 安静轮询快照：一次 IPC 拿 status/指纹/绑定/操作态
+  const poll = await service.getPollSnapshot(repository);
+  assert.equal(poll.status.currentBranch, 'main');
+  assert.equal(poll.fingerprint, await service.getRefsFingerprint(repository));
+  assert.equal(poll.binding, null, 'no remote configured');
+  assert.equal(poll.operationState.type, 'none');
+  // 全量刷新快照：分支标注（isCurrent）与独立路径一致，stash/commits 齐备
+  const full = await service.getFullSnapshot(repository, 50);
+  const legacyBranches = await service.getBranches(repository);
+  assert.deepEqual(full.branches.map(b => `${b.isRemote ? 'r:' : 'l:'}${b.name}:${b.isCurrent ? '*' : ''}`).sort(),
+    legacyBranches.map(b => `${b.isRemote ? 'r:' : 'l:'}${b.name}:${b.isCurrent ? '*' : ''}`).sort());
+  assert.equal(full.branches.find(b => b.name === 'main')?.isCurrent, true);
+  assert.equal(full.stashes.length, 1);
+  assert.ok(full.commits.some(commit => commit.subject === 'second commit'));
+  assert.equal(full.operationState.type, 'none');
+  // 空仓库：log 容错为空提交集
+  const empty = await makeRepo('snapshot-empty', { initialCommit: false });
+  const emptyFull = await service.getFullSnapshot(empty.repository, 50);
+  assert.deepEqual(emptyFull.commits, []);
+  assert.equal(emptyFull.status.currentBranch, 'main');
+});

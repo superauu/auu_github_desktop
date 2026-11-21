@@ -266,6 +266,16 @@ fn pick_git_timeout(args: &[String]) -> Duration {
     if fast { FAST_GIT_TIMEOUT } else { HEAVY_GIT_TIMEOUT }
 }
 
+/// 快速档字节输出（repo_snapshot 聚合专用）：聚合的只读探测命令即使带 -c 全局前缀
+/// （run_git 的超时分档只看首参数会落到重档）也保持 5 分钟快速档，挂死时尽快释放并发槽。
+pub(crate) fn run_git_bytes_fast(
+    args: Vec<String>,
+    cwd: String,
+    git_binary: Option<String>,
+) -> Result<GitBytesResult, String> {
+    run_git_bytes(args, cwd, git_binary, None, FAST_GIT_TIMEOUT)
+}
+
 /// 与 run_git 相同，但可对该次调用放行额外传输协议（仅限已授权的本地 clone 源）。
 pub(crate) fn run_git_protocols(
     args: Vec<String>,

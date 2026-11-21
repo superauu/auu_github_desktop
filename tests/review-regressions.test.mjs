@@ -141,7 +141,7 @@ test('local API blocks foreign/simple requests, survives a failed spawn and supp
 test('late repository responses cannot replace a newer repository and local repos clear GitHub binding', async () => {
   const dispose = app.startIntegrationRuntime();
   const wait = deferred();
-  const restore = stub(app.gitService, { getStatus: async (repo) => { if (repo === 'A') await wait.promise; return clean; }, getCommits: async () => [], getBranches: async () => [], getTags: async () => [], getStashes: async () => [], getRepoOperationState: async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false }), openRepository: async (repo) => info(repo), getRefsSnapshot: async () => ({ fingerprint: '', branches: [], tags: [] }), listRemotes: async () => [], getWorktrees: async () => [], getCollaborationRemotePreference: async () => 'auto', getCollaborationBinding: async () => null });
+  const restore = stub(app.gitService, { getStatus: async (repo) => { if (repo === 'A') await wait.promise; return clean; }, getPollSnapshot: async () => ({ status: clean, fingerprint: '', binding: null, operationState: { type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false } }), getFullSnapshot: async () => ({ status: clean, fingerprint: '', branches: [], tags: [], stashes: [], commits: [], binding: null, operationState: { type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false } }) });
   try {
     app.useRepoStore.getState().setCurrentRepo(info('A')); const pending = app.useRepoStore.getState().refreshAll();
     app.useRepoStore.getState().setCurrentRepo(info('B')); await app.useRepoStore.getState().refreshAll();
@@ -758,19 +758,18 @@ test('branch, tag and revision operands are validated before any write command r
 test('unchanged polling reads status once and does not reload history or branches', async () => {
   const repo = await repository(); await fs.writeFile(file(repo, 'a'), 'base'); await commit(repo);
   app.useRepoStore.getState().setCurrentRepo(info(repo)); await app.useRepoStore.getState().refreshAll();
-  let logs = 0, branches = 0, statuses = 0;
-  const originalStatus = app.gitService.getStatus.bind(app.gitService);
-  const originalLog = app.gitService.getCommits.bind(app.gitService);
-  const originalBranches = app.gitService.getBranches.bind(app.gitService);
+  // repo_snapshot 专项：轮询走 getPollSnapshot 单次聚合；契约等价——一次读取、不触发全量刷新。
+  let polls = 0, fulls = 0;
+  const originalPoll = app.gitService.getPollSnapshot.bind(app.gitService);
+  const originalFull = app.gitService.getFullSnapshot.bind(app.gitService);
   const restore = stub(app.gitService, {
-    getStatus: (...args) => { statuses++; return originalStatus(...args); },
-    getCommits: (...args) => { logs++; return originalLog(...args); },
-    getBranches: (...args) => { branches++; return originalBranches(...args); },
+    getPollSnapshot: (...args) => { polls++; return originalPoll(...args); },
+    getFullSnapshot: (...args) => { fulls++; return originalFull(...args); },
   });
   try {
     const commits = app.useRepoStore.getState().commits;
     await app.useRepoStore.getState().checkExternalChanges();
-    assert.equal(statuses, 1); assert.equal(logs, 0); assert.equal(branches, 0);
+    assert.equal(polls, 1); assert.equal(fulls, 0);
     assert.equal(app.useRepoStore.getState().commits, commits);
   } finally { restore(); app.useRepoStore.getState().setCurrentRepo(null); }
 });

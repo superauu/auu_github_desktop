@@ -32,6 +32,11 @@ export async function probeRepoOperation(repoPath: string): Promise<RepoOperatio
       states = (await res.json()).exists;
     }
     if (!Array.isArray(states) || states.length !== OPERATION_PATHS.length || states.some(value => typeof value !== 'boolean')) throw new Error('Invalid repository operation state');
+    return operationTypeFromStates(states);
+}
+
+/** 操作态标记文件的存在位 → 操作类型（快照聚合与独立探测共用同一推导）。 */
+export function operationTypeFromStates(states: readonly boolean[]): RepoOperationState['type'] {
     const rebasing = states[0] || states[1], cherryPicking = states[2], merging = states[3];
     return rebasing ? 'rebase' : cherryPicking ? 'cherry-pick' : merging ? 'merge' : 'none';
 }

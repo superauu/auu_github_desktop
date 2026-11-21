@@ -11,7 +11,8 @@ mod file_io;
 mod git_process;
 mod temp_index;
 use git_process::{
-    lock_or_recover, run_git, run_git_bytes, run_git_protocols, GitCommandResult, LOCAL_PROTOCOLS,
+    lock_or_recover, run_git, run_git_bytes, run_git_bytes_fast, run_git_protocols, GitBytesResult,
+    GitCommandResult, LOCAL_PROTOCOLS,
 };
 mod repository_access;
 mod repository_dialog;
@@ -376,6 +377,124 @@ fn paths_exist(repo_path: String, git_binary: Option<String>) -> Result<Vec<bool
         return Err("Unable to resolve repository operation paths".into());
     }
     Ok(paths.iter().map(|path| Path::new(path).exists()).collect())
+}
+
+/// repo_snapshot 专项：仓库状态聚合快照。一次 IPC 内并行跑一组固定只读命令（全部经
+/// 策略层校验），替代轮询/全量刷新的多条独立 IPC——IPC 往返从 5-8 次并为 1 次，
+/// 授权与校验只做一遍；各形态独立 spawn，进程数下限不变（status/refs/remotes 等无法
+/// 合并为单条 git）。返回各命令的原始 stdout（解析复用 TS 侧既有解析器）；
+/// log 失败容错为 None（空仓库退出非零，与 TS 侧 getCommits 的 catch 行为一致）。
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SnapshotInclude {
+    #[serde(default)]
+    status: bool,
+    #[serde(default)]
+    refs: bool,
+    #[serde(default)]
+    worktrees: bool,
+    #[serde(default)]
+    remotes: bool,
+    #[serde(default)]
+    stash: bool,
+    #[serde(default)]
+    commits_limit: Option<u32>,
+    #[serde(default)]
+    operation_paths: bool,
+    #[serde(default)]
+    preference: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepositorySnapshot {
+    status: Option<String>,
+    refs: Option<String>,
+    worktrees: Option<String>,
+    remotes: Option<String>,
+    stash: Option<String>,
+    commits: Option<String>,
+    operation_states: Option<Vec<bool>>,
+    preference: Option<String>,
+}
+
+const SNAPSHOT_REFS_FORMAT: &str = "%(refname)%00%(objectname)%00%(upstream)%00%(objecttype)%00%(refname:short)%00%(contents:subject)%00%(taggername)%00%(taggeremail)%00%(taggerdate:iso-strict)";
+const SNAPSHOT_STASH_FORMAT: &str = "%gd%x1f%gs%x1f%cr%x1f%H";
+const SNAPSHOT_LOG_FORMAT: &str = "%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e";
+const SNAPSHOT_PREFERENCE_PATTERN: &str = "^auugit\\.(collaboration|github)";
+
+#[tauri::command(async)]
+fn git_repository_snapshot(repo_path: String, git_binary: Option<String>, include: SnapshotInclude) -> Result<RepositorySnapshot, String> {
+    repository_access::require(&repo_path)?;
+    let quoted: Vec<String> = vec!["-c".to_string(), "core.quotepath=false".to_string()];
+    let mut plan: Vec<(&'static str, Vec<String>)> = Vec::new();
+    let mut stage = |key: &'static str, args: Vec<String>| -> Result<(), String> {
+        let mut argv = quoted.clone();
+        argv.extend(args);
+        git_policy::validate(&argv).map_err(|error| format!("{key}: {error}"))?;
+        plan.push((key, argv));
+        Ok(())
+    };
+    if include.status { stage("status", vec!["status".into(), "--porcelain=v2".into(), "--branch".into(), "-z".into(), "--untracked-files=all".into()])?; }
+    if include.refs { stage("refs", vec!["for-each-ref".into(), format!("--format={SNAPSHOT_REFS_FORMAT}"), "refs/heads".into(), "refs/remotes".into(), "refs/tags".into(), "refs/stash".into()])?; }
+    if include.worktrees { stage("worktrees", vec!["worktree".into(), "list".into(), "--porcelain".into(), "-z".into()])?; }
+    if include.remotes { stage("remotes", vec!["remote".into(), "-v".into()])?; }
+    if include.stash { stage("stash", vec!["stash".into(), "list".into(), format!("--format={SNAPSHOT_STASH_FORMAT}")])?; }
+    if include.preference { stage("preference", vec!["config".into(), "--local".into(), "-z".into(), "--get-regexp".into(), SNAPSHOT_PREFERENCE_PATTERN.into()])?; }
+    if let Some(limit) = include.commits_limit {
+        stage("commits", vec!["log".into(), "--all".into(), "--topo-order".into(), "-n".into(), limit.to_string(), format!("--format={SNAPSHOT_LOG_FORMAT}")])?;
+    }
+    if include.operation_paths {
+        let mut args = vec!["rev-parse".into(), "--path-format=absolute".into()];
+        for name in ["rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "MERGE_HEAD"] {
+            args.extend(["--git-path".into(), name.into()]);
+        }
+        stage("operation", args)?;
+    }
+
+    // 并行 spawn：每个工作线程独立过并发闸（传输类经优先级闸优先入槽）；聚合的只读
+    // 探测形态统一快速档超时（-c 打头会让 run_git 的分档误落重档，这里手动走快速档）。
+    let outputs: Vec<(&'static str, Result<GitBytesResult, String>)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = plan.into_iter().map(|(key, args)| {
+            let repo_path = repo_path.clone();
+            let git_binary = git_binary.clone();
+            scope.spawn(move || (key, run_git_bytes_fast(args, repo_path, git_binary)))
+        }).collect();
+        handles.into_iter().map(|handle| {
+            handle.join().unwrap_or_else(|_| ("panic", Err("Snapshot worker panicked".into())))
+        }).collect()
+    });
+
+    let mut snapshot = RepositorySnapshot {
+        status: None, refs: None, worktrees: None, remotes: None, stash: None, commits: None, operation_states: None, preference: None,
+    };
+    for (key, result) in outputs {
+        let result = result?;
+        if result.exit_code != 0 {
+            if key == "commits" { continue; } // 空仓库：log 退出非零，容忍为无提交
+            if key == "preference" && result.exit_code == 1 { snapshot.preference = Some(String::new()); continue; } // 无匹配配置：退出 1 属预期
+            return Err(format!("git {key}: {}", String::from_utf8_lossy(&result.stderr).trim()));
+        }
+        match key {
+            "status" => snapshot.status = Some(String::from_utf8_lossy(&result.stdout).into_owned()),
+            "refs" => snapshot.refs = Some(String::from_utf8_lossy(&result.stdout).into_owned()),
+            "worktrees" => snapshot.worktrees = Some(String::from_utf8_lossy(&result.stdout).into_owned()),
+            "remotes" => snapshot.remotes = Some(String::from_utf8_lossy(&result.stdout).into_owned()),
+            "stash" => snapshot.stash = Some(String::from_utf8_lossy(&result.stdout).into_owned()),
+            "preference" => snapshot.preference = Some(String::from_utf8_lossy(&result.stdout).into_owned()),
+            "commits" => snapshot.commits = Some(String::from_utf8_lossy(&result.stdout).into_owned()),
+            "operation" => {
+                let stdout = String::from_utf8_lossy(&result.stdout).into_owned();
+                let paths: Vec<_> = stdout.lines().collect();
+                if paths.len() != 4 || paths.iter().any(|path| !Path::new(path).is_absolute()) {
+                    return Err("Unable to resolve repository operation paths".into());
+                }
+                snapshot.operation_states = Some(paths.iter().map(|path| Path::new(path).exists()).collect());
+            }
+            _ => {}
+        }
+    }
+    Ok(snapshot)
 }
 
 fn http_client() -> Result<reqwest::Client, String> {
@@ -762,6 +881,7 @@ pub fn run() {
             ssh_signing::list_ssh_public_keys,
             ssh_signing::generate_ssh_signing_key,
             paths_exist,
+            git_repository_snapshot,
             request_ai_completion,
             #[cfg(feature = "plugin-github")]
             plugins::github::get_github_job_logs,

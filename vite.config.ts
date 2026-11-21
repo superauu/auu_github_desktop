@@ -364,6 +364,58 @@ export function gitApiPlugin(): Plugin {
             res.on('close', () => { if (!finished) { child.kill(); clearTimeout(timer); } });
             child.stdin.end(stdin || ''); return;
           }
+          if (url.pathname === '/git-snapshot') {
+            // repo_snapshot 专项的 dev 桥同构端点：与桌面 Tauri 命令同一组固定只读形态，
+            // 一次请求聚合轮询/全量刷新所需的全部命令（原始 stdout，解析复用 TS 侧解析器）。
+            const { repoPath, gitBinary = 'git', include } = data;
+            if (typeof repoPath !== 'string' || typeof gitBinary !== 'string' ||
+                !/^git(?:\.exe)?$/i.test(path.basename(gitBinary)) || include === null || typeof include !== 'object') {
+              throw new Error('Invalid snapshot request');
+            }
+            const directory = await fs.stat(repoPath).catch((error) => {
+              if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
+              throw error;
+            });
+            if (!directory?.isDirectory()) { json(res, 400, { error: `Repository directory is unavailable: ${repoPath}` }); return; }
+            const snapshotRun = (args: string[]) => new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve, reject) => {
+              const child = spawn(gitBinary, ['-c', 'core.quotepath=false', ...args], { cwd: repoPath, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' } });
+              let stdout = '', stderr = '';
+              child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
+              child.stdout.on('data', chunk => { stdout += chunk; });
+              child.stderr.on('data', chunk => { stderr += chunk; });
+              child.on('error', reject);
+              child.on('close', code => resolve({ exitCode: code ?? -1, stdout, stderr }));
+            });
+            const SNAPSHOT_REFS_FORMAT = '%(refname)%00%(objectname)%00%(upstream)%00%(objecttype)%00%(refname:short)%00%(contents:subject)%00%(taggername)%00%(taggeremail)%00%(taggerdate:iso-strict)';
+            const SNAPSHOT_STASH_FORMAT = '%gd%x1f%gs%x1f%cr%x1f%H';
+            const SNAPSHOT_LOG_FORMAT = '%H%x1f%h%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%aI%x1f%P%x1f%D%x1e';
+            const plan: [string, string[]][] = [];
+            if (include.status) plan.push(['status', ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all']]);
+            if (include.refs) plan.push(['refs', ['for-each-ref', `--format=${SNAPSHOT_REFS_FORMAT}`, 'refs/heads', 'refs/remotes', 'refs/tags', 'refs/stash']]);
+            if (include.worktrees) plan.push(['worktrees', ['worktree', 'list', '--porcelain', '-z']]);
+            if (include.remotes) plan.push(['remotes', ['remote', '-v']]);
+            if (include.stash) plan.push(['stash', ['stash', 'list', `--format=${SNAPSHOT_STASH_FORMAT}`]]);
+            if (include.preference) plan.push(['preference', ['config', '--local', '-z', '--get-regexp', '^auugit\\.(collaboration|github)']]);
+            if (include.commitsLimit) plan.push(['commits', ['log', '--all', '--topo-order', '-n', String(include.commitsLimit), `--format=${SNAPSHOT_LOG_FORMAT}`]]);
+            if (include.operationPaths) plan.push(['operation', ['rev-parse', '--path-format=absolute', '--git-path', 'rebase-merge', '--git-path', 'rebase-apply', '--git-path', 'CHERRY_PICK_HEAD', '--git-path', 'MERGE_HEAD']]);
+            if (!plan.length) { json(res, 400, { error: 'Empty snapshot include' }); return; }
+            for (const [, args] of plan) validateGitArguments(args);
+            const entries = await Promise.all(plan.map(async ([key, args]) => [key, await snapshotRun(args)] as const));
+            const snapshot: Record<string, unknown> = {};
+            for (const [key, result] of entries) {
+              // 空仓库的 log 与无匹配的 config --get-regexp 退出码 1 属预期（旧路径 catch 成空值）。
+              if (key === 'commits') { if (result.exitCode === 0) snapshot.commits = result.stdout; continue; }
+              if (key === 'preference') { snapshot.preference = result.exitCode === 0 ? result.stdout : ''; continue; }
+              if (result.exitCode !== 0) { json(res, 500, { error: `git ${key}: ${result.stderr.trim()}` }); return; }
+              if (key === 'operation') {
+                const paths = result.stdout.split(/\r?\n/).filter(Boolean);
+                if (paths.length !== 4 || paths.some(p => !path.isAbsolute(p))) { json(res, 500, { error: 'Unable to resolve repository operation paths' }); return; }
+                // exists 语义：逐个独立判定，一个不存在不影响其他
+                snapshot.operationStates = await Promise.all(paths.map(async p => { try { await fs.access(p); return true; } catch { return false; } }));
+              } else snapshot[key] = result.stdout;
+            }
+            json(res, 200, snapshot); return;
+          }
           if (url.pathname === '/git-image') {
             if (typeof data.revision !== 'string' || !/^(WORKTREE|INDEX|[0-9a-f]{40,64})$/.test(data.revision)) throw new Error('Invalid image revision');
             const resolved = await repoFile(data.repoPath, data.filePath);
