@@ -262,6 +262,65 @@ export function parseGitLog(output: string): GitCommit[] {
   return commits;
 }
 
+/** refs 快照一行解析后的原始字段（for-each-ref 聚合，refname 前缀路由到分支/标签/指纹）。 */
+export interface ParsedRefsSnapshot {
+  /** 与旧 getRefsFingerprint 输出同构（`refname\0objectname` 按行拼接），保证指纹对比语义不变。 */
+  fingerprint: string;
+  branches: GitBranch[];
+  tags: GitTag[];
+}
+
+/**
+ * refs 快照解析：一条 `for-each-ref`（refs/heads + refs/remotes + refs/tags，\0 分隔字段）
+ * 同时产出 refs 指纹、分支列表与标签列表——替代 branch -a -v + tag -l + for-each-ref 三条
+ * 独立命令（轮询/刷新的进程合并，见 repo_snapshot 专项）。refs/stash 行跳过（stash list
+ * 走 reflog 语义，for-each-ref 只有一行覆盖不了）。
+ * 分支的 isCurrent 由消费端按 status.currentBranch 补齐（快照无 HEAD 标记）；worktreePath
+ * 与 remoteName 归属同样由消费端合并（worktree list / remote -v 与其他消费方共享进程）。
+ */
+export function parseRefsSnapshot(output: string): ParsedRefsSnapshot {
+  const fingerprintLines: string[] = [];
+  const branches: GitBranch[] = [];
+  const tags: GitTag[] = [];
+  for (const line of output.split('\n')) {
+    if (!line) continue;
+    const fields = line.split('\0');
+    const refname = fields[0] || '';
+    const objectname = fields[1] || '';
+    if (!refname || !objectname) continue;
+    fingerprintLines.push(`${refname}\0${objectname}`);
+    if (refname.startsWith('refs/heads/')) {
+      branches.push({
+        name: fields[4] || refname.slice('refs/heads/'.length),
+        isCurrent: false,
+        isRemote: false,
+        upstream: fields[2] ? fields[2].replace(/^refs\/remotes\//, '') : undefined,
+        lastCommit: { hash: objectname, message: fields[5] || '', date: '' },
+      });
+    } else if (refname.startsWith('refs/remotes/')) {
+      if (/^refs\/remotes\/.+\/HEAD$/.test(refname)) continue; // remote HEAD 别名行（branch -a 同款过滤）
+      branches.push({
+        name: fields[4] || refname.slice('refs/remotes/'.length),
+        isCurrent: false,
+        isRemote: true,
+        lastCommit: { hash: objectname, message: fields[5] || '', date: '' },
+      });
+    } else if (refname.startsWith('refs/tags/')) {
+      const taggerName = fields[6] || '';
+      const message = fields[5] || '';
+      tags.push({
+        name: fields[4] || refname.slice('refs/tags/'.length),
+        commitHash: objectname,
+        message: message || undefined,
+        tagger: taggerName ? { name: taggerName, email: fields[7] || '', date: fields[8] || '' } : undefined,
+        isAnnotated: Boolean(taggerName || message),
+      });
+    }
+  }
+  // 与旧 getRefsFingerprint 的 stdout 原文逐字节同构（git 输出每行带尾换行）。
+  return { fingerprint: fingerprintLines.length ? fingerprintLines.join('\n') + '\n' : '', branches, tags };
+}
+
 /**
  * Parses `git branch -a -v --no-color`
  */

@@ -407,8 +407,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
       const refresh = refreshId;
       checkingExternal.add(epoch);
       try {
+        // refs 快照（repo_snapshot 专项）：一条 for-each-ref 同时产出指纹与分支/标签，
+        // 安静 tick 的进程合并（fingerprint 分支/标签字段在 tick 里解析但不用）。
         const [status, refs, remoteBinding] = await Promise.all([
-          gitService.getStatus(repo.path), gitService.getRefsFingerprint(repo.path), gitService.getCollaborationBinding(repo.path),
+          gitService.getStatus(repo.path), gitService.getRefsSnapshot(repo.path).then(snapshot => snapshot.fingerprint), gitService.getCollaborationBinding(repo.path),
         ]);
         if (!isCurrent(repo.path, epoch) || refresh !== refreshId) return;
         if (refsFingerprint !== refs || status.headOid !== get().status?.headOid || status.currentBranch !== repo.currentBranch
@@ -465,21 +467,42 @@ export const useRepoStore = create<RepoState>((set, get) => {
         }
         const { commitsLimit } = get();
         const statusPromise = gitService.getStatus(currentRepo.path);
-        const nextRefs = gitService.getRefsFingerprint(currentRepo.path).catch(() => null);
-        const [status, commits, branches, tags, stashes, operationState] = await Promise.all([
+        // refs 快照（repo_snapshot 专项）：指纹 + 分支 + 标签一条 for-each-ref；remotes 一条
+        // 供分支归属与协作绑定共享（旧路径里 remote -v 跑两遍、branch/tag/指纹各一条）。
+        const refsPromise = gitService.getRefsSnapshot(currentRepo.path).catch(() => null);
+        const remotesPromise = gitService.listRemotes(currentRepo.path);
+        const [status, commits, stashes, operationState, refs, remotes] = await Promise.all([
           statusPromise,
           gitService.getCommits(currentRepo.path, commitsLimit),
-          gitService.getBranches(currentRepo.path),
-          gitService.getTags(currentRepo.path),
           gitService.getStashes(currentRepo.path),
           statusPromise.then(status => gitService.getRepoOperationState(currentRepo.path, status)),
+          refsPromise,
+          remotesPromise,
         ]);
 
         // Compute authoritative active branch
         const detectedBranch =
-          branches.find((b) => b.isCurrent)?.name ||
           status.currentBranch ||
           currentRepo.currentBranch;
+
+        // 分支列表：快照分支补 worktree 占用（worktree list 一条）与 remote 归属，isCurrent 按状态补
+        const [worktrees, preference] = await Promise.all([
+          gitService.getWorktrees(currentRepo.path),
+          gitService.getCollaborationRemotePreference(currentRepo.path),
+        ]);
+        const sortedRemotes = [...remotes].sort((a, b) => b.name.length - a.name.length);
+        const branches = (refs?.branches ?? []).map(branch => {
+          const remote = branch.isRemote ? sortedRemotes.find(item => branch.name.startsWith(`${item.name}/`)) : undefined;
+          return {
+            ...branch,
+            isCurrent: !branch.isRemote && branch.name === status.currentBranch,
+            remoteName: remote?.name,
+            remoteBranch: remote ? branch.name.slice(remote.name.length + 1) : undefined,
+            worktreePath: branch.isRemote ? undefined : worktrees.find(tree => tree.branch === `refs/heads/${branch.name}`)?.path,
+          };
+        });
+        const tags = refs?.tags ?? [];
+        refsFingerprint = refs?.fingerprint ?? null;
 
         let activeRepo: RepositoryInfo = {
           ...currentRepo,
@@ -487,11 +510,10 @@ export const useRepoStore = create<RepoState>((set, get) => {
         };
 
         // Re-read the collaboration binding so remote edits/removals cannot retain an old repository.
-        const detected = await gitService.openRepository(activeRepo.path, status);
-        const resolvedRefs = await nextRefs;
+        // remotes/preference 已取，binding 纯组装（旧路径经 openRepository 重复解析并重跑仓库校验）。
+        const detectedBinding = await gitService.getCollaborationBinding(currentRepo.path, remotes, preference);
         if (!valid()) return;
-        refsFingerprint = resolvedRefs;
-        activeRepo = { ...activeRepo, remoteUrl: detected.remoteUrl, collaborationRemote: detected.collaborationRemote };
+        activeRepo = { ...activeRepo, remoteUrl: detectedBinding?.fetchUrl, collaborationRemote: detectedBinding ?? null };
 
         // Persist updated repo to localStorage
         saveRepositoryState(LAST_ACTIVE_REPO_KEY, activeRepo);

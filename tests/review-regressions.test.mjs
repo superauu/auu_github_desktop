@@ -141,7 +141,7 @@ test('local API blocks foreign/simple requests, survives a failed spawn and supp
 test('late repository responses cannot replace a newer repository and local repos clear GitHub binding', async () => {
   const dispose = app.startIntegrationRuntime();
   const wait = deferred();
-  const restore = stub(app.gitService, { getStatus: async (repo) => { if (repo === 'A') await wait.promise; return clean; }, getCommits: async () => [], getBranches: async () => [], getTags: async () => [], getStashes: async () => [], getRepoOperationState: async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false }), openRepository: async (repo) => info(repo) });
+  const restore = stub(app.gitService, { getStatus: async (repo) => { if (repo === 'A') await wait.promise; return clean; }, getCommits: async () => [], getBranches: async () => [], getTags: async () => [], getStashes: async () => [], getRepoOperationState: async () => ({ type: 'none', conflictedFiles: [], inConflict: false, isAllResolved: false }), openRepository: async (repo) => info(repo), getRefsSnapshot: async () => ({ fingerprint: '', branches: [], tags: [] }), listRemotes: async () => [], getWorktrees: async () => [], getCollaborationRemotePreference: async () => 'auto', getCollaborationBinding: async () => null });
   try {
     app.useRepoStore.getState().setCurrentRepo(info('A')); const pending = app.useRepoStore.getState().refreshAll();
     app.useRepoStore.getState().setCurrentRepo(info('B')); await app.useRepoStore.getState().refreshAll();

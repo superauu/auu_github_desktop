@@ -224,3 +224,31 @@ test('runGc packs objects and runFsck reports a healthy object store', async () 
   const fsck = await service.runFsck(repository);
   assert.equal(fsck.corrupted, false, 'healthy repo passes fsck');
 });
+
+
+test('getRefsSnapshot matches the split fingerprint/branches/tags paths', async () => {
+  const { repository } = await makeRepo('refs-snapshot');
+  const service = app.gitService;
+  execFileSync('git', ['checkout', '-b', 'feat'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['checkout', 'main'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['tag', 'light'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['tag', '-a', 'anno', '-m', 'annotated tag'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  const mirror = path.join(temporary, 'refs-snapshot-mirror.git');
+  execFileSync('git', ['clone', '--bare', '--', repository, mirror], { cwd: temporary, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['remote', 'add', 'origin', 'file:///' + mirror.split('\\').join('/')], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  execFileSync('git', ['fetch', 'origin'], { cwd: repository, windowsHide: true, stdio: 'ignore' });
+  const snapshot = await service.getRefsSnapshot(repository);
+  // 指纹与旧单用途命令逐字节同构（含 refs/stash 行，避免切换后误触发全量刷新）。
+  assert.equal(snapshot.fingerprint, await service.getRefsFingerprint(repository));
+  // 分支名单与旧 branch -a -v 路径一致（名称/远端归属/提交主题），HEAD 别名与 stash 行剔除。
+  const legacyBranches = await service.getBranches(repository);
+  const key = b => (b.isRemote ? 'r:' : 'l:') + b.name + ':' + b.lastCommit?.hash;
+  assert.deepEqual(snapshot.branches.map(key).sort(), legacyBranches.map(key).sort());
+  // 标签与旧 tag -l 路径一致（轻量/附注两种形态的字段）。
+  const legacyTags = await service.getTags(repository);
+  const tagKey = tag => [tag.name, tag.commitHash, tag.isAnnotated ? 'a' : 'l', tag.message || ''].join('|');
+  assert.deepEqual(snapshot.tags.map(tagKey).sort(), legacyTags.map(tagKey).sort());
+  assert.equal(snapshot.tags.find(tag => tag.name === 'anno')?.tagger?.name, 'Capability Test');
+  // 协作偏好的 config 合一形态（两条 --get → 一条 --get-regexp）。
+  assert.equal(await service.getCollaborationRemotePreference(repository), 'auto');
+});

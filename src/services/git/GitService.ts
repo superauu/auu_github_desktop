@@ -28,6 +28,8 @@ import {
   parseGitLog,
   parseGitTags,
   parsePorcelainV2,
+  parseRefsSnapshot,
+  ParsedRefsSnapshot,
   unquoteGitPath,
   buildHunkPatch,
   parseBlamePorcelain,
@@ -116,19 +118,46 @@ export class GitService implements IGitService {
     return (await executeGit(['for-each-ref', '--format=%(refname)%00%(objectname)', 'refs/heads', 'refs/remotes', 'refs/tags', 'refs/stash'], repoPath)).stdout;
   }
 
+  /**
+   * refs 快照（repo_snapshot 专项）：一条 for-each-ref 同时产出 refs 指纹、分支与标签，
+   * 替代 getRefsFingerprint + getBranches 的 branch -a -v + getTags 的 tag -l 三条独立命令。
+   * 分支的 isCurrent/worktreePath/remoteName 归属由消费端补齐（status / worktree list /
+   * remote -v 与其他消费方共享进程，见 repoStore.refreshAll）。
+   */
+  async getRefsSnapshot(repoPath: string): Promise<ParsedRefsSnapshot> {
+    const format = ['%(refname)', '%(objectname)', '%(upstream)', '%(objecttype)', '%(refname:short)', '%(contents:subject)', '%(taggername)', '%(taggeremail)', '%(taggerdate:iso-strict)'].join('%00');
+    const res = await executeGit(['for-each-ref', `--format=${format}`, 'refs/heads', 'refs/remotes', 'refs/tags', 'refs/stash'], repoPath);
+    return parseRefsSnapshot(res.stdout);
+  }
+
   async getOriginUrl(repoPath: string): Promise<string | undefined> {
     try { return (await executeGit(['remote', 'get-url', 'origin'], repoPath)).stdout.trim() || undefined; }
     catch { return undefined; }
   }
 
-  async getCollaborationBinding(repoPath: string) {
-    const [remotes, configured] = await Promise.all([this.listRemotes(repoPath), this.getCollaborationRemotePreference(repoPath)]);
-    return selectCollaborationRemote(remotes, configured);
+  async getCollaborationBinding(repoPath: string, remotes?: { name: string; fetchUrl: string; pushUrl: string }[], preference?: string) {
+    const [fetched, configured] = await Promise.all([
+      remotes ?? this.listRemotes(repoPath),
+      preference !== undefined ? Promise.resolve(preference) : this.getCollaborationRemotePreference(repoPath),
+    ]);
+    return selectCollaborationRemote(fetched, configured);
   }
 
+  /** 两条 config --get 合一为一条 -z --get-regexp（轮询安静 tick 的进程合并）；
+   *  变量名大小写不敏感，regexp 用共有的小写前缀匹配，精确键名在 JS 侧比对。 */
   async getCollaborationRemotePreference(repoPath: string): Promise<string> {
-    return await this.configValue(repoPath, 'auugit.collaborationRemote')
-      || await this.configValue(repoPath, 'auugit.githubRemote') || 'auto';
+    try {
+      const res = await executeGit(['config', '--local', '-z', '--get-regexp', '^auugit\\.(collaboration|github)'], repoPath);
+      const entries = res.stdout.split('\0').filter(Boolean).map(entry => {
+        const split = entry.indexOf('\n');
+        return split >= 0 ? { key: entry.slice(0, split), value: entry.slice(split + 1) } : { key: entry, value: '' };
+      });
+      const find = (name: string) => entries.find(item => item.key.toLowerCase() === name)?.value.trim();
+      return find('auugit.collaborationremote') || find('auugit.githubremote') || 'auto';
+    } catch (error) {
+      if (error instanceof GitExecutionError && error.exitCode === 1) return 'auto';
+      throw error;
+    }
   }
 
   async setCollaborationRemote(repoPath: string, remote: string): Promise<void> {
