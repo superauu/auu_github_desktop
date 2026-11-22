@@ -38,10 +38,10 @@ ratio, and bundled test-only CJK fonts; it does not access saved repositories.
 
 Overview cases cover distinct file counts, unavailable repositories, cancellation, account changes with late CI replies, searching beyond the first batch, navigation and narrow layouts. History restart cases use an isolated fixture key in tab-local session storage, restoring only metadata and verifying that callbacks and credentials are absent. They do not read real application storage.
 
-Reviewed automated baselines live under `baselines/playwright-win32/`. They are
-separate from the original CUA JPEGs. Other operating systems require separately
-reviewed baselines in `baselines/playwright-<platform>/`. Use the locked Playwright
-version and its installed Chromium; system browsers can render differently.
+Reviewed automated baselines live under `baselines/playwright-win32/`. Other
+operating systems require separately reviewed baselines in
+`baselines/playwright-<platform>/`. Use the locked Playwright version and its
+installed Chromium; system browsers can render differently.
 
 CI runs the Windows cases without updating baselines. Missing baselines fail too.
 Failures retain actual/expected/diff images, traces and an HTML report in
@@ -58,7 +58,7 @@ Inspect every changed PNG and diff before committing. Never update snapshots in
 CI or accept them only because the current test fails. Keep behavior/keyboard tests:
 pixel comparisons do not prove interaction correctness.
 
-## Original CUA captures
+## History fixture entry
 
 Run `npm run dev`, then open `/tests/visual/index.html?theme=dark` (or `theme=light`).
 This development-only entry uses the actual application components with deterministic commits,
@@ -66,22 +66,10 @@ multiple graph lanes, long branch names, ref overflow, and WIP changes. Network 
 browser storage is isolated in memory before stores hydrate, so real repositories and preferences are unaffected.
 It is not an entry point of the production build.
 
-For every case in `cases.json`, use the browser tools in CUA to set the specified viewport,
-navigate to the fixture with its theme, and wait for
-`document.documentElement.dataset.uiFixtureReady === 'true'`. Move focus away from controls,
-capture the viewport, and save the JPEG as `<name>.jpg` in a fresh **actual** folder.
-Reset the viewport afterwards. Baselines must be reviewed visually before replacing them.
-Capture baselines and actual images on the same OS/browser/font setup; these initial baselines
-use Windows and the Codex in-app browser. Different rendering environments need separate baselines.
-
-With Python and Pillow installed, compare the fresh captures:
-
-```sh
-python scripts/compare-ui-snapshots.py --actual path/to/actual
-```
-
-The command fails on missing images, incorrect viewport sizes, or more than 0.5% changed pixels
-after a small JPEG/subpixel tolerance. Failed comparisons write highlighted differences to
-`tests/visual/diffs/`. Keep the fixture data and capture conditions stable; do not automatically
-accept a changed baseline. Use normal UI tests for state/keyboard behavior as pixel comparisons
-cannot prove interaction correctness.
+`cases.json` defines the six history page cases (dark/light × 750×600, 900×600,
+1280×720). They are captured and compared automatically by `e2e/visual.spec.ts`
+through `toHaveScreenshot`, with reviewed PNG baselines in
+`baselines/playwright-win32/`. The original manual CUA capture flow (JPEG
+baselines plus the Python comparator) was retired once the automated pipeline
+covered the same cases; other rendering environments still need separate
+baselines under `baselines/playwright-<platform>/`.

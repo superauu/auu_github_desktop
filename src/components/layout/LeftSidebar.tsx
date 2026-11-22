@@ -650,8 +650,8 @@ export const LeftSidebar: React.FC<{ inDrawer?: boolean; onNavigate?: () => void
 
     for (const b of filtered) {
       const parts = b.name.split('/');
-      if (parts.length > 1) {
-        const folderName = parts[0];
+      const folderName = parts[0];
+      if (folderName !== undefined && parts.length > 1) {
         if (!folders[folderName]) folders[folderName] = [];
         folders[folderName].push(b);
       } else {

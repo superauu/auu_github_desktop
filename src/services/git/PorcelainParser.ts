@@ -21,6 +21,7 @@ export function unquoteGitPath(path: string): string {
   const bytes: number[] = [];
   for (let i = 0; i < inner.length; i++) {
     const ch = inner[i];
+    if (ch === undefined) break;
     if (ch === '\\' && i + 1 < inner.length) {
       const oct = inner.slice(i + 1, i + 4);
       if (/^[0-7]{3}$/.test(oct)) {
@@ -416,8 +417,9 @@ const compareNumber = (a: bigint, b: bigint) => a < b ? -1 : a > b ? 1 : 0;
 
 /** Ascending version precedence; build metadata is deliberately ignored. */
 function compareTagVersions(a: TagVersion, b: TagVersion): number {
-  for (let index = 0; index < a.core.length; index++) {
-    const diff = compareNumber(a.core[index], b.core[index]);
+  const coreLength = Math.min(a.core.length, b.core.length);
+  for (let index = 0; index < coreLength; index++) {
+    const diff = compareNumber(a.core[index] ?? 0n, b.core[index] ?? 0n);
     if (diff) return diff;
   }
   if (!a.prerelease.length || !b.prerelease.length) {
