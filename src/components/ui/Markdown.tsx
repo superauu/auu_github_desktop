@@ -8,6 +8,7 @@ import './Markdown.css';
 
 /** Remote issue content stays data: no raw HTML, scripts or executable URL schemes. */
 export function Markdown({ children, baseUrl }: { children: string; baseUrl?: string }) {
+  const { t } = useI18n();
   const components: Components = {
     a: ({ href, children }) => href ? <a href={href} target={href.startsWith('#') ? undefined : '_blank'} rel="noreferrer noopener" onClick={event => {
       if (!href.startsWith('#')) { event.preventDefault(); void openExternalUrl(href); }

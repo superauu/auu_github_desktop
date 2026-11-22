@@ -1,5 +1,5 @@
 import type { AiApiConfig } from '@/stores/settingsStore';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import { requestAiCompletion } from './AiTransport';
 
 export type AiProtocol = 'chat-completions' | 'responses' | 'anthropic-messages';
@@ -50,7 +50,7 @@ export async function requestAiText(config: AiApiConfig, messages: AiMessage[], 
   const clippedRaw = clipErrorBody(raw);
   const responseError = (message: string) => new Error(`${message}\nHTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}\n${clippedRaw}`);
   if (!response.ok) {
-    throw new Error(tNow('err.aiHttp').replace('{s}', String(response.status)).replace('{m}', () => clippedRaw));
+    throw new Error(tfNow('err.aiHttp', { s: String(response.status), m: clippedRaw }));
   }
   let data;
   try { data = JSON.parse(raw); }

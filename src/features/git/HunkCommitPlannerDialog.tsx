@@ -16,7 +16,7 @@ let sequence = 0;
 const emptyGroup = (): HunkCommitGroup => ({ id: `hunk-group-${++sequence}`, title: '', body: '', units: [] });
 type Phase = 'reading' | 'review' | 'checking' | 'writing' | 'done' | 'stopped';
 export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPath: string; branch: string; onClose: () => void }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const currentTask = useCurrentBranchIssue();
   const [plan, setPlan] = useState<HunkCommitPlan | null>(null);
   const [groups, setGroups] = useState<HunkCommitGroup[]>([]);
@@ -132,14 +132,14 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
         <p className="text-xs text-muted-foreground break-all">{repoPath} · {branch}</p>
         {phase === 'reading' && <p role="status">{t('common.loading')}</p>}
         {phase === 'checking' && <p role="status">{t('workingReview.checking')}</p>}
-        {phase === 'writing' && <p role="status">{t('hunkPlan.writing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))}{stopping && ` · ${t('hunkPlan.stopRequested')}`}</p>}
+        {phase === 'writing' && <p role="status">{tf('hunkPlan.writing', { n: String(Math.min(completed.length + 1, groups.length)), total: String(groups.length) })}{stopping && ` · ${t('hunkPlan.stopRequested')}`}</p>}
         {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap wrap-break-word">{error}</p>}
         {draftStatus && <p role="status" className="text-xs text-muted-foreground">{t(draftStatus === 'saved' ? 'hunkDraft.saved' : 'hunkDraft.unavailable')}</p>}
         {plan && (phase === 'review' || writing) && <>
           {pendingDraft && <section aria-label={t('hunkDraft.title')} className="border border-border rounded-lg p-3 space-y-3">
             <h3 className="font-medium text-sm">{t('hunkDraft.title')}</h3>
             <p className="text-sm">{t(draft.status === 'matching' ? 'hunkDraft.matching' : 'hunkDraft.stale')}</p>
-            <ol className="list-decimal pl-5 text-xs space-y-1">{draft.groups.map((group, index) => <li key={index} className="break-all">{group.title || t('hunkPlan.subject')} · {t('hunkPlan.count').replace('{n}', String(group.units.length))}</li>)}</ol>
+            <ol className="list-decimal pl-5 text-xs space-y-1">{draft.groups.map((group, index) => <li key={index} className="break-all">{group.title || t('hunkPlan.subject')} · {tf('hunkPlan.count', { n: String(group.units.length) })}</li>)}</ol>
             <div className="flex flex-wrap gap-2">{draft.status === 'matching' && <Button size="sm" disabled={draftBusy} onClick={() => void restoreDraft()}>{t('hunkDraft.restore')}</Button>}<Button size="sm" variant="outline" disabled={draftBusy} onClick={() => { const cleared = draftSession.current?.clear(); setDraft(null); setDraftStatus(cleared ? '' : 'unavailable'); }}>{t('hunkDraft.discard')}</Button></div>
             {draftBusy && <p role="status" className="text-xs">{t('hunkAi.applying')}</p>}
           </section>}
@@ -147,7 +147,7 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
             previewGeneration.current++; setPreview(null); setDirty(true); setGroups(suggested.map(group => ({ ...group, id: `hunk-group-${++sequence}`, units: [...group.units] })));
           }} />}
           {phase === 'review' && <HunkIssueReferences plan={plan} groups={groups} task={currentTask} blocked={writing || previewing || aiBlocked || pendingDraft || draftBusy} onBlockedChange={updateIssueBlocked} onApply={suggested => change(() => suggested)} onNavigate={onClose} />}
-          <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{t('hunkPlan.count').replace('{n}', String(plan.units.length))}</strong><span className="text-xs text-muted-foreground">{t('hunkPlan.remaining').replace('{n}', String(plan.units.length - assigned))}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{tf('hunkPlan.count', { n: String(plan.units.length) })}</strong><span className="text-xs text-muted-foreground">{tf('hunkPlan.remaining', { n: String(plan.units.length - assigned) })}</span></div>
           <section aria-label={t('hunkPlan.pool')} className="space-y-2">
             <input type="search" aria-label={t('hunkPlan.search')} placeholder={t('hunkPlan.search')} value={search} onChange={event => { setSearch(event.target.value); setLimit(50); }} className="w-full h-9 px-3 border border-input bg-background rounded-md text-sm" />
             <ul className="max-h-80 overflow-auto space-y-2">{units.slice(0, limit).map(unit => <li key={unit.id} className="border border-border rounded-md p-3 space-y-2">
@@ -157,7 +157,7 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
             {units.length > limit && <Button variant="outline" onClick={() => setLimit(value => value + 50)}>{t('hunkPlan.showMore')}</Button>}
           </section>
           {groups.map((group, index) => <section key={group.id} aria-label={`${t('hunkPlan.group')} ${index + 1}`} className="border border-border rounded-lg p-3 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{index + 1} / {groups.length} · {t('hunkPlan.count').replace('{n}', String(group.units.length))}</strong><div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{index + 1} / {groups.length} · {tf('hunkPlan.count', { n: String(group.units.length) })}</strong><div className="flex flex-wrap gap-1">
               <Button size="icon" variant="ghost" aria-label={t('batch.up')} disabled={!editable || !index} onClick={() => move(index, -1)}><ArrowUp className="h-4 w-4" /></Button>
               <Button size="icon" variant="ghost" aria-label={t('batch.down')} disabled={!editable || index === groups.length - 1} onClick={() => move(index, 1)}><ArrowDown className="h-4 w-4" /></Button>
               {index > 0 && <Button size="xs" variant="ghost" disabled={!editable} onClick={() => change(previous => previous.flatMap((value, i) => i === index ? [] : i === index - 1 ? [{ ...value, units: [...value.units, ...previous[index].units], body: [value.body, previous[index].body].filter(Boolean).join('\n\n') }] : [value]))}>{t('hunkPlan.merge')}</Button>}
@@ -175,12 +175,12 @@ export function HunkCommitPlannerDialog({ repoPath, branch, onClose }: { repoPat
           {preview && <section aria-label={t('hunkPlan.previewTitle')} className="space-y-2"><h3 className="font-semibold text-sm">{preview.title}</h3><p className="text-xs text-muted-foreground">{t('hunkPlan.previewHint')}</p><pre className="max-h-80 overflow-auto bg-muted border border-border p-3 rounded-md text-xs select-text">{preview.diff}</pre></section>}
           <p className="text-xs text-muted-foreground">{t('hunkPlan.hooks')}</p>
         </>}
-        {(completed.length > 0 || phase === 'done') && <section className="space-y-2"><p role="status" className="font-medium">{t('hunkPlan.completed').replace('{n}', String(completed.length))}</p><ol className="text-sm space-y-2">{completed.map(commit => <li key={commit.hash}><code className="mr-2 text-primary">{commit.hash.slice(0, 7)}</code>{commit.title}</li>)}</ol><p className="text-xs text-muted-foreground">{t('hunkPlan.indexPreserved')}</p>{recovery && <p className="text-xs text-muted-foreground break-all">{t('batch.recovery')} <code>{recovery}</code></p>}</section>}
+        {(completed.length > 0 || phase === 'done') && <section className="space-y-2"><p role="status" className="font-medium">{tf('hunkPlan.completed', { n: String(completed.length) })}</p><ol className="text-sm space-y-2">{completed.map(commit => <li key={commit.hash}><code className="mr-2 text-primary">{commit.hash.slice(0, 7)}</code>{commit.title}</li>)}</ol><p className="text-xs text-muted-foreground">{t('hunkPlan.indexPreserved')}</p>{recovery && <p className="text-xs text-muted-foreground break-all">{t('batch.recovery')} <code>{recovery}</code></p>}</section>}
       </div>
       <footer className="flex flex-wrap justify-end gap-2 p-4 border-t border-border">
         <Button variant="outline" disabled={writing} onClick={onClose}>{t('common.close')}</Button>
         {phase === 'reading' ? <Button variant="outline" onClick={() => { generation.current++; abort.current?.abort(); setError(t('hunkPlan.cancelled')); setPhase('stopped'); }}>{t('hunkPlan.cancelRead')}</Button> : !writing && <Button variant="outline" disabled={previewing || draftBusy} onClick={() => void read(true)}>{t(completed.length ? 'hunkPlan.retryRemaining' : 'hunkPlan.reload')}</Button>}
-        {phase === 'review' && <Button disabled={!valid || !editable} onClick={() => void submit()}>{t('hunkPlan.confirm').replace('{n}', String(groups.length))}</Button>}
+        {phase === 'review' && <Button disabled={!valid || !editable} onClick={() => void submit()}>{tf('hunkPlan.confirm', { n: String(groups.length) })}</Button>}
         {phase === 'writing' && <Button variant="outline" disabled={stopping} onClick={() => { stop.current = true; setStopping(true); }}>{t('hunkPlan.stop')}</Button>}
       </footer>
     </div>

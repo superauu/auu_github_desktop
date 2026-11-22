@@ -3,6 +3,7 @@
  * 中性 trailer 而非 `Fixes`：Git 平台的自动关闭关键字对错误平台短 ID 无意义（§8.2），
  * Git 工作流状态与错误平台状态保持解耦。
  */
+import { interpolate } from '@/i18n';
 import type { UnifiedErrorIssue } from './types';
 
 export const BRANCH_NAME_TEMPLATE = 'fix/{provider}-{shortId}-{titleSlug}';
@@ -28,10 +29,8 @@ export interface BranchNameParts {
 
 export function buildBranchName(template: string = BRANCH_NAME_TEMPLATE, parts: BranchNameParts): string {
   const shortId = parts.shortId || parts.issueId.split('/').pop() || parts.issueId;
-  const name = template
-    .replace('{provider}', parts.providerId)
-    .replace('{shortId}', shortId)
-    .replace('{titleSlug}', slugifyTitle(parts.title));
+  // 用户可编辑模板走 interpolate：字符串 replacement 会把标题里的 $&/$' 当特殊序列展开（分支名腐化）
+  const name = interpolate(template, { provider: parts.providerId, shortId, titleSlug: slugifyTitle(parts.title) });
   // 分支名安全化：白名单字符，折叠分隔符（模板变量替换后仍可能混入非法字符）
   return name.replace(/[^a-zA-Z0-9/._-]+/g, '-').replace(/-{2,}/g, '-').replace(/^-+|\.lock$/g, '');
 }

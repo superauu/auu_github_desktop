@@ -34,7 +34,7 @@ import {
   buildHunkPatch,
   parseBlamePorcelain,
 } from './PorcelainParser';
-import { tNow, LocalizedError } from '@/i18n';
+import { tNow, tfNow, LocalizedError } from '@/i18n';
 import { selectCollaborationRemote } from '@/services/integrations/repositoryBinding';
 import { DiffCache } from './DiffCache';
 import { authorizeRepository } from '@/services/fs/RepositoryAccess';
@@ -337,7 +337,7 @@ export class GitService implements IGitService {
       const owner = (await this.listRemotes(repoPath)).sort((a, b) => b.name.length - a.name.length).find(item => target.startsWith(`${item.name}/`));
       const localName = target.slice(owner ? owner.name.length + 1 : target.indexOf('/') + 1);
       const upstream = (await executeGit(['for-each-ref', '--format=%(upstream)', `refs/heads/${localName}`], repoPath)).stdout.trim();
-      if (await hasRef(`refs/heads/${localName}`) && upstream !== `refs/remotes/${target}`) throw new Error(tNow('remote.checkoutConflict').replace('{branch}', localName).replace('{remote}', target));
+      if (await hasRef(`refs/heads/${localName}`) && upstream !== `refs/remotes/${target}`) throw new Error(tfNow('remote.checkoutConflict', { branch: localName, remote: target }));
       return trees.find(tree => tree.branch === `refs/heads/${localName}`);
     }
     return undefined;
@@ -784,7 +784,7 @@ export class GitService implements IGitService {
       const exists = await this.hasRef(repoPath, `refs/heads/${shortName}`);
       if (exists) {
         const upstream = (await executeGit(['for-each-ref', '--format=%(upstream)', `refs/heads/${shortName}`], repoPath)).stdout.trim();
-        if (upstream !== `refs/remotes/${target}`) throw new Error(tNow('remote.checkoutConflict').replace('{branch}', shortName).replace('{remote}', target));
+        if (upstream !== `refs/remotes/${target}`) throw new Error(tfNow('remote.checkoutConflict', { branch: shortName, remote: target }));
       }
       await executeGit(exists ? ['switch', shortName] : ['switch', '--track', '-c', shortName, `refs/remotes/${target}`], repoPath);
     } else {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Update } from '@tauri-apps/plugin-updater';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 import { getTotalPendingGitWrites } from '@/services/git/GitQueue';
 import { confirmAction } from '@/stores/confirmStore';
@@ -45,7 +45,7 @@ export async function checkForUpdates(silent = true): Promise<void> {
       }
       resource = update;
       useUpdateStore.setState({ phase: 'available', version: update.version, notes: update.body || '', error: null });
-      toast.info(tNow('update.available').replace('{v}', update.version), tNow('updates.availableHint'));
+      toast.info(tfNow('update.available', { v: update.version }), tNow('updates.availableHint'));
     } catch (error) {
       useUpdateStore.setState({ phase: silent ? previousPhase : 'error', error: errorText(error) });
       if (!silent) toast.error(tNow('update.checkFailed'), errorText(error));

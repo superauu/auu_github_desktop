@@ -13,7 +13,7 @@ export function HunkAiSuggestions({ plan, blocked, revision, onApply, onBlockedC
   plan: HunkCommitPlan; blocked: boolean; revision: number;
   onApply: (groups: AiHunkGroup[]) => void; onBlockedChange: (blocked: boolean) => void;
 }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const config = useSettingsStore(state => state.aiConfig);
   const configured = config.provider === 'openai-compatible' && !!config.apiKey.trim() && !!config.model.trim();
   const [phase, setPhase] = useState<'idle' | 'analyzing' | 'applying'>('idle');
@@ -87,8 +87,8 @@ export function HunkAiSuggestions({ plan, blocked, revision, onApply, onBlockedC
     {phase !== 'idle' && <p role="status" className="text-sm">{t(phase === 'applying' ? 'hunkAi.applying' : 'hunkAi.analyzing')}</p>}
     {notice && <p role="status" className="text-xs text-muted-foreground">{notice}</p>}
     {error && <div role="alert" className="space-y-1 text-xs"><p className="text-destructive">{t('hunkAi.failed')}</p><pre className="whitespace-pre-wrap wrap-break-word max-h-36 overflow-auto text-muted-foreground">{error}</pre></div>}
-    {proposal && <section aria-label={t('hunkAi.proposal').replace('{n}', String(proposal.groups.length))} className="space-y-3">
-      <p className="text-sm font-medium">{t('hunkAi.proposal').replace('{n}', String(proposal.groups.length))}</p><p className="text-sm whitespace-pre-wrap wrap-break-word">{proposal.summary}</p>
+    {proposal && <section aria-label={tf('hunkAi.proposal', { n: String(proposal.groups.length) })} className="space-y-3">
+      <p className="text-sm font-medium">{tf('hunkAi.proposal', { n: String(proposal.groups.length) })}</p><p className="text-sm whitespace-pre-wrap wrap-break-word">{proposal.summary}</p>
       <ol className="space-y-3">{proposal.groups.map((group, index) => <li key={index} className="border border-border rounded-md p-3 space-y-2 text-xs">
         <strong className="block break-all">{index + 1}. {group.title}</strong><p className="whitespace-pre-wrap wrap-break-word">{group.body}</p><p className="text-muted-foreground whitespace-pre-wrap wrap-break-word">{t('hunkAi.reason')}：{group.reason}</p>
         <ul className="space-y-1 text-muted-foreground">{plan.units.filter(unit => group.units.includes(unit.id)).map(unit => <li key={unit.id} className="break-all">{unit.path} · {unit.kind === 'file' ? t('hunkPlan.wholeFile') : formatDiffHunkLabel(unit.label, lang)}</li>)}</ul>

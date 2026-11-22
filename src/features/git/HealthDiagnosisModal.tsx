@@ -312,7 +312,7 @@ export const HealthDiagnosisModal: React.FC<HealthDiagnosisModalProps> = ({
 
 /** 仓库统计：对象库四项指标 + 当前分支贡献榜 Top 20 + gc 维护动作。激活时按需加载，世代 ref 防竞态。 */
 const RepositoryStatsPanel: React.FC<{ active: boolean }> = ({ active }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const repoPath = useRepoStore(state => state.currentRepo?.path);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -411,7 +411,7 @@ const RepositoryStatsPanel: React.FC<{ active: boolean }> = ({ active }) => {
                     <span className="shrink-0 h-1.5 rounded-full bg-primary/20 overflow-hidden w-24" aria-hidden>
                       <span className="block h-full rounded-full bg-primary/70" style={{ width: `${maxCommits > 0 ? Math.max(6, Math.round((entry.commits / maxCommits) * 100)) : 0}%` }} />
                     </span>
-                    <span className="w-20 text-right text-[11px] text-muted-foreground tabular-nums shrink-0">{t('diag.stats.commits').replace('{n}', String(entry.commits))}</span>
+                    <span className="w-20 text-right text-[11px] text-muted-foreground tabular-nums shrink-0">{tf('diag.stats.commits', { n: String(entry.commits) })}</span>
                   </div>
                 ))}
               </div>

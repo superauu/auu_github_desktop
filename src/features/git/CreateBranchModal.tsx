@@ -26,7 +26,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
   onCreated,
 }) => {
   const { currentRepo, branches, status, commits, createBranch } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, status: state.status, commits: state.commits, createBranch: state.createBranch })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
 
   const currentBranch =
     branches.find((b) => b.isCurrent)?.name ||
@@ -91,7 +91,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
       await createBranch(cleanName, startPoint, checkoutAfterCreate);
       onCreated?.(cleanName);
       toast.success(
-        `${t('create.success').replace('{name}', cleanName)}`,
+        `${tf('create.success', { name: cleanName })}`,
         checkoutAfterCreate ? t('create.switched') : t('create.stayed')
       );
       setBranchName('');
@@ -120,7 +120,7 @@ export const CreateBranchModal: React.FC<CreateBranchModalProps> = ({
             <div>
               <div className="font-semibold text-xs text-foreground">{t('create.title')}</div>
               <div className="text-[11px] text-muted-foreground">
-                {t('create.descPrefix').replace('{repo}', currentRepo?.name || '')}
+                {tf('create.descPrefix', { repo: currentRepo?.name || '' })}
               </div>
             </div>
           </div>

@@ -15,7 +15,7 @@ import {
 interface Props { repoPath: string; paths: string[]; onClose: () => void }
 
 export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const managing = paths.length === 0;
   const [scope, setScope] = useState<IgnoreScope>('shared');
   const [mode, setMode] = useState<IgnoreMode>('file');
@@ -77,7 +77,7 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
       try {
         const actual = await gitService.getStatus(repoPath);
         const remaining = actual.untracked.filter(file => preview.untracked.includes(file.path));
-        if (remaining.length) toast.warning(t('ignore.verifyWarning').replace('{n}', String(remaining.length)));
+        if (remaining.length) toast.warning(tf('ignore.verifyWarning', { n: String(remaining.length) }));
       } catch { toast.warning(t('ignore.verifyFailed')); }
       const before = snapshot;
       useToastStore.getState().addToast({ type: 'success', title: t('ignore.saved'), description: scope === 'shared' ? '.gitignore' : scope === 'global' ? t('ignore.global') : '.git/info/exclude', duration: 15000,
@@ -99,7 +99,7 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
         <Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.close')} onClick={onClose}><X className="h-4 w-4" /></Button>
       </div>
       <div className="min-h-0 overflow-y-auto space-y-4 pr-1">
-      {!managing && <p className="text-xs text-muted-foreground break-all">{paths.length === 1 ? paths[0] : t('ignore.selected').replace('{n}', String(paths.length))}</p>}
+      {!managing && <p className="text-xs text-muted-foreground break-all">{paths.length === 1 ? paths[0] : tf('ignore.selected', { n: String(paths.length) })}</p>}
       <label className="block text-sm space-y-1"><span>{t('ignore.destination')}</span>
         <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={scope} disabled={busy} onChange={event => setScope(event.target.value as IgnoreScope)}>
           <option value="shared">{t('ignore.shared')}</option><option value="local">{t('ignore.local')}</option><option value="global">{t('ignore.global')}</option>
@@ -124,10 +124,10 @@ export function IgnoreDialog({ repoPath, paths, onClose }: Props) {
       </label>
       {loading || (!preview && !error) ? <p role="status" className="text-xs text-muted-foreground flex gap-2"><Loader2 className="h-4 w-4 animate-spin" />{t('ignore.loading')}</p> : null}
       {preview && <div className="rounded-md border border-border p-3 text-xs space-y-2" aria-live="polite">
-        <p>{t('ignore.affected').replace('{n}', String(preview.untracked.length))}</p>
+        <p>{tf('ignore.affected', { n: String(preview.untracked.length) })}</p>
         {preview.untracked.length > 0 && <details><summary className="cursor-pointer">{t('ignore.showFiles')}</summary><ul className="mt-2 max-h-36 overflow-auto font-mono select-text">{preview.untracked.map(path => <li className="break-all" key={path}>{path}</li>)}</ul></details>}
-        {preview.tracked.length > 0 && <details className="text-amber-500"><summary className="cursor-pointer">{t('ignore.tracked').replace('{n}', String(preview.tracked.length))}</summary><ul className="mt-2 max-h-28 overflow-auto font-mono">{preview.tracked.map(path => <li key={path}>{path}</li>)}</ul></details>}
-        {!managing && preview.selectedNotIgnored.length > 0 && <p className="text-amber-500">{t('ignore.exceptions').replace('{n}', String(preview.selectedNotIgnored.length))}</p>}
+        {preview.tracked.length > 0 && <details className="text-amber-500"><summary className="cursor-pointer">{tf('ignore.tracked', { n: String(preview.tracked.length) })}</summary><ul className="mt-2 max-h-28 overflow-auto font-mono">{preview.tracked.map(path => <li key={path}>{path}</li>)}</ul></details>}
+        {!managing && preview.selectedNotIgnored.length > 0 && <p className="text-amber-500">{tf('ignore.exceptions', { n: String(preview.selectedNotIgnored.length) })}</p>}
         <p className="text-muted-foreground">{t('ignore.previewHint')}</p>
       </div>}
       {managing && <div className="space-y-2 border-t border-border pt-3">

@@ -179,16 +179,14 @@ export async function runBatchFetch(
 /** 把批量结果转成 toast 文案：全成功 → success；有失败 → warning（标题含成功/失败计数，描述列出失败仓库名） */
 export function batchFetchToast(
   result: BatchFetchResult,
-  t: (key: string) => string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
 ): { type: 'success' | 'warning'; title: string; description?: string } {
   if (result.failed.length === 0) {
-    return { type: 'success', title: t('workspaces.batchFetchDone').replace('{n}', String(result.ok.length)) };
+    return { type: 'success', title: t('workspaces.batchFetchDone', { n: String(result.ok.length) }) };
   }
   return {
     type: 'warning',
-    title: t('workspaces.batchFetchPartial')
-      .replace('{n}', String(result.ok.length))
-      .replace('{m}', String(result.failed.length)),
+    title: t('workspaces.batchFetchPartial', { n: String(result.ok.length), m: String(result.failed.length) }),
     description: result.failed.map((item) => `${item.name}: ${item.message}`).join('\n'),
   };
 }

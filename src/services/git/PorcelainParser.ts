@@ -7,7 +7,7 @@ import {
   GitStatusResult,
   GitTag,
 } from './types';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 
 /**
  * 还原 git C 风格引号路径（如 "src/\346\226\207\344\273\266.txt"）。
@@ -676,9 +676,9 @@ function formatRelativeTime(isoDateStr: string): string {
     const diffDay = Math.floor(diffHour / 24);
 
     if (diffSec < 60) return tNow('time.justNow');
-    if (diffMin < 60) return tNow('time.minutesAgo').replace('{n}', String(diffMin));
-    if (diffHour < 24) return tNow('time.hoursAgo').replace('{n}', String(diffHour));
-    if (diffDay < 30) return tNow('time.daysAgo').replace('{n}', String(diffDay));
+    if (diffMin < 60) return tfNow('time.minutesAgo', { n: String(diffMin) });
+    if (diffHour < 24) return tfNow('time.hoursAgo', { n: String(diffHour) });
+    if (diffDay < 30) return tfNow('time.daysAgo', { n: String(diffDay) });
     return date.toLocaleDateString(tNow('time.locale'));
   } catch {
     return isoDateStr;

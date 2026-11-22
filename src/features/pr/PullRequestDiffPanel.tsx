@@ -76,7 +76,7 @@ export const PullRequestDiffPanel: React.FC<PullRequestDiffPanelProps> = ({
   onAddDraft,
   onRemoveDraft,
 }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [draftTarget, setDraftTarget] = useState<DraftTarget | null>(null);
   const [draftText, setDraftText] = useState('');
   const [expandedHunks, setExpandedHunks] = useState<ReadonlySet<number>>(new Set());
@@ -237,8 +237,8 @@ export const PullRequestDiffPanel: React.FC<PullRequestDiffPanelProps> = ({
           {canComment && (
             <button
               type="button"
-              aria-label={t('prReview.addCommentAria').replace('{line}', String(commentLine))}
-              title={t('prReview.addCommentAria').replace('{line}', String(commentLine))}
+              aria-label={tf('prReview.addCommentAria', { line: String(commentLine) })}
+              title={tf('prReview.addCommentAria', { line: String(commentLine) })}
               onClick={() => startDraft(mainAnchor, commentSide, commentLine)}
               className="absolute right-1 top-0.5 h-4 px-1 rounded bg-card border border-border/70 opacity-0 group-hover/line:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
             >

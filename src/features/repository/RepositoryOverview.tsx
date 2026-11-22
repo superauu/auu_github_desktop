@@ -13,7 +13,7 @@ import { overviewService, OverviewPermissionError } from './OverviewService';
 import { mapOverview, overviewCounts, overviewRepositories } from './overviewLogic';
 
 export function RepositoryOverview({ onOpenConnection }: { onOpenConnection?: () => void }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const { open, recent, currentPath } = useRepoStore(useShallow(state => ({ open: state.openTabs, recent: state.recentRepos, currentPath: state.currentRepo?.path })));
   const { token, profile, authenticated } = useCollaborationStore(useShallow(state => ({ token: state.token, profile: state.activeProfileId, authenticated: state.isAuthenticated })));
   const account = useMemo(() => ({ token, profile, authenticated }), [token, profile, authenticated]);
@@ -96,7 +96,7 @@ export function RepositoryOverview({ onOpenConnection }: { onOpenConnection?: ()
     <header className="app-toolbar">
       <div className="app-toolbar-group">
         {busy ? <Button size="xs" variant="ghost" onClick={stopRead}><Square aria-hidden="true" size={11} />{t('overview.stop')}</Button> : <Button size="xs" variant="ghost" onClick={() => void refresh()}><RefreshCw aria-hidden="true" size={12} />{t('overview.refresh')}</Button>}
-        <span className="overview-read-count">{busy && <LoaderCircle aria-hidden="true" size={11} className="overview-spinner" />}{t('overview.readCount').replace('{read}', number.format(known.length)).replace('{total}', number.format(repos.length))}</span>
+        <span className="overview-read-count">{busy && <LoaderCircle aria-hidden="true" size={11} className="overview-spinner" />}{tf('overview.readCount', { read: number.format(known.length), total: number.format(repos.length) })}</span>
       </div>
       <section aria-label={t('overview.summary')} className="overview-chips">{metrics.map(metric => <button type="button" key={metric.filter} className="overview-chip" aria-pressed={filter === metric.filter} data-tone={metric.value > 0 && metric.filter === 'conflicts' ? 'danger' : metric.value > 0 && metric.filter === 'unpushed' ? 'active' : undefined} onClick={() => setFilter(filter === metric.filter ? 'all' : metric.filter)}>
         <span className="overview-chip-label"><metric.icon aria-hidden="true" size={12} />{t(metric.label)}</span><span className="overview-chip-count">{metric.ready ? number.format(metric.value) : '—'}</span>

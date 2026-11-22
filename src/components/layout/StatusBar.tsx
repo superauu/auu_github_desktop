@@ -16,7 +16,7 @@ import { openUpdateDialog, useUpdateStore } from '@/services/updater/UpdateServi
 
 export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHistory }) => {
   const { currentRepo, status, branches } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status, branches: state.branches })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const updatePhase = useUpdateStore(state => state.phase);
   const updateVersion = useUpdateStore(state => state.version);
   const { activity, elapsed, operationLabel, waitHint } = useGitOperationStatus(currentRepo?.path || '');
@@ -70,7 +70,7 @@ export const StatusBar: React.FC<{ onOpenHistory?: () => void }> = ({ onOpenHist
           <span role="status">{activity ? operationLabel : t('status.gitReady')}</span>
           {activity?.startedAt != null && <span className="tabular-nums" aria-label={t('activity.elapsed')}>{elapsed}s</span>}
           {!!activity?.queued && <>
-            <span>{t('activity.queued').replace('{n}', String(activity.queued))}</span>
+            <span>{tf('activity.queued', { n: String(activity.queued) })}</span>
             <button className="text-primary hover:underline" title={t('activity.cancelHint')}
               onClick={() => cancelQueuedGitWrites(currentRepo?.path || '', t('activity.cancelled'))}>{t('activity.cancelQueued')}</button>
           </>}

@@ -59,7 +59,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
   const { currentRepo, branches, commits, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, branches: state.branches, commits: state.commits, status: state.status })));
   const { currentOwner, currentRepoName, loadPullRequests, openPullRequest } = useCollaborationStore(useShallow(state => ({ currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, loadPullRequests: state.loadPullRequests, openPullRequest: state.openPullRequest })));
   const aiConfig = useSettingsStore(state => state.aiConfig);
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const collaborationScope = useCollaborationScope();
 
   const currentBranch =
@@ -245,7 +245,7 @@ export const CreatePullRequestModal: React.FC<CreatePullRequestModalProps> = ({
           provider: providerId, number: created.number, url: created.html_url,
         });
       }
-      toast.success(t('pr.created').replace('{n}', String(created.number)), created.html_url);
+      toast.success(tf('pr.created', { n: String(created.number) }), created.html_url);
       await loadPullRequests();
       if (currentSession !== session.current || !isCurrentTarget()) return;
       const fresh = useCollaborationStore.getState().pullRequests.find(pr => pr.number === created.number);

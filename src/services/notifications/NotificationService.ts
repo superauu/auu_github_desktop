@@ -16,7 +16,7 @@
  * 权限拒绝都静默降级，绝不影响 store 监听器（它运行在 zustand setState 内）。
  */
 import { useCollaborationStore } from '@/stores/collaborationStore';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import type { CollaborationCheckRun } from '@/services/collaboration/types';
 
 /** 同仓库同结论通知的最小间隔（毫秒）。 */
@@ -97,15 +97,13 @@ export function diffCommitCheckCompletions(
 function composeSummary(completion: CiWatchCompletion): string {
   const shortSha = completion.sha.slice(0, 7);
   if (completion.outcome === 'success') {
-    const stats = tNow('notifications.ciSummaryPassed')
-      .replace('{passed}', String(completion.passed))
-      .replace('{total}', String(completion.total));
+    const stats = tfNow('notifications.ciSummaryPassed', { passed: String(completion.passed), total: String(completion.total) });
     return `${shortSha} · ${stats}`;
   }
   const shown = completion.failedNames.slice(0, MAX_FAILED_NAMES);
   const more = completion.failedNames.length - shown.length;
-  let detail = tNow('notifications.ciSummaryFailedNames').replace('{names}', shown.join(', '));
-  if (more > 0) detail += ` +${tNow('notifications.ciSummaryMore').replace('{count}', String(more))}`;
+  let detail = tfNow('notifications.ciSummaryFailedNames', { names: shown.join(', ') });
+  if (more > 0) detail += ` +${tfNow('notifications.ciSummaryMore', { count: String(more) })}`;
   return `${shortSha} · ${detail}`;
 }
 
@@ -148,9 +146,7 @@ export function createCiNotificationController(deps: NotificationsDeps): CiNotif
       throttledAt.set(throttleKey, now);
       const success = completion.outcome === 'success';
       const title = tNow(success ? 'notifications.ciSuccessTitle' : 'notifications.ciFailureTitle');
-      const body = tNow(success ? 'notifications.ciSuccessDesc' : 'notifications.ciFailureDesc')
-        .replace('{repo}', `${owner}/${repo}`)
-        .replace('{summary}', composeSummary(completion));
+      const body = tfNow(success ? 'notifications.ciSuccessDesc' : 'notifications.ciFailureDesc', { repo: `${owner}/${repo}`, summary: composeSummary(completion) });
       try {
         deps.plugin.sendNotification({ title, body });
       } catch { /* 系统通知失败绝不影响 store 监听器 */ }

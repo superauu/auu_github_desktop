@@ -1,4 +1,4 @@
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import { validateGitHubUrl } from './verificationUrl';
 export interface DeviceCodeResponse {
   device_code: string;
@@ -62,7 +62,7 @@ export class GitHubOAuthService {
         data.verification_uri = validateGitHubUrl(data.verification_uri);
         return data as DeviceCodeResponse;
       } catch (err: any) {
-        throw new Error(tNow('err.ghDeviceFailed').replace('{m}', err.message || String(err)), { cause: err });
+        throw new Error(tfNow('err.ghDeviceFailed', { m: err.message || String(err) }), { cause: err });
       }
     }
 
@@ -84,7 +84,7 @@ export class GitHubOAuthService {
     }
 
     if (!res.ok) {
-      throw new Error(tNow('err.ghDeviceHttp').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghDeviceHttp', { s: String(res.status) }));
     }
 
     const data = JSON.parse(rawText) as DeviceCodeResponse;
@@ -163,7 +163,7 @@ export class GitHubOAuthService {
         if (data.error === 'access_denied') {
           throw new Error(tNow('err.ghUserDenied'));
         }
-        throw new Error(data.error_description || tNow('err.ghAuthError').replace('{m}', data.error));
+        throw new Error(data.error_description || tfNow('err.ghAuthError', { m: data.error }));
       }
 
       if (data.error) {

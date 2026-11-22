@@ -53,7 +53,7 @@ const DEFAULT_HISTORY_VIEW = { query: '', scrollTop: 0, columns: { author: true,
 const ROW_H = COMMIT_ROW_HEIGHT;
 
 export const CommitHistoryView: React.FC = () => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const {
     commits,
     selectedCommit,
@@ -350,7 +350,7 @@ export const CommitHistoryView: React.FC = () => {
           onClick: () =>
             runCommitAction(
               () => cherryPickCommit(ctxMenu.commit!.hash),
-              t('history.cherryPicked').replace('{h}', ctxMenu.commit!.shortHash),
+              tf('history.cherryPicked', { h: ctxMenu.commit!.shortHash }),
               t('history.cherryPickFailed')
             ),
         },
@@ -361,7 +361,7 @@ export const CommitHistoryView: React.FC = () => {
           onClick: () =>
             runCommitAction(
               () => revertCommit(ctxMenu.commit!.hash),
-              t('history.reverted').replace('{h}', ctxMenu.commit!.shortHash),
+              tf('history.reverted', { h: ctxMenu.commit!.shortHash }),
               t('history.revertFailed')
             ),
         },
@@ -371,10 +371,10 @@ export const CommitHistoryView: React.FC = () => {
           label: t('history.ctx.resetSoft'),
           icon: <ArrowUpFromLine className="h-3.5 w-3.5" />,
           onClick: async () => {
-            if (!await confirmAction({ title: t('history.ctx.resetSoft'), description: t('history.resetSoftConfirm').replace('{h}', ctxMenu.commit!.shortHash), detail: ctxMenu.commit!.subject })) return;
+            if (!await confirmAction({ title: t('history.ctx.resetSoft'), description: tf('history.resetSoftConfirm', { h: ctxMenu.commit!.shortHash }), detail: ctxMenu.commit!.subject })) return;
             runCommitAction(
               () => softResetCommit(ctxMenu.commit!.hash),
-              t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
+              tf('history.resetDone', { h: ctxMenu.commit!.shortHash }),
               t('history.resetFailed')
             );
           },
@@ -384,10 +384,10 @@ export const CommitHistoryView: React.FC = () => {
           label: t('history.ctx.resetMixed'),
           icon: <ArrowDownToLine className="h-3.5 w-3.5" />,
           onClick: async () => {
-            if (!await confirmAction({ title: t('history.ctx.resetMixed'), description: t('history.resetMixedConfirm').replace('{h}', ctxMenu.commit!.shortHash), detail: ctxMenu.commit!.subject })) return;
+            if (!await confirmAction({ title: t('history.ctx.resetMixed'), description: tf('history.resetMixedConfirm', { h: ctxMenu.commit!.shortHash }), detail: ctxMenu.commit!.subject })) return;
             runCommitAction(
               () => mixedResetCommit(ctxMenu.commit!.hash),
-              t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
+              tf('history.resetDone', { h: ctxMenu.commit!.shortHash }),
               t('history.resetFailed')
             );
           },
@@ -398,10 +398,10 @@ export const CommitHistoryView: React.FC = () => {
           icon: <ArrowDownToLine className="h-3.5 w-3.5" />,
           danger: true,
           onClick: async () => {
-            if (!await confirmAction({ title: t('history.ctx.resetHard'), description: t('history.resetHardConfirm').replace('{h}', ctxMenu.commit!.shortHash) + '\n' + t('composer.hardResetWarning'), detail: ctxMenu.commit!.subject })) return;
+            if (!await confirmAction({ title: t('history.ctx.resetHard'), description: tf('history.resetHardConfirm', { h: ctxMenu.commit!.shortHash }) + '\n' + t('composer.hardResetWarning'), detail: ctxMenu.commit!.subject })) return;
             runCommitAction(
               () => hardResetCommit(ctxMenu.commit!.hash),
-              t('history.resetDone').replace('{h}', ctxMenu.commit!.shortHash),
+              tf('history.resetDone', { h: ctxMenu.commit!.shortHash }),
               t('history.resetFailed')
             );
           },
@@ -426,7 +426,7 @@ export const CommitHistoryView: React.FC = () => {
           {searchQuery.trim() && (
             <>
               <span className="text-[12px] text-muted-foreground tabular-nums">
-                {t('history.showing').replace('{shown}', String(filteredCommits.length)).replace('{loaded}', String(commits.length))}
+                {tf('history.showing', { shown: String(filteredCommits.length), loaded: String(commits.length) })}
               </span>
               <button
                 onClick={() => setSearchQuery('')}
@@ -641,7 +641,7 @@ export const CommitHistoryView: React.FC = () => {
                                   draggable={!isTag && branches.some(branch => branch.name === cleanName)}
                                   onDragStart={e => { e.stopPropagation(); const branch = branches.find(branch => branch.name === cleanName); if (branch) { e.dataTransfer.setData('application/x-auugit-branch', JSON.stringify({ name: branch.name, isRemote: branch.isRemote })); e.dataTransfer.setData('text/plain', branch.name); } }}
                                   onDragOver={e => { if (!isTag && !isRemote) { e.preventDefault(); e.dataTransfer.dropEffect = e.dataTransfer.types.includes('application/x-auugit-commit') ? 'copy' : 'move'; } }}
-                                  onDrop={e => { e.preventDefault(); e.stopPropagation(); const target = branches.find(branch => branch.name === cleanName && !branch.isRemote); if (!target) return; const name = e.dataTransfer.getData('text/plain'); const source = branches.find(branch => branch.name === name); if (source && source.name !== target.name) { setBranchDrop({ source, target }); return; } const hash = e.dataTransfer.getData('application/x-auugit-commit'); if (target.isCurrent && /^[0-9a-f]{40,64}$/.test(hash)) { void (async () => { if (await confirmAction({ title: t('history.ctx.cherryPick'), description: `${hash.slice(0, 8)} → ${target.name}`, danger: false })) await runCommitAction(() => cherryPickCommit(hash), t('history.cherryPicked').replace('{h}', hash.slice(0, 8)), t('history.cherryPickFailed')); })(); } }}
+                                  onDrop={e => { e.preventDefault(); e.stopPropagation(); const target = branches.find(branch => branch.name === cleanName && !branch.isRemote); if (!target) return; const name = e.dataTransfer.getData('text/plain'); const source = branches.find(branch => branch.name === name); if (source && source.name !== target.name) { setBranchDrop({ source, target }); return; } const hash = e.dataTransfer.getData('application/x-auugit-commit'); if (target.isCurrent && /^[0-9a-f]{40,64}$/.test(hash)) { void (async () => { if (await confirmAction({ title: t('history.ctx.cherryPick'), description: `${hash.slice(0, 8)} → ${target.name}`, danger: false })) await runCommitAction(() => cherryPickCommit(hash), tf('history.cherryPicked', { h: hash.slice(0, 8) }), t('history.cherryPickFailed')); })(); } }}
                                   title={`${ref} · ${t('flow.graphDragHint')}`}
                                   data-lane-ref={!isTag && !isRemote ? '' : undefined}
                                   data-current-branch={!isTag && !isRemote && (isHead || isSelectedBranch) ? '' : undefined}

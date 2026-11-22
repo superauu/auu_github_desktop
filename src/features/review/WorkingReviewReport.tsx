@@ -13,7 +13,7 @@ import { buildWorkingReviewReport, workingReviewEntries } from './workingReviewR
 import { WorkingReviewIssueManager } from './WorkingReviewIssueManager';
 
 export function WorkingReviewReport({ repoPath, branch, files, onLocate }: { repoPath: string; branch: string; files?: readonly GitFileChange[]; onLocate?: (path: string, issue: WorkingReviewIssue) => void }) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const records = useWorkingReviewStore(state => state.records);
   const [open, setOpen] = useState(false);
   const [includeResolved, setIncludeResolved] = useState(false);
@@ -29,7 +29,7 @@ export function WorkingReviewReport({ repoPath, branch, files, onLocate }: { rep
   const count = currentEntries.reduce((sum, entry) => sum + entry.record.issues.filter(issue => !issue.resolved).length, 0);
   const historicalCount = totalCount - currentCount;
   const previewCount = includeHistory ? totalCount : currentCount;
-  const text = useMemo(() => open ? buildWorkingReviewReport({ records, repoPath, branch, includeResolved, activePaths, includeHistory, t }) : '', [open, records, repoPath, branch, includeResolved, activePaths, includeHistory, t]);
+  const text = useMemo(() => open ? buildWorkingReviewReport({ records, repoPath, branch, includeResolved, activePaths, includeHistory, t: tf }) : '', [open, records, repoPath, branch, includeResolved, activePaths, includeHistory, tf]);
   const copy = async () => {
     if (!text) return;
     try { await navigator.clipboard.writeText(text); toast.success(t('review.reportCopied')); }
@@ -50,7 +50,7 @@ export function WorkingReviewReport({ repoPath, branch, files, onLocate }: { rep
           {(!!totalCount || managing) && <Button data-testid="working-review-manage" variant="outline" size="xs" className="ml-auto" aria-pressed={managing} onClick={() => setManaging(value => !value)}>{t(managing ? 'workingReview.backToReport' : 'workingReview.manageNotes')}{!managing && ` (${totalCount})`}</Button>}
         </div>
         {storageFailed && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive shrink-0"><span>{t('workingReview.storageFailed')}</span><Button size="xs" variant="outline" onClick={useWorkingReviewStore.getState().retrySave}>{t('workingReview.retrySave')}</Button></div>}
-        {!managing && !!historicalCount && !includeHistory && <p role="status" className="text-xs text-muted-foreground shrink-0">{t('workingReview.historyHidden').replace('{n}', String(historicalCount))}</p>}
+        {!managing && !!historicalCount && !includeHistory && <p role="status" className="text-xs text-muted-foreground shrink-0">{tf('workingReview.historyHidden', { n: String(historicalCount) })}</p>}
         {managing ? <><p className="text-xs text-muted-foreground shrink-0">{t('workingReview.manageHint')}</p><WorkingReviewIssueManager entries={entries} activePaths={activePaths} onLocate={onLocate ? (path, issue) => { setOpen(false); onLocate(path, issue); } : undefined} /></> : text ? <div role="region" aria-label={t('workingReview.reportTitle')} tabIndex={0} data-testid="working-review-report-scroll" className="flex-1 min-h-0 overflow-auto overscroll-contain border border-border rounded-lg">
           <pre data-testid="working-review-report-text" className="py-3 text-[12px] leading-relaxed font-mono whitespace-pre-wrap [overflow-wrap:anywhere] select-text"><ReviewDiffText text={text} report /></pre>
         </div> : <div className="flex-1 min-h-0 overflow-y-auto"><EmptyState variant="check" title={t(historicalCount && !includeHistory ? 'workingReview.reportNoCurrent' : previewCount ? 'review.reportNoOpen' : 'review.reportEmpty')} desc={t(historicalCount && !includeHistory ? 'workingReview.reportNoCurrentDesc' : previewCount ? 'review.reportNoOpenDesc' : 'workingReview.reportEmptyDesc')} /></div>}

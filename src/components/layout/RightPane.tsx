@@ -33,7 +33,7 @@ const EMPTY_CHECKS: CiCheck[] = [];
 export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, onOpenAiSettings }) => {
   const { currentRepo, activeTab, selectedCommit, isRightPaneCollapsed, errorMessage } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, activeTab: state.activeTab, selectedCommit: state.selectedCommit, isRightPaneCollapsed: state.isRightPaneCollapsed, errorMessage: state.errorMessage })));
   const { panels } = useWorkspaceLayout();
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const draft = useComposerDraft(currentRepo?.path, currentRepo?.currentBranch);
   const [files, setFiles] = useState<GitFileChange[]>([]);
   const commitHash = selectedCommit?.hash;
@@ -174,7 +174,7 @@ export const RightPane: React.FC<RightPaneProps> = ({ overlay, open, onClose, on
             <div className="min-w-0"><p className="truncate" title={selectedCommit.author.email}>{selectedCommit.author.name}</p><p className="text-[12px] text-muted-foreground" title={selectedCommit.author.date}>{selectedCommit.author.relativeDate}</p></div>
           </div>
           {selectedCommit.parents.length > 0 && <p className="text-[12px] text-muted-foreground">{t('rightPane.parentLabel')} <span className="font-mono">{selectedCommit.parents.map(hash => hash.slice(0, 7)).join(', ')}</span></p>}
-          {distance && <button type="button" data-tag-distance className="inline-flex w-fit items-center gap-1.5 rounded-full border border-git-tag/30 bg-git-tag/10 px-2 py-0.5 text-[12px] text-git-tag hover:bg-git-tag/20" title={distance.distance > 0 ? t('rightPane.tagDistanceTitle').replace('{tag}', distance.tag).replace('{n}', String(distance.distance)) : t('rightPane.tagExactlyTitle').replace('{tag}', distance.tag)} onClick={() => void useRepoStore.getState().selectAndLocateBranch(`refs/tags/${distance.tag}`)}>
+          {distance && <button type="button" data-tag-distance className="inline-flex w-fit items-center gap-1.5 rounded-full border border-git-tag/30 bg-git-tag/10 px-2 py-0.5 text-[12px] text-git-tag hover:bg-git-tag/20" title={distance.distance > 0 ? tf('rightPane.tagDistanceTitle', { tag: distance.tag, n: String(distance.distance) }) : tf('rightPane.tagExactlyTitle', { tag: distance.tag })} onClick={() => void useRepoStore.getState().selectAndLocateBranch(`refs/tags/${distance.tag}`)}>
             <TagIcon className="h-3 w-3 shrink-0" />
             <span className="font-mono">{distance.tag}</span>
             {distance.distance > 0 && <span className="tabular-nums">+{distance.distance}</span>}

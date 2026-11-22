@@ -21,7 +21,7 @@ const EXPLAINED_ERRORS = [
 ] as const;
 
 export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repoPath: string; onClose: () => void; onOpenSettings?: () => void }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const config = useSettingsStore(state => state.aiConfig);
   const configured = config.provider === 'openai-compatible' && !!config.apiKey.trim();
   const [tags, setTags] = useState<ReleaseNotesTag[]>([]);
@@ -144,7 +144,7 @@ export function ReleaseNotesDialog({ repoPath, onClose, onOpenSettings }: { repo
         {result && <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">
-              {t('releaseNotes.resultMeta').replace('{n}', String(result.commitCount))}
+              {tf('releaseNotes.resultMeta', { n: String(result.commitCount) })}
               {result.truncated && <span className="ml-2 rounded bg-accent px-1.5 py-0.5 text-[11px] font-normal text-git-tag">{t('releaseNotes.truncated')}</span>}
             </p>
             <Button size="sm" variant="outline" onClick={() => void copy()}><Copy className="h-3.5 w-3.5" />{t('releaseNotes.copy')}</Button>

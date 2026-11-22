@@ -11,7 +11,7 @@ import { Loader2, RefreshCw, DownloadCloud, Power, PowerOff, Trash2 } from 'luci
  * 已安装时提供仓库过滤开关、跟踪模式管理与 LFS 文件列表/拉取。全部操作互斥防重入。
  */
 export const LfsPanel: React.FC<{ repoPath: string }> = ({ repoPath }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [version, setVersion] = useState<string | null | undefined>(undefined);
   const [filtersOn, setFiltersOn] = useState(false);
   const [tracks, setTracks] = useState<LfsTrack[]>([]);
@@ -75,9 +75,9 @@ export const LfsPanel: React.FC<{ repoPath: string }> = ({ repoPath }) => {
         await lfsService.addTrack(repoPath, trimmed);
         setPattern('');
       },
-      t('lfs.trackAdded').replace('{pattern}', trimmed),
+      tf('lfs.trackAdded', { pattern: trimmed }),
     );
-  }, [pattern, repoPath, run, t]);
+  }, [pattern, repoPath, run, t, tf]);
 
   // 探测中
   if (version === undefined) {
@@ -161,10 +161,10 @@ export const LfsPanel: React.FC<{ repoPath: string }> = ({ repoPath }) => {
                   variant="ghost"
                   size="xs"
                   disabled={busy}
-                  title={t('lfs.trackRemoved').replace('{pattern}', track.pattern)}
+                  title={tf('lfs.trackRemoved', { pattern: track.pattern })}
                   onClick={() => void run(
                     () => lfsService.removeTrack(repoPath, track.pattern),
-                    t('lfs.trackRemoved').replace('{pattern}', track.pattern),
+                    tf('lfs.trackRemoved', { pattern: track.pattern }),
                   )}
                   className="text-muted-foreground hover:text-git-deleted"
                 >

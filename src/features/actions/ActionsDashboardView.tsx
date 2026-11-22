@@ -95,7 +95,7 @@ const HostingActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
     currentRepoName,
     error,
   } = useCollaborationStore(useShallow(state => ({ workflows: state.workflows, selectedWorkflow: state.selectedWorkflow, workflowRuns: state.workflowRuns, selectedRun: state.selectedRun, selectedRunJobs: state.selectedRunJobs, selectWorkflow: state.selectWorkflow, selectRun: state.selectRun, refreshActions: state.refreshActions, isRefreshingActions: state.isRefreshingActions, isLoadingRuns: state.isLoadingRuns, isLoadingJobs: state.isLoadingJobs, openJobLogs: state.openJobLogs, openWorkflowYaml: state.openWorkflowYaml, openDispatchModal: state.openDispatchModal, rerunWorkflowRun: state.rerunWorkflowRun, cancelWorkflowRun: state.cancelWorkflowRun, isAuthenticated: state.isAuthenticated, user: state.user, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, error: state.error })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const { can } = useCollaborationCapabilities();
   const providerId = useActiveProviderId();
   const plugin = getHostingPlugin(providerId ?? '');
@@ -389,7 +389,7 @@ const HostingActionsDashboardView: React.FC<ActionsDashboardViewProps> = ({
                 <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
                 {selectedRun ? (
                   <>
-                    <span className="ui-panel-title block truncate">{t('actions.runJobsTitle').replace('{number}', String(selectedRun.run_number))}</span>
+                    <span className="ui-panel-title block truncate">{tf('actions.runJobsTitle', { number: String(selectedRun.run_number) })}</span>
                     <PanelCount count={selectedRunJobs.length} />
                   </>
                 ) : (

@@ -57,17 +57,17 @@ const statusPill: Record<NormalizedStatus, string> = {
 
 const issueKeyOf = (issue: UnifiedErrorIssue): string => `${issue.connectionId}:${issue.issueId}`;
 
-function formatRelative(iso: string | undefined, t: (key: string) => string): string {
+function formatRelative(iso: string | undefined, t: (key: string, vars?: Record<string, string | number>) => string): string {
   if (!iso) return '';
   try {
     const diffSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
     if (diffSec < 60) return t('time.justNow');
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return t('time.minutesAgo').replace('{n}', String(diffMin));
+    if (diffMin < 60) return t('time.minutesAgo', { n: String(diffMin) });
     const diffHour = Math.floor(diffMin / 60);
-    if (diffHour < 24) return t('time.hoursAgo').replace('{n}', String(diffHour));
+    if (diffHour < 24) return t('time.hoursAgo', { n: String(diffHour) });
     const diffDay = Math.floor(diffHour / 24);
-    if (diffDay < 30) return t('time.daysAgo').replace('{n}', String(diffDay));
+    if (diffDay < 30) return t('time.daysAgo', { n: String(diffDay) });
     return new Date(iso).toLocaleDateString(t('time.locale'));
   } catch {
     return iso;
@@ -77,7 +77,7 @@ function formatRelative(iso: string | undefined, t: (key: string) => string): st
 const firstLine = (message: string | undefined): string => (message ?? '').split('\n')[0] ?? '';
 
 export const ErrorsView: React.FC = () => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const currentRepo = useRepoStore((state) => state.currentRepo);
   const { errorsListWidth, setErrorsListWidth } = useLayoutStore(useShallow((state) => ({ errorsListWidth: state.errorsListWidth, setErrorsListWidth: state.setErrorsListWidth })));
   const {
@@ -194,10 +194,10 @@ export const ErrorsView: React.FC = () => {
     try {
       const outcome = await revealLocalFile(absolute);
       if (outcome === 'copied') {
-        toast.success(t('errors.detail.jumpCopied').replace('{path}', absolute));
+        toast.success(tf('errors.detail.jumpCopied', { path: absolute }));
         return;
       }
-      const lineInfo = result.line != null ? ` ${t('errors.detail.lineInfo').replace('{line}', String(result.line))}` : '';
+      const lineInfo = result.line != null ? ` ${tf('errors.detail.lineInfo', { line: String(result.line) })}` : '';
       toast.success(`${t('errors.detail.jumpOpened')}${lineInfo}`);
     } catch (error) {
       toast.error(t('errors.detail.jumpMissing'), String(error instanceof Error ? error.message : error));
@@ -311,7 +311,7 @@ export const ErrorsView: React.FC = () => {
             <Button variant="ghost" size="xs" disabled={syncing} onClick={() => void sync()}>{t('errors.banner.retry')}</Button>
             <Button variant="ghost" size="xs" onClick={openSettings}>{t('errors.banner.settings')}</Button>
           </>}>
-            {t('errors.banner.sourceFailed').replace('{name}', connection.displayName)}
+            {tf('errors.banner.sourceFailed', { name: connection.displayName })}
           </WorkspaceError>
         ))}
 
@@ -379,9 +379,9 @@ export const ErrorsView: React.FC = () => {
                             {connection?.displayName ?? getProviderManifest(issue.providerId)?.name ?? issue.providerId} · {projectLabelOf(issue)}
                           </div>
                           <div className="text-[12px] text-muted-foreground tabular-nums">
-                            {issue.eventCount != null ? t('errors.row.events').replace('{count}', String(issue.eventCount)) : ''}
-                            {issue.affectedUsers != null ? ` · ${t('errors.row.users').replace('{count}', String(issue.affectedUsers))}` : ''}
-                            {issue.lastSeen ? ` · ${formatRelative(issue.lastSeen, t)}` : ''}
+                            {issue.eventCount != null ? tf('errors.row.events', { count: String(issue.eventCount) }) : ''}
+                            {issue.affectedUsers != null ? ` · ${tf('errors.row.users', { count: String(issue.affectedUsers) })}` : ''}
+                            {issue.lastSeen ? ` · ${formatRelative(issue.lastSeen, tf)}` : ''}
                           </div>
                         </div>
                       </div>
@@ -409,14 +409,14 @@ export const ErrorsView: React.FC = () => {
                 )}
                 {visibleIssues.length > 0 && Object.values(nextCursors).some(Boolean) && (
                   <p className="text-center text-[11px] text-muted-foreground">
-                    {t('errors.list.loadedNote').replace('{count}', String(visibleIssues.length))}
+                    {tf('errors.list.loadedNote', { count: String(visibleIssues.length) })}
                   </p>
                 )}
                 {syncing ? (
                   <p className="text-center text-[11px] text-muted-foreground">{t('errors.syncing')}</p>
                 ) : lastSyncedAt ? (
                   <p className="text-center text-[11px] text-muted-foreground">
-                    {t('errors.list.lastSynced').replace('{time}', formatRelative(new Date(lastSyncedAt).toISOString(), t))}
+                    {tf('errors.list.lastSynced', { time: formatRelative(new Date(lastSyncedAt).toISOString(), tf) })}
                   </p>
                 ) : null}
               </div>
@@ -493,7 +493,7 @@ const ErrorDetail: React.FC<{
   trackedFiles: string[];
   prefixMap?: readonly { from: string; to: string }[];
 }> = ({ issue, onJump, repoPath, trackedFiles, prefixMap }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const aiConfig = useSettingsStore((state) => state.aiConfig);
   const aiConfigured = aiConfig.provider === 'openai-compatible' && !!aiConfig.apiKey.trim();
   const [aiFixOpen, setAiFixOpen] = useState(false);
@@ -545,8 +545,8 @@ const ErrorDetail: React.FC<{
   }, [issue.connectionId, issue.issueId, issue.providerId]);
 
   const metaItems: { label: string; value: string }[] = [
-    { label: t('errors.detail.firstSeen'), value: issue.firstSeen ? formatRelative(issue.firstSeen, t) : '' },
-    { label: t('errors.detail.lastSeen'), value: issue.lastSeen ? formatRelative(issue.lastSeen, t) : '' },
+    { label: t('errors.detail.firstSeen'), value: issue.firstSeen ? formatRelative(issue.firstSeen, tf) : '' },
+    { label: t('errors.detail.lastSeen'), value: issue.lastSeen ? formatRelative(issue.lastSeen, tf) : '' },
     { label: t('errors.detail.environment'), value: issue.environment ?? '' },
     { label: t('errors.detail.release'), value: issue.release ?? '' },
   ].filter((item) => item.value);
@@ -727,7 +727,7 @@ const MapProjectDialog: React.FC<{
   onRulesChange: (connectionId: string, externalProjectId: string, rules: { from: string; to: string }[]) => void;
   onDismiss: () => void;
 }> = ({ connections, mappings, onMap, onUnmap, onRulesChange, onDismiss }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
   const [projects, setProjects] = useState<ExternalProject[] | null>(null);
   const [error, setError] = useState('');
@@ -863,7 +863,7 @@ const MapProjectDialog: React.FC<{
               );
             })}
           </div>
-          <p className="text-[11px] text-muted-foreground">{t('errors.mapping.mappedCount').replace('{count}', String(mappings.length))}</p>
+          <p className="text-[11px] text-muted-foreground">{tf('errors.mapping.mappedCount', { count: String(mappings.length) })}</p>
         </div>
         <div className="px-4 py-2.5 border-t border-border flex justify-end">
           <Button variant="outline" size="xs" onClick={onDismiss}>{t('common.close')}</Button>

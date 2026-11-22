@@ -36,7 +36,7 @@ export function BranchCompareModal({ open, onClose, repoPath, branches, initialB
   initialBase: string;
   initialHead: string;
 }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const diffFontSize = useSettingsStore(state => state.diffFontSize);
   const wrap = useSettingsStore(state => state.diffWrapLines);
   const ignoreWhitespace = useSettingsStore(state => state.diffIgnoreWhitespace);
@@ -130,7 +130,7 @@ export function BranchCompareModal({ open, onClose, repoPath, branches, initialB
             </select>
           </div>
           {!filesLoading && !filesError && base !== head && (
-            <span className="text-[11px] text-muted-foreground font-mono shrink-0">{t('branchCompare.filesChanged').replace('{n}', String(files.length))}</span>
+            <span className="text-[11px] text-muted-foreground font-mono shrink-0">{tf('branchCompare.filesChanged', { n: String(files.length) })}</span>
           )}
           <Button variant="ghost" size="icon" aria-label={t('common.close')} className="ml-auto shrink-0" onClick={onClose}><X className="h-4 w-4" /></Button>
         </header>

@@ -13,7 +13,7 @@ interface Props { repoPath: string; onClose: () => void }
  * 由用户在变更页审查后自行提交，贴合「AI 负责提交、AuuGit 负责放行」的工作流）。
  */
 export function ApplyPatchDialog({ repoPath, onClose }: Props) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [path, setPath] = useState<string | null>(null);
   const [preview, setPreview] = useState<PatchPreview | null>(null);
   const patchRef = useRef<string>('');
@@ -77,8 +77,8 @@ export function ApplyPatchDialog({ repoPath, onClose }: Props) {
         {preview && (
           <div className="rounded-lg border border-border/60 overflow-hidden">
             <p className="px-3 py-2 bg-muted/40 text-[12px] text-muted-foreground tabular-nums">
-              {t('patch.summary').replace('{files}', String(preview.files.length)).replace('{added}', String(preview.totalAdditions)).replace('{removed}', String(preview.totalDeletions))}
-              {preview.binaryCount > 0 && ` · ${t('patch.binaryFiles').replace('{n}', String(preview.binaryCount))}`}
+              {tf('patch.summary', { files: String(preview.files.length), added: String(preview.totalAdditions), removed: String(preview.totalDeletions) })}
+              {preview.binaryCount > 0 && ` · ${tf('patch.binaryFiles', { n: String(preview.binaryCount) })}`}
             </p>
             <div className="max-h-48 overflow-y-auto divide-y divide-border/40">
               {preview.files.map((file, index) => (

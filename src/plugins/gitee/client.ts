@@ -1,6 +1,6 @@
 import { normalizeServerUrl } from '@/services/integrations/serverUrl';
 import { providerHttpRequest } from '@/services/http/providerHttp';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import type { CollaborationIssue, CollaborationLabel, IssueInput, IssueListOptions, IssueSearchResult, IssueTimelineEvent, IssueUser } from '@/services/collaboration/issueTypes';
 import type { CollaborationPullRequest, CollaborationRepoDetails, CollaborationUser } from '@/services/collaboration/types';
 import { ProviderApiError } from '@/services/collaboration/client';
@@ -64,7 +64,7 @@ export class GiteeClient {
       return { ...raw, name: raw.name || raw.login, bio: raw.bio ?? null, public_repos: raw.public_repos ?? 0 };
     } catch (err) {
       if (err instanceof ProviderApiError && err.status === 401) throw new ProviderApiError(401, tNow('err.ghBadCredentials'));
-      throw new Error(tNow('err.ghAuthFailed').replace('{s}', err instanceof ProviderApiError ? String(err.status) : 'unknown'), { cause: err });
+      throw new Error(tfNow('err.ghAuthFailed', { s: err instanceof ProviderApiError ? String(err.status) : 'unknown' }), { cause: err });
     }
   }
 

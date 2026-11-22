@@ -2,7 +2,7 @@ import { collaborationService, hasCollaborationOperation } from '@/services/coll
 import { getHostingPlugin } from '@/services/integrations/plugins';
 import { activeProviderId } from './activeProvider';
 import { toast } from '@/stores/toastStore';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import type { CollaborationState } from '../collaborationStore';
 import type { CollaborationSliceContext } from './sliceContext';
 export function createCiSlice({ get, set, ticket, generation }: CollaborationSliceContext) {
@@ -89,7 +89,7 @@ export function createCiSlice({ get, set, ticket, generation }: CollaborationSli
       const valid = ticket('logs');
       const { currentOwner: owner, currentRepoName: repo } = get();
       if (!owner || !repo || !hasCollaborationOperation('getWorkflowRuns')) return;
-      const name = jobName || tNow('ci.jobFallback').replace('{id}', String(jobId));
+      const name = jobName || tfNow('ci.jobFallback', { id: String(jobId) });
       const knownJob = get().selectedRunJobs.find(job => job.id === jobId);
       let htmlUrl = knownJob?.html_url;
       const previous = get().activeJobLogs;

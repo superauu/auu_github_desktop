@@ -59,7 +59,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
 }) {
   const { currentRepo, status } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, status: state.status })));
   const aiConfig = useSettingsStore(state => state.aiConfig);
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const { busy, setBusy, operation, scopeSignature, title, setTitle, body, setBody, amend, setAmend, amendCommit, setAmendCommit, origin, setOrigin } = draftState;
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<GenerationResult | null>(null);
@@ -208,9 +208,9 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     <section className="mx-4 mt-4 shrink-0 rounded-lg border border-border bg-muted/30 p-3 space-y-1" aria-label={t('composer.scope')}>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2 font-semibold" title={t('composer.scope')}><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><span className="truncate">{t('composer.scopeTitle')}</span></span>
-        <span className="shrink-0 whitespace-nowrap tabular-nums">{t('composer.fileCount').replace('{n}', String(scope.files.length))}</span>
+        <span className="shrink-0 whitespace-nowrap tabular-nums">{tf('composer.fileCount', { n: String(scope.files.length) })}</span>
       </div>
-      <p className="text-[12px] text-muted-foreground leading-relaxed">{scope.stageAll ? t('composer.stageAllHint') : t('composer.excluded').replace('{n}', String(scope.excluded.length))}</p>
+      <p className="text-[12px] text-muted-foreground leading-relaxed">{scope.stageAll ? t('composer.stageAllHint') : tf('composer.excluded', { n: String(scope.excluded.length) })}</p>
       {!!scope.files.length && <>
         <button className="text-primary underline-offset-4 hover:underline min-h-7" aria-expanded={scopeOpen} onClick={() => setScopeOpen(!scopeOpen)}>{t(scopeOpen ? 'composer.hideFiles' : 'composer.showFiles')}</button>
         {scopeOpen && <ul className="max-h-48 overflow-auto space-y-2 border-t border-border pt-2">{scope.files.map(file => <li key={file.path}><FilePath path={file.path} /></li>)}</ul>}
@@ -308,7 +308,7 @@ export function CommitComposer({ onOpenAiSettings, draftState }: {
     {preview && <ModalSurface label={t('composer.preview')} onDismiss={() => setPreview(null)} className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-6">
       <div className="w-full max-w-2xl rounded-xl border border-border bg-popover p-6 shadow-2xl space-y-4">
         <h2 className="font-semibold text-base">{t('composer.preview')}</h2>
-        <p className="text-[12px] text-muted-foreground">{sourceLabel(preview)} · {t('composer.included').replace('{n}', String(scope.files.length))}</p>
+        <p className="text-[12px] text-muted-foreground">{sourceLabel(preview)} · {tf('composer.included', { n: String(scope.files.length) })}</p>
         <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap wrap-break-word font-sans text-[13px] leading-relaxed rounded-lg border border-border bg-muted/30 p-4">{preview.message}</pre>
         <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setPreview(null)}>{t('composer.keepDraft')}</Button><Button onClick={() => { setMessage(preview.message); setOrigin(preview); setPreview(null); }}>{t(draft.current.trim() ? 'composer.replaceDraft' : 'composer.useMessage')}</Button></div>
       </div>

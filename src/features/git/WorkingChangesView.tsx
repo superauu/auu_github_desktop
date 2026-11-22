@@ -119,7 +119,7 @@ export const WorkingChangesView: React.FC = () => {
     resolveFileTheirs,
     resetFileConflictMarkers,
   } = useRepoStore(useShallow(state => ({ status: state.status, selectedFile: state.selectedFile, setSelectedFile: state.setSelectedFile, fileDiffLines: state.fileDiffLines, fileDiffLoading: state.fileDiffLoading, fileDiffError: state.fileDiffError, loadFileDiff: state.loadFileDiff, commits: state.commits, setSelectedCommit: state.setSelectedCommit, setActiveTab: state.setActiveTab, currentRepo: state.currentRepo, stageFile: state.stageFile, unstageFile: state.unstageFile, stageHunk: state.stageHunk, unstageHunk: state.unstageHunk, discardHunk: state.discardHunk, stageAll: state.stageAll, unstageAll: state.unstageAll, discardChanges: state.discardChanges, stashPush: state.stashPush, resolveFileOurs: state.resolveFileOurs, resolveFileTheirs: state.resolveFileTheirs, resetFileConflictMarkers: state.resetFileConflictMarkers })));
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
 
   const [selectedLines, setSelectedLines] = useState<Set<number>>(() => new Set());
   const [lineBusy, setLineBusy] = useState(false);
@@ -228,8 +228,8 @@ export const WorkingChangesView: React.FC = () => {
       }
       setReviewFailedFiles(result.failedFiles);
       const skipped = result.unresolved + result.conflicts + result.failed;
-      const title = t('workingReview.approveAllDone').replace('{n}', String(result.approved));
-      if (skipped) toast.warning(title, t('workingReview.approveAllSkipped').replace('{n}', String(skipped)));
+      const title = tf('workingReview.approveAllDone', { n: String(result.approved) });
+      if (skipped) toast.warning(title, tf('workingReview.approveAllSkipped', { n: String(skipped) }));
       else toast.success(title);
     } catch (error: any) { toast.error(t('workingReview.approveAllFailed'), error.message); }
     finally { reviewAllRunning.current = false; reviewAllAbort.current = null; setReviewAllBusy(false); }
@@ -440,7 +440,7 @@ export const WorkingChangesView: React.FC = () => {
     const selected = activeFile?.path === file.path && activeFile?.staged === file.staged;
     return {
       role: 'listitem', tabIndex: selected ? 0 : -1, 'aria-current': selected ? 'true' : undefined,
-      'aria-label': `${file.path} · ${workingFileReviewLabel(fileReviews.stateFor(file), t)}`, 'data-list-row': '', 'data-file-path': file.path,
+      'aria-label': `${file.path} · ${workingFileReviewLabel(fileReviews.stateFor(file), tf)}`, 'data-list-row': '', 'data-file-path': file.path,
       'data-review-state': fileReviews.stateFor(file).kind, 'data-file-staged': String(!!file.staged),
       'data-picked': String(picked.has(fileKey(file))),
       onClick: event => {
@@ -483,7 +483,7 @@ export const WorkingChangesView: React.FC = () => {
       { id: 'external-tools-separator', separator: true } as ContextMenuItem,
       ...tools.map((tool) => ({
         id: `external-tool-${tool.id}`,
-        label: t(conflicted ? 'externalTools.mergeWith' : 'externalTools.diffWith').replace('{name}', tool.name),
+        label: tf(conflicted ? 'externalTools.mergeWith' : 'externalTools.diffWith', { name: tool.name }),
         icon: conflicted ? <GitMerge className="h-3.5 w-3.5" /> : <GitCompare className="h-3.5 w-3.5" />,
         onClick: () => void launchWithExternalTool(tool, conflicted ? 'merge' : 'diff', fileMenu.file),
       } as ContextMenuItem)),
@@ -864,10 +864,10 @@ export const WorkingChangesView: React.FC = () => {
           <div className="flex items-center gap-2"><select aria-label={t('workingReview.filterFiles')} value={reviewFilter} onChange={event => setReviewFilter(event.target.value as WorkingReviewFilter)} className="min-w-0 flex-1 rounded border border-input bg-background p-1">
             {(['all', 'pending', 'issues', 'approved'] as const).map(filter => <option key={filter} value={filter}>{t(`workingReview.filter.${filter}`)}</option>)}
           </select>{fileListFiltered && <Button size="xs" variant="ghost" onClick={() => { setFileSearch(''); setReviewFilter('all'); }}>{t('workingReview.clearFilter')}</Button>}</div>
-          {fileListFiltered && <span className="text-muted-foreground">{t('workingReview.visibleCount').replace('{n}', String(visibleFiles.length)).replace('{total}', String(allFiles.length))}</span>}
+          {fileListFiltered && <span className="text-muted-foreground">{tf('workingReview.visibleCount', { n: String(visibleFiles.length), total: String(allFiles.length) })}</span>}
         </div>}
         {reviewAllBusy && <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs border-b border-border"><span role="progressbar" aria-label={t('workingReview.batchProgress')} aria-valuemin={0} aria-valuemax={reviewProgress.total} aria-valuenow={reviewProgress.completed}>{reviewProgress.completed}/{reviewProgress.total}</span><Button size="xs" variant="ghost" disabled={reviewCancelling} onClick={() => { setReviewCancelling(true); reviewAllAbort.current?.abort(); }}>{t(reviewCancelling ? 'workingReview.cancelling' : 'common.cancel')}</Button></div>}
-        {!reviewAllBusy && retryReviewFiles.length > 0 && <Button size="xs" variant="ghost" disabled={batchBusy || listBusy || !!pendingWrites} onClick={() => void approveAll(retryReviewFiles)}>{t('workingReview.retryFiles').replace('{n}', String(retryReviewFiles.length))}</Button>}
+        {!reviewAllBusy && retryReviewFiles.length > 0 && <Button size="xs" variant="ghost" disabled={batchBusy || listBusy || !!pendingWrites} onClick={() => void approveAll(retryReviewFiles)}>{tf('workingReview.retryFiles', { n: String(retryReviewFiles.length) })}</Button>}
         {totalChanges > 0 && <div className="px-2 py-1 border-b border-border"><Button variant="ghost" size="xs" className="w-full justify-start gap-2" title={t('flow.splitCommits')} onClick={() => setSplitOpen(true)}><Split className="size-3.5 shrink-0" /><span className="truncate">{t('flow.splitCommits')}</span></Button></div>}
         {selectedFiles.length > 0 && <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border text-[12px]" role="toolbar" aria-label={t('changes.selectionActions')}>
           <span>{selectedFiles.length} {t('changes.selected')}</span>

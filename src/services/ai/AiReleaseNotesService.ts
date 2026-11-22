@@ -2,7 +2,7 @@ import { executeGit } from '@/services/git/GitExecutor';
 import { requestAiText } from './AiClient';
 import { awaitAiResponse } from './AiTransport';
 import { AI_REQUEST_TIMEOUT_MS } from './aiLimits';
-import { tNow, translate } from '@/i18n';
+import { tNow, tfNow, translate, interpolate } from '@/i18n';
 import type { AiApiConfig, Language } from '@/stores/settingsStore';
 
 /**
@@ -56,13 +56,13 @@ export async function listTagsNewestFirst(repoPath: string): Promise<ReleaseNote
  */
 async function resolveRevision(repoPath: string, ref: string): Promise<string> {
   const trimmed = ref.trim();
-  if (!trimmed || trimmed.startsWith('-')) throw new Error(tNow('releaseNotes.invalidRef').replace('{ref}', () => trimmed));
+  if (!trimmed || trimmed.startsWith('-')) throw new Error(tfNow('releaseNotes.invalidRef', { ref: trimmed }));
   try {
     const res = await executeGit(['rev-parse', '--verify', '--end-of-options', `${trimmed}^{commit}`], repoPath);
     const hash = res.stdout.trim();
     if (hash) return hash;
   } catch { /* fall through to the readable error below. */ }
-  throw new Error(tNow('releaseNotes.invalidRef').replace('{ref}', () => trimmed));
+  throw new Error(tfNow('releaseNotes.invalidRef', { ref: trimmed }));
 }
 
 function parseCommitLog(stdout: string): RangeCommit[] {
@@ -97,14 +97,14 @@ export async function generateReleaseNotes(repoPath: string, options: ReleaseNot
     fromHash = await resolveRevision(repoPath, tags[0].name);
   }
   const toHash = await resolveRevision(repoPath, toInput);
-  if (fromHash === toHash) throw new Error(tNow('releaseNotes.emptyRange').replace('{range}', () => `${baselineLabel}..${toInput}`));
+  if (fromHash === toHash) throw new Error(tfNow('releaseNotes.emptyRange', { range: `${baselineLabel}..${toInput}` }));
   const range = `${fromHash}..${toHash}`;
 
   // 多取一条用于探测截断，避免额外预统计。
   const logRes = await executeGit(['log', `--format=${COMMIT_LOG_FORMAT}`, '-n', String(RELEASE_NOTES_COMMIT_CAP + 1), range, '--'], repoPath);
   const parsed = parseCommitLog(logRes.stdout);
   const commits = parsed.slice(0, RELEASE_NOTES_COMMIT_CAP);
-  if (!commits.length) throw new Error(tNow('releaseNotes.emptyRange').replace('{range}', () => `${baselineLabel}..${toInput}`));
+  if (!commits.length) throw new Error(tfNow('releaseNotes.emptyRange', { range: `${baselineLabel}..${toInput}` }));
 
   const truncated = parsed.length > RELEASE_NOTES_COMMIT_CAP;
   let totalCommits = commits.length;
@@ -131,7 +131,7 @@ export async function generateReleaseNotes(repoPath: string, options: ReleaseNot
   try {
     const markdown = await awaitAiResponse(requestAiText(config, messages, { signal: controller.signal, temperature: 0.2, maxTokens: 8000 }), controller.signal);
     // 截断注明跟随本次请求的语言，随 Markdown 一起被复制。
-    const notice = truncated ? translate(language, 'releaseNotes.truncatedNote').replace('{total}', String(totalCommits)).replace('{cap}', String(commits.length)) : '';
+    const notice = truncated ? interpolate(translate(language, 'releaseNotes.truncatedNote'), { total: String(totalCommits), cap: String(commits.length) }) : '';
     return { markdown: notice ? `${notice}\n\n${markdown}` : markdown, truncated, commitCount: commits.length };
   } catch (error) {
     if (timedOut && !signal.aborted) throw new Error(tNow('releaseNotes.timeout'), { cause: error });

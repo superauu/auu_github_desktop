@@ -61,7 +61,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
   const [isValidating, setIsValidating] = useState(false);
 
   const { setCurrentRepo, addRecentRepo, removeRecentRepo, recentRepos } = useRepoStore(useShallow(state => ({ setCurrentRepo: state.setCurrentRepo, addRecentRepo: state.addRecentRepo, removeRecentRepo: state.removeRecentRepo, recentRepos: state.recentRepos })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
 
   useEffect(() => {
     setMode(initialMode);
@@ -135,7 +135,7 @@ export const RepositoryDialog: React.FC<RepositoryDialogProps> = ({
       const branches = await gitService.listRemoteBranches(cloneUrl.trim());
       setRemoteBranches(branches);
       if (branches.length === 0) toast.info(t('repo.listRemoteEmpty'));
-      else toast.success(t('repo.listRemoteDone').replace('{n}', String(branches.length)));
+      else toast.success(tf('repo.listRemoteDone', { n: String(branches.length) }));
     } catch (err: any) {
       setRemoteBranches([]);
       toast.error(t('repo.listRemoteFailed'), err?.message || t('repo.listRemoteFailed'));

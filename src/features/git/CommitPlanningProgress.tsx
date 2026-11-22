@@ -8,7 +8,7 @@ export interface PlanningTiming { startedAt: number; collectedAt?: number; finis
 export function CommitPlanningProgress({ phase, progress, timing }: {
   phase: string; progress: BatchCaptureProgress; timing: PlanningTiming | null;
 }) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [now, setNow] = useState(Date.now);
   const running = phase === 'collecting' || phase === 'analyzing';
   useEffect(() => {
@@ -34,8 +34,8 @@ export function CommitPlanningProgress({ phase, progress, timing }: {
       <p className="text-xs text-muted-foreground">{t('batch.fileProgress')} {progress.completed} / {progress.total}</p>
     </div>}
     {timing.collectedAt !== undefined && <p className="text-xs text-muted-foreground tabular-nums">
-      {t('batch.collectDuration').replace('{seconds}', seconds(collectingMs))}
-      {timing.finishedAt !== undefined && aiMs !== null && <> · {t('batch.aiDuration').replace('{seconds}', seconds(aiMs))}</>}
+      {tf('batch.collectDuration', { seconds: seconds(collectingMs) })}
+      {timing.finishedAt !== undefined && aiMs !== null && <> · {tf('batch.aiDuration', { seconds: seconds(aiMs) })}</>}
     </p>}
     {phase === 'analyzing' && (aiMs ?? 0) >= 10000 && <p className="text-xs text-muted-foreground">{t('batch.waitingAi')}</p>}
   </div>;

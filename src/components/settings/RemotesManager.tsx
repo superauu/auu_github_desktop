@@ -17,7 +17,7 @@ interface RemoteEntry {
 }
 
 export const RemotesManager: React.FC = () => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const { currentRepo, refreshAll } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, refreshAll: state.refreshAll })));
 
   const [remotes, setRemotes] = useState<RemoteEntry[]>([]);
@@ -84,10 +84,10 @@ export const RemotesManager: React.FC = () => {
   };
 
   const handleRemove = async (name: string) => {
-    if (!await confirmAction({ title: t('composer.removeRemote'), description: t('settings.remotes.removeConfirm').replace('{name}', name), detail: name })) return;
+    if (!await confirmAction({ title: t('composer.removeRemote'), description: tf('settings.remotes.removeConfirm', { name: name }), detail: name })) return;
     try {
       await gitService.removeRemote(repoPath, name);
-      toast.success(t('settings.remotes.removed').replace('{name}', name));
+      toast.success(tf('settings.remotes.removed', { name: name }));
       await load();
       await refreshAll();
     } catch (err: any) {
@@ -122,7 +122,7 @@ export const RemotesManager: React.FC = () => {
         await gitService.setCollaborationRemote(repoPath, newName);
         setCollaborationRemote(newName);
       }
-      toast.success(t('settings.remotes.renamed').replace('{old}', oldName).replace('{new}', newName));
+      toast.success(tf('settings.remotes.renamed', { old: oldName, new: newName }));
       setRenamingRemote(null);
       await load();
       await refreshAll();

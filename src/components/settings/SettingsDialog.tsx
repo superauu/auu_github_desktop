@@ -65,7 +65,7 @@ interface ExternalToolFormState {
  * 表单校验错误沿用内联红字模式，保存/删除结果沿用 toast 模式。
  */
 export const ExternalToolsSection: React.FC = () => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const desktop = isDesktopRuntime();
   const { externalTools, initExternalTools, saveExternalTool, removeExternalTool } = useSettingsStore(useShallow((state) => ({
     externalTools: state.externalTools,
@@ -130,7 +130,7 @@ export const ExternalToolsSection: React.FC = () => {
   const deleteTool = async (tool: ExternalToolConfig) => {
     if (!await confirmAction({
       title: t('externalTools.deleteTitle'),
-      description: t('externalTools.deleteDesc').replace('{name}', tool.name),
+      description: tf('externalTools.deleteDesc', { name: tool.name }),
       detail: tool.program,
     })) return;
     try {
@@ -292,7 +292,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     credentialError,
     setAiConfig,
   } = useSettingsStore(useShallow(state => ({ gitCliPath: state.gitCliPath, setGitCliPath: state.setGitCliPath, compactMode: state.compactMode, setCompactMode: state.setCompactMode, autoFetchInterval: state.autoFetchInterval, setAutoFetchInterval: state.setAutoFetchInterval, reviewBeforeCommit: state.reviewBeforeCommit, setReviewBeforeCommit: state.setReviewBeforeCommit, crashReports: state.crashReports, setCrashReports: state.setCrashReports, aiConfig: state.aiConfig, credentialError: state.credentialError, setAiConfig: state.setAiConfig })));
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const setLang = useSettingsStore((st) => st.setLanguage);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
@@ -372,7 +372,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
         signal: controller.signal,
       });
 
-      if (request === aiTestRequest.current) setAiTestResult({ type: 'success', title: t('settings.ai.testOk'), detail: t('settings.ai.testOkDesc').replace('{model}', aiConfig.model) });
+      if (request === aiTestRequest.current) setAiTestResult({ type: 'success', title: t('settings.ai.testOk'), detail: tf('settings.ai.testOkDesc', { model: aiConfig.model }) });
     } catch (err: any) {
       if (request === aiTestRequest.current) setAiTestResult({ type: 'error', title: t('settings.ai.testFailed'), detail: `${controller.signal.aborted ? `${t('settings.ai.testTimeout')}\n` : ''}${String(err?.message || err)}` });
     } finally {
@@ -925,7 +925,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                     toast.info(t('settings.accounts.disconnectToast'));
                                   } else {
                                     void removeProfile(profile.id);
-                                    toast.info(t('settings.accounts.removedToast').replace('{login}', login));
+                                    toast.info(tf('settings.accounts.removedToast', { login: login }));
                                   }
                                 }}
                                 className={cn('gap-1 text-xs h-7', !isActive && 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10')}

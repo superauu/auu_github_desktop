@@ -28,11 +28,25 @@ export function tNow(key: string): string {
   return translate(useSettingsStore.getState().language, key);
 }
 
+/**
+ * 插值：`{name}` 占位符按 vars 展开；缺失/为 null 的变量保留占位符原样。
+ * 函数式替换免疫 `$&`/`$'` 等序列污染（值含 `$` 时字符串 replacement 会被特殊解释）——
+ * 全仓 `t(key).replace('{x}', v)` 统一收敛到 tf/tfNow。
+ */
+export function interpolate(template: string, vars?: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? `{${name}}`));
+}
+
+/** 非响应式插值翻译（toast 等一次性场景） */
+export function tfNow(key: string, vars?: Record<string, string | number>): string {
+  return interpolate(translate(useSettingsStore.getState().language, key), vars);
+}
+
 /** 服务层抛出的本地化错误：message 按当前语言生成，key 保持稳定供测试与上层判断 */
 export class LocalizedError extends Error {
   readonly key: string;
   constructor(key: string, vars?: Record<string, string | number>) {
-    super(translate(useSettingsStore.getState().language, key).replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? `{${name}}`)));
+    super(interpolate(translate(useSettingsStore.getState().language, key), vars));
     this.name = 'LocalizedError';
     this.key = key;
   }
@@ -42,5 +56,6 @@ export class LocalizedError extends Error {
 export function useI18n() {
   const lang = useSettingsStore((s) => s.language);
   const t = useCallback((key: TranslationKey | string) => translate(lang, key), [lang]);
-  return { lang, t };
+  const tf = useCallback((key: TranslationKey | string, vars?: Record<string, string | number>) => interpolate(translate(lang, key), vars), [lang]);
+  return { lang, t, tf };
 }

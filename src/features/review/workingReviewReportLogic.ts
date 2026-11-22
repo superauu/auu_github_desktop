@@ -33,7 +33,7 @@ export function workingReviewEntries(records: Record<string, WorkingReviewRecord
 }
 
 export function buildWorkingReviewReport({ records, repoPath, branch, includeResolved = false, activePaths, includeHistory = false, t }: {
-  records: Record<string, WorkingReviewRecord>; repoPath: string; branch: string; includeResolved?: boolean; activePaths?: readonly string[]; includeHistory?: boolean; t: (key: string) => string;
+  records: Record<string, WorkingReviewRecord>; repoPath: string; branch: string; includeResolved?: boolean; activePaths?: readonly string[]; includeHistory?: boolean; t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   const files: ReportFile[] = workingReviewEntries(records, repoPath, branch, activePaths, includeHistory).map(({ path, record }) => ({
     path,
@@ -58,7 +58,7 @@ export function buildWorkingReviewReport({ records, repoPath, branch, includeRes
     t('workingReview.reportTitle'),
     `${t('workingReview.reportRepository')}: ${repoPath}`,
     `${t('workingReview.reportBranch')}: ${branch}`,
-    t('workingReview.reportIntro').replace('{n}', String(count)),
+    t('workingReview.reportIntro', { n: String(count) }),
     t('workingReview.reportContextHint'),
   ], files);
 }

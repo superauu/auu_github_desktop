@@ -17,7 +17,7 @@ import { ProviderApiError as CollaborationApiError } from '@/services/collaborat
 import { collaborationService, bindCollaborationClient, hasCollaborationDomain } from '@/services/collaboration/CollaborationService';
 import { enabledHostingPlugins, getHostingPlugin, installedHostingPlugins } from '@/services/integrations/plugins';
 import { toast } from '@/stores/toastStore';
-import { tNow, LocalizedError } from '@/i18n';
+import { tNow, tfNow, LocalizedError } from '@/i18n';
 
 // ===== 多账号 Profile =====
 // Profile = 一个独立的 Collaboration 凭据槽位。token 在 keyring 中按 profileId 隔离
@@ -366,7 +366,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       const { profiles, activeProfileId, isAddingProfile } = get();
       if (isAddingProfile) return;
       const id = newProfileId();
-      const label = tNow('profiles.defaultLabel').replace('{n}', String(profiles.length + 1));
+      const label = tfNow('profiles.defaultLabel', { n: String(profiles.length + 1) });
       resetAuthState();
       set({
         profiles: [...profiles, { id, label, providerId: plugin.manifest.id, server: server || (get().providerId === plugin.manifest.id ? get().server : '') || plugin.defaultServer }],
@@ -407,7 +407,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => {
       set({ activeProfileId: id, providerId: target.providerId ?? null, server: target.server ?? '', isAddingProfile: false, addProfileReturnId: null });
       persistProfiles();
       await get().initAuth();
-      if (get().isAuthenticated) toast.success(tNow('profiles.switchedTo').replace('{label}', target?.label || id));
+      if (get().isAuthenticated) toast.success(tfNow('profiles.switchedTo', { label: target?.label || id }));
     },
     removeProfile: async (id) => {
       const { profiles, activeProfileId } = get();

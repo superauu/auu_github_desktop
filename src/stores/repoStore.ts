@@ -17,7 +17,7 @@ import { gitService } from '@/services/git/GitService';
 import { getPullCheckoutRef } from '@/services/integrations/links';
 import { watchPushedCommit } from '@/services/git/PushChecks';
 import { sameWorktreePath } from '@/services/git/worktrees';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import { ParsedDiffLine } from '@/services/git/PorcelainParser';
 import { sameDiffLines } from '@/utils/diffRows';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -819,7 +819,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
         const worktree = await gitService.getBranchWorktree(currentRepo.path, name);
         if (!isCurrent(currentRepo.path, epoch)) return;
         if (worktree && !sameWorktreePath(worktree.path, currentRepo.path)) {
-          if (options?.openWorktree === false) throw new Error(tNow('worktree.inUse').replace('{path}', worktree.path));
+          if (options?.openWorktree === false) throw new Error(tfNow('worktree.inUse', { path: worktree.path }));
           const repo = await gitService.openRepository(worktree.path);
           if (!isCurrent(currentRepo.path, epoch)) return;
           get().addRecentRepo(repo);
@@ -907,7 +907,7 @@ export const useRepoStore = create<RepoState>((set, get) => {
 
       const item = redoStack[0];
       if (item.branch !== currentRepo.currentBranch) {
-        throw new Error(tNow('err.redoBranchMismatch').replace('{branch}', item.branch));
+        throw new Error(tfNow('err.redoBranchMismatch', { branch: item.branch }));
       }
 
       try {

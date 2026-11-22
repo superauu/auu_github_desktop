@@ -6,7 +6,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useRepoStore } from '@/stores/repoStore';
 import { confirmAction } from '@/stores/confirmStore';
 import { toast } from '@/stores/toastStore';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 
 /** Advisory only. A declined reminder returns to changes; accepting never requires approval. */
 export async function confirmWorkingReview(repo: string, branch: string, files: GitFileChange[], wholeWorktree = false, head = '') {
@@ -20,7 +20,7 @@ export async function confirmWorkingReview(repo: string, branch: string, files: 
   const unresolved = pending.reduce((sum, { file, snapshot }) => sum + workingReviewStatus(records[workingReviewKey(repo, branch, file.path)], snapshot).unresolved, 0);
   const accepted = await confirmAction({
     title: tNow('workingReview.reminderTitle'),
-    description: tNow('workingReview.reminderDesc').replace('{n}', String(pending.length)) + (unresolved ? '\n' + tNow('workingReview.unresolvedCount').replace('{n}', String(unresolved)) : ''),
+    description: tfNow('workingReview.reminderDesc', { n: String(pending.length) }) + (unresolved ? '\n' + tfNow('workingReview.unresolvedCount', { n: String(unresolved) }) : ''),
     detail: pending.map(({ file }) => file.path).join('\n'),
     danger: false, confirmLabel: tNow('workingReview.continueCommit'), cancelLabel: tNow('workingReview.return'),
     checkbox: { label: tNow('workingReview.dontRemind'), onChange: checked => useSettingsStore.getState().setReviewBeforeCommit(!checked) },

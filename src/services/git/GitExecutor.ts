@@ -1,5 +1,5 @@
 import { useSettingsStore } from '@/stores/settingsStore';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import { getGitCommand, GitQueueCancelledError, isReadOnlyGitCommand, serializeGitWrite, updateGitWriteCommand } from './GitQueue';
 import { useToastStore } from '@/stores/toastStore';
 import { authorizeGitBinary } from '@/services/fs/RepositoryAccess';
@@ -19,9 +19,7 @@ export class GitExecutionError extends Error {
 
   constructor(command: string, exitCode: number, stdout: string, stderr: string) {
     super(
-      tNow('err.gitFailed')
-        .replace('{c}', String(exitCode))
-        .replace('{m}', stderr || stdout || tNow('err.unknownGit'))
+      tfNow('err.gitFailed', { c: String(exitCode), m: stderr || stdout || tNow('err.unknownGit') })
     );
     this.name = 'GitExecutionError';
     this.exitCode = exitCode;
@@ -134,7 +132,7 @@ async function executeGitNow(args: string[], cwd: string, stdin?: string, indexT
       try {
         const error = JSON.parse(rawText);
         if (error.errorCode === 'REPOSITORY_DIRECTORY_UNAVAILABLE') {
-          throw new GitExecutionError(`git ${args.join(' ')}`, -1, '', tNow('remote.directoryUnavailable').replace('{path}', cwd));
+          throw new GitExecutionError(`git ${args.join(' ')}`, -1, '', tfNow('remote.directoryUnavailable', { path: cwd }));
         }
       } catch (error) { if (error instanceof GitExecutionError) throw error; }
       throw new Error(`HTTP ${res.status}: ${rawText}`);

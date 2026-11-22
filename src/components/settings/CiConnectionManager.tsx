@@ -11,7 +11,7 @@ import { confirmAction } from '@/stores/confirmStore';
 import { toast } from '@/stores/toastStore';
 
 export function CiConnectionManager({ providerId }: { providerId: string }) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const ci = useCiStore();
   const [editing, setEditing] = useState<CiConnection | 'new' | null>(null);
   const [busyId, setBusyId] = useState('');
@@ -30,8 +30,8 @@ export function CiConnectionManager({ providerId }: { providerId: string }) {
           else toast.error(t('errors.settings.testFailed'), result?.statusMessage);
         } finally { setBusyId(''); }
       }}><RefreshCw className="h-3 w-3" /></Button>
-      <Button size="xs" variant="ghost" aria-label={t('errors.settings.deleteTitle').replace('{name}', connection.displayName)} onClick={async () => {
-        if (!await confirmAction({ title: t('errors.settings.deleteTitle').replace('{name}', connection.displayName), description: t('errors.settings.deleteDesc') })) return;
+      <Button size="xs" variant="ghost" aria-label={tf('errors.settings.deleteTitle', { name: connection.displayName })} onClick={async () => {
+        if (!await confirmAction({ title: tf('errors.settings.deleteTitle', { name: connection.displayName }), description: t('errors.settings.deleteDesc') })) return;
         try { await ci.removeConnection(connection.id); } catch (error) { toast.error(t('errors.settings.deleteFailed'), String(error)); }
       }}><Trash2 className="h-3 w-3" /></Button>
     </div>)}

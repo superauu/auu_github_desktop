@@ -1,7 +1,7 @@
 import { normalizeServerUrl } from '@/services/integrations/serverUrl';
 import { providerHttpRequest } from '@/services/http/providerHttp';
 import { unquoteGitPath } from '@/services/git/PorcelainParser';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import type { CollaborationCommitStatus, CollaborationIssue, CollaborationLabel, IssueInput, IssueListOptions, IssueSearchResult, IssueTimelineEvent, IssueUser } from '@/services/collaboration/issueTypes';
 import {
   CollaborationCheckRun,
@@ -145,7 +145,7 @@ export class GiteaClient {
       if (res.status === 401) {
         throw new ProviderApiError(401, tNow('err.ghBadCredentials'));
       }
-      throw new Error(tNow('err.ghAuthFailed').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghAuthFailed', { s: String(res.status) }));
     }
 
     const raw = await res.json();
@@ -175,7 +175,7 @@ export class GiteaClient {
       headers: this.getHeaders(),
       signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) throw new Error(tNow('err.ghRepoInfo').replace('{s}', String(res.status)));
+    if (!res.ok) throw new Error(tfNow('err.ghRepoInfo', { s: String(res.status) }));
     return res.json();
   }
 
@@ -248,7 +248,7 @@ export class GiteaClient {
     );
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(tNow('err.ghDispatch').replace('{s}', String(res.status)).replace('{m}', errText));
+      throw new Error(tfNow('err.ghDispatch', { s: String(res.status), m: errText }));
     }
   }
 
@@ -268,7 +268,7 @@ export class GiteaClient {
       }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghRerun').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghRerun', { s: String(res.status) }));
     }
   }
 
@@ -286,7 +286,7 @@ export class GiteaClient {
       }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghCancel').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghCancel', { s: String(res.status) }));
     }
   }
 
@@ -300,7 +300,7 @@ export class GiteaClient {
       { headers: this.getHeaders(), signal: AbortSignal.timeout(20_000) }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghLogs').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghLogs', { s: String(res.status) }));
     }
     const rawLogs = await res.text();
     return {
@@ -323,7 +323,7 @@ export class GiteaClient {
       { headers: this.getHeaders(), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000), cache: 'no-store' }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghYaml').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghYaml', { s: String(res.status) }));
     }
     const data = await res.json();
     let content = '';

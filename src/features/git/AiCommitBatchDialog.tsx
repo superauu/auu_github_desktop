@@ -24,7 +24,7 @@ let batchGroupSeq = 0;
 const withBatchGroupIds = (groups: BatchCommitGroup[]) => groups.map(group => ({ ...group, id: group.id ?? `batch-g${++batchGroupSeq}` }));
 type PushTarget = NonNullable<Awaited<ReturnType<typeof chooseRemoteTarget>>>;
 export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSettings }: { repoPath: string; branch: string; onClose: () => void; onOpenAiSettings: () => void }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const { activity, elapsed, operationLabel, waitHint } = useGitOperationStatus(repoPath);
   const config = useSettingsStore(state => state.aiConfig);
   const configured = config.provider === 'openai-compatible' && !!config.apiKey.trim();
@@ -141,12 +141,12 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
         {timing && <CommitPlanningProgress phase={phase} progress={captureProgress} timing={timing} />}
         {phase === 'choosing' && <p role="status">{t('batch.choosing')}</p>}
         {phase === 'checking-review' && <p role="status">{t('workingReview.checking')}</p>}
-        {phase === 'committing' && <div className="space-y-2 rounded-lg bg-muted p-3"><p role="status">{t('batch.committing').replace('{n}', String(Math.min(completed.length + 1, groups.length))).replace('{total}', String(groups.length))} {groups[completed.length]?.title}</p><p className="text-xs text-muted-foreground">{t('batch.hookHint')}</p></div>}
+        {phase === 'committing' && <div className="space-y-2 rounded-lg bg-muted p-3"><p role="status">{tf('batch.committing', { n: String(Math.min(completed.length + 1, groups.length)), total: String(groups.length) })} {groups[completed.length]?.title}</p><p className="text-xs text-muted-foreground">{t('batch.hookHint')}</p></div>}
         {(phase === 'committing' || pushState === 'pushing') && activity && <div className="space-y-1 text-sm"><p role="status">{operationLabel} · {elapsed}s</p>{waitHint && <p className="text-xs text-git-tag">{waitHint}</p>}</div>}
         {error && <div role="alert">{explainedError ? <p className="text-sm text-destructive">{error}</p> : errorOrigin === 'ai' ? <div className="space-y-2 text-sm"><p className="text-destructive">{t('batch.analysisFailed')}</p><details className="text-xs text-muted-foreground"><summary className="cursor-pointer min-h-7">{t('ui.error.details')}</summary><pre className="whitespace-pre-wrap wrap-break-word max-h-48 overflow-auto">{error}</pre></details><Button variant="outline" onClick={() => { onClose(); onOpenAiSettings(); }}>{t('composer.configureAi')}</Button></div> : <ErrorNotice error={error} onOpenSettings={() => { onClose(); openGitSettings(); }} />}</div>}
         {indexError && <div role="alert" className="text-destructive text-sm">{t('batch.indexError')}<pre className="whitespace-pre-wrap wrap-break-word text-xs">{indexError}</pre></div>}
         {phase === 'review' && <>
-          <p className="font-medium">{t('batch.preview').replace('{n}', String(groups.length)).replace('{files}', String(plan?.files.length || 0))}</p>
+          <p className="font-medium">{tf('batch.preview', { n: String(groups.length), files: String(plan?.files.length || 0) })}</p>
           <p className="text-sm whitespace-pre-wrap">{summary}</p>
           {plan?.truncated && <p className="text-xs text-git-tag">{t('batch.truncated')}</p>}
           {plan?.skipped.length ? <p className="text-xs text-muted-foreground wrap-break-word">{t('batch.skipped')} {plan.skipped.join(', ')}</p> : null}
@@ -173,7 +173,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
         </section>)}
         {phase === 'review' && <Button variant="outline" disabled={groups.length >= 12} onClick={() => setGroups(previous => [...previous, { id: `batch-g${++batchGroupSeq}`, title: t('batch.newTitle'), body: '', reason: '', files: [] }])}><Plus className="h-4 w-4" />{t('batch.add')}</Button>}
         {phase === 'review' && !valid && <p role="alert" className="text-sm text-git-tag">{t('batch.empty')}</p>}
-        {(phase === 'done' || phase === 'stopped' || (phase === 'committing' && completed.length > 0)) && <div className="space-y-3"><p role="status" className="font-medium">{t(phase === 'stopped' ? 'batch.stopped' : 'batch.complete').replace('{n}', String(completed.length))}</p><ol className="space-y-2 text-sm">{completed.map(commit => <li key={commit.hash}><code className="text-primary mr-2">{commit.hash.slice(0, 7)}</code>{commit.title}</li>)}</ol>{recoveryRef && <p className="text-xs text-muted-foreground">{t('batch.recovery')}</p>}</div>}
+        {(phase === 'done' || phase === 'stopped' || (phase === 'committing' && completed.length > 0)) && <div className="space-y-3"><p role="status" className="font-medium">{tf(phase === 'stopped' ? 'batch.stopped' : 'batch.complete', { n: String(completed.length) })}</p><ol className="space-y-2 text-sm">{completed.map(commit => <li key={commit.hash}><code className="text-primary mr-2">{commit.hash.slice(0, 7)}</code>{commit.title}</li>)}</ol>{recoveryRef && <p className="text-xs text-muted-foreground">{t('batch.recovery')}</p>}</div>}
         {pushTarget && <p className="text-xs text-muted-foreground break-all">{t('batch.pushTarget')}{branch} → {pushTarget.remote}/{pushTarget.targetBranch}</p>}
         {pushState !== 'idle' && <p role={pushState === 'failed' ? 'alert' : 'status'} className="text-sm">{t(pushState === 'pushing' ? 'batch.pushing' : pushState === 'failed' ? 'batch.pushFailed' : 'batch.pushed')}</p>}
         {plan && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer min-h-7">{t('batch.context')}</summary><pre className="max-h-48 overflow-auto whitespace-pre-wrap wrap-break-word select-text bg-muted p-3 rounded-md">{plan.context}</pre></details>}
@@ -181,7 +181,7 @@ export function AiCommitBatchDialog({ repoPath, branch, onClose, onOpenAiSetting
       <footer className="flex flex-wrap justify-end gap-2 p-4 border-t border-border">
         <Button variant="outline" disabled={writing} onClick={onClose}>{t('common.close')}</Button>
         {analyzing ? <Button variant="outline" onClick={cancelAnalysis}>{t('batch.cancelAnalysis')}</Button> : !writing && phase !== 'done' && configured && <Button variant="outline" onClick={() => void analyze()}>{t(groups.length || phase === 'stopped' ? 'batch.retry' : 'batch.analyze')}</Button>}
-        {phase === 'review' && <><Button disabled={!valid} onClick={() => void submit(false)}>{t('batch.confirm').replace('{n}', String(groups.length))}</Button><Button variant="outline" disabled={!valid} onClick={() => void submit(true)}>{t('batch.confirmPush')}</Button></>}
+        {phase === 'review' && <><Button disabled={!valid} onClick={() => void submit(false)}>{tf('batch.confirm', { n: String(groups.length) })}</Button><Button variant="outline" disabled={!valid} onClick={() => void submit(true)}>{t('batch.confirmPush')}</Button></>}
         {pushState === 'failed' && pushTarget && <Button onClick={() => { if (submitting.current) return; submitting.current = true; void push(pushTarget, completed).finally(() => { submitting.current = false; }); }}>{t('batch.retryPush')}</Button>}
       </footer>
     </div>

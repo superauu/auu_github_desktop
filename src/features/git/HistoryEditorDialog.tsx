@@ -9,7 +9,7 @@ import { useRepoStore } from '@/stores/repoStore';
 import { toast } from '@/stores/toastStore';
 
 export function HistoryEditorDialog({ repoPath, onClose, baseHash, baseLabel }: { repoPath: string; onClose: () => void; baseHash?: string; baseLabel?: string }) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [count, setCount] = useState(10);
   const [plan, setPlan] = useState<HistoryPlan | null>(null);
   const [steps, setSteps] = useState<HistoryStep[]>([]);
@@ -54,7 +54,7 @@ export function HistoryEditorDialog({ repoPath, onClose, baseHash, baseLabel }: 
     <header className="flex justify-between items-center"><h2 className="font-semibold">{t('flow.historyEditor')}</h2><Button variant="ghost" size="icon" disabled={busy} aria-label={t('common.close')} onClick={onClose}><X className="w-4 h-4" /></Button></header>
     <p className="text-sm text-muted-foreground">{t('flow.historyEditorHint')}</p>
     {baseHash
-      ? <p className="text-sm text-muted-foreground">{t('review.tidyRangeHint').replace('{n}', String(plan?.commits.length ?? 0))}{baseLabel ? ` · ${baseLabel}` : ''}</p>
+      ? <p className="text-sm text-muted-foreground">{tf('review.tidyRangeHint', { n: String(plan?.commits.length ?? 0) })}{baseLabel ? ` · ${baseLabel}` : ''}</p>
       : <label className="text-sm flex gap-3 items-center">{t('flow.recentCommits')}<select disabled={busy} value={count} onChange={e => setCount(Number(e.target.value))} className="border border-input bg-background p-2 rounded">{[2, 5, 10, 20, 30].map(n => <option key={n}>{n}</option>)}</select></label>}
     {plan?.published && <p role="status" className="text-sm rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300 p-3">{t('flow.publishedWarn')}</p>}
     {error && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap wrap-break-word">{error}</p>}

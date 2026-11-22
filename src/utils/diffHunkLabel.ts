@@ -1,5 +1,5 @@
 import type { ParsedDiffLine } from '@/services/git/PorcelainParser';
-import { translate, type Lang } from '@/i18n';
+import { interpolate, translate, type Lang } from '@/i18n';
 
 export interface DiffHunkRange { start: number; count: number }
 export interface DiffHunkStats { added: number; removed: number }
@@ -18,9 +18,9 @@ export function formatDiffHunkLabel(header: string, lang: Lang) {
   if (!parsed) return header;
   const side = (range: DiffHunkRange, old: boolean) => {
     const prefix = old ? 'diffHunk.old' : 'diffHunk.new';
-    if (range.count === 0) return range.start === 0 ? translate(lang, `${prefix}Empty`) : translate(lang, `${prefix}After`).replace('{n}', String(range.start));
+    if (range.count === 0) return range.start === 0 ? translate(lang, `${prefix}Empty`) : interpolate(translate(lang, `${prefix}After`), { n: String(range.start) });
     const lines = range.count === 1 ? String(range.start) : `${range.start}–${range.start + range.count - 1}`;
-    return translate(lang, prefix).replace('{lines}', lines);
+    return interpolate(translate(lang, prefix), { lines });
   };
   return `${side(parsed.old, true)} → ${side(parsed.next, false)}`;
 }

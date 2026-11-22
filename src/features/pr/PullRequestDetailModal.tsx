@@ -67,7 +67,7 @@ const REVIEW_EVENTS: ReadonlyArray<{ event: ReviewEvent; labelKey: string; activ
  *   merged/closed 只读，401/403 隐藏提交区并给出可读提示。
  */
 export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ pr, owner, repo, onClose }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const { can } = useCollaborationCapabilities();
   const canReview = can('code-hosting:review-pull-request');
   const providerId = useActiveProviderId();
@@ -216,7 +216,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
               <span>{t('pr.mergeInto')}</span>
               <Badge variant="outline" className="h-4 text-[11px]">{pr.base.ref}</Badge>
               <span className="text-muted-foreground/60">•</span>
-              <span>{t('pr.openedBy').replace('{user}', pr.user.login)}</span>
+              <span>{tf('pr.openedBy', { user: pr.user.login })}</span>
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -357,7 +357,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                 )}
                 {filesTruncated && (
                   <p role="status" className="text-[11px] text-amber-600 dark:text-amber-300">
-                    {t('prReview.truncatedNotice').replace('{n}', String(PR_FILES_SOFT_LIMIT))}
+                    {tf('prReview.truncatedNotice', { n: String(PR_FILES_SOFT_LIMIT) })}
                   </p>
                 )}
                 {visibleFiles.map(file => {
@@ -386,7 +386,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                         {fileComments > 0 && (
                           <Badge variant="outline" className="h-4 text-[10px] px-1 shrink-0 gap-0.5 text-sky-600 dark:text-sky-300 border-sky-500/30">
                             <MessageSquare className="h-2.5 w-2.5" />
-                            {t('prReview.fileComments').replace('{n}', String(fileComments))}
+                            {tf('prReview.fileComments', { n: String(fileComments) })}
                           </Badge>
                         )}
                         {fileDrafts > 0 && (
@@ -420,7 +420,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                   {t('prReview.submitTitle')}
                   {pending.length > 0 && (
                     <Badge variant="outline" className="h-4 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-300">
-                      {t('prReview.pendingBadge').replace('{n}', String(pending.length))}
+                      {tf('prReview.pendingBadge', { n: String(pending.length) })}
                     </Badge>
                   )}
                 </div>
@@ -461,7 +461,7 @@ export const PullRequestDetailModal: React.FC<PullRequestDetailModalProps> = ({ 
                       <div key={draft.id} data-pr-pending-draft={draft.id}
                         className="flex items-start gap-2 rounded-md bg-muted/40 border border-border/50 px-2 py-1 text-[11px]">
                         <span className="font-mono text-muted-foreground shrink-0 break-all">
-                          {draft.path} · {t(draft.side === 'LEFT' ? 'prReview.sideLeft' : 'prReview.sideRight')} · {t('prReview.lineLabel').replace('{line}', String(draft.line))}
+                          {draft.path} · {t(draft.side === 'LEFT' ? 'prReview.sideLeft' : 'prReview.sideRight')} · {tf('prReview.lineLabel', { line: String(draft.line) })}
                         </span>
                         <span className="flex-1 min-w-0 truncate text-foreground/90">{draft.body}</span>
                         <button type="button" aria-label={t('prReview.draftRemove')} title={t('prReview.draftRemove')}

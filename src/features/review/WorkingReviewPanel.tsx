@@ -9,7 +9,7 @@ import type { WorkingReviewController } from './useWorkingReview';
 import { formatDiffHunkLabel } from '@/utils/diffHunkLabel';
 
 export function WorkingReviewPanel({ review, filtered, onNext, onLocate }: { review: WorkingReviewController; filtered: boolean; onNext?: () => void; onLocate?: (issue: WorkingReviewIssue) => void }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const draftKey = JSON.stringify([review.key, review.snapshot?.fingerprint, review.noteTarget]);
   const text = useWorkingReviewDraftStore(state => state.drafts[draftKey] ?? '');
   const setDraft = useWorkingReviewDraftStore(state => state.setDraft);
@@ -34,7 +34,7 @@ export function WorkingReviewPanel({ review, filtered, onNext, onLocate }: { rev
         <Button size="xs" variant="ghost" onClick={onNext}>{t('workingReview.nextPending')}<ChevronRight aria-hidden="true" className="size-3" /></Button>
       </>}
       <Button size="xs" variant="ghost" aria-expanded={review.noteTarget !== undefined} onClick={() => review.setNoteTarget(review.noteTarget === undefined ? null : undefined)}><MessageSquare className="h-3 w-3" />{t('workingReview.issues')} ({issues.length})</Button>
-      {!!review.unresolved && <span className="text-destructive">{t('workingReview.resolveFirst').replace('{n}', String(review.unresolved))}</span>}
+      {!!review.unresolved && <span className="text-destructive">{tf('workingReview.resolveFirst', { n: String(review.unresolved) })}</span>}
       {filtered && <span className="text-muted-foreground">{t('workingReview.filtered')}</span>}
       {review.failed && <><span className="text-muted-foreground">{t('workingReview.loadFailed')}</span><Button size="xs" variant="ghost" onClick={review.retry}>{t('composer.retry')}</Button></>}
     </div>

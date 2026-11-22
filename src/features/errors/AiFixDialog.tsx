@@ -31,7 +31,7 @@ export const AiFixDialog: React.FC<{
   prefixMap?: readonly { from: string; to: string }[];
   onDismiss: () => void;
 }> = ({ open, issue, frames, repoPath, trackedFiles, prefixMap, onDismiss }) => {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const config = useSettingsStore((state) => state.aiConfig);
   const [phase, setPhase] = useState<Phase>('working');
   const [statusText, setStatusText] = useState('');
@@ -84,11 +84,11 @@ export const AiFixDialog: React.FC<{
         if (!files.length) {
           // 给出可行动的线索：展示堆栈原始路径样例，引导配置路径前缀映射
           const sample = frames.map((frame) => frame.file).filter(Boolean).slice(0, 2).join(' , ');
-          fail(sample ? t('errors.ai.noContextHint').replace('{sample}', sample) : t('errors.ai.noContext'));
+          fail(sample ? tf('errors.ai.noContextHint', { sample: sample }) : t('errors.ai.noContext'));
           return;
         }
         setContextNote(
-          [skipped > 0 ? t('errors.ai.skippedFiles').replace('{n}', String(skipped)) : '', truncated ? t('errors.ai.truncated') : '']
+          [skipped > 0 ? tf('errors.ai.skippedFiles', { n: String(skipped) }) : '', truncated ? t('errors.ai.truncated') : '']
             .filter(Boolean)
             .join(' '),
         );

@@ -14,7 +14,7 @@ export function OverviewRepositoryRow({ repo, row, ci, current, expanded, busy, 
   repo: RepositoryInfo; row: OverviewRowState; ci?: OverviewCI; current: boolean; expanded: boolean; busy: boolean; opening: boolean;
   onToggle: () => void; onRetry: () => void; onChanges: () => void; onHistory: () => void; onConnect?: () => void;
 }) {
-  const { t, lang } = useI18n(), detailsId = useId();
+  const { t, lang, tf } = useI18n(), detailsId = useId();
   const local = row.local, counts = local && overviewCounts(local.status);
   const state = ci?.state || (busy ? 'loading' : 'unknown');
   const ciTone = state === 'passing' ? 'good' : state === 'failed' ? 'danger' : state === 'running' || state === 'loading' ? 'active' : 'muted';
@@ -35,15 +35,15 @@ export function OverviewRepositoryRow({ repo, row, ci, current, expanded, busy, 
       <div className="overview-work-cell" role="group" aria-label={t('overview.workspace')}>
         <span className="overview-cell-label">{t('overview.workspace')}</span>
         {counts ? <>
-          <span className="overview-status" data-tone={counts.conflicts ? 'danger' : counts.changed ? 'normal' : 'good'}>{counts.conflicts ? <GitMerge aria-hidden="true" size={13} /> : counts.changed ? <span className="overview-status-dot" /> : <CheckCircle2 aria-hidden="true" size={13} />}{t(counts.conflicts ? 'overview.conflicts' : counts.changed ? 'overview.changed' : 'overview.clean').replace('{n}', String(counts.conflicts || counts.changed))}</span>
+          <span className="overview-status" data-tone={counts.conflicts ? 'danger' : counts.changed ? 'normal' : 'good'}>{counts.conflicts ? <GitMerge aria-hidden="true" size={13} /> : counts.changed ? <span className="overview-status-dot" /> : <CheckCircle2 aria-hidden="true" size={13} />}{tf(counts.conflicts ? 'overview.conflicts' : counts.changed ? 'overview.changed' : 'overview.clean', { n: String(counts.conflicts || counts.changed) })}</span>
           {local?.operation.type !== 'none' && <span className="overview-secondary">{t(`activity.command.${local?.operation.type}`)}</span>}
         </> : <span className="overview-status" data-tone={row.phase === 'error' ? 'danger' : row.phase === 'permission' ? 'muted' : 'normal'}>{row.phase === 'reading' ? <LoaderCircle aria-hidden="true" size={13} className="overview-spinner" /> : row.phase === 'permission' ? <ShieldAlert aria-hidden="true" size={13} /> : row.phase === 'error' ? <CircleAlert aria-hidden="true" size={13} /> : <Clock3 aria-hidden="true" size={13} />}{t(row.phase === 'reading' ? 'overview.reading' : row.phase === 'permission' ? 'overview.needsPermission' : row.phase === 'error' ? 'overview.unavailable' : 'overview.pending')}</span>}
       </div>
       <div className="overview-sync-cell" role="group" aria-label={t('overview.sync')}>
         <span className="overview-cell-label">{t('overview.sync')}</span>
         {!local ? <span className="overview-secondary">—</span> : !local.status.trackingBranch ? <span className="overview-secondary">{t('overview.noTracking')}</span> : !local.status.ahead && !local.status.behind ? <span className="overview-status" data-tone="muted"><CheckCircle2 aria-hidden="true" size={13} />{t('overview.synced')}</span> : <>
-          {local.status.ahead > 0 && <span className="overview-sync-count"><ArrowUp aria-hidden="true" size={12} />{t('overview.ahead').replace('{n}', String(local.status.ahead))}</span>}
-          {local.status.behind > 0 && <span className="overview-secondary overview-sync-count"><ArrowDown aria-hidden="true" size={11} />{t('overview.behind').replace('{n}', String(local.status.behind))}</span>}
+          {local.status.ahead > 0 && <span className="overview-sync-count"><ArrowUp aria-hidden="true" size={12} />{tf('overview.ahead', { n: String(local.status.ahead) })}</span>}
+          {local.status.behind > 0 && <span className="overview-secondary overview-sync-count"><ArrowDown aria-hidden="true" size={11} />{tf('overview.behind', { n: String(local.status.behind) })}</span>}
         </>}
       </div>
       <section aria-label="CI" className="overview-ci-cell">
@@ -55,7 +55,7 @@ export function OverviewRepositoryRow({ repo, row, ci, current, expanded, busy, 
           <Button size="xs" variant="ghost" disabled={opening} onClick={onChanges} aria-label={t('overview.openChanges')} title={t('overview.openChanges')} className="overview-open"><span className="overview-open-label">{t('overview.openChanges')}</span><ArrowUpRight aria-hidden="true" size={13} /></Button>
           <Button size="icon" variant="ghost" disabled={opening} onClick={onHistory} aria-label={t('overview.openHistory')} title={t('overview.openHistory')} className="overview-icon-btn"><History aria-hidden="true" size={14} /></Button>
         </> : <Button size="xs" variant="outline" disabled={busy} onClick={onRetry}>{t(row.phase === 'permission' ? 'overview.authorize' : 'overview.retry')}</Button>}
-        <Button size="icon" variant="ghost" onClick={onToggle} aria-expanded={expanded} aria-controls={detailsId} aria-label={t('overview.detailsFor').replace('{name}', repo.name)} title={t('overview.details')} className="overview-icon-btn"><ChevronDown aria-hidden="true" size={14} className={expanded ? 'rotate-180' : ''} /></Button>
+        <Button size="icon" variant="ghost" onClick={onToggle} aria-expanded={expanded} aria-controls={detailsId} aria-label={tf('overview.detailsFor', { name: repo.name })} title={t('overview.details')} className="overview-icon-btn"><ChevronDown aria-hidden="true" size={14} className={expanded ? 'rotate-180' : ''} /></Button>
       </div>
     </div>
     {row.phase === 'error' && <p role="alert" className="overview-row-message" data-tone="danger"><CircleAlert aria-hidden="true" size={13} /><span>{row.error}</span></p>}

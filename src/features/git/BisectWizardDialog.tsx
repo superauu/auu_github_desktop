@@ -40,7 +40,7 @@ const DIRTY_TREE = /local changes|would be overwritten by checkout|untracked wor
 const MAX_SELECT_COMMITS = 300;
 
 export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath, commits, defaultBadHash, onClose }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [phase, setPhase] = useState<Phase>('boot');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -303,7 +303,7 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
                 </select>
               </div>
               {span !== null && span > 0 && (
-                <p className="text-muted-foreground">{t('bisect.rangeCount').replace('{n}', String(span))}</p>
+                <p className="text-muted-foreground">{tf('bisect.rangeCount', { n: String(span) })}</p>
               )}
             </>
           )}
@@ -312,7 +312,7 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
             <>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[12px] font-medium text-foreground">{t('bisect.candidate')}</span>
-                {steps !== null && <Badge variant="outline" className="h-4 text-[12px] font-mono shrink-0">{t('bisect.stepsRemaining').replace('{n}', String(steps))}</Badge>}
+                {steps !== null && <Badge variant="outline" className="h-4 text-[12px] font-mono shrink-0">{tf('bisect.stepsRemaining', { n: String(steps) })}</Badge>}
               </div>
               {renderCandidate(candidate)}
               <div className="flex flex-wrap items-center gap-2">
@@ -355,7 +355,7 @@ export const BisectWizardDialog: React.FC<BisectWizardDialogProps> = ({ repoPath
               {renderCandidate(firstBad)}
               <p className="text-muted-foreground">{t('bisect.resultHint')}</p>
               <div>
-                <div className="text-[12px] font-medium text-foreground mb-1">{t('bisect.files').replace('{n}', String(files.length))}</div>
+                <div className="text-[12px] font-medium text-foreground mb-1">{tf('bisect.files', { n: String(files.length) })}</div>
                 {files.length === 0 ? (
                   <p className="text-muted-foreground">{t('bisect.logEmpty')}</p>
                 ) : (

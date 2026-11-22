@@ -11,7 +11,7 @@ import { useI18n } from '@/i18n';
 import { toast } from '@/stores/toastStore';
 
 export function RecoveryCenterDialog({ repoPath, onClose }: { repoPath: string; onClose: () => void }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const [entries, setEntries] = useState<ReflogEntry[]>([]);
   const [tab, setTab] = useState<'points' | 'reflog'>('points');
   const [comparison, setComparison] = useState<{ head: string; text: string; hash: string } | null>(null);
@@ -41,7 +41,7 @@ export function RecoveryCenterDialog({ repoPath, onClose }: { repoPath: string; 
         const diff = await historyWorkflowService.compare(repoPath, point.hash);
         const head = diff.head;
         if (!head) throw new Error(t('safety.stale'));
-        if (!await confirmAction({ title: t('recovery.restore'), description: t('recovery.confirm').replace('{branch}', point.branch).replace('{from}', head.slice(0, 8)).replace('{to}', point.hash.slice(0, 8)), danger: true, detail: diff.text || t('flow.noDiff') })) return;
+        if (!await confirmAction({ title: t('recovery.restore'), description: tf('recovery.confirm', { branch: point.branch, from: head.slice(0, 8), to: point.hash.slice(0, 8) }), danger: true, detail: diff.text || t('flow.noDiff') })) return;
         await branchSafetyService.restore(repoPath, point, head);
         if (useRepoStore.getState().currentRepo?.path === repoPath) await useRepoStore.getState().refreshAll();
         toast.success(t('recovery.restored'));
@@ -77,7 +77,7 @@ export function RecoveryCenterDialog({ repoPath, onClose }: { repoPath: string; 
     setBusy(true); setError('');
     try {
       if (!await confirmAction({ title: t('recoveryManage.delete'), confirmLabel: t('recoveryManage.delete'), danger: true,
-        description: t('recoveryManage.deleteConfirm').replace('{name}', point.name || t(`recovery.op.${point.operation}`)),
+        description: tf('recoveryManage.deleteConfirm', { name: point.name || t(`recovery.op.${point.operation}`) }),
         detail: `${point.branch} · ${point.hash.slice(0, 12)} · ${new Date(point.timestamp).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en-US')}` })) return;
       await branchSafetyService.remove(repoPath, point);
       if (editingRef === point.ref) setEditingRef(null);

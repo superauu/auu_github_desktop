@@ -67,7 +67,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     resolveFileOurs,
     resolveFileTheirs,
   } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo, readWorkingFile: state.readWorkingFile, saveAndStageConflictFile: state.saveAndStageConflictFile, resetFileConflictMarkers: state.resetFileConflictMarkers, resolveFileOurs: state.resolveFileOurs, resolveFileTheirs: state.resolveFileTheirs })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
 
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState<string>('');
@@ -397,7 +397,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
     const regionLines = (text: string) => (text.length > 0 ? text.split(/\r?\n/) : []);
 
     const lineRangeLabel = (span: BlockSpan) =>
-      t('resolver.lines').replace('{a}', String(span.start + 1)).replace('{b}', String(span.end));
+      tf('resolver.lines', { a: String(span.start + 1), b: String(span.end) });
 
     const shell = (label: string, tone: string, badge: string | null, body: React.ReactNode) => (
       <div className="flex-1 min-w-[160px] rounded-lg border border-border/60 bg-background/40 flex flex-col overflow-hidden">
@@ -470,13 +470,13 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
           renderBaseBody()
         )}
         {shell(
-          t('conflictBase.blockOurs').replace('{name}', block.currentBranchName),
+          tf('conflictBase.blockOurs', { name: block.currentBranchName }),
           'text-emerald-400',
           null,
           sideBody(regionLines(block.currentContent))
         )}
         {shell(
-          t('conflictBase.blockTheirs').replace('{name}', block.incomingBranchName),
+          tf('conflictBase.blockTheirs', { name: block.incomingBranchName }),
           'text-cyan-700 dark:text-cyan-300',
           null,
           sideBody(regionLines(block.incomingContent))
@@ -518,7 +518,7 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 : "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
             )}
           >
-            {hasConflicts ? t('resolver.remaining').replace('{n}', String(totalConflicts)) : t('resolver.allDone')}
+            {hasConflicts ? tf('resolver.remaining', { n: String(totalConflicts) }) : t('resolver.allDone')}
           </Badge>
         </div>
 
@@ -760,10 +760,10 @@ export const InteractiveConflictResolver: React.FC<InteractiveConflictResolverPr
                 <div className="bg-secondary/70 border-b border-border/80 px-3 py-1.5 flex items-center justify-between text-xs select-none">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[12px] text-foreground font-mono bg-background/60 px-2 py-0.5 rounded border border-border/60">
-                      {t('resolver.conflictNo').replace('{n}', String(block.index + 1))}
+                      {tf('resolver.conflictNo', { n: String(block.index + 1) })}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      {t('resolver.lines').replace('{a}', String(block.startLine)).replace('{b}', String(block.endLine))}
+                      {tf('resolver.lines', { a: String(block.startLine), b: String(block.endLine) })}
                     </span>
                   </div>
 

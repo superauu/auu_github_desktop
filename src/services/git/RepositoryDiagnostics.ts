@@ -1,6 +1,6 @@
 import { executeGit } from './GitExecutor';
 import { normalizeInvokeError } from './invokeError';
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { GitStatusResult, HealthIssue, RepoHealthDiagnosis, RepoOperationState } from './types';
 
@@ -57,7 +57,7 @@ export async function diagnoseRepository(repoPath: string, getStatus: (repoPath:
         issues.push({
           type: 'conflict',
           level: 'error',
-          title: tNow('diag.issue.conflictTitle').replace('{n}', String(conflictLines.length)),
+          title: tfNow('diag.issue.conflictTitle', { n: String(conflictLines.length) }),
           description: tNow('diag.issue.conflictDesc').replace(
             '{files}',
             `${conflictLines.map((l) => l.slice(3)).slice(0, 3).join(', ')}${conflictLines.length > 3 ? '…' : ''}`
@@ -116,7 +116,7 @@ export async function diagnoseRepository(repoPath: string, getStatus: (repoPath:
         issues.push({
           type: 'behind',
           level: 'warning',
-          title: tNow('diag.issue.behindTitle').replace('{n}', String(status.behind)),
+          title: tfNow('diag.issue.behindTitle', { n: String(status.behind) }),
           description: tNow('diag.issue.behindDesc'),
           actionHint: tNow('diag.issue.behindHint'),
         });
@@ -127,7 +127,7 @@ export async function diagnoseRepository(repoPath: string, getStatus: (repoPath:
         issues.push({
           type: 'unpushed',
           level: 'info',
-          title: tNow('diag.issue.unpushedTitle').replace('{n}', String(status.ahead)),
+          title: tfNow('diag.issue.unpushedTitle', { n: String(status.ahead) }),
           description: tNow('diag.issue.unpushedDesc'),
           actionHint: tNow('diag.issue.unpushedHint'),
         });
@@ -147,7 +147,7 @@ export async function diagnoseRepository(repoPath: string, getStatus: (repoPath:
         issues.push({
           type: 'clean',
           level: 'info',
-          title: tNow('diag.issue.localOnlyTitle').replace('{n}', String(unpushedBranches.length)),
+          title: tfNow('diag.issue.localOnlyTitle', { n: String(unpushedBranches.length) }),
           description: tNow('diag.issue.localOnlyDesc'),
         });
       }

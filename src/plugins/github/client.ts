@@ -1,4 +1,4 @@
-import { tNow } from '@/i18n';
+import { tNow, tfNow } from '@/i18n';
 import { providerFetch as fetch } from '@/services/http/providerHttp';
 import type { CollaborationCommitStatus, CollaborationIssue, CollaborationLabel, IssueInput, IssueListOptions, IssueSearchResult, IssueTimelineEvent, IssueUser } from '@/services/collaboration/issueTypes';
 import {
@@ -112,7 +112,7 @@ export class GitHubService {
       if (res.status === 401) {
         throw new GitHubApiError(401, tNow('err.ghBadCredentials'));
       }
-      throw new Error(tNow('err.ghAuthFailed').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghAuthFailed', { s: String(res.status) }));
     }
 
     return res.json();
@@ -141,7 +141,7 @@ export class GitHubService {
       headers: this.getHeaders(),
       signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) throw new Error(tNow('err.ghRepoInfo').replace('{s}', String(res.status)));
+    if (!res.ok) throw new Error(tfNow('err.ghRepoInfo', { s: String(res.status) }));
     return res.json();
   }
 
@@ -214,7 +214,7 @@ export class GitHubService {
     );
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(tNow('err.ghDispatch').replace('{s}', String(res.status)).replace('{m}', errText));
+      throw new Error(tfNow('err.ghDispatch', { s: String(res.status), m: errText }));
     }
   }
 
@@ -234,7 +234,7 @@ export class GitHubService {
       }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghRerun').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghRerun', { s: String(res.status) }));
     }
   }
 
@@ -252,7 +252,7 @@ export class GitHubService {
       }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghCancel').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghCancel', { s: String(res.status) }));
     }
   }
 
@@ -271,7 +271,7 @@ export class GitHubService {
       { headers: this.getHeaders(), signal: AbortSignal.timeout(20_000) }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghLogs').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghLogs', { s: String(res.status) }));
     }
     const rawLogs = await res.text();
     return {
@@ -294,7 +294,7 @@ export class GitHubService {
       { headers: this.getHeaders(), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000), cache: 'no-store' }
     );
     if (!res.ok) {
-      throw new Error(tNow('err.ghYaml').replace('{s}', String(res.status)));
+      throw new Error(tfNow('err.ghYaml', { s: String(res.status) }));
     }
     const data = await res.json();
     let content = '';

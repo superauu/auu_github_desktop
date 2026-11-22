@@ -3,7 +3,7 @@ import { applyCursorTheme, normalizeCursorTheme, type CursorThemeId } from '@/ut
 import type { AiProtocol } from '@/services/ai/AiClient';
 import { externalToolService, type ExternalToolConfig } from '@/services/tools/ExternalToolService';
 import { syncCrashReporting } from '@/services/crash/CrashReportingService';
-import { tNow } from '@/i18n';
+import { tfNow } from '@/i18n';
 
 export interface AiApiConfig {
   provider: 'builtin' | 'openai-compatible';
@@ -166,7 +166,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
           await keyWrites;
           const key = await invoke<string | null>('get_ai_key');
           if (version === keyVersion) set({ aiConfig: { ...get().aiConfig, apiKey: key || '' } });
-        } catch (error) { set({ credentialError: tNow('err.aiCredentialReadFailed').replace('{m}', String(error)) }); }
+        } catch (error) { set({ credentialError: tfNow('err.aiCredentialReadFailed', { m: String(error) }) }); }
       })();
       return secretInit;
     },
@@ -255,7 +255,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
             const { invoke } = await import('@tauri-apps/api/core');
             await invoke('store_ai_key', { key });
             set({ credentialError: null });
-          }).catch((error) => { set({ credentialError: tNow('err.aiCredentialSaveFailed').replace('{m}', String(error)) }); });
+          }).catch((error) => { set({ credentialError: tfNow('err.aiCredentialSaveFailed', { m: String(error) }) }); });
         }
       }
       set({ aiConfig: updatedAi });

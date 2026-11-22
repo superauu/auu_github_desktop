@@ -32,7 +32,7 @@ export function CommitSnapshotTree({ repoPath, commitHash, onViewDiff, canViewDi
   /** 可选：限制“跳到差异”按钮的可用范围（如图像弹窗只允许图像文件跳转）。 */
   canViewDiff?: (path: string) => boolean;
 }) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const fontSize = useSettingsStore(state => state.diffFontSize);
   const wrapLines = useSettingsStore(state => state.diffWrapLines);
   const requestRef = useRef(0);
@@ -117,12 +117,12 @@ export function CommitSnapshotTree({ repoPath, commitHash, onViewDiff, canViewDi
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 shrink-0">
         <input aria-label={t('fileTree.filterPlaceholder')} placeholder={t('fileTree.filterPlaceholder')} value={query} maxLength={200}
           onChange={event => setQuery(event.target.value)} className="glass-control h-7 min-w-0 flex-1 px-2 text-[12px]" />
-        <span className="shrink-0 text-[11px] font-mono text-muted-foreground">{t('fileTree.entryCount').replace('{count}', String(filteredEntries.length))}</span>
+        <span className="shrink-0 text-[11px] font-mono text-muted-foreground">{tf('fileTree.entryCount', { count: String(filteredEntries.length) })}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" role="tree" aria-label={t('fileTree.treeViewLabel')}>
         {loading ? <p role="status" className="p-3 text-[12px] text-muted-foreground">{t('fileTree.snapshotLoading')}</p>
           : error ? <div role="alert" className="space-y-2 p-3 text-[12px]">
-            <p className="text-destructive">{t('fileTree.snapshotError').replace('{m}', error)}</p>
+            <p className="text-destructive">{tf('fileTree.snapshotError', { m: error })}</p>
             <Button variant="outline" size="xs" onClick={() => setReloadTick(value => value + 1)}>{t('fileTree.retry')}</Button>
           </div>
           : !filteredEntries.length ? <p className="p-3 text-[12px] text-muted-foreground">{query.trim() ? t('fileTree.noMatch') : t('fileTree.snapshotEmpty')}</p>
@@ -162,13 +162,13 @@ export function CommitSnapshotTree({ repoPath, commitHash, onViewDiff, canViewDi
           <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 shrink-0">
             <FilePath path={viewerPath} />
             {viewerSize !== null && <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{formatBytes(viewerSize)}</span>}
-            {content.state === 'text' && !isEmptyText && <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{t('fileTree.lineCount').replace('{count}', String(contentLines.length))}</span>}
+            {content.state === 'text' && !isEmptyText && <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{tf('fileTree.lineCount', { count: String(contentLines.length) })}</span>}
             {isChangedFile && (!canViewDiff || canViewDiff(viewerPath)) && <Button variant="secondary" size="xs" onClick={() => onViewDiff(viewerPath)}>{t('fileTree.viewDiff')}</Button>}
           </div>
           <div tabIndex={0} role="region" aria-label={t('fileTree.contentViewLabel')} style={{ fontSize }}
             className={cn('flex-1 min-h-0 overflow-auto font-mono leading-6 select-text', wrapLines && 'diff-wrap')}>
             {content.state === 'loading' ? <p role="status" className="p-6 text-[12px] text-muted-foreground">{t('fileTree.contentLoading')}</p>
-              : content.state === 'error' ? <p role="alert" className="p-6 text-[12px] text-destructive">{t('fileTree.contentError').replace('{m}', content.message)}</p>
+              : content.state === 'error' ? <p role="alert" className="p-6 text-[12px] text-destructive">{tf('fileTree.contentError', { m: content.message })}</p>
                 : content.state === 'submodule' ? <p className="p-6 text-[12px] text-muted-foreground">{t('fileTree.submodule')}</p>
                   : content.state === 'binary' ? <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-muted-foreground">
                     <FileWarning className="h-8 w-8" />
@@ -177,7 +177,7 @@ export function CommitSnapshotTree({ repoPath, commitHash, onViewDiff, canViewDi
                   </div>
                     : content.state === 'too-large' ? <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-muted-foreground">
                       <FileWarning className="h-8 w-8" />
-                      <p className="text-[12px]">{t('fileTree.tooLargeFile').replace('{size}', formatBytes(content.sizeBytes)).replace('{limit}', formatBytes(MAX_TEXT_BLOB_BYTES))}</p>
+                      <p className="text-[12px]">{tf('fileTree.tooLargeFile', { size: formatBytes(content.sizeBytes), limit: formatBytes(MAX_TEXT_BLOB_BYTES) })}</p>
                     </div>
                       : isEmptyText ? <p className="p-6 text-[12px] text-muted-foreground">{t('fileTree.emptyFile')}</p>
                         : <VirtualRows items={contentLines} contentWidth={!wrapLines} renderRow={(line, index) => <div className="flex whitespace-pre pr-6">

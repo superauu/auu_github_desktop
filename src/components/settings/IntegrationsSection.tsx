@@ -120,7 +120,7 @@ const ConnectionRow: React.FC<{
 );
 
 export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: string) => void; onOpenAccountsTab?: () => void }> = ({ onManageAccounts, onOpenAccountsTab }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const hostingProfiles = useCollaborationStore(state => state.profiles);
   const ciConnections = useCiStore(state => state.connections);
   const activeProfileId = useCollaborationStore(state => state.activeProfileId);
@@ -303,7 +303,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
   const deleteTaskConnection = async (connection: TaskConnection) => {
     if (
       !await confirmAction({
-        title: t('errors.settings.deleteTitle').replace('{name}', connection.displayName),
+        title: tf('errors.settings.deleteTitle', { name: connection.displayName }),
         description: t('errors.settings.deleteDesc'),
       })
     ) {
@@ -319,7 +319,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
   const deleteConnection = async (connection: PersistedConnection) => {
     if (
       !await confirmAction({
-        title: t('errors.settings.deleteTitle').replace('{name}', connection.displayName),
+        title: tf('errors.settings.deleteTitle', { name: connection.displayName }),
         description: t('errors.settings.deleteDesc'),
       })
     ) {
@@ -335,7 +335,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
   const rowLabels = (displayName: string) => ({
     toggle: t('errors.settings.toggleConnection'),
     test: t('errors.settings.test'),
-    delete: t('errors.settings.deleteTitle').replace('{name}', displayName),
+    delete: tf('errors.settings.deleteTitle', { name: displayName }),
     connected: t('errors.settings.health.connected'),
     error: t('errors.settings.health.error'),
     unverified: t('errors.settings.health.unverified'),
@@ -372,7 +372,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
               variant="outline"
               className={cn('h-4 px-1 text-[10px]', connectedCount(manifest) > 0 ? 'text-emerald-500 border-emerald-500/40' : 'text-muted-foreground')}
             >
-              {connectedCount(manifest) > 0 ? t('errors.settings.connectedCount').replace('{n}', String(connectedCount(manifest))) : t('errors.settings.notConnected')}
+              {connectedCount(manifest) > 0 ? tf('errors.settings.connectedCount', { n: String(connectedCount(manifest)) }) : t('errors.settings.notConnected')}
             </Badge>
           </div>
           <ChevronRight className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', open && 'rotate-90')} />
@@ -450,7 +450,7 @@ export const IntegrationsSection: React.FC<{ onManageAccounts: (providerId: stri
         /* —— 连接表单：托管平台只需 token；独立任务系统为 OAuth + API Key 兜底 —— */
         <div className="space-y-2 rounded-lg border border-border p-2.5 bg-accent/20" data-testid="errors-connect-form">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium">{t('errors.connect.formTitle').replace('{name}', selectedManifest.name)}</span>
+            <span className="text-xs font-medium">{tf('errors.connect.formTitle', { name: selectedManifest.name })}</span>
             <Button variant="ghost" size="icon-xs" aria-label={t('common.close')} onClick={dismissForm}>
               <X className="h-3 w-3" />
             </Button>

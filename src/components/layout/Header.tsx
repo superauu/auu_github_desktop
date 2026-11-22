@@ -266,7 +266,7 @@ export const Header: React.FC<HeaderProps> = ({
   const {
     user, isAuthenticated, profiles, activeProfileId, switchProfile, addProfile,
   } = useCollaborationStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, profiles: state.profiles, activeProfileId: state.activeProfileId, switchProfile: state.switchProfile, addProfile: state.addProfile })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   useEffect(() => { setIgnoreRepoPath(null); setWorktreesRepoPath(null); }, [currentRepo?.path]);
   const repoPath = currentRepo?.path;
   useEffect(() => {
@@ -510,7 +510,7 @@ export const Header: React.FC<HeaderProps> = ({
       return;
     }
     setBatchBusyGroupId(group.id);
-    toast.info(t('workspaces.batchFetching').replace('{n}', String(allowed.length)));
+    toast.info(tf('workspaces.batchFetching', { n: String(allowed.length) }));
     try {
       const result = await runBatchFetch(allowed, (repoPath) => gitService.fetch(repoPath));
       const summary = batchFetchToast(result, t);

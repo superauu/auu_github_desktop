@@ -21,7 +21,7 @@ const toggleButton = (active: boolean) =>
     : 'border-border/60 text-muted-foreground hover:bg-accent hover:text-foreground'}`;
 
 export const GlobalSearchDialog: React.FC<GlobalSearchDialogProps> = ({ open, onOpenChange }) => {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const { currentRepo } = useRepoStore(useShallow(state => ({ currentRepo: state.currentRepo })));
   const repoPath = currentRepo?.path;
   const [query, setQuery] = useState('');
@@ -141,8 +141,8 @@ export const GlobalSearchDialog: React.FC<GlobalSearchDialogProps> = ({ open, on
           ) : (
             <>
               <p className="px-3 pt-2 pb-1 text-[12px] text-muted-foreground tabular-nums">
-                {t('codeSearch.resultSummary').replace('{hits}', String(result.hits.length)).replace('{files}', String(groups.length))}
-                {result.truncated && ` · ${t('codeSearch.truncated').replace('{n}', String(MAX_HITS))}`}
+                {tf('codeSearch.resultSummary', { hits: String(result.hits.length), files: String(groups.length) })}
+                {result.truncated && ` · ${tf('codeSearch.truncated', { n: String(MAX_HITS) })}`}
               </p>
               {groups.map(([file, hits]) => (
                 <div key={file}>

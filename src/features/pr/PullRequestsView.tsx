@@ -67,7 +67,7 @@ export const PullRequestsView: React.FC = () => {
   } = useCollaborationStore(useShallow(state => ({ pullRequests: state.pullRequests, selectedPR: state.selectedPR, selectPR: state.selectPR, prFilterState: state.prFilterState, setPRFilterState: state.setPRFilterState, loadPullRequests: state.loadPullRequests, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isLoadingPullRequests: state.isLoadingPullRequests, pullRequestsError: state.pullRequestsError })));
 
   const { fetchAndCheckoutPR } = useRepoStore(useShallow(state => ({ fetchAndCheckoutPR: state.fetchAndCheckoutPR })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const collaborationScope = useCollaborationScope();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,11 +145,11 @@ export const PullRequestsView: React.FC = () => {
   const handleCheckoutPR = async () => {
     if (!activePR) return;
     setIsCheckingOut(true);
-    toast.info(t('pr.fetching').replace('{n}', String(activePR.number)));
+    toast.info(tf('pr.fetching', { n: String(activePR.number) }));
     try {
       const localBranch = await fetchAndCheckoutPR(activePR.number);
       toast.success(
-        t('pr.fetched').replace('{n}', String(activePR.number)) + ',',
+        tf('pr.fetched', { n: String(activePR.number) }) + ',',
         `${t('pr.switchedTo')}: ${localBranch}`
       );
     } catch (err: any) {
@@ -163,7 +163,7 @@ export const PullRequestsView: React.FC = () => {
     if (!activePR || !currentOwner || !currentRepoName) return;
     const path = useRepoStore.getState().currentRepo?.path;
     const valid = () => collaborationScope.isCurrent() && useRepoStore.getState().currentRepo?.path === path;
-    if (!await confirmAction({ title: t('composer.mergePr'), description: t('pr.mergeConfirm').replace('{n}', String(activePR.number)).replace('{base}', activePR.base.ref), detail: activePR.title })) {
+    if (!await confirmAction({ title: t('composer.mergePr'), description: tf('pr.mergeConfirm', { n: String(activePR.number), base: activePR.base.ref }), detail: activePR.title })) {
       return;
     }
     if (!valid()) return;
@@ -175,7 +175,7 @@ export const PullRequestsView: React.FC = () => {
       });
       if (!valid()) return;
       if (result.merged) {
-        toast.success(t('pr.mergeMerged').replace('{n}', String(activePR.number)), result.message);
+        toast.success(tf('pr.mergeMerged', { n: String(activePR.number) }), result.message);
         refreshLinkedIssues(activePR, currentOwner, currentRepoName, valid);
       } else {
         toast.info(result.message || t('pr.mergeNotMerged'));
@@ -193,13 +193,13 @@ export const PullRequestsView: React.FC = () => {
     // 与 handleMergePR 同等的上下文守卫：确认期间切换仓库/账号时不得落写到新上下文。
     const path = useRepoStore.getState().currentRepo?.path;
     const valid = () => collaborationScope.isCurrent() && useRepoStore.getState().currentRepo?.path === path;
-    if (!await confirmAction({ title: t('composer.closePr'), description: t('pr.closeConfirm').replace('{n}', String(activePR.number)), detail: activePR.title, danger: false })) return;
+    if (!await confirmAction({ title: t('composer.closePr'), description: tf('pr.closeConfirm', { n: String(activePR.number) }), detail: activePR.title, danger: false })) return;
     if (!valid()) return;
     setIsClosing(true);
     try {
       await collaborationService.updatePullRequestState(currentOwner, currentRepoName, activePR.number, 'closed');
       if (!valid()) return;
-      toast.success(t('pr.closed').replace('{n}', String(activePR.number)));
+      toast.success(tf('pr.closed', { n: String(activePR.number) }));
       await loadPullRequests();
     } catch (err: any) {
       if (valid()) toast.error(t('pr.closeFailed'), err?.message);
@@ -353,8 +353,8 @@ export const PullRequestsView: React.FC = () => {
                           variant="outline"
                           size="xs"
                           disabled={!can('code-hosting:review-pull-request')} onClick={(event) => { event.stopPropagation(); setReviewPR(pr); }}
-                          aria-label={t('prReview.openAria').replace('{n}', String(pr.number))}
-                          title={!can('code-hosting:review-pull-request') ? t('connections.unavailableCapability') : t('prReview.openTitle').replace('{n}', String(pr.number))}
+                          aria-label={tf('prReview.openAria', { n: String(pr.number) })}
+                          title={!can('code-hosting:review-pull-request') ? t('connections.unavailableCapability') : tf('prReview.openTitle', { n: String(pr.number) })}
                           className="ml-auto h-5 px-1.5 text-[10px] gap-1 shrink-0"
                         >
                           <MessageSquare className="h-2.5 w-2.5" />
@@ -410,7 +410,7 @@ export const PullRequestsView: React.FC = () => {
                     </Badge>
 
                     <span className="text-muted-foreground/60">•</span>
-                    <span>{t('pr.openedBy').replace('{user}', activePR.user.login)}</span>
+                    <span>{tf('pr.openedBy', { user: activePR.user.login })}</span>
                   </div>
                 </div>
 
@@ -422,7 +422,7 @@ export const PullRequestsView: React.FC = () => {
                     onClick={handleCheckoutPR}
                     disabled={isCheckingOut}
                     className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
-                    title={t('pr.checkoutTitle').replace('{n}', String(activePR.number))}
+                    title={tf('pr.checkoutTitle', { n: String(activePR.number) })}
                   >
                     <DownloadCloud className="h-3.5 w-3.5" />
                     <span>{isCheckingOut ? t('pr.checkingOut') : t('pr.checkout')}</span>
@@ -458,7 +458,7 @@ export const PullRequestsView: React.FC = () => {
                         onClick={handleMergePR}
                         disabled={isMerging || !can('code-hosting:merge-pull-request')}
                         className="gap-1.5"
-                        title={!can('code-hosting:merge-pull-request') ? t('connections.unavailableCapability') : t('pr.mergeTitle').replace('{n}', String(activePR.number))}
+                        title={!can('code-hosting:merge-pull-request') ? t('connections.unavailableCapability') : tf('pr.mergeTitle', { n: String(activePR.number) })}
                       >
                         <GitMerge className="h-3.5 w-3.5" />
                         <span>{isMerging ? t('pr.merging') : t('pr.merge')}</span>
@@ -555,7 +555,7 @@ export const PullRequestsView: React.FC = () => {
                         <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <span className="truncate">{activePR.user.login}</span>
                         <span className="text-muted-foreground/70 shrink-0" title={new Date(activePR.created_at).toLocaleString()}>
-                          {t('pr.openedAt').replace('{date}', new Date(activePR.created_at).toLocaleDateString())}
+                          {tf('pr.openedAt', { date: new Date(activePR.created_at).toLocaleDateString() })}
                         </span>
                       </div>
                     </div>

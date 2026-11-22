@@ -50,7 +50,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
     logout,
     isLoading: isStoreLoading,
   } = useCollaborationStore(useShallow(state => ({ user: state.user, isAuthenticated: state.isAuthenticated, currentOwner: state.currentOwner, currentRepoName: state.currentRepoName, isAddingProfile: state.isAddingProfile, login: state.login, logout: state.logout, isLoading: state.isLoading })));
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
 
   const [authMode, setAuthMode] = useState<'oauth' | 'pat'>('oauth');
   const [tokenInput, setTokenInput] = useState('');
@@ -428,7 +428,7 @@ export const GitHubAuthDialog: React.FC<GitHubAuthDialogProps> = ({
                       <div className="flex items-center gap-2.5">
                         <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
                         <span className="text-muted-foreground">
-                          {t('auth.waitingConfirm')} ({t('auth.pollAttempt').replace('{n}', String(pollInfo?.attempt || 1))})...
+                          {t('auth.waitingConfirm')} ({tf('auth.pollAttempt', { n: String(pollInfo?.attempt || 1) })})...
                         </span>
                       </div>
                       <Button

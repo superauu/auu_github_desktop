@@ -43,7 +43,7 @@ type SelectedIssue = { scope: IssueSourceScope; number: IssueNumber };
 type CreateTarget = 'pick' | IssueSourceScope | null;
 
 function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
-  const { t, lang } = useI18n();
+  const { t, lang, tf } = useI18n();
   const [showFilters, setShowFilters] = useState(false);
   const [filter, setFilter] = useState<IssueSourceFilter>('all');
   const [state, setState] = useState<IssueListOptions['state']>('open'), [query, setQuery] = useState('');
@@ -171,7 +171,7 @@ function IssueWorkspace({ available }: { available: IssueSourceScope[] }) {
           {merged.map(row)}
           {merged.length > 0 && <div className="issues-list-footer">
             {hasMore && <Button variant="outline" size="xs" className="w-full" disabled={loading} onClick={() => void loadMore()}>{t(loading ? 'common.loading' : 'issues.loadMore')}</Button>}
-            <p role="status">{t(hasMore || incomplete || failures.length ? 'issues.loaded' : 'issues.allLoaded').replace('{count}', new Intl.NumberFormat(lang === 'zh' ? 'zh-CN' : 'en').format(merged.length))}</p>
+            <p role="status">{tf(hasMore || incomplete || failures.length ? 'issues.loaded' : 'issues.allLoaded', { count: new Intl.NumberFormat(lang === 'zh' ? 'zh-CN' : 'en').format(merged.length) })}</p>
             {incomplete && <p>{t('issues.searchLimit')}</p>}
           </div>}
         </div>
