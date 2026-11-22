@@ -99,6 +99,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     <div
       ref={menuRef}
       role="menu"
+      tabIndex={-1}
       aria-label={label}
       onKeyDown={event => {
         if (event.key === 'Tab') { event.preventDefault(); closeRef.current(); return; }

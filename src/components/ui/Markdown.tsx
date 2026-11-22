@@ -13,7 +13,7 @@ export function Markdown({ children, baseUrl }: { children: string; baseUrl?: st
       if (!href.startsWith('#')) { event.preventDefault(); void openExternalUrl(href); }
     }}>{children}</a> : <span>{children}</span>,
     img: ({ src, alt, title }) => src ? <img src={src} alt={alt ?? ''} title={title} loading="lazy" referrerPolicy="no-referrer" /> : <span>{alt}</span>,
-    table: ({ children }) => <div className="markdown-table-scroll" tabIndex={0}><table>{children}</table></div>,
+    table: ({ children }) => <div role="region" aria-label={t('markdown.tableScrollRegion')} className="markdown-table-scroll" tabIndex={0}><table>{children}</table></div>,
     // The page owns its h1; issue content starts at h2.
     h1: ({ children }) => <h2 className="markdown-h1">{children}</h2>,
   };

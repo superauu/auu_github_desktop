@@ -125,13 +125,13 @@ export function CiDomainDashboardView({ connection, binding }: { connection: CiC
           <div className="divide-y divide-border/50" role="list" aria-label={t('actions.runHistory')} aria-busy={loading}>
           {loading && !runs.length && <WorkspaceLoading>{t('common.loading')}</WorkspaceLoading>}
           {!loading && !error && !runs.length && <EmptyState title={t('ui.actions.empty')} />}
-          {runs.map(run => <button key={run.id} role="listitem" type="button" aria-current={selectedId === run.id ? 'true' : undefined}
+          {runs.map(run => <div key={run.id} role="listitem"><button type="button" aria-current={selectedId === run.id ? 'true' : undefined}
             className={cn('w-full text-left p-2.5 flex items-center justify-between gap-3 text-xs transition-colors border-l-2', selectedId === run.id ? 'bg-primary/12 border-l-primary' : 'hover:bg-accent/40 border-l-transparent')}
             onClick={() => setSelectedId(run.id)}>
             <span className="min-w-0 truncate font-medium">{run.name}</span>
             <span className="flex shrink-0 items-center gap-3"><span className="font-mono text-muted-foreground inline-flex items-center gap-1">{run.head_branch && <GitBranch className="h-3 w-3 text-git-branch" />}{run.head_branch}</span>
               {run.head_sha && <span className="font-mono text-muted-foreground inline-flex items-center gap-1"><GitCommit className="h-3 w-3" />{run.head_sha.slice(0, 7)}</span>}{status(run)}</span>
-          </button>)}
+          </button></div>)}
           </div>
           </ScrollArea>
         </div>

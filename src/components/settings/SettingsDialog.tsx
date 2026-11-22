@@ -555,12 +555,12 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-xs font-medium">{t('settings.cursor.label')}</summary><div className="pt-3"><CursorThemePicker /></div></details>
 
                 <div className="pt-2 border-t border-border">
-                  <label className="flex items-center justify-between gap-4 py-2 cursor-pointer">
+                  <label htmlFor="layout-pin-navigation" className="flex items-center justify-between gap-4 py-2 cursor-pointer">
                     <span>
                       <span className="block font-medium text-foreground">{t('layout.pinNavigation')}</span>
                       <span className="block text-[12px] text-muted-foreground">{t('layout.pinNavigationDesc')}</span>
                     </span>
-                    <input type="checkbox" checked={navigationPinned} onChange={event => {
+                    <input id="layout-pin-navigation" type="checkbox" checked={navigationPinned} onChange={event => {
                       setNavigationPinned(event.target.checked);
                       if (event.target.checked) useRepoStore.setState({ isLeftSidebarCollapsed: false });
                     }} className="shrink-0 h-4 w-4 accent-primary" />

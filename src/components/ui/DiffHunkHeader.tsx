@@ -36,7 +36,7 @@ export function DiffHunkHeader({ header, stats, scope, query = '' }: { header: s
       {stats && <p className="flex flex-wrap gap-3 text-xs"><span className="text-git-added">{added}</span><span className="text-git-deleted">{removed}</span></p>}
       <p className="text-xs text-muted-foreground">{t('diffHunk.explanation')}</p>
       {parsed.context && <div className="space-y-1 text-xs"><p className="text-muted-foreground">{t('diffHunk.context')}</p><p className="max-h-24 overflow-auto whitespace-pre-wrap wrap-break-word select-text">{parsed.context}</p></div>}
-      <div className="space-y-1 text-xs"><p className="text-muted-foreground">{t('diffHunk.original')}</p><pre tabIndex={0} className="max-h-40 overflow-auto rounded bg-muted p-2 whitespace-pre-wrap wrap-break-word select-text font-mono">{header}</pre></div>
+      <div className="space-y-1 text-xs"><p className="text-muted-foreground">{t('diffHunk.original')}</p><pre tabIndex={0} role="region" aria-label={t('diffHunk.original')} className="max-h-40 overflow-auto rounded bg-muted p-2 whitespace-pre-wrap wrap-break-word select-text font-mono">{header}</pre></div>
       <Button size="sm" variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(header); setFeedback('copied'); } catch { setFeedback('copyFailed'); } }}><Copy aria-hidden="true" className="size-3.5" />{t('diffHunk.copy')}</Button>
       {feedback && <p role={feedback === 'copied' ? 'status' : 'alert'} className="text-xs text-muted-foreground">{t(`diffHunk.${feedback}`)}</p>}
     </Popover.Content></Popover.Portal>
