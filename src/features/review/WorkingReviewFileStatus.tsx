@@ -10,7 +10,7 @@ export function workingFileReviewLabel(state: WorkingFileReviewState, t: (key: s
 }
 
 export function WorkingReviewFileStatus({ state, compact = false }: { state: WorkingFileReviewState; compact?: boolean }) {
-  const { t, tf } = useI18n();
+  const { tf } = useI18n();
   const approved = state.kind === 'approved', issues = state.kind === 'issues', checking = state.kind === 'checking';
   const Icon = approved ? CheckCircle2 : issues ? MessageSquare : checking ? Loader2 : state.kind === 'partial' ? CircleDot : Circle;
   const label = workingFileReviewLabel(state, tf);
