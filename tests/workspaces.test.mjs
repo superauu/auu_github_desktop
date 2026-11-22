@@ -151,7 +151,7 @@ test('batchFetchToast summarizes counts and the failed repo list', () => {
     'workspaces.batchFetchDone': 'done {n}',
     'workspaces.batchFetchPartial': 'ok {n} failed {m}',
   };
-  const t = (key) => dict[key] || key;
+  const t = (key, vars) => (dict[key] || key).replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? `{${name}}`));
   const allOk = app.batchFetchToast(
     { ok: [{ path: 'a', name: 'a' }, { path: 'b', name: 'b' }, { path: 'c', name: 'c' }], failed: [] },
     t,

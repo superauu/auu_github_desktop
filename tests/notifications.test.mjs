@@ -33,6 +33,20 @@ const templates = {
   'notifications.ciSummaryMore': '{count} more',
 };
 export const tNow = (key) => templates[key] ?? key;
+export const tfNow = (key, vars) => {
+  const template = templates[key] ?? key;
+  let out = '', cursor = 0;
+  while (cursor < template.length) {
+    const open = template.indexOf('{', cursor);
+    if (open < 0) { out += template.slice(cursor); break; }
+    const close = template.indexOf('}', open);
+    if (close < 0) { out += template.slice(cursor); break; }
+    const name = template.slice(open + 1, close);
+    out += template.slice(cursor, open) + (vars && Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : '{' + name + '}');
+    cursor = close + 1;
+  }
+  return out;
+};
 `;
 
 const storeStub = `

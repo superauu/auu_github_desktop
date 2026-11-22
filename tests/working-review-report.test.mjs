@@ -22,13 +22,13 @@ const key = (file = 'a.ts', repo = REPO, branch = 'main') => app.workingReviewKe
 const add = (text, file = 'a.ts', hunk = 'first', source = 'unstaged', repo = REPO, branch = 'main') => {
   const diff = snapshot(); app.useWorkingReviewStore.getState().addIssue(key(file, repo, branch), diff, text, hunk, app.captureWorkingIssueOrigin(diff, hunk, source, HEAD));
 };
-const report = (includeResolved = false, repoPath = REPO, branch = 'main') => app.buildWorkingReviewReport({ records: app.useWorkingReviewStore.getState().records, repoPath, branch, includeResolved, t: app.tNow });
+const report = (includeResolved = false, repoPath = REPO, branch = 'main') => app.buildWorkingReviewReport({ records: app.useWorkingReviewStore.getState().records, repoPath, branch, includeResolved, t: app.tfNow });
 const byId = (renderer, id) => renderer.root.findByProps({ 'data-testid': id });
 const text = node => typeof node === 'string' ? node : node.children.map(text).join('');
 
 before(async () => {
   tmp = await fs.mkdtemp(path.join(root, '.test-tmp-working-report-')); const outfile = path.join(tmp, 'report.cjs');
-  await build({ stdin: { contents: `export * from './src/features/review/workingReviewReportLogic'; export * from './src/stores/workingReviewStore'; export {WorkingReviewReport} from './src/features/review/WorkingReviewReport'; export {tNow} from './src/i18n'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-report', setup(b) { b.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({children}) {return children;}', loader: 'jsx' })); } }] });
+  await build({ stdin: { contents: `export * from './src/features/review/workingReviewReportLogic'; export * from './src/stores/workingReviewStore'; export {WorkingReviewReport} from './src/features/review/WorkingReviewReport'; export {tNow, tfNow} from './src/i18n'; export {useToastStore} from './src/stores/toastStore';`, resolveDir: root }, bundle: true, platform: 'node', format: 'cjs', outfile, external: ['react', 'react-dom'], alias: { '@': path.join(root, 'src') }, logLevel: 'silent', plugins: [{ name: 'headless-report', setup(b) { b.onLoad({ filter: /ModalSurface\.tsx$/ }, () => ({ contents: 'export function ModalSurface({children}) {return children;}', loader: 'jsx' })); } }] });
   app = createRequire(import.meta.url)(outfile);
 });
 beforeEach(() => { app.useWorkingReviewStore.setState({ records: {} }); app.useWorkingReviewStorageStatus.setState({ unavailable: false }); app.useToastStore.setState({ toasts: [] }); });
@@ -54,7 +54,7 @@ test('resolved notes are excluded by default and can be included as reference', 
 test('current reports exclude files outside working changes without resolving or deleting their notes', () => {
   add('Current change', 'a.ts'); add('Committed file note', 'committed.ts');
   const records = app.useWorkingReviewStore.getState().records;
-  const buildReport = options => app.buildWorkingReviewReport({ records, repoPath: REPO, branch: 'main', t: app.tNow, ...options });
+  const buildReport = options => app.buildWorkingReviewReport({ records, repoPath: REPO, branch: 'main', t: app.tfNow, ...options });
   assert.match(buildReport({ activePaths: ['a.ts'] }), /Current change/);
   assert.doesNotMatch(buildReport({ activePaths: ['a.ts'] }), /Committed file note/);
   assert.equal(buildReport({ activePaths: [] }), '');

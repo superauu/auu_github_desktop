@@ -20,7 +20,7 @@ export async function requestAiText(config, messages, options) {
 }
 `;
 const LIMITS_STUB = `export const AI_REQUEST_TIMEOUT_MS = 25;`;
-const I18N_STUB = `export const tNow = (key) => key; export const t = (key) => key;
+const I18N_STUB = `export const tNow = (key) => key; export const t = (key) => key; export const tfNow = (key) => key; export const tf = (key) => key;
 export class LocalizedError extends Error { constructor(key) { super(key); this.key = key; } }`;
 
 before(async () => {
